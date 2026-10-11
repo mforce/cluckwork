@@ -10,6 +10,7 @@ links there rather than restating rationale.
 git config core.hooksPath .githooks
 ```
 
+Run this yourself: the agent guard refuses a `core.hooksPath` write from an agent.
 Enables three hooks: **pre-commit** (refuses a commit on `main` or in the shared
 checkout, a main worktree that has linked worktrees beside it, then runs unit
 tests for staged .NET changes and `npm run typecheck` for staged `web/` changes),

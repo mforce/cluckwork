@@ -440,6 +440,65 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("git push --no-ver origin feat/l", "linked", "block"),  # ambiguous: verify or verbose
     ("git push -n origin feat/l", "linked", "allow"),  # -n is --dry-run; push has no short --no-verify
     ("git push --verify origin feat/l", "linked", "allow"),
+    # GraphQL routes to the same writes; `linked` holds mutation.graphql, read.graphql, mutation.json, read.json
+    *[(f"gh api graphql -f query='mutation {{ {name}(input: {{}}) {{ clientMutationId }} }}'", "linked", "block") for name in (
+        "createCommitOnBranch", "updateRef", "updateRefs", "createRef", "deleteRef", "mergeBranch",
+        "createRepositoryRuleset", "updateRepositoryRuleset", "deleteRepositoryRuleset",
+        "createBranchProtectionRule", "updateBranchProtectionRule", "deleteBranchProtectionRule")],
+    ("gh api https://api.github.com/graphql -f query='mutation { updateRef(input: {refId: \"R_x\", oid: \"abc\", force: true}) { clientMutationId } }'",
+     "linked", "block"),
+    ("gh api graphql -F query=@mutation.graphql", "linked", "block"),
+    ("gh api graphql --field query=@./mutation.graphql", "linked", "block"),
+    ("gh api graphql --input mutation.json", "linked", "block"),
+    ("gh api graphql --input=mutation.json", "linked", "block"),
+    ("gh api graphql -F query=@missing.graphql", "linked", "block"),  # unreadable query: fail closed
+    ("gh api graphql -F query=@-", "linked", "block"),
+    ("gh api graphql --input -", "linked", "block"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { ref(qualifiedName:\"main\") { target { oid } } } }'",
+     "linked", "allow"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { rulesets(first: 5) { nodes { id } } } }'",
+     "linked", "allow"),
+    ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { branchProtectionRules(first: 5) { nodes { pattern } } } }'",
+     "linked", "allow"),
+    ("gh api graphql -F query=@read.graphql", "linked", "allow"),
+    ("gh api graphql --input read.json", "linked", "allow"),
+    ("gh api graphql -f query='mutation { addComment(input: {subjectId: \"I_x\", body: \"hi\"}) { clientMutationId } }'", "linked", "allow"),
+    # Codex round 1 on #1224: config edit mode, the operation position, update-ref stdin mode and operands,
+    # and gh api GETs that may be piped, chained or hold gh's `{owner}` placeholders
+    ("git config --edit", "linked", "block"),
+    ("git config -e", "linked", "block"),
+    ("git config --global --edit", "linked", "block"),
+    ("git config edit", "linked", "block"),
+    ("git config --global edit", "linked", "block"),
+    ("git -c core.editor='sed -i s/.githooks/disabled/' config --edit", "linked", "block"),
+    ("git config core.hooksPath list", "linked", "block"),
+    ("git config core.hooksPath get", "linked", "block"),
+    ("git config list", "linked", "allow"),
+    ("git config list --show-origin", "linked", "allow"),
+    ("git config get --show-origin core.hooksPath", "linked", "allow"),
+    ("git update-ref --stdin", "linked", "block"),
+    ("git update-ref -z --stdin", "linked", "block"),
+    ("git update-ref --st", "linked", "block"),
+    ("git update-ref refs/heads/feat/review main", "linked", "allow"),
+    ("git update-ref refs/heads/feat/l refs/heads/main", "linked", "allow"),
+    ("git update-ref -m main refs/heads/feat/l HEAD", "linked", "allow"),
+    ("git update-ref --no-deref refs/heads/main HEAD", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | jq .", "linked", "allow"),
+    ("gh api repos/{owner}/{repo}/rulesets", "linked", "allow"),
+    ("gh api repos/{owner}/{repo}/rulesets --jq '.[].id' | head -3", "linked", "allow"),
+    ("gh api -X GET repos/mforce/cluckwork/git/refs/heads/main | jq .object.sha", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/contents/README.md; gh api repos/mforce/cluckwork/branches/main/protection", "linked", "allow"),
+    ("gh -R mforce/cluckwork api repos/{owner}/{repo}/rulesets | wc -l", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | jq .", "shared", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets/$ID", "linked", "block"),  # unresolved path: fail closed
+    ("gh api repos/mforce/cluckwork/rulesets && gh api -X PUT repos/mforce/cluckwork/rulesets/1 -f enforcement=disabled", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | xargs git push --force", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/merges -f base=main -f head=feat/x | jq .", "linked", "block"),
+    ("gh api --meth GET repos/mforce/cluckwork/rulesets | jq .", "linked", "block"),
+    ("gh api -X GET graphql -f query='mutation { updateRef(input: {}) { clientMutationId } }' | jq .", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets; git push --force", "linked", "block"),
+    ("gh api repos/{owner}/{repo}/rulesets && git push origin HEAD:main", "linked", "block"),
+    ("git push origin HEAD:{main}", "linked", "block"),  # braced words stay out of the write parser
     ("git push -f origin HEAD:main", "linked", "block"),  # the audit's controls
     ("gh pr merge 1221 --squash", "linked", "block"),
 ]
@@ -523,6 +582,12 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
         git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
+        for name, text in (("mutation.graphql", "mutation { updateRef(input: {}) { clientMutationId } }"),
+                           ("read.graphql", "query { viewer { login } }")):
+            with open(os.path.join(cls.dirs["linked"], name), "w") as f:
+                f.write(text)
+            with open(os.path.join(cls.dirs["linked"], name.replace(".graphql", ".json")), "w") as f:
+                json.dump({"query": text}, f)
         spaced_main = os.path.join(root, "p with space")
         git("init", "-q", "-b", "feat/p", spaced_main)
         git("-C", spaced_main, "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")

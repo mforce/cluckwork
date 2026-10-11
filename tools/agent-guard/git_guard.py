@@ -16,7 +16,8 @@ guard cannot parse (Hermes `execute_code`, Pi `powershell`) are refused outright
 A command that mentions a git write (`git push`, `git commit`, a subcommand that
 changes a checkout, a shallow fetch) or a PR merge must be one simple command,
 optionally after `cd <dir> &&`. Anything else is refused rather than parsed, so
-the agent re-runs the write on its own.
+the agent re-runs the write on its own. The one exception is a chain whose git
+and gh steps are all `gh api` GETs, since a read of a write route is still a read.
 
 The shared checkout is a main worktree that has linked worktrees: agents work in
 the linked ones, and all of them share its `.git` (#1205). There, only the
@@ -30,11 +31,11 @@ Also refused (#1221): a non-GET `gh api` call on `merges`, `contents`, `git/refs
 `rulesets` or `branches/<b>/protection` (explicit `-X`/`--method`, or the POST that
 `-f`/`-F`/`--input` imply), `git send-pack`, `git update-ref` on a main ref,
 `git config` writing `alias.*` or `core.hooksPath` in any scope, and
-`git push --no-verify`.
+`git push --no-verify`. Also a `gh api graphql` call whose query, inline or read from `-F key=@file`
+or `--input file`, names a mutation that merges, commits, moves a ref or changes a
+ruleset or branch protection rule (GRAPHQL_WRITES); an unreadable query file blocks.
 
-Not covered: gh aliases defined earlier, a GraphQL query that comes from a file or
-mutates anything but a PR merge (createCommitOnBranch, updateRef, the ruleset and
-branch-protection mutations), git aliases already in config, `git config
+Not covered: gh aliases defined earlier, git aliases already in config, `git config
 --remove-section`, other commands that move a local ref (branch -f, fetch -f) or
 create commits (merge, rebase, cherry-pick, pull), a verb spelled by brace or
 extglob expansion (`pu{s..s}h`, `p@(u)sh`), a configured push destination that
@@ -62,9 +63,13 @@ GIT_FALSE = {"false", "no", "off", "0", ""}
 # gh words that can merge, commit, move a ref or change main's protection: `gh pr merge`, `gh alias`, and the
 # REST paths GH_API_PROTECTED names.
 GH_WRITE_WORDS = r"\b(?:merges?|alias|rulesets)\b|/(?:contents|protection)\b|git/refs"
-MENTIONS_WRITE = re.compile(rf"\bgit\b.*\b(push|commit|send-pack)\b|\bgh\b.*(?:{GH_WRITE_WORDS})|mergePullRequest|AutoMerge", re.S)
+# GraphQL mutations that merge, commit, move a ref or change main's protection.
+GRAPHQL_WRITES = (r"mergePullRequest|AutoMerge|mergeBranch|createCommitOnBranch"
+                  r"|(?:create|update|delete)(?:Refs?\b|RepositoryRuleset|BranchProtectionRule)")
+# A gh body read from a file or stdin (`-F key=@file`, `--input file`) is text the command does not show.
+MENTIONS_WRITE = re.compile(rf"\bgit\b.*\b(push|commit|send-pack)\b|\bgh\b.*(?:{GH_WRITE_WORDS}|=@|--input\b)|{GRAPHQL_WRITES}", re.S)
 MENTIONS_TOOL_OR_VERB = re.compile(rf"\b(git|gh|push|commit|merge|alias|send-pack|update-ref)\b|(?i:hookspath)|{GH_WRITE_WORDS}"
-                                   r"|mergePullRequest|AutoMerge")
+                                   rf"|{GRAPHQL_WRITES}")
 # A git subcommand that changes HEAD, the index, the files or a ref, right after `git` and its options.
 CHANGES_CHECKOUT = re.compile(r"\bgit(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:add|am|apply|checkout|cherry-pick|clean|merge|"
                               r"mv|notes|pull|rebase|reset|restore|revert|rm|stash|switch|tag|update-ref)(?![\w-])")
@@ -81,6 +86,7 @@ ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 # Text that can move a git command's target to another checkout.
 DIRECTORY_CHANGE = re.compile(r"(?:^|[\s;&|(){}])(?:cd|pushd|popd)\b|\s-C\b|--git-dir|--work-tree|\bGIT_(?:DIR|WORK_TREE)\b")
 EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
+BRACED_WORD = re.compile(r"\{[\w-]+\}")
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
 # Programs whose arguments are only data: a `git` among them is text, not a command. Any other program whose
@@ -102,9 +108,10 @@ GH_API_FLAGS = {"--paginate", "-i", "--include", "--silent", "--verbose", "--slu
 GH_API_BODY = {"-f", "--raw-field", "-F", "--field", "--input"}
 # REST paths whose non-GET methods merge, commit, move a ref or change main's protection outside a PR.
 GH_API_PROTECTED = re.compile(r"(^|/)(merges|contents|git/refs|rulesets|branches/[^/]+/protection)(/|$)")
-# `git config` forms that read; everything else naming a guarded key writes it.
-CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "get", "list"}
-CONFIG_WRITES = {"--add", "--replace-all", "--unset", "--unset-all", "-e", "--edit"}
+# `git config` forms that read; the subcommands count only in the operation position (git config list).
+CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
+CONFIG_WRITES = {"--add", "--replace-all", "--unset", "--unset-all"}
+CONFIG_EDIT = {"-e", "--edit", "edit"}
 CONFIG_VALUES = {"-f", "--file", "--blob", "--default", "--type"}
 CONFIG_GUARDED_KEY = re.compile(r"alias\.|core\.hookspath$", re.I)
 
@@ -147,11 +154,16 @@ MESSAGES = {
                     "commit, move a branch or change main's protection outside a PR. Push changes on your branch instead; "
                     "reads of these paths are allowed.",
     "send-pack": "send-pack is `git push` without its checks or the pre-push hook. " + PUSH_YOUR_BRANCH,
+    "update-ref-stdin": "git-guard cannot see the refs that --stdin will receive later. Name the ref on the command line.",
     "update-ref-main": "it moves the local main ref. Fast-forward it with `git fetch origin main:main`; anything else "
                        "reaches main through a merged PR.",
-    "config-write": "an alias.* entry can hide a write and core.hooksPath turns the hook backstop off. Run the git "
-                    "command it stands for directly, and leave the hooks as configured.",
+    "config-write": "an alias.* entry can hide a write, core.hooksPath turns the hook backstop off, and an editor can "
+                    "change either unseen. Run the git command directly, and leave the hooks as configured.",
     "no-verify": "--no-verify skips .githooks/pre-push, the backstop behind this guard. Push without it.",
+    "graphql-write": "this mutation can merge a PR, commit, move a branch or change main's protection outside a PR. "
+                     "Only the maintainer merges; push changes on your branch instead. Read-only queries are allowed.",
+    "query-file": "git-guard cannot read the GraphQL query from that file or stdin, so it cannot tell what it mutates. "
+                  "Pass the query inline with `-f query='…'`.",
 }
 
 
@@ -163,8 +175,9 @@ def block(rule, shown):
     raise Blocked(f"`{shown}` is blocked: {MESSAGES[rule]}")
 
 
-def has_simple_shape(command, operators=""):
-    """True when the only unquoted shell operators are `&&` and any of `operators` (`;`, `|`)."""
+def has_simple_shape(command, operators="", braced_words=False):
+    """True when the only unquoted shell operators are `&&` and any of `operators` (`;`, `|`). With braced_words,
+    `{word}` passes too: bash expands braces only around `,` or `..`, so gh's `{owner}` is literal."""
     quote = None
     i = 0
     while i < len(command):
@@ -182,6 +195,9 @@ def has_simple_shape(command, operators=""):
             quote = None if c == '"' else quote
         elif c in "'\"":
             quote = c
+        elif braced_words and c == "{" and (braced := BRACED_WORD.match(command, i)):
+            i = braced.end()
+            continue
         elif (c in "\n;|(){}<>*?[" and c not in operators) or (c == "#" and (i == 0 or command[i - 1] in " \t")):
             return False
         i += 1
@@ -238,7 +254,7 @@ def git_steps(command, cwd):
     `;`, and followed by && or `;`. None for any other shape, another cd, a variable assignment, or a program
     outside DATA_PROGRAMS whose arguments name git: those steps' target cannot be resolved."""
     command = semicolons_for_newlines(ALLOWED_SUFFIX.sub("", command))
-    if not has_simple_shape(command, operators=";|"):
+    if not has_simple_shape(command, operators=";|", braced_words=True):
         return None
     lex = shlex.shlex(command, posix=True, punctuation_chars=";&|")
     lex.whitespace_split = True
@@ -451,13 +467,19 @@ def writes_anyway(command, args):
     return False
 
 
-def config_writes_guarded_key(args):
-    """`git config` that sets, adds, unsets or edits an alias.* or core.hooksPath key, in any scope. A read
-    (--get*, --list, the get/list subcommands, or a lone key) is not a write."""
+def config_writes(args):
+    """`git config` in edit mode (an editor, possibly `-c core.editor=sed`, can change any key unseen), or one that
+    sets, adds or unsets an alias.* or core.hooksPath key in any scope. A read (--get*, --list, the get/list
+    subcommands, or a lone key) is not a write."""
     args = [arg for n, arg in enumerate(args) if not (n and args[n - 1] in CONFIG_VALUES)]
-    if not any(CONFIG_GUARDED_KEY.match(arg) for arg in args) or any(arg in CONFIG_READS for arg in args):
+    positional = [arg for arg in args if not arg.startswith("-")]
+    if any(arg in CONFIG_EDIT for arg in args if arg.startswith("-")) or positional[:1] == ["edit"]:
+        return True
+    if not any(CONFIG_GUARDED_KEY.match(arg) for arg in args):
         return False
-    return len([arg for arg in args if not arg.startswith("-")]) > 1 or any(arg in CONFIG_WRITES for arg in args)
+    if any(arg in CONFIG_READ_FLAGS for arg in args) or positional[:1] in (["get"], ["list"]):
+        return False
+    return len(positional) > 1 or any(arg in CONFIG_WRITES for arg in args)
 
 
 INIT_VALUES = {"-b", "--initial-branch", "--separate-git-dir", "--template", "--object-format", "--ref-format"}
@@ -515,7 +537,7 @@ def check_git(args, cwd, shown):
         return
     if command == "send-pack":
         block("send-pack", shown)
-    if command == "config" and config_writes_guarded_key(rest):
+    if command == "config" and config_writes(rest):
         block("config-write", shown)
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
         if command == "stash":
@@ -532,14 +554,33 @@ def check_git(args, cwd, shown):
     if command == "push":
         check_push(rest, repo)
     elif command == "update-ref":
-        refs = {repo.branch() if arg in ("HEAD", "@") else arg for arg in rest if not arg.startswith("-")}
-        if refs & MAIN_REFS:
+        if any(len(arg) >= 3 and "--stdin".startswith(arg) for arg in rest):
+            block("update-ref-stdin", shown)
+        operands = [arg for n, arg in enumerate(rest) if not arg.startswith("-") and not (n and rest[n - 1] == "-m")]
+        destination = operands[0] if operands else None
+        if (repo.branch() if destination in ("HEAD", "@") else destination) in MAIN_REFS:
             block("update-ref-main", shown)
     elif repo.branch() == MAIN:
         block("commit-main", shown)
 
 
-def check_gh_api(args, shown):
+def query_text(name, value, cwd, shown):
+    """The text a body option sends to graphql: the value, or the file behind `-F key=@file` or `--input file`.
+    A file that cannot be read (missing, stdin as `-`, relative to an unknown directory) blocks."""
+    path = value.split("=", 1)[1][1:] if name in ("-F", "--field") and "=@" in value else value if name == "--input" else None
+    if path is None:
+        return value
+    if cwd is None and not os.path.isabs(path):
+        block("query-file", shown)
+    try:
+        with open(os.path.join(cwd or "/", path)) as f:
+            return f.read()
+    except (OSError, UnicodeDecodeError):
+        block("query-file", shown)
+
+
+def gh_api_request(args, shown):
+    """(method, path, body fields) of a `gh api` call; an option this guard does not know blocks."""
     method = None
     fields = []
     positional = []
@@ -566,19 +607,26 @@ def check_gh_api(args, shown):
         if name in ("-X", "--method"):
             method = value.upper()
         if name in GH_API_BODY:
-            fields.append(value)
+            fields.append((name, value))
     method = method or ("POST" if fields else "GET")
     path = urllib.parse.unquote(urllib.parse.urlparse(positional[0]).path) if positional else ""  # URL, query or not
+    return method, path, fields
+
+
+def check_gh_api(args, shown, cwd):
+    method, path, fields = gh_api_request(args, shown)
     if method != "GET" and re.search(r"(^|/)pulls/[^/]+/merge/?$", path):
         block("merge", shown)
     if method != "GET" and GH_API_PROTECTED.search(path):
         block("gh-api-write", shown)
-    if re.search(r"(^|/)graphql/?$", path) and any(re.search(r"mergePullRequest|AutoMerge", f) for f in fields):
-        block("merge", shown)
+    if re.search(r"(^|/)graphql/?$", path):
+        if any(re.search(GRAPHQL_WRITES, query_text(name, value, cwd, shown)) for name, value in fields):
+            block("graphql-write", shown)
 
 
-def check_gh(args, shown):
-    words = []  # (index, word) of the first two non-flag arguments
+def gh_words(args):
+    """(index, word) of the first two non-flag arguments, past -R/--repo and its value."""
+    words = []
     i = 0
     while i < len(args) and len(words) < 2:
         if args[i] in ("-R", "--repo"):
@@ -587,13 +635,31 @@ def check_gh(args, shown):
         if not args[i].startswith("-"):
             words.append((i, args[i]))
         i += 1
+    return words
+
+
+def is_gh_api_read(args):
+    """A `gh api` GET on a REST path: a chain of these runs even when a path names a write route. An unknown
+    option, a missing path or a graphql call is not a read."""
+    words = gh_words(args)
+    if [word for _, word in words][:1] != ["api"]:
+        return False
+    try:
+        method, path, _ = gh_api_request(args[words[0][0] + 1 :], "")
+    except Blocked:
+        return False
+    return method == "GET" and bool(path) and not re.search(r"(^|/)graphql/?$", path)
+
+
+def check_gh(args, shown, cwd):
+    words = gh_words(args)
     names = [word for _, word in words]
     if names == ["pr", "merge"]:
         block("merge", shown)
     if names[:1] == ["alias"] and names[1:] != ["list"]:
         block("alias", shown)
     if names[:1] == ["api"]:
-        check_gh_api(args[words[0][0] + 1 :], shown)
+        check_gh_api(args[words[0][0] + 1 :], shown, cwd)
 
 
 def plain_text(command):
@@ -620,20 +686,23 @@ def check(command, cwd, unchecked=None):
             refuse_unresolved(command, cwd)
         for program, argv, step_cwd in steps or []:
             if program == "gh":
-                check_gh(argv[1:], " ".join(argv))
+                check_gh(argv[1:], " ".join(argv), step_cwd)
             else:
                 check_git(argv[1:], step_cwd, " ".join(argv))
         return
     if unchecked:
         raise Blocked(f"this terminal call mentions, or could spell, a git write or PR merge, and {unchecked}. "
                       "Run the git command on the local backend with an absolute `workdir`.")
+    steps = git_steps(command, cwd)
+    if steps and all(program == "gh" and is_gh_api_read(argv[1:]) for program, argv, _ in steps):
+        return  # reads of write routes (rulesets, protection, ...) may be piped or chained
     argv, cwd = simple_command(command, cwd)
     program = os.path.basename(argv[0])
     shown = " ".join(argv)
     if program == "git":
         check_git(argv[1:], cwd, shown)
     elif program == "gh":
-        check_gh(argv[1:], shown)
+        check_gh(argv[1:], shown, cwd)
     elif program not in INERT_PROGRAMS:
         block("simple", shown)
 
