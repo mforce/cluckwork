@@ -30,6 +30,7 @@ internal static class CluckworkMcp
         services.AddMcpServer()
             .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
             .AddAuthorizationFilters()
+            .WithRequestFilters(filters => filters.AddCallToolFilter(McpToolErrors.Filter))
             .WithToolsFromAssembly(typeof(McpCallContext).Assembly);
 
         // The scheme the bearer selector picks for every AcceptOAuthTokens endpoint. It
