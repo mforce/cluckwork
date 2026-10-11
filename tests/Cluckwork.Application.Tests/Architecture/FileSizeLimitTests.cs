@@ -4,12 +4,13 @@ using Cluckwork.Application.Tests.Documentation;
 namespace Cluckwork.Application.Tests.Architecture;
 
 // A tracked source file under src/ or web/src/ holds at most MaxLines lines; test code there (*.test.ts(x),
-// *.spec.ts(x) and web/src/test/) holds at most MaxTestLines. A file already over its limit is listed with a cap:
-// its size when listed plus 10%, at least 50 lines. A listed file over its cap fails, and raising a cap needs a
-// maintainer decision. Caps are not exact counts on purpose: in the 30 days before #1153, 69 of 147 merged commits
-// under src/ and web/src/ grew a file that would have been listed, so an exact count would be re-pinned in about half
-// of all PRs (#632's lesson about keys that move with ordinary edits). The headroom absorbs ordinary edits and still
-// stops unbounded growth. An entry whose file is gone, excluded, or back within its limit fails until it is deleted.
+// *.spec.ts(x) and web/src/test/) holds at most MaxTestLines. A file already over its limit is listed with a cap: its
+// size when listed plus 10% (rounded to the nearest line, halves up), at least 50 lines. A listed file over its cap
+// fails, and raising a cap needs a maintainer decision. Caps are not exact counts on purpose: in the 30 days before
+// #1153, 69 of 147 merged commits under src/ and web/src/ grew a file that would have been listed, so an exact count
+// would be re-pinned in about half of all PRs (#632's lesson about keys that move with ordinary edits). The headroom
+// absorbs ordinary edits and still stops unbounded growth. An entry whose file is gone, excluded, or back within its
+// limit fails until it is deleted.
 public sealed partial class FileSizeLimitTests
 {
     private const int MaxLines = 500;
