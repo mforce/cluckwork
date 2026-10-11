@@ -19,6 +19,11 @@ real MCP clients.
   `cluckwork_list_egg_lots`, `cluckwork_list_egg_lot_movements`,
   `cluckwork_list_daily_entries`. Each reply is a page with `items`, `complete` and
   `nextOffset`.
+- Commerce read tools (#808): `cluckwork_list_customers` and `cluckwork_list_sales_orders`
+  for every role but ReadOnly, `cluckwork_list_order_payments` and
+  `cluckwork_list_customer_balances` for Owner, Manager and Sales. Amounts are
+  `{"amount": "<decimal>", "currency": "<code>"}`; a Worker's orders carry
+  `outstanding: null`.
 - Scope gates: `tools/list` shows a tool only for role ∩ scope; a hidden tool's call is a
   JSON-RPC error inside a 200.
 - Revocation: the farm switch (Setup › Connected apps) and Disconnect (Account › Connected
