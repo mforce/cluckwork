@@ -1,43 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import {
-  Box, List, ListItem, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography, useMediaQuery,
+  Box, Button, Typography, useMediaQuery,
 } from "@mui/material";
 import {
-  createInventoryItem, activateInventoryItem, deactivateInventoryItem, getAccount,
-  listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
-  recordInventoryAdjustment, recordInventoryPurchase, updateInventoryItem,
+  getAccount, listInventoryItems, listInventoryLots, listInventoryMovements, parseMoneyToMinorUnits,
 } from "../api/cluckwork";
 import type { Account, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
-import { useFormat } from "../farm/useFormat";
-import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
-import { FieldConsole, ConsoleSubhead, CONSOLE_LINK_SX, LedgerTableContainer, CONSOLE_RAIL_SX } from "../components/FieldConsole";
-import { BusyButton } from "../components/BusyButton";
-import { Dialog } from "../components/Dialog";
-import { DialogError } from "../components/DialogError";
-import { StatusBadge } from "../components/StatusBadge";
-import { focusPhoneRow, PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow, PhoneLedgerSummary } from "../components/PhoneLedger";
+import { FieldConsole, ConsoleSubhead } from "../components/FieldConsole";
+import { focusPhoneRow } from "../components/PhoneLedger";
 import { usePagedList } from "../components/usePagedList";
 import { useDialogAction } from "../components/useDialogAction";
 import { newId } from "../lib/ids";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import { useFarmToday } from "../farm/useFarm";
-import { FEEDABLE_CATEGORIES } from "./FeedPage";
+import { InventoryCatalogDialogs } from "./InventoryCatalogDialogs";
+import { InventoryItemPanel } from "./InventoryItemPanel";
+import { InventoryCatalog } from "./InventoryCatalog";
 import i18n from "../i18n";
-import { inventoryCategoryLabel, inventoryMovementLabel, statusLabel } from "../i18n/enums";
-
-const NOWRAP = { whiteSpace: "nowrap" as const };
-
-// Feed first (spec §12); the rest of the categories get their features later.
-const CATEGORIES = [
-  "Feed", "Supplement", "Additive", "Medication", "Vaccine",
-  "Packaging", "Bedding", "Sanitation", "EquipmentPart", "Other",
-];
-
 
 
 // The ledger's previous hard cap, kept as the page size.
@@ -54,7 +36,6 @@ const DIALOG_SCOPES = ["create", "edit", "purchase", "adjust"] as const;
 export function InventoryPage() {
   const { t } = useTranslation("inventory");
   const isDesktop = useMediaQuery(MD_UP_QUERY);
-  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
@@ -101,7 +82,6 @@ export function InventoryPage() {
   // the peek down with it.
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsOpenLots, setDetailsOpenLots] = useState<number | null>(null);
-  const detailsLotsRequest = useRef(0);
   // #988 review r2 — activate/deactivate close the peek and disable its row in
   // the same commit, so `Dialog`'s restore (one retry a frame later) lands on
   // <body> for any request slower than a frame. The row is still the right
@@ -317,24 +297,6 @@ export function InventoryPage() {
     return parsed;
   }
 
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    await run("create", async (current) => {
-      await commit("create-item", (key) =>
-        createInventoryItem({
-          name, category, unit,
-          defaultUnitCostMinorUnits: toMinorUnits(defaultCost),
-        }, key));
-      // Superseded (#703): the item exists and the list shows it, but the form
-      // reset, the message and the close belong to the session on screen now.
-      if (!current()) return;
-      setName("");
-      setDefaultCost("");
-      setMessage(i18n.t("inventory:itemCreatedMessage"));
-      setCreating(false);
-    });
-  }
-
   function startEdit(i: InventoryItem) {
     closeCreate();
     // Opening is the other session edge (#703): a different item's edit
@@ -349,39 +311,6 @@ export function InventoryPage() {
     setEditCost(i.defaultCostMinorUnits === null
       ? ""
       : (i.defaultCostMinorUnits / 10 ** minorUnit).toFixed(minorUnit));
-  }
-
-  async function onSaveEdit(e: FormEvent) {
-    e.preventDefault();
-    const id = editingId;
-    if (id === null) return;
-    // The run scope is the dialog's; the idempotency key stays per item.
-    await run("edit", async (current) => {
-      await commit(`update:${id}`, (key) =>
-        updateInventoryItem(id, {
-          name: editName, unit: editUnit,
-          defaultUnitCostMinorUnits: toMinorUnits(editCost),
-        }, key));
-      // Edit's superseded case is unreachable through the UI (the row's edit
-      // button is `disabled={busy}`); the gate stays for INV-1 and against a
-      // future change that enables the button — pinned by the wiring test
-      // "a successful edit closes its dialog and refreshes the list".
-      if (!current()) return;
-      setEditingId(null);
-    });
-  }
-
-  function openDetails(i: InventoryItem) {
-    setDetailsId(i.id);
-    setDetailsOpenLots(null);
-    const req = ++detailsLotsRequest.current;
-    listInventoryLots(i.id)
-      .then((rows) => {
-        if (detailsLotsRequest.current === req) {
-          setDetailsOpenLots(rows.filter((l) => l.quantityAvailable > 0).length);
-        }
-      })
-      .catch(() => {});
   }
 
   async function onOpen(i: InventoryItem) {
@@ -424,93 +353,6 @@ export function InventoryPage() {
     }
   }
 
-  async function onPurchase(e: FormEvent) {
-    e.preventDefault();
-    if (!active) return;
-    // #703 review r2 (PR 2) — a skipped-while-busy submit must not un-mute:
-    // Enter bypasses the disabled submit button, `run` would skip the second
-    // attempt, but the pre-run `beginAttempt` below would still un-mute an
-    // abandoned attempt and let its late failure into the reopened dialog.
-    if (busy) return;
-    // Clears the purchase slot whether or not the check below fails, so a
-    // fixed keystroke doesn't leave a stale verdict behind.
-    errors.beginAttempt("purchase");
-    const qty = parseFloat(purchaseQty);
-    if (!Number.isFinite(qty) || qty <= 0) {
-      errors.report("purchase", i18n.t("inventory:quantityMustBePositive"));
-      return;
-    }
-    // The run scope is the dialog's; the idempotency key stays per item.
-    await run("purchase", async (current) => {
-      await commit(`purchase:${active.id}`, (key) =>
-        recordInventoryPurchase(active.id, {
-          receivedDate: purchaseDate,
-          quantity: qty,
-          unitCostMinorUnits: toMinorUnits(purchaseCost),
-          lotNumber: lotNumber.trim() || undefined,
-          expiryDate: expiryDate || undefined,
-          note: purchaseNote.trim() || undefined,
-        }, key), true);
-      // Superseded (#703): the lot exists, the items/lots/ledger show it and
-      // the key rotated; the resets, the message and the close are the
-      // replacement session's.
-      if (!current()) return;
-      setPurchaseQty("");
-      setPurchaseCost("");
-      setLotNumber("");
-      setExpiryDate("");
-      setPurchaseNote("");
-      setMessage(i18n.t("inventory:purchaseRecordedMessage"));
-      setPurchasing(false);
-    });
-  }
-
-  async function onAdjust(e: FormEvent) {
-    e.preventDefault();
-    if (!active) return;
-    // Same reasoning as onPurchase: a skipped-while-busy submit must not
-    // un-mute (#703 review r2), and the slot is cleared up front so either
-    // guard below reports against a clean slot.
-    if (busy) return;
-    errors.beginAttempt("adjust");
-    const delta = parseFloat(adjustQty);
-    if (!Number.isFinite(delta) || delta === 0) {
-      errors.report("adjust", i18n.t("inventory:adjustQuantityRequired"));
-      return;
-    }
-    if (!adjustReason.trim()) {
-      errors.report("adjust", i18n.t("inventory:adjustReasonRequired"));
-      return;
-    }
-    // The run scope is the dialog's; the idempotency key stays per item + lot.
-    await run("adjust", async (current) => {
-      await commit(`adjust:${active.id}:${adjustLotId}`, (key) =>
-        recordInventoryAdjustment(active.id, {
-          inventoryLotId: adjustLotId,
-          date: today,
-          type: adjustType,
-          quantityDelta: adjustType === "Discard" ? -Math.abs(delta) : delta,
-          reason: adjustReason.trim(),
-        }, key), true);
-      // Superseded (#703): the correction landed and the view shows it; the
-      // resets, the message and the close are the replacement session's.
-      if (!current()) return;
-      setAdjustQty("");
-      setAdjustReason("");
-      setMessage(i18n.t("inventory:correctionRecordedMessage"));
-      setAdjusting(false);
-    });
-  }
-
-  const lotLabel = (l: InventoryLot) =>
-    `${fmt.date(l.receivedDate)}${l.lotNumber ? ` · ${l.lotNumber}` : ""} — ${fmt.count(l.quantityAvailable)}/${fmt.count(l.quantityReceived)}`;
-
-  const costText = (i: InventoryItem) =>
-    i.defaultCostMinorUnits !== null && i.defaultCostCurrencyCode
-      ? fmt.money(i.defaultCostMinorUnits, i.defaultCostCurrencyCode,
-          i.defaultCostCurrencyMinorUnit ?? minorUnit)
-      : "—";
-
   if (errors.page && items === null) {
     return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="error">{errors.page}</p></FieldConsole>;
   }
@@ -518,13 +360,10 @@ export function InventoryPage() {
     return <FieldConsole><Typography variant="h2">{t("title")}</Typography><p className="muted">{tc("loading")}</p></FieldConsole>;
   }
 
-  const canFeed = active !== null && FEEDABLE_CATEGORIES.includes(active.category);
-
   // Adjusted during render, the React-documented way to reset state a refreshed
   // list invalidates: an id the catalog no longer holds is retired, so a later
   // load cannot silently reopen the peek on it.
   if (detailsId !== null && !items.some((i) => i.id === detailsId)) setDetailsId(null);
-  const details = items.find((i) => i.id === detailsId) ?? null;
 
   const intro = <Typography component="p" variant="body2" sx={{ color: "text.secondary" }}>{t("intro")}</Typography>;
   const createItemButton = isAdmin && (
@@ -555,85 +394,19 @@ export function InventoryPage() {
         </Box>
       )}
 
-      {/* Gated like the inline form was: a role change mid-edit closes it. */}
-      <Dialog open={creating && isAdmin} title={t("newItemDialogTitle")} onClose={closeCreate}
-        actions={(
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton variant="contained" type="submit" busy={isPending("create")} disabled={busy}>{t("addItemButton")}</BusyButton>
-          </DialogActions>
-        )}
-        formProps={{ onSubmit: onCreate }}
-      >
-        <Stack spacing={2}>
-          <TextField
-            label={t("itemNameLabel")}
-            value={name}
-            slotProps={{ htmlInput: { required: true, maxLength: 200 } }}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <TextField
-            select
-            label={t("categoryLabel")}
-            value={category}
-            slotProps={{ select: { native: true } }}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            {CATEGORIES.map((c) => <option key={c} value={c}>{inventoryCategoryLabel(c)}</option>)}
-          </TextField>
-          <TextField
-            label={t("unitLabel")}
-            value={unit}
-            slotProps={{ htmlInput: { required: true, maxLength: 20 } }}
-            onChange={(e) => setUnit(e.target.value)}
-          />
-          <TextField
-            type="number"
-            label={t("defaultCostLabel")}
-            value={defaultCost}
-            slotProps={{ htmlInput: { min: 0, step: costStep } }}
-            onChange={(e) => setDefaultCost(e.target.value)}
-          />
-          <DialogError errors={errors} scope="create" />
-        </Stack>
-      </Dialog>
-
-      <Dialog open={editingId !== null && isAdmin} title={t("editItemDialogTitle")} onClose={closeEdit}
-        actions={(
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton variant="contained" type="submit" busy={isPending("edit")} disabled={busy}>
-              {tc("save")}
-            </BusyButton>
-          </DialogActions>
-        )}
-        formProps={{ onSubmit: onSaveEdit, noValidate: true }}
-      >
-        {/* noValidate: the row's save used to be a plain button, so the browser
-            never enforced min/step — toMinorUnits' own message did. */}
-        <Stack spacing={2}>
-          <TextField
-            label={t("editItemNameLabel")}
-            value={editName}
-            slotProps={{ htmlInput: { maxLength: 200 } }}
-            onChange={(e) => setEditName(e.target.value)}
-          />
-          <TextField
-            label={t("editUnitLabel")}
-            value={editUnit}
-            slotProps={{ htmlInput: { maxLength: 20 } }}
-            onChange={(e) => setEditUnit(e.target.value)}
-          />
-          <TextField
-            type="number"
-            label={t("defaultCostLabel")}
-            value={editCost}
-            slotProps={{ htmlInput: { min: 0, step: costStep } }}
-            onChange={(e) => setEditCost(e.target.value)}
-          />
-          <DialogError errors={errors} scope="edit" />
-        </Stack>
-      </Dialog>
+      <InventoryCatalogDialogs
+        creating={creating} setCreating={setCreating}
+        editingId={editingId} setEditingId={setEditingId}
+        isAdmin={isAdmin}
+        busy={busy} isPending={isPending} errors={errors}
+        run={run} commit={commit} setMessage={setMessage}
+        name={name} setName={setName} category={category} setCategory={setCategory}
+        unit={unit} setUnit={setUnit} defaultCost={defaultCost} setDefaultCost={setDefaultCost}
+        editName={editName} setEditName={setEditName} editUnit={editUnit} setEditUnit={setEditUnit}
+        editCost={editCost} setEditCost={setEditCost}
+        closeCreate={closeCreate} closeEdit={closeEdit}
+        toMinorUnits={toMinorUnits} costStep={costStep}
+      />
 
       {/* Unconditional since #479 — a dialog's failure lives in its own slot
           now, so the page copy can't inherit it. */}
@@ -641,289 +414,37 @@ export function InventoryPage() {
       {message && <p className="success">{message}</p>}
 
       {active && (
-        <Box sx={{ my: 3 }}>
-          <Box sx={{ py: 1 }}>
-            <Box sx={{ ...CONSOLE_RAIL_SX, display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) auto minmax(250px, 1fr)" }, gap: 2, alignItems: "center" }}>
-              <Typography variant="h3" component="h3" aria-label={t("itemPanelHeading", { name: active.name, quantity: active.quantityOnHand, unit: active.unit })}>
-                {active.name}
-              </Typography>
-              <Box>
-                <Typography sx={{ fontSize: ".75rem" }}>{t("onHandHeader")}</Typography>
-                <Typography variant="body2" sx={{ fontSize: "2rem", fontFamily: "Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{fmt.count(active.quantityOnHand)} {active.unit}</Typography>
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, "& button, & a": { height: 44, minHeight: 44, p: 1, fontSize: { xs: ".7rem", md: ".8rem" }, lineHeight: 1.2 } }}>
-                <Button variant="outlined" sx={{ bgcolor: "#fff", color: "#2c2429", borderColor: "#fff" }} onClick={() => { openDialog("purchase"); setPurchasing(true); }}>
-                  <Plus size={16} aria-hidden /> {t("recordPurchaseButton")}
-                </Button>
-                {canFeed && (
-                  <Button component={Link} variant="outlined" sx={{ bgcolor: "#fff", color: "#2c2429", borderColor: "#fff" }} to={`/feed?item=${active.id}`}>
-                    {t("recordUsageLink")}
-                  </Button>
-                )}
-                {isAdmin && lots.length > 0 && (
-                  <Button variant="contained" sx={{ gridColumn: "1 / -1" }} onClick={() => { openDialog("adjust"); setAdjusting(true); }}>
-                    {t("correctStockButton")}
-                  </Button>
-                )}
-              </Box>
-            </Box>
-
-            {!canFeed && (
-              <p className="muted">
-                {t("notFeedableMessage", { category: inventoryCategoryLabel(active.category) })}
-              </p>
-            )}
-            {!isAdmin ? (
-              <p className="muted">{t("correctionsNeedAdminMessage")}</p>
-            ) : lots.length === 0 ? (
-              <p className="muted">{t("noLotsMessage")}</p>
-            ) : null}
-
-            <Dialog open={purchasing} title={t("recordPurchaseDialogTitle", { name: active.name })} onClose={closePurchase}
-              actions={(
-                <DialogActions>
-                  <button type="button" className="link" onClick={closePurchase}>{tc("cancel")}</button>
-                  <BusyButton variant="contained" type="submit" busy={isPending("purchase")} disabled={busy}>
-                    {t("recordPurchaseSubmitButton")}
-                  </BusyButton>
-                </DialogActions>
-              )}
-              formProps={{ onSubmit: onPurchase }}
-            >
-              <Stack spacing={2}>
-                <TextField
-                  type="date"
-                  label={t("receivedLabel")}
-                  value={purchaseDate}
-                  slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
-                />
-                <TextField
-                  type="number"
-                  label={t("quantityLabelWithUnit", { unit: active.unit })}
-                  value={purchaseQty}
-                  slotProps={{ htmlInput: { min: 0.001, step: 0.001, required: true } }}
-                  onChange={(e) => setPurchaseQty(e.target.value)}
-                />
-                <TextField
-                  type="number"
-                  label={active.defaultCostCurrencyCode
-                    ? t("unitCostWithCurrencyLabel", { code: active.defaultCostCurrencyCode })
-                    : t("unitCostLabel")}
-                  value={purchaseCost}
-                  placeholder={active.defaultCostMinorUnits !== null ? t("costPlaceholderItemDefault") : t("costPlaceholderRequired")}
-                  slotProps={{ htmlInput: { min: 0, step: costStep } }}
-                  onChange={(e) => setPurchaseCost(e.target.value)}
-                />
-                <TextField
-                  label={t("lotNumberLabel")}
-                  value={lotNumber}
-                  slotProps={{ htmlInput: { maxLength: 100 } }}
-                  onChange={(e) => setLotNumber(e.target.value)}
-                />
-                <TextField
-                  type="date"
-                  label={t("expiryLabel")}
-                  value={expiryDate}
-                  slotProps={{ htmlInput: { min: purchaseDate }, inputLabel: { shrink: true } }}
-                  onChange={(e) => setExpiryDate(e.target.value)}
-                />
-                <TextField
-                  label={t("noteLabel")}
-                  value={purchaseNote}
-                  slotProps={{ htmlInput: { maxLength: 500 } }}
-                  onChange={(e) => setPurchaseNote(e.target.value)}
-                />
-                <DialogError errors={errors} scope="purchase" />
-              </Stack>
-            </Dialog>
-
-            <Dialog open={adjusting && isAdmin} title={t("correctStockDialogTitle", { name: active.name })} onClose={closeAdjust}
-              actions={(
-                <DialogActions>
-                  <button type="button" className="link" onClick={closeAdjust}>{tc("cancel")}</button>
-                  <BusyButton variant="contained" type="submit" busy={isPending("adjust")}
-                    disabled={busy || !adjustLotId}>
-                    {t("recordCorrectionButton")}
-                  </BusyButton>
-                </DialogActions>
-              )}
-              formProps={{ onSubmit: onAdjust }}
-            >
-              <Stack spacing={2}>
-                <TextField
-                  select
-                  label={t("lotFieldLabel")}
-                  value={adjustLotId}
-                  disabled={busy}
-                  slotProps={{ select: { native: true } }}
-                  onChange={(e) => setAdjustLotId(e.target.value)}
-                >
-                  {lots.map((l) => <option key={l.id} value={l.id}>{lotLabel(l)}</option>)}
-                </TextField>
-                <TextField
-                  select
-                  label={t("typeLabel")}
-                  value={adjustType}
-                  slotProps={{ select: { native: true } }}
-                  onChange={(e) => setAdjustType(e.target.value)}
-                >
-                  <option value="Adjustment">{t("adjustTypeAdjustmentOption")}</option>
-                  <option value="Discard">{t("adjustTypeDiscardOption")}</option>
-                </TextField>
-                <TextField
-                  type="number"
-                  label={t("quantityLabelWithUnit", { unit: active.unit })}
-                  value={adjustQty}
-                  placeholder={adjustType === "Discard" ? t("adjustQuantityPlaceholderDiscard") : t("adjustQuantityPlaceholderCorrection")}
-                  slotProps={{ htmlInput: { step: 0.001, required: true } }}
-                  onChange={(e) => setAdjustQty(e.target.value)}
-                />
-                <TextField
-                  label={t("reasonLabel")}
-                  value={adjustReason}
-                  slotProps={{ htmlInput: { maxLength: 500, required: true } }}
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                />
-                <DialogError errors={errors} scope="adjust" />
-              </Stack>
-            </Dialog>
-
-            <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center", gap: 1, mb: 1 }}>
-              <Typography component="h3" variant="h3" sx={{ "&&": { m: 0 }, minWidth: 0 }}>{t("movementHeading")}</Typography>
-              <Button size="small" color="inherit" sx={{ ...CONSOLE_LINK_SX, minHeight: 44, flexShrink: 0, fontSize: ".75rem" }} onClick={() => setActive(null)}>{t("chooseAnotherItem")}</Button>
-            </Stack>
-            {ledger.error && <p className="error">{ledger.error}</p>}
-            {ledger.rows === null || ledger.reloading ? (
-              <p className="muted">{tc("loading")}</p>
-            ) : ledger.rows.length === 0 && !ledger.error ? (
-              <p className="muted">{t("noMovementsMessage")}</p>
-            ) : (
-              <List aria-label={t("movementHeading")} disablePadding>
-                {ledger.rows.map((m) => (
-                  <ListItem key={m.id} sx={{ display: "grid", gridTemplateColumns: { xs: "72px 75px 70px minmax(0, 1fr)", md: "86px 90px 90px minmax(140px, 1fr)" }, gap: "10px", p: "10px 8px", borderBottom: "1px solid var(--rule)", fontSize: "12px", alignItems: "start", "& > *": { minWidth: 0, overflowWrap: "anywhere" } }}>
-                    <FarmDate iso={m.date} />
-                    <strong>{inventoryMovementLabel(m.type)}</strong>
-                    <Box component="span" sx={{ color: m.quantityDelta > 0 ? "var(--success)" : "var(--error)", fontWeight: 800 }}>{m.quantityDelta > 0 ? `+${fmt.count(m.quantityDelta)}` : fmt.count(m.quantityDelta)} {m.unit}</Box>
-                    <span>{m.note ?? ""}</span>
-                  </ListItem>
-                ))}
-              </List>
-            )}
-            {ledger.canLoadMore && (
-              <button className="link" onClick={() => void ledger.loadMore()}>
-                {t("loadMoreButton")}
-              </button>
-            )}
-            <Typography component="p" sx={{ fontSize: ".7rem", color: "text.secondary", mt: 1 }}>{t("movementPolicy")}</Typography>
-          </Box>
-        </Box>
+        <InventoryItemPanel
+          active={active} isAdmin={isAdmin}
+          busy={busy} isPending={isPending} errors={errors}
+          run={run} commit={commit}
+          openDialog={openDialog} purchasing={purchasing} setPurchasing={setPurchasing}
+          adjusting={adjusting} setAdjusting={setAdjusting}
+          closePurchase={closePurchase} closeAdjust={closeAdjust}
+          lots={lots} setAdjustLotId={setAdjustLotId}
+          adjustLotId={adjustLotId} adjustType={adjustType} setAdjustType={setAdjustType}
+          adjustQty={adjustQty} setAdjustQty={setAdjustQty}
+          adjustReason={adjustReason} setAdjustReason={setAdjustReason}
+          purchaseDate={purchaseDate} setPurchaseDate={setPurchaseDate}
+          purchaseQty={purchaseQty} setPurchaseQty={setPurchaseQty}
+          purchaseCost={purchaseCost} setPurchaseCost={setPurchaseCost}
+          lotNumber={lotNumber} setLotNumber={setLotNumber}
+          expiryDate={expiryDate} setExpiryDate={setExpiryDate}
+          purchaseNote={purchaseNote} setPurchaseNote={setPurchaseNote}
+          today={today} costStep={costStep} toMinorUnits={toMinorUnits}
+          ledger={ledger} setActive={setActive} setMessage={setMessage}
+        />
       )}
 
       {!isDesktop && <ConsoleSubhead title={t("itemsHeading")} caption={t("itemsCaption")} />}
-      {isDesktop ? <LedgerTableContainer>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>{t("nameHeader")}</TableCell>
-              <TableCell>{t("categoryHeader")}</TableCell>
-              <TableCell align="right">{t("onHandHeader")}</TableCell>
-              <TableCell align="right">{t("defaultCostHeader")}</TableCell>
-              <TableCell>{t("statusHeader")}</TableCell>
-              <TableCell></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {items.map((i) => (
-              <TableRow key={i.id} sx={i.active ? undefined : { "& .MuiTableCell-root": { color: "var(--muted)" } }}>
-                <TableCell>{i.name}</TableCell>
-                <TableCell>{inventoryCategoryLabel(i.category)}</TableCell>
-                <TableCell align="right">{fmt.count(i.quantityOnHand)} {i.unit}</TableCell>
-                <TableCell align="right">{costText(i)}</TableCell>
-                <TableCell><StatusBadge status={i.active ? "Active" : "Inactive"} label={statusLabel(i.active ? "Active" : "Inactive")} /></TableCell>
-                <TableCell sx={NOWRAP}>
-                  <button className="link" disabled={busy} onClick={() => void onOpen(i)}>{t("openButton")}</button>
-                  {isAdmin && (
-                    <>
-                      <button className="link" disabled={busy}
-                        onClick={() => startEdit(i)}>{t("editButton")}</button>
-                      {i.active ? (
-                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${i.id}`)} disabled={busy}
-                          onClick={() => void run(`deactivate:${i.id}`, () => commit(`deactivate:${i.id}`, (key) => deactivateInventoryItem(i.id, key)))}>
-                          {t("deactivateButton")}
-                        </BusyButton>
-                      ) : (
-                        <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${i.id}`)} disabled={busy}
-                          onClick={() => void run(`activate:${i.id}`, () => commit(`activate:${i.id}`, (key) => activateInventoryItem(i.id, key)))}>
-                          {t("activateButton")}
-                        </BusyButton>
-                      )}
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </LedgerTableContainer> : <>
-        <PhoneLedgerList label={t("itemsHeading")}>
-          {items.map((i) => <li key={i.id}>
-            {/* No date, so the name takes the flexible slot and stops wrapping (#987). */}
-            <PhoneLedgerRow rowId={i.id} muted={!i.active} disabled={busy} onClick={() => openDetails(i)}
-              primary={i.name}
-              trailing={<strong>{fmt.count(i.quantityOnHand)} {i.unit}</strong>}
-              summary={<PhoneLedgerSummary parts={[
-                <strong>{inventoryCategoryLabel(i.category)}</strong>,
-                i.defaultCostMinorUnits === null ? null : t("costPerUnitShort", { cost: costText(i), unit: i.unit }),
-                !i.active && <Box component="span" sx={{ color: "var(--error)" }}>{statusLabel("Inactive")}</Box>,
-              ]} />} />
-          </li>)}
-        </PhoneLedgerList>
-        {/* Every action closes the peek first, so the page's own error and
-            success lines are visible when the write answers. */}
-        <Dialog open={details !== null} compactTitle title={details ? details.name : t("title")}
-          onClose={() => setDetailsId(null)}
-          actions={details && <Box sx={{ display: "flex", alignItems: "center", gap: 1, borderTop: "1px solid var(--rule)", "& .MuiButtonBase-root": { minHeight: 44 } }}>
-            {isAdmin && <>
-              <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy}
-                onClick={() => { const item = details; setDetailsId(null); startEdit(item); }}>{t("editButton")}</Button>
-              {details.active ? (
-                <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`deactivate:${details.id}`)} disabled={busy}
-                  onClick={() => {
-                    const { id } = details;
-                    focusAfterWrite.current = id;
-                    setDetailsId(null);
-                    void run(`deactivate:${id}`, () => commit(`deactivate:${id}`, (key) => deactivateInventoryItem(id, key)));
-                  }}>{t("deactivateButton")}</BusyButton>
-              ) : (
-                <BusyButton variant="text" sx={CONSOLE_LINK_SX} busy={isPending(`activate:${details.id}`)} disabled={busy}
-                  onClick={() => {
-                    const { id } = details;
-                    focusAfterWrite.current = id;
-                    setDetailsId(null);
-                    void run(`activate:${id}`, () => commit(`activate:${id}`, (key) => activateInventoryItem(id, key)));
-                  }}>{t("activateButton")}</BusyButton>
-              )}
-            </>}
-            <Button variant="contained" sx={{ ml: "auto", borderRadius: "4px" }} disabled={busy}
-              onClick={() => { const item = details; setDetailsId(null); void onOpen(item); }}>{t("openButton")}</Button>
-          </Box>}>
-          {details && <Box component="dl" sx={{ m: 0 }}>
-            <PhoneDetailsField label={t("categoryHeader")}>{inventoryCategoryLabel(details.category)}</PhoneDetailsField>
-            <PhoneDetailsField label={t("onHandHeader")}>{fmt.count(details.quantityOnHand)} {details.unit}</PhoneDetailsField>
-            <PhoneDetailsField label={t("defaultCostHeader")}>
-              {details.defaultCostMinorUnits === null ? "—" : t("costPerUnitShort", { cost: costText(details), unit: details.unit })}
-            </PhoneDetailsField>
-            <PhoneDetailsField label={t("unitHeader")}>{details.unit}</PhoneDetailsField>
-            <PhoneDetailsField label={t("lotsHeader")}>
-              {detailsOpenLots === null ? "—" : t("lotsOpenValue", { lots: fmt.count(detailsOpenLots) })}
-            </PhoneDetailsField>
-            <PhoneDetailsField label={t("statusHeader")}>
-              <StatusBadge status={details.active ? "Active" : "Inactive"} label={statusLabel(details.active ? "Active" : "Inactive")} />
-            </PhoneDetailsField>
-          </Box>}
-        </Dialog>
-      </>}
+      <InventoryCatalog
+        items={items} isDesktop={isDesktop} isAdmin={isAdmin}
+        busy={busy} isPending={isPending} run={run} commit={commit}
+        onOpen={onOpen} startEdit={startEdit} minorUnit={minorUnit}
+        detailsId={detailsId} setDetailsId={setDetailsId}
+        detailsOpenLots={detailsOpenLots} setDetailsOpenLots={setDetailsOpenLots}
+        focusAfterWrite={focusAfterWrite}
+      />
     </FieldConsole>
   );
 }
