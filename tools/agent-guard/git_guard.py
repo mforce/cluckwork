@@ -13,9 +13,18 @@ refused. Hermes's `process_manage` write/submit input is shell input to a runnin
 process: it gets the same check with no known directory. Tools whose text this
 guard cannot parse (Hermes `execute_code`, Pi `powershell`) are refused outright.
 
-A command that mentions a git write (`git push`, `git commit`) or a PR merge must
-be one simple command, optionally after `cd <dir> &&`. Anything else is refused
-rather than parsed, so the agent re-runs the write on its own.
+A command that mentions a git write (`git push`, `git commit`, a subcommand that
+changes a checkout, a shallow fetch) or a PR merge must be one simple command,
+optionally after `cd <dir> &&`. Anything else is refused rather than parsed, so
+the agent re-runs the write on its own.
+
+The shared checkout is a main worktree that has linked worktrees: agents work in
+the linked ones, and all of them share its `.git` (#1205). There, only the
+SHARED_CHECKOUT_SAFE subcommands run. In every worktree, `git stash` and shallow
+fetches are refused, because the stash list and the shallow state are shared too.
+GIT_GUARD_ALLOW_SHARED=1 lifts those three rules wherever it is set. It is for the
+maintainer, on one command in their own shell (CONTRIBUTING.md); set for a harness,
+every agent started from it would inherit it.
 
 Not covered: gh aliases defined earlier, a GraphQL merge whose query comes from a
 file, git aliases from config, other commands that create commits (merge, rebase,
@@ -43,10 +52,31 @@ MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
 MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
+# A git subcommand that changes HEAD, the index, the files or a ref, right after `git` and its options.
+CHANGES_CHECKOUT = re.compile(r"\bgit(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:add|am|apply|checkout|cherry-pick|clean|merge|"
+                              r"mv|notes|pull|rebase|reset|restore|revert|rm|stash|switch|tag|update-ref)(?![\w-])")
+# fetch/pull long options that change the shallow state; git also takes any unambiguous prefix (--dep=1).
+SHALLOW_OPTIONS = ("depth", "deepen", "shallow-since", "shallow-exclude", "unshallow", "update-shallow")
+SHALLOW = re.compile(r"\b(?:fetch|pull)\b.*\s--(?:de|sh|un|up)", re.S)
+# What coordinators run in the shared checkout: reads, plain fetch, worktree and branch management.
+# writes_anyway() refuses the forms of these that still write there.
+SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
+                        "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
+                        "shortlog", "show", "status", "version", "worktree"}
+GIT_WORD = re.compile(r"\bgit\b")
+ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
+# Text that can move a git command's target to another checkout.
+DIRECTORY_CHANGE = re.compile(r"(?:^|[\s;&|(){}])(?:cd|pushd|popd)\b|\s-C\b|--git-dir|--work-tree|\bGIT_(?:DIR|WORK_TREE)\b")
 EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
-GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects"}
+# Programs whose arguments are only data: a `git` among them is text, not a command. Any other program whose
+# arguments name git may run it (xargs, env, sh -c, python -c, make, ...), so its target is unresolved.
+DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "nl", "rg", "sort", "tee", "tr", "uniq"}
+DATA_PROGRAM_RUNNERS = ("--pre", "--hostname-bin", "--compress-program")  # rg and sort options that run a program
+GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
+                    "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path",
+                    "--no-advice", "--no-lazy-fetch", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"}
 GIT_GLOBAL_VALUES = {"-C", "-c", "--git-dir", "--work-tree"}
 PUSH_LONG_OPTIONS = [
     "all", "atomic", "branches", "delete", "dry-run", "exec", "follow-tags", "force", "force-if-includes",
@@ -80,6 +110,17 @@ MESSAGES = {
                    "wildcard or main remote.<name>.push) can update main or force. Push to a remote without it.",
     "upstream-main": "with push.default=upstream this branch would push to its upstream, main. "
                      "Run `git branch --unset-upstream`, then `git push -u origin <that-branch>`.",
+    "shared": "this is the shared checkout, the main worktree other agents' worktrees hang off; git commands that "
+              "change its HEAD, index, files or refs are refused here. Run it in your own worktree: "
+              "`cd <your worktree> && git ...`.",
+    "unresolved": "git-guard cannot tell which checkout each git step targets here (a subshell, wrapper, "
+                  "variable assignment or directory change it cannot follow), and it may be the shared checkout. "
+                  "Run each git command as its own simple command, or join simple steps with &&, ; or newlines.",
+    "stash": "every worktree shares one .git, so the stash list is shared with other agents. Commit "
+             "work in progress on your own branch instead.",
+    "shallow": "every worktree shares one .git, so a fetch or pull that changes the shallow state (--depth, "
+               "--deepen, --shallow-*, --unshallow, --update-shallow or an abbreviation) changes it for every "
+               "worktree. Fetch without them.",
     "commit-main": "main is protected. Run `git switch -c <type>/<topic>` first, then commit there.",
     "option": "git-guard does not know this option, so it cannot tell what the write does. Drop it or spell it out.",
 }
@@ -93,8 +134,8 @@ def block(rule, shown):
     raise Blocked(f"`{shown}` is blocked: {MESSAGES[rule]}")
 
 
-def has_simple_shape(command):
-    """True when the only unquoted shell operator is `&&`."""
+def has_simple_shape(command, operators=""):
+    """True when the only unquoted shell operators are `&&` and any of `operators` (`;`, `|`)."""
     quote = None
     i = 0
     while i < len(command):
@@ -112,7 +153,7 @@ def has_simple_shape(command):
             quote = None if c == '"' else quote
         elif c in "'\"":
             quote = c
-        elif c in "\n;|(){}<>*?[" or (c == "#" and (i == 0 or command[i - 1] in " \t")):
+        elif (c in "\n;|(){}<>*?[" and c not in operators) or (c == "#" and (i == 0 or command[i - 1] in " \t")):
             return False
         i += 1
     return True  # an unclosed quote fails in shlex below
@@ -140,6 +181,88 @@ def simple_command(command, cwd):
     if any(set(token) <= {"&"} for token in argv):
         block("simple", command)
     return argv, cwd
+
+
+def semicolons_for_newlines(command):
+    """The command with each unquoted, unescaped newline replaced by `;`, the separator it is to the shell. After
+    &&, ||, |, ; or another newline, it continues the command or is a blank line, so it becomes a space."""
+    out, quote, escaped = [], None, False
+    for c in command:
+        if escaped:
+            escaped = False
+        elif c == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            quote = None if c == quote else quote
+        elif c in "'\"":
+            quote = c
+        elif c == "\n":
+            before = "".join(out).rstrip(" \t")
+            c = " " if not before or before.endswith(("&&", "|", ";")) else ";"
+        out.append(c)
+    return "".join(out)
+
+
+def git_steps(command, cwd):
+    """[(program, argv, cwd)] for the git and gh steps of simple steps joined by &&, ||, ;, | or newlines. A
+    `cd <dir>` step moves the steps after it only when it always runs and its result is used: first or after
+    `;`, and followed by && or `;`. None for any other shape, another cd, a variable assignment, or a program
+    outside DATA_PROGRAMS whose arguments name git: those steps' target cannot be resolved."""
+    command = semicolons_for_newlines(ALLOWED_SUFFIX.sub("", command))
+    if not has_simple_shape(command, operators=";|"):
+        return None
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+    lex.whitespace_split = True
+    lex.commenters = ""
+    steps, operators = [[]], [";"]  # operators[n] is the one before steps[n]
+    for token in lex:
+        if token in ("&&", "||", ";", "|"):
+            steps.append([])
+            operators.append(token)
+        elif set(token) <= set(";&|"):
+            return None
+        else:
+            steps[-1].append(token)
+    operators.append(";")
+    found = []
+    for n, argv in enumerate(steps):
+        program = os.path.basename(argv[0]) if argv else ""
+        if not argv:
+            if operators[n] != ";" or operators[n + 1] != ";":
+                return None  # only `;` and newlines may leave an empty step
+        elif argv[0] in ("pushd", "popd"):
+            return None  # the directory stack is not followed
+        elif argv[0] == "cd":
+            if len(argv) != 2 or operators[n] != ";" or operators[n + 1] not in ("&&", ";"):
+                return None
+            cwd = cd_dir(cwd, argv[1], command)
+        elif program in ("git", "gh"):
+            found.append((program, argv, cwd))
+        elif ASSIGNMENT.match(argv[0]) or (
+                (program not in DATA_PROGRAMS or any(arg.startswith(DATA_PROGRAM_RUNNERS) for arg in argv[1:]))
+                and any(GIT_WORD.search(arg) for arg in argv[1:])):
+            return None
+    return found
+
+
+def refuse_unresolved(command, cwd):
+    """A git command git_steps cannot resolve runs where the session is only if nothing in it can move the
+    target; it refuses when something can, or when the session is in the shared checkout."""
+    if DIRECTORY_CHANGE.search(plain_text(command)) or in_shared_checkout(cwd):
+        block("unresolved", command)
+
+
+def in_shared_checkout(cwd, options=()):
+    """True when cwd (with git's global options) is the shared checkout; False outside any repository; any other
+    lookup failure blocks."""
+    if cwd is None or not os.path.isdir(cwd):
+        return False
+    try:
+        return Repo(cwd, list(options), cwd).is_shared_checkout()
+    except Blocked as failure:
+        if "not a git repository" in str(failure):
+            return False
+        raise
 
 
 def cd_dir(base, operand, shown):
@@ -175,6 +298,16 @@ class Repo:
         if result.returncode not in (0, 1):
             raise self.lookup_failed("the current branch", result)
         return result.stdout.strip().removeprefix("refs/heads/") or None
+
+    def is_shared_checkout(self):
+        """True in a main worktree that has linked worktrees, the checkout other agents' worktrees share."""
+        dirs = self.git("rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+        listing = self.git("worktree", "list", "--porcelain")
+        for result in (dirs, listing):
+            if result.returncode != 0:
+                raise self.lookup_failed("the worktree layout", result)
+        git_dir, common = dirs.stdout.splitlines()
+        return git_dir == common and sum(line.startswith("worktree ") for line in listing.stdout.splitlines()) > 1
 
     def config(self):
         """Effective config, `-c` overrides included: key -> values (None for a bare boolean)."""
@@ -262,6 +395,55 @@ def check_push(args, repo):
             block("upstream-main", shown)
 
 
+BRANCH_LISTING = {"list", "all", "remotes", "show-current", "merged", "no-merged", "contains", "no-contains",
+                  "points-at", "verbose", "sort", "format", "column", "no-column", "color", "no-color",
+                  "ignore-case", "abbrev", "no-abbrev", "omit-empty", "delete"}
+BRANCH_VALUES = {"--format", "--sort", "--points-at"}
+BRANCH_TAKES_NAMES = {"list", "all", "remotes", "merged", "no-merged", "contains", "no-contains", "points-at", "delete"}
+
+
+def writes_anyway(command, args):
+    """A SHARED_CHECKOUT_SAFE subcommand in a form that writes: --output=<file>, fetch --update-head-ok, or
+    branch other than listing and deleting (create, -m, -c, -f, --set-upstream-to)."""
+    if command == "branch":  # drop the separate values of --format, --sort and --points-at before classifying
+        args = [arg for n, arg in enumerate(args) if not (n and args[n - 1] in BRANCH_VALUES)]
+    longs = {arg[2:].split("=", 1)[0] for arg in args if arg.startswith("--") and len(arg) > 3}
+    shorts = set("".join(arg[1:] for arg in args if arg.startswith("-") and not arg.startswith("--")))
+    if any("output".startswith(name) for name in longs):
+        return True
+    if command == "fetch":
+        return "u" in shorts or any("update-head-ok".startswith(name) for name in longs)
+    if command == "branch":
+        names = any(not arg.startswith("-") for arg in args)
+        listing = shorts <= set("dDlarvi") and longs <= BRANCH_LISTING
+        return not listing or (names and not (shorts & set("dDlar") or longs & BRANCH_TAKES_NAMES))
+    return False
+
+
+INIT_VALUES = {"-b", "--initial-branch", "--separate-git-dir", "--template", "--object-format", "--ref-format"}
+
+
+def init_target(args, cwd, options):
+    """The directory `git init` writes: cwd, moved by -C, then by its directory operand."""
+    for flag, value in zip(options, options[1:]):
+        if flag == "-C":
+            cwd = os.path.join(cwd or "/", value)
+    directory, skip = None, False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in INIT_VALUES:
+            skip = True
+        elif not arg.startswith("-"):
+            directory = arg
+    return os.path.normpath(os.path.join(cwd, directory)) if cwd and directory else cwd
+
+
+def changes_shallow_state(arg):
+    name = arg[2:].split("=", 1)[0] if arg.startswith("--") else ""
+    return len(name) >= 2 and any(option.startswith(name) for option in SHALLOW_OPTIONS)
+
+
 def check_git(args, cwd, shown):
     options = []
     i = 0
@@ -279,11 +461,32 @@ def check_git(args, cwd, shown):
             i += 1
         else:
             block("option", shown)
-    if i >= len(args) or args[i] not in ("commit", "push"):
+    if i >= len(args):
         return
-    repo = Repo(cwd, options, shown)
-    if args[i] == "push":
-        check_push(args[i + 1 :], repo)
+    command, rest, repo = args[i], args[i + 1 :], None
+    if command == "clone":
+        return  # a clone has its own .git, shallow or not; the current checkout plays no part
+    if command == "init":  # creates its target, so a missing repository there is not the shared checkout
+        # with --git-dir or --work-tree, git resolves the repository init writes; otherwise init_target does
+        overridden = any(option.startswith(("--git-dir", "--work-tree")) for option in options)
+        target = in_shared_checkout(cwd, options) if overridden else in_shared_checkout(init_target(rest, cwd, options))
+        if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1" and target:
+            block("shared", shown)
+        return
+    if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
+        if command == "stash":
+            block("stash", shown)
+        if command in ("fetch", "pull") and any(changes_shallow_state(arg) for arg in rest):
+            block("shallow", shown)
+        if command not in SHARED_CHECKOUT_SAFE or writes_anyway(command, rest):
+            repo = Repo(cwd, options, shown)
+            if repo.is_shared_checkout():
+                block("shared", shown)
+    if command not in ("commit", "push"):
+        return
+    repo = repo or Repo(cwd, options, shown)
+    if command == "push":
+        check_push(rest, repo)
     elif repo.branch() == MAIN:
         block("commit-main", shown)
 
@@ -343,15 +546,33 @@ def check_gh(args, shown):
         check_gh_api(args[words[0][0] + 1 :], shown)
 
 
+def plain_text(command):
+    """The command with quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be."""
+    return urllib.parse.unquote(re.sub(r"[\"'\\]", "", command.replace("\\\n", "")))
+
+
 def mentions_write(command):
-    """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be.
-    An expansion beside git, gh or a write verb counts too, since it can spell the rest (`/usr/bin/gi? push`)."""
-    plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command.replace("\\\n", "")))
-    return MENTIONS_WRITE.search(plain) or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain))
+    """Text check before parsing. An expansion beside git, gh or a write verb counts too, since it can spell
+    the rest (`/usr/bin/gi? push`)."""
+    plain = plain_text(command)
+    return (MENTIONS_WRITE.search(plain) or CHANGES_CHECKOUT.search(plain)
+            or (SHALLOW.search(plain) and GIT_WORD.search(plain))
+            or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain)))
 
 
 def check(command, cwd, unchecked=None):
     if not mentions_write(command):
+        # No write in the text, but in the shared checkout every git step still meets the allow-list.
+        if unchecked or not GIT_WORD.search(plain_text(command)):
+            return
+        steps = git_steps(command, cwd)
+        if steps is None:
+            refuse_unresolved(command, cwd)
+        for program, argv, step_cwd in steps or []:
+            if program == "gh":
+                check_gh(argv[1:], " ".join(argv))
+            else:
+                check_git(argv[1:], step_cwd, " ".join(argv))
         return
     if unchecked:
         raise Blocked(f"this terminal call mentions, or could spell, a git write or PR merge, and {unchecked}. "

@@ -5,6 +5,7 @@ Run: python3 tools/agent-guard/git_guard_test.py
 """
 import importlib.util
 import json
+import shutil
 import os
 import subprocess
 import sys
@@ -24,6 +25,9 @@ HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plu
 #   matching  repo on feat/m with push.default=matching
 #   plain     a directory outside any repo
 #   solo      repo on feat/x whose only remote, `backup`, has push = HEAD:refs/heads/main
+#   shared    a main worktree on feat/s with a linked worktree beside it: the shared checkout (#1205)
+#   linked    that linked worktree, on feat/l
+#   spaced    a linked worktree of another shared checkout whose path has a space, `p with space`
 #   tagged    repo on main that also has a tag named main
 #   feature also has remotes `matchall` (push = :), `mirror2` (mirror = 2), `nomirror` (mirror = false)
 CASES = [
@@ -197,6 +201,185 @@ CASES = [
     ("git -C \"$WT\" status", "feature", "block"),
 ]
 
+# The shared checkout (#1205): only reads, fetch, worktree and branch management run there; stash and shallow
+# fetches are refused in every worktree.
+CASES += [
+    ("git commit -m x", "shared", "block"),
+    ("git checkout -b feat/new", "shared", "block"),
+    ("git stash", "shared", "block"),
+    ("git fetch --depth=1 origin", "shared", "block"),
+    ("git reset --hard", "shared", "block"),
+    ("git add -A", "shared", "block"),
+    ("git tag v9", "shared", "block"),
+    ("git -C ../shared checkout feat/s", "linked", "block"),
+    ("cd ../shared && git commit -m x", "linked", "block"),
+    ("git status --short", "shared", "allow"),
+    ("git fetch origin main:main", "shared", "allow"),
+    ("git worktree add -b feat/n ../n origin/main", "shared", "allow"),
+    ("git worktree remove ../n", "shared", "allow"),
+    ("git branch -D feat/old", "shared", "allow"),
+    ("git merge-tree --write-tree main feat/s", "shared", "allow"),
+    ("git log --grep commit --oneline", "shared", "allow"),
+    ("git config --get user.name", "shared", "allow"),
+    ("git checkout -b feat/new", "linked", "allow"),
+    ("git commit -m x", "linked", "allow"),
+    ("cd ../linked && git commit -m x", "shared", "allow"),
+    ("git fetch origin", "linked", "allow"),
+    ("git stash", "linked", "block"),
+    ("git stash list", "linked", "block"),
+    ("cd ../linked && git stash", "shared", "block"),
+    ("git fetch --depth=1 origin", "linked", "block"),
+    ("git pull --depth 1", "linked", "block"),
+    ("git fetch --unshallow", "linked", "block"),
+    ("git checkout -b feat/new", "feature", "allow"),  # a lone clone has no linked worktrees: not shared
+    # Every git step meets the allow-list in the shared checkout, not only verbs the text check knows (round 1).
+    ("git sparse-checkout set src", "shared", "block"),
+    ("git sparse-checkout disable", "shared", "block"),
+    ("git update-index --skip-worktree AGENTS.md", "shared", "block"),
+    ("git read-tree -mu HEAD", "shared", "block"),
+    ("git symbolic-ref HEAD refs/heads/feat/new", "shared", "block"),
+    ("git -C '../p with space' checkout -b feat/new", "spaced", "block"),
+    ("git -c user.name=\"A B\" checkout -b feat/new", "shared", "block"),
+    ("git status && git sparse-checkout set src", "shared", "block"),
+    ("(git status)", "shared", "block"),
+    ("git status && git log --oneline -3", "shared", "allow"),
+    ("git log --oneline | head -5", "shared", "allow"),
+    ("echo git && git status", "shared", "allow"),
+    ("git --version", "shared", "allow"),
+    ("git sparse-checkout set src", "linked", "allow"),
+    ("(git status)", "linked", "allow"),
+]
+CASES += [  # abbreviated shallow options, as git accepts them (round 1)
+    ("git fetch --dep=1 origin", "linked", "block"),
+    ("git fetch --dee=1 origin", "linked", "block"),
+    ("git fetch --unsh", "linked", "block"),
+    ("git fetch --shallow-s=2026-01-01 origin", "linked", "block"),
+    ("git pull --dep 1", "shared", "block"),
+    ("git fetch --update-shallow origin", "linked", "block"),
+    ("git fetch --dry-run origin", "linked", "allow"),
+    ("git fetch --tags origin", "linked", "allow"),
+]
+CASES += [  # a clone gets its own .git (round 1)
+    ("git clone --depth 1 file:///tmp/source child", "plain", "allow"),
+    ("git clone --depth 1 file:///tmp/source child", "shared", "allow"),
+    ("git clone file:///tmp/source child", "shared", "allow"),
+]
+CASES += [  # allowed subcommands narrowed to the forms that do not write the shared checkout (round 1)
+    ("git branch -m feat/renamed", "shared", "block"),
+    ("git branch -M feat/renamed", "shared", "block"),
+    ("git branch -f feat/s HEAD~1", "shared", "block"),
+    ("git branch -c feat/copy", "shared", "block"),
+    ("git branch --set-upstream-to=origin/main", "shared", "block"),
+    ("git branch feat/new", "shared", "block"),
+    ("git fetch --update-head-ok origin main:feat/s", "shared", "block"),
+    ("git fetch -u origin main:feat/s", "shared", "block"),
+    ("git diff --output=/tmp/out.diff", "shared", "block"),
+    ("git log --out=/tmp/log.txt", "shared", "block"),
+    ("git branch", "shared", "allow"),
+    ("git branch -a --merged main", "shared", "allow"),
+    ("git branch --show-current", "shared", "allow"),
+    ("git branch -vv", "shared", "allow"),
+    ("git branch -d feat/old", "shared", "allow"),
+    ("git branch --list 'feat/*'", "shared", "allow"),
+    ("git diff --output-indicator-new=+ HEAD", "shared", "allow"),
+    ("git branch -m feat/renamed", "linked", "allow"),
+    ("git diff --output=/tmp/out.diff", "linked", "allow"),
+]
+
+CASES += [  # round 2: decide by the executable, not argument text (finding 4) ...
+    *[(command, where, "allow") for where in ("shared", "linked", "feature") for command in (
+        "gh pr list --search 'git guard'",
+        "rg git tools/agent-guard",
+        "gh pr create --title x --body 'uses git worktree add, then git status'",
+        "grep -rn 'git sparse-checkout' docs | head -3",
+    )],
+    ("xargs git sparse-checkout set src", "shared", "block"),
+    ("env git sparse-checkout set src", "shared", "block"),
+    ("GIT_DIR=../shared/.git git sparse-checkout set src", "linked", "block"),
+    ("gh pr merge 1 --squash", "shared", "block"),
+    # ... and resolve each step's target, newline-separated or terminated too (finding 1)
+    ("git -C ../shared status\ngit -C ../shared sparse-checkout set src", "linked", "block"),
+    ("cd ../shared && git sparse-checkout set src\n", "linked", "block"),
+    ("git -C ../shared sparse-checkout set src;", "linked", "block"),
+    ("git status\ngit log --oneline -1\n", "shared", "allow"),
+    ("git status\ngit log --oneline -1", "linked", "allow"),
+    ("cd ../linked | git sparse-checkout set src", "shared", "block"),
+    ("cd ../linked || git status", "shared", "block"),
+    ("(cd ../shared && git status)", "linked", "block"),
+    ("(git status)", "linked", "allow"),
+    ("(git status)", "plain", "allow"),
+    # an unknown program naming git may run it; a cd that may not run is not followed
+    ("python3 -c \"import os; os.system('git sparse-checkout set src')\"", "shared", "block"),
+    ("make git-cleanup", "shared", "block"),
+    ("python3 -c \"print('git')\"", "linked", "allow"),
+    ("false && cd ../linked; git sparse-checkout set src", "shared", "block"),
+    ("git status && cd ../linked && git sparse-checkout set src", "shared", "block"),
+    ("cd ../linked; git sparse-checkout set src", "shared", "allow"),
+    ("echo git | sort | uniq -c", "shared", "allow"),
+]
+
+CASES += [  # round 2: git init creates its target (finding 2)
+    ("git init child", "plain", "allow"),
+    ("git init -b main child", "plain", "allow"),
+    ("git init child", "linked", "allow"),
+    ("git init", "shared", "block"),
+    ("git init -b main", "shared", "block"),
+    ("git -C ../shared init", "linked", "block"),
+]
+
+CASES += [  # round 2: branch listing options take values (finding 3)
+    ("git branch --format '%(refname:short)'", "shared", "allow"),
+    ("git branch --sort -committerdate", "shared", "allow"),
+    ("git branch --points-at HEAD", "shared", "allow"),
+    ("git branch --sort -committerdate feat/new", "shared", "block"),
+    ("git branch --format '%(refname)' -m feat/renamed", "shared", "block"),
+]
+
+CASES += [  # round 2: global flags that do not change the target (finding 5)
+    *[(command, where, "allow") for where in ("shared", "linked", "feature") for command in (
+        "git --no-advice status --short",
+        "git --no-lazy-fetch log -1 --oneline",
+        "git --glob-pathspecs ls-files",
+        "git --icase-pathspecs ls-files",
+    )],
+    ("git --no-advice sparse-checkout set src", "shared", "block"),
+    ("git --exec-path=/tmp status", "linked", "block"),
+]
+
+CASES += [  # round 3: a newline after an operator continues the command; blank lines are harmless
+    *[(command, where, "allow") for where in ("linked", "feature") for command in (
+        "cd . &&\ngit log --oneline -1",
+        "cd . && git status\ngit log --oneline -1",
+        "git status\n\ngit log --oneline -1",
+        "git status;\ngit log --oneline -1",
+        "git log --oneline |\nhead -1",
+        "\ngit status\n",
+    )],
+    ("cd ../shared &&\ngit sparse-checkout set src", "linked", "block"),
+    ("echo x \\;\ngit -C ../shared sparse-checkout set src", "linked", "block"),
+    ("echo ';'\ngit -C ../shared sparse-checkout set src", "linked", "block"),
+]
+CASES += [  # round 3: pushd and popd move the target too
+    ("pushd ../shared && git sparse-checkout set src", "linked", "block"),
+    ("pushd ../shared; git sparse-checkout set src", "linked", "block"),
+    ("popd && git sparse-checkout set src", "linked", "block"),
+]
+CASES += [  # round 3: init through --git-dir targets that repository
+    ("git --git-dir=../shared/.git init --bare", "linked", "block"),
+    ("git --git-dir=../shared/.git init --separate-git-dir=/tmp/moved", "linked", "block"),
+    ("git --git-dir ../shared/.git init --bare", "linked", "block"),
+    ("git --git-dir=new-repo.git init --bare", "plain", "allow"),
+    ("git --git-dir=new-repo.git init --bare", "linked", "allow"),
+]
+CASES += [  # round 3 note: data programs that can run a program
+    ("rg --pre git . gc", "shared", "block"),
+    ("rg --hostname-bin=git -n x .", "shared", "block"),
+    ("sort --compress-program=git -S 1K /tmp/words", "shared", "block"),
+    ("less '+!git sparse-checkout set src' src/file", "shared", "block"),
+    ("more '+!git sparse-checkout set src' src/file", "shared", "block"),
+    ("rg --pre git . gc", "linked", "allow"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
@@ -248,7 +431,9 @@ class GitGuardTest(unittest.TestCase):
         main = os.path.join(root, "repo")
         cls.dirs = {"main": main, "feature": os.path.join(main, "feature"),
                     "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root,
-                    "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged")}
+                    "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged"),
+                    "shared": os.path.join(root, "shared"), "linked": os.path.join(root, "linked"),
+                    "spaced": os.path.join(root, "spaced")}
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
@@ -271,6 +456,13 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "main", cls.dirs["tagged"])
         git("-C", cls.dirs["tagged"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["tagged"], "tag", "main")
+        git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
+        git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
+        git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
+        spaced_main = os.path.join(root, "p with space")
+        git("init", "-q", "-b", "feat/p", spaced_main)
+        git("-C", spaced_main, "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
+        git("-C", spaced_main, "worktree", "add", "-q", "-b", "feat/sp", cls.dirs["spaced"])
         git("init", "-q", "-b", "feat/m", cls.dirs["matching"])
         git("-C", cls.dirs["matching"], "config", "push.default", "matching")
         git("init", "-q", "--bare", "-b", "main", remote)
@@ -305,6 +497,25 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(body=body[:60]):
                 self.assertEqual(code, 2, stderr)
                 self.assertIn("unreadable Bash hook payload", stderr)
+
+    def test_the_maintainer_can_lift_the_shared_checkout_rules(self):
+        env = {**os.environ, "GIT_GUARD_ALLOW_SHARED": "1"}
+        for command in ("git commit -m x", "git stash", "git fetch --depth=1 origin"):
+            body = json.dumps(payload("claude", command, self.dirs["shared"]))
+            result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0, f"{command}: {result.stderr}")
+
+    def test_unreadable_git_shape_refuses_when_the_layout_lookup_fails(self):
+        shim = os.path.join(self.tmp.name, "bin")
+        os.makedirs(shim, exist_ok=True)
+        with open(os.path.join(shim, "git"), "w") as f:
+            f.write(f'#!/bin/sh\ncase "$*" in *"worktree list"*) exit 128;; esac\nexec {shutil.which("git")} "$@"\n')
+        os.chmod(os.path.join(shim, "git"), 0o755)
+        env = {**os.environ, "PATH": shim + os.pathsep + os.environ["PATH"]}
+        for where, expected in (("shared", 2), ("plain", 0)):  # a failed lookup blocks; no repository is not shared
+            body = json.dumps(payload("claude", "(git status)", self.dirs[where]))
+            result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, expected, f"{where}: {result.stderr}")
 
     def test_other_tools_pass(self):
         for name in ("Read", "read_file"):

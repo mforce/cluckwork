@@ -10,13 +10,27 @@ links there rather than restating rationale.
 git config core.hooksPath .githooks
 ```
 
-Enables three hooks: **pre-commit** (refuses a commit on `main`, then runs unit
+Enables three hooks: **pre-commit** (refuses a commit on `main` or in the shared
+checkout, a main worktree that has linked worktrees beside it, then runs unit
 tests for staged .NET changes and `npm run typecheck` for staged `web/` changes),
 **commit-msg** (rejects a message release-please would silently drop from the
 changelog) and **pre-push** (refuses a push to `main`, a force push, and a push
 under another branch name). Integration tests
 are deliberately excluded — Docker, slow; CI is the authority. Skip once with
 `--no-verify`.
+
+In the shared checkout (a main worktree with linked worktrees beside it), `pre-commit`
+refuses commits. The agent guard (`tools/agent-guard/git_guard.py`) runs only inside agent
+harnesses; there it refuses git writes in the shared checkout, and `git stash` and shallow
+fetches anywhere. For a deliberate commit there, put the override on that one command in
+your own shell:
+
+```bash
+GIT_GUARD_ALLOW_SHARED=1 git commit -m "…"
+```
+
+Never export it, or set it for a harness or Paseo: every agent started from that
+environment inherits it and loses these checks.
 
 ## Local development
 

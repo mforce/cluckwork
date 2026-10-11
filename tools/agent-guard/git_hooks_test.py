@@ -245,7 +245,12 @@ class PreCommitTest(unittest.TestCase):
             on_main = os.path.join(root, "wt-main")
             run(repo.work, "worktree", "add", "-q", on_main, "main", check=True)
             self.check("linked worktree on main", repo.commit("wt main", cwd=on_main), "refuse")
-            self.check("main checkout on feat/x beside it", repo.commit("checkout feature"), "allow")
+            self.check("main checkout on feat/x beside it: the shared checkout", repo.commit("checkout feature"), "refuse")
+            ENV["GIT_GUARD_ALLOW_SHARED"] = "1"
+            try:
+                self.check("shared checkout, GIT_GUARD_ALLOW_SHARED=1", repo.commit("maintainer"), "allow")
+            finally:
+                del ENV["GIT_GUARD_ALLOW_SHARED"]
             run(on_main, "switch", "-q", "-c", "feat/wt", check=True)
             run(repo.work, "switch", "-q", "main", check=True)
             self.check("linked worktree on feat/wt, main checkout on main", repo.commit("wt feature", cwd=on_main), "allow")
@@ -262,6 +267,21 @@ class PreCommitTest(unittest.TestCase):
             env = {**ENV, "PATH": shim + os.pathsep + ENV["PATH"]}
             result = subprocess.run([os.path.join(HOOKS, "pre-commit")], cwd=repo.work, capture_output=True, text=True, env=env)
             self.check("feat/x, symbolic-ref exits 128", result, "refuse")
+
+    def test_unreadable_worktree_layout_refuses(self):
+        for failing in ("--git-dir", "worktree list"):
+            with tempfile.TemporaryDirectory() as root:
+                repo = Repo(root)
+                shim = os.path.join(root, "bin")
+                os.mkdir(shim)
+                with open(os.path.join(shim, "git"), "w") as f:  # fails only the named lookup
+                    f.write(f'#!/bin/sh\ncase " $* " in *" {failing} "*) exit 128;; esac\nexec {shutil.which("git")} "$@"\n')
+                os.chmod(os.path.join(shim, "git"), 0o755)
+                env = {**ENV, "PATH": shim + os.pathsep + ENV["PATH"]}
+                result = subprocess.run([os.path.join(HOOKS, "pre-commit")], cwd=repo.work, capture_output=True,
+                                        text=True, env=env)
+                self.check(f"feat/x, `{failing}` lookup exits 128", result, "refuse")
+                self.assertIn("cannot read the worktree layout", result.stderr)
 
     def test_tests_skipped_when_hook_tests_off(self):
         with tempfile.TemporaryDirectory() as root:
