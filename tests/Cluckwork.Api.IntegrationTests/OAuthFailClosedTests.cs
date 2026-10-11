@@ -24,6 +24,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
+using OpenIddict.Validation;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
@@ -317,6 +318,52 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Equal(0, afterValid);
         Assert.Equal(HttpStatusCode.Unauthorized, forged.StatusCode);
         Assert.Equal(1, await FailuresAsync(host));
+    }
+
+    // Refusals reach the failure budget only when they finish, so the cap on bearers in flight
+    // bounds what one address can start meanwhile. Authentication is held open here; the next
+    // bearer from that address is refused, another address is not, and every held request
+    // gives its place back when it finishes.
+    [Fact]
+    public async Task BearersInFlight_FromOneAddress_AreCapped_AndAnotherAddressIsNot()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = 0;
+        using var host = FrozenHost(new FakeTimeProvider()).WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<IStartupFilter, FakeRemoteIpStartupFilter>();
+            services.AddOpenIddict().AddValidation(validation =>
+                validation.AddEventHandler<OpenIddictValidationEvents.ProcessAuthenticationContext>(handler => handler
+                    .UseInlineHandler(async _ =>
+                    {
+                        Interlocked.Increment(ref entered);
+                        await gate.Task;
+                    })
+                    .SetOrder(int.MinValue + 100_000)));
+        }));
+        const int cap = RateLimitingOptions.OAuthApiBearersInFlightPerAddress;
+
+        var held = Enumerable.Range(0, cap).Select(i => Client(host, $"forged-{i}").GetAsync(Probe.Read)).ToList();
+        await UntilAsync(() => Volatile.Read(ref entered) == cap);
+        using var refused = await Client(host, "forged-over").GetAsync(Probe.Read);
+        var otherClient = Client(host, "forged-elsewhere");
+        otherClient.DefaultRequestHeaders.Add("X-Test-Remote", "203.0.113.9");
+        var other = otherClient.GetAsync(Probe.Read);
+        await UntilAsync(() => Volatile.Read(ref entered) == cap + 1);
+        gate.SetResult();
+        var finished = await Task.WhenAll(held.Append(other));
+        using var afterwards = await Client(host, "forged-after").GetAsync(Probe.Read);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, refused.StatusCode);
+        Assert.All(finished, r => Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode));
+        Assert.Equal(HttpStatusCode.Unauthorized, afterwards.StatusCode);
+    }
+
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        while (!condition())
+            await Task.Delay(10, timeout.Token);
     }
 
     // The budget is a window, so a spent address may try again once it rolls over.

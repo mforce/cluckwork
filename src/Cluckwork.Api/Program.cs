@@ -299,11 +299,11 @@ app.UseSerilogRequestLogging(options =>
 app.UseCluckworkBindingFailureResponse();
 
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
-// opt in via RequireRateLimiting are affected. oauth-api endpoints also count
-// refused bearers per address, checked first.
+// opt in via RequireRateLimiting are affected. oauth-api endpoints also limit
+// refused bearers and bearers in flight per address, checked first.
 if (identity.OAuthIssuer is { } mcpIssuer)
     app.UseMcpOriginCheck(mcpIssuer);
-app.UseOAuthApiFailureBudget();
+app.UseOAuthApiAddressLimits();
 app.UseRateLimiter();
 
 // #309 — enforce the per-endpoint request-body byte caps (the auth/credential

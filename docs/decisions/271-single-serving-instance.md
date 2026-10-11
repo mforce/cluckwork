@@ -191,6 +191,14 @@ backend that granted it needs both backends in hand, and a per-call `ILease`
 decorator could not express that. So `ILease` is a type the report cap uses, not
 a registered port, and a walk of `AddSingleton` under `src/` will not find one.
 
+Also excluded, as per-process **on purpose**: the cap on bearer requests in flight per
+client address on `oauth-api` endpoints (`/mcp`), a `PartitionedRateLimiter` concurrency
+limiter built inside `UseOAuthApiAddressLimits` rather than registered, so a walk of
+`AddSingleton` will not find it either. Requests in flight are each instance's own work,
+so N replicas each bounding their own is the correct semantics, not N times an intended
+budget. The combined per-address budget beside it, refused bearers per minute, is on
+`IFixedWindowCounter` like the other limiters.
+
 ## What does NOT license scaling
 
 **#307 (multi-replica HTTP write idempotency) is CLOSED**, so the request-path

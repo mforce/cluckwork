@@ -176,17 +176,31 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
     }
 }
 
-internal static class OAuthApiFailureBudget
+internal static class OAuthApiAddressLimits
 {
-    // Before UseRateLimiter, so an address over budget spends no per-token permit and
-    // authenticates nothing. Only a presented bearer refused with 401 is recorded: a valid
-    // call, a scope 403, a per-token 429 and a client's tokenless discovery probe spend nothing.
-    public static void UseOAuthApiFailureBudget(this IApplicationBuilder app)
+    // Before UseRateLimiter, so a refused address spends no per-token permit and
+    // authenticates nothing. Two limits, both per client address:
+    // - the failure budget, shared across replicas: only a presented bearer refused with 401
+    //   spends it, so a valid call, a scope 403, a per-token 429 and a client's tokenless
+    //   discovery probe spend nothing;
+    // - bearer requests in flight, which bounds the authentications admitted before their
+    //   refusals reach the failure budget.
+    public static void UseOAuthApiAddressLimits(this IApplicationBuilder app)
     {
         var budget = new FailedAuthenticationBudget(
             RateLimitingOptions.OAuthApiFailuresKeyPrefix,
             RateLimitingOptions.OAuthApiFailuresPerAddress,
             RateLimitingOptions.OAuthApiFailuresWindow);
+        // Per process on purpose: requests in flight are this instance's own work, so each
+        // replica bounds its own. It is not one of #271's combined budgets.
+        var inFlight = PartitionedRateLimiter.Create<string, string>(address =>
+            RateLimitPartition.GetConcurrencyLimiter(address, _ => new ConcurrencyLimiterOptions
+            {
+                PermitLimit = RateLimitingOptions.OAuthApiBearersInFlightPerAddress,
+                QueueLimit = 0,
+            }));
+        app.ApplicationServices.GetRequiredService<IHostApplicationLifetime>().ApplicationStopped.Register(inFlight.Dispose);
+
         app.Use(async (context, next) =>
         {
             if (context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
@@ -198,24 +212,41 @@ internal static class OAuthApiFailureBudget
 
             if (await budget.RefusalAsync(context) is { } retryAfter)
             {
-                context.RequestServices.GetRequiredService<ILoggerFactory>()
-                    .CreateLogger("Cluckwork.Api.Security.RateLimiting")
-                    .LogWarning("{SecurityEvent} policy={Policy} client={ClientIp} path={Path}",
-                        SecurityEvents.RateLimitRejected,
-                        RateLimitingOptions.OAuthApiFailuresKeyPrefix,
-                        RateLimitKey.ForClient(context.Connection.RemoteIpAddress),
-                        context.Request.Path.Value);
-                context.Response.Headers.RetryAfter =
-                    ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
-                await CluckworkRateLimitingServiceCollectionExtensions.WriteJsonRpcTooManyRequestsAsync(context.Response);
+                await RefuseAsync(context, RateLimitingOptions.OAuthApiFailuresKeyPrefix, retryAfter);
+                return;
+            }
+
+            if (!RateLimitKey.HasBearer(context.Request))
+            {
+                await next(context);
+                return;
+            }
+
+            using var lease = inFlight.AttemptAcquire(RateLimitKey.ForClient(context.Connection.RemoteIpAddress));
+            if (!lease.IsAcquired)
+            {
+                await RefuseAsync(context, RateLimitingOptions.OAuthApiInFlightPolicyName, TimeSpan.FromSeconds(1));
                 return;
             }
 
             await next(context);
-            if (context.Response.StatusCode == StatusCodes.Status401Unauthorized
-                && RateLimitKey.HasBearer(context.Request))
+            if (context.Response.StatusCode == StatusCodes.Status401Unauthorized)
                 await budget.RecordAsync(context);
         });
+    }
+
+    private static Task RefuseAsync(HttpContext context, string policy, TimeSpan retryAfter)
+    {
+        context.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Cluckwork.Api.Security.RateLimiting")
+            .LogWarning("{SecurityEvent} policy={Policy} client={ClientIp} path={Path}",
+                SecurityEvents.RateLimitRejected,
+                policy,
+                RateLimitKey.ForClient(context.Connection.RemoteIpAddress),
+                context.Request.Path.Value);
+        context.Response.Headers.RetryAfter =
+            ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
+        return CluckworkRateLimitingServiceCollectionExtensions.WriteJsonRpcTooManyRequestsAsync(context.Response);
     }
 }
 

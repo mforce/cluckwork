@@ -9,8 +9,9 @@ namespace Cluckwork.Infrastructure.RateLimiting;
 // budget before authenticating and records only a refusal, so a valid token's calls never
 // spend it.
 //
-// ponytail: check-then-record lets concurrent requests from one address overshoot the
-// limit by their number in flight; an atomic reserve-and-refund would close that.
+// ponytail: check-then-record lets requests from one address that are already in flight
+// overshoot the limit; the caller caps those per process (OAuthApiBearersInFlightPerAddress),
+// so the overshoot is at most that cap per replica. A shared reserve-and-refund would close it.
 public sealed class FailedAuthenticationBudget(string keyPrefix, int limit, TimeSpan window)
 {
     // Null while the address may try; otherwise the time until its window rolls over.
