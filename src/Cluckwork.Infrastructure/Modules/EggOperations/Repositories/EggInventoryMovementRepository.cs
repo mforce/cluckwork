@@ -15,9 +15,15 @@ public sealed class EggInventoryMovementRepository(AppDbContext db) : IEggInvent
 
     public async Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(
         Guid eggLotId, CancellationToken ct = default) =>
-        await db.EggInventoryMovements
+        await ByLot(eggLotId).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(
+        Guid eggLotId, int limit, int offset, CancellationToken ct = default) =>
+        await ByLot(eggLotId).Skip(offset).Take(limit).ToListAsync(ct);
+
+    private IQueryable<EggInventoryMovement> ByLot(Guid eggLotId) =>
+        db.EggInventoryMovements
             .AsNoTracking()
             .Where(m => m.EggLotId == eggLotId)
-            .OrderByCreationChronologyDescending()
-            .ToListAsync(ct);
+            .OrderByCreationChronologyDescending();
 }

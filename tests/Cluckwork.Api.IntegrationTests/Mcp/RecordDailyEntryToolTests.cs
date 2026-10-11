@@ -103,8 +103,8 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         var byId = await CallAsync(client, Arguments(farm.FlockId.ToString()));
 
         Assert.Equal(assigned, recorded.GetProperty("flockId").GetGuid());
-        Assert.Contains("Flock.NotFound:", ErrorText(byName));
-        Assert.Contains("Flock.NotFound:", ErrorText(byId));
+        Assert.Contains("No flock you can see is named or numbered", ErrorText(byName));
+        Assert.Contains("No flock you can see is named or numbered", ErrorText(byId));
         Assert.Equal(0, await EntryCountAsync(farm));
     }
 
@@ -119,7 +119,7 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
 
         var result = await CallAsync(client, Arguments(victim.FlockId.ToString()));
 
-        Assert.Contains("Flock.NotFound:", ErrorText(result));
+        Assert.Contains("No flock you can see is named or numbered", ErrorText(result));
         Assert.Equal(0, await EntryCountAsync(victim));
     }
 
@@ -203,7 +203,7 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         var replay = ErrorText(await CallAsync(client, arguments));
         var fresh = ErrorText(await CallAsync(client, With(arguments, "idempotencyKey", Guid.NewGuid().ToString())));
 
-        Assert.Contains("Flock.NotFound:", replay);
+        Assert.Contains("No flock you can see is named or numbered", replay);
         Assert.Equal(fresh, replay);
         Assert.Equal([AuditActions.DailyEntryCreate], (await AuditAsync(accountId, entryId)).Select(a => a.Action));
     }
@@ -279,10 +279,31 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         var ambiguous = ErrorText(await CallAsync(client, Arguments(farm.FlockName)));
         var recorded = await RecordAsync(client, Arguments(twin.ToString()));
 
-        Assert.Contains("Flock.Ambiguous:", ambiguous);
+        Assert.Contains("More than one flock is named", ambiguous);
         Assert.Contains(farm.FlockId.ToString(), ambiguous);
         Assert.Contains(twin.ToString(), ambiguous);
         Assert.Equal(twin, recorded.GetProperty("flockId").GetGuid());
+    }
+
+    // #1209 caps name resolution at ten candidates. Beyond that the refusal states no count,
+    // says more flocks share the name and points to the paged flock list. Nothing is picked.
+    [Fact]
+    public async Task ElevenFlocksSharingAName_AreRefused_WithThePointerToTheFlockList()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(Roles.Manager);
+        for (var i = 0; i < 10; i++)
+            await factory.SeedFlockAsync(farm.User.AccountId, farm.FarmId);
+        await factory.WithTenantScopeAsync(farm.User.AccountId, db =>
+            db.Flocks.ExecuteUpdateAsync(s => s.SetProperty(f => f.Name, farm.FlockName)));
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, WriteOnly));
+
+        var refused = ErrorText(await CallAsync(client, Arguments(farm.FlockName)));
+
+        Assert.Contains("More flocks share this name than are listed", refused);
+        Assert.Contains("cluckwork_list_flocks", refused);
+        Assert.Equal(10, System.Text.RegularExpressions.Regex.Count(refused, "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"));
+        Assert.Equal(0, await factory.WithTenantScopeAsync(farm.User.AccountId, db => db.DailyEntries.CountAsync()));
     }
 
     // Guard 25: the validator and handler behind the contract decide, not the tool.

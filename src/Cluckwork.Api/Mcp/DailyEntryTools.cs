@@ -13,10 +13,11 @@ using ModelContextProtocol.Server;
 
 namespace Cluckwork.Api.Mcp;
 
-// #809 — the one write in phase 1. A model holds names, not ids, so the flock and the
-// grades are addressed by name and FarmId and HouseId come from the flock. Validation,
-// flock scope and eligibility stay in the validator and handler behind the contract.
-// The entry stays a draft; a person submits it.
+// Daily production entries. #807 reads them; the adjust and void reasons are farm-entered
+// text and are left out (#792). #809 records one, the only write in phase 1: a model holds
+// names, not ids, so the flock and the grades are addressed by name and FarmId and HouseId
+// come from the flock. Validation, flock scope and eligibility stay in the validator and
+// handler behind the contract. The entry stays a draft; a person submits it.
 [McpServerToolType]
 public sealed class DailyEntryTools(
     McpCallContext call,
@@ -34,6 +35,7 @@ public sealed class DailyEntryTools(
         + "until then its eggs are not in stock.")]
     [Authorize(Policy = AuthPolicies.ProductionWrite)]
     [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]
+    [MirrorsRoute("RecordDailyEntry")]
     public async Task<RecordedDailyEntry> RecordAsync(
         [Description("A key you choose for this recording. Resending the same call with the same key returns the "
             + "first result instead of recording again; reusing it with different values is refused.")]
@@ -78,7 +80,7 @@ public sealed class DailyEntryTools(
         {
             var reply = Deserialize(replayed.Response);
             if (await flocks.GetAsync(reply.FlockId, ct) is null)
-                throw new McpException(Refusal(FlockNotFound(flock)));
+                throw FlockTools.NotFound(flock);
             return reply with { Replayed = true };
         }
 
@@ -94,14 +96,42 @@ public sealed class DailyEntryTools(
         };
     }
 
+    [McpServerTool(Name = "cluckwork_list_daily_entries", ReadOnly = true)]
+    [Authorize]
+    [Authorize(Policy = AuthPolicies.FarmReadScope)]
+    [MirrorsRoute("ListDailyEntries")]
+    [Description("Daily production entries, newest first: eggs collected by grade, cracked, dirty and discarded eggs, "
+        + "and mortality, per flock and day. Paged: when complete is false, call again with offset set to nextOffset.")]
+    public async Task<McpPage<DailyEntryRow>> ListDailyEntriesAsync(
+        [Description("Only this flock's entries, by name or id. A name shared by several flocks is refused with their ids.")]
+        string? flock = null,
+        [Description("Earliest day, yyyy-mm-dd.")] DateOnly? from = null,
+        [Description("Latest day, yyyy-mm-dd.")] DateOnly? to = null,
+        [Description("Entries per page, 1 to 100.")] int limit = McpPage.DefaultLimit,
+        int offset = 0,
+        CancellationToken ct = default)
+    {
+        var flockId = flock is null ? (Guid?)null : (await FlockTools.ResolveAsync(flocks, flock, ct)).Id;
+        var grades = (await eggs.ListAllGradesAsync(ct)).ToDictionary(g => g.Id, g => g.Name);
+        return await McpPage<DailyEntryRow>.ReadAsync(limit, offset, async (take, skip, ct) =>
+            {
+                var rows = await eggs.ListDailyEntriesAsync(flockId, from, to, take, skip, ct);
+                var names = await flocks.GetDisplayNamesAsync([.. rows.Select(e => e.FlockId).Distinct()], ct);
+                return (IReadOnlyList<(DailyEntryDetails Entry, string? FlockName)>)
+                    [.. rows.Select(e => (e, names.GetValueOrDefault(e.FlockId)?.Name))];
+            },
+            r => new DailyEntryRow(
+                r.Entry.Id, r.Entry.FlockId, r.FlockName, r.Entry.Date, r.Entry.Status.ToString(),
+                r.Entry.TotalEggs, r.Entry.CrackedEggs, r.Entry.DirtyEggs, r.Entry.DiscardedEggs, r.Entry.MortalityCount,
+                [.. r.Entry.Grades.Select(g => new GradeCount(grades.GetValueOrDefault(g.EggGradeId), g.Quantity))]),
+            ct);
+    }
+
     private async Task<Result<RecordedDailyEntry>> RecordOnceAsync(
         string flock, DateOnly date, int totalEggs, int crackedEggs, int dirtyEggs, int discardedEggs,
         int mortalityCount, IReadOnlyList<GradeLine>? grades, CancellationToken ct)
     {
-        var resolved = await ResolveFlockAsync(flock, ct);
-        if (resolved.IsFailure)
-            return Result.Failure<RecordedDailyEntry>(resolved.Error);
-        var details = resolved.Value;
+        var details = await ResolveFlockAsync(flock, ct);
 
         List<GradeQuantityDto>? gradeLines = null;
         if (grades is not null)
@@ -126,34 +156,11 @@ public sealed class DailyEntryTools(
             : Result.Failure<RecordedDailyEntry>(id.Error);
     }
 
-    // Exactly one accessible match (guard 32). Duplicate names are legal, so a shared
-    // name is refused with the candidates, and the caller sends an id.
-    private async Task<Result<FlockDetails>> ResolveFlockAsync(string flock, CancellationToken ct)
-    {
-        if (!Guid.TryParse(flock, out var id))
-        {
-            switch (await flocks.ResolveByNameAsync(flock, ct))
-            {
-                case FlockNameResolution.Found found:
-                    id = found.Flock.Id;
-                    break;
-                case FlockNameResolution.Ambiguous ambiguous:
-                    var candidates = new List<string>();
-                    foreach (var candidate in ambiguous.Candidates)
-                    {
-                        var placed = (await flocks.GetAsync(candidate.Id, ct))?.PlacementDate;
-                        candidates.Add($"{candidate.Id} ({candidate.Status}, placed {placed:yyyy-MM-dd})");
-                    }
-                    return Result.Failure<FlockDetails>(Error.Validation("Flock.Ambiguous",
-                        $"{candidates.Count} flocks are named '{flock}'. Send the id of one: {string.Join("; ", candidates)}."));
-                default:
-                    return Result.Failure<FlockDetails>(FlockNotFound(flock));
-            }
-        }
-
-        var details = await flocks.GetAsync(id, ct);
-        return details is null ? Result.Failure<FlockDetails>(FlockNotFound(flock)) : Result.Success(details);
-    }
+    // Exactly one accessible match (guard 32), through the read tools' resolver. A shared name
+    // is refused with candidate ids and never picked; the refusal releases the claim.
+    private async Task<FlockDetails> ResolveFlockAsync(string flock, CancellationToken ct) =>
+        await flocks.GetAsync((await FlockTools.ResolveAsync(flocks, flock, ct)).Id, ct)
+            ?? throw FlockTools.NotFound(flock);
 
     private async Task<Result<List<GradeQuantityDto>>> ResolveGradesAsync(
         Guid farmId, IReadOnlyList<GradeLine> grades, CancellationToken ct)
@@ -175,9 +182,6 @@ public sealed class DailyEntryTools(
         return Result.Success(lines);
     }
 
-    private static Error FlockNotFound(string flock) =>
-        Error.NotFound("Flock", flock) with { Description = $"No flock '{flock}' that you can record for." };
-
     private static string Refusal(Error error) => $"{error.Code}: {error.Description}";
 
     private static RecordedDailyEntry Deserialize(IdempotentResponse response) =>
@@ -192,3 +196,10 @@ public sealed record GradeLine(
     int Quantity);
 
 public sealed record RecordedDailyEntry(Guid DailyEntryId, Guid FlockId, string FlockName, DateOnly Date, bool Replayed);
+
+public sealed record DailyEntryRow(
+    Guid DailyEntryId, Guid FlockId, string? FlockName, DateOnly Date, string Status,
+    int TotalEggs, int CrackedEggs, int DirtyEggs, int DiscardedEggs, int MortalityCount,
+    IReadOnlyList<GradeCount> Grades);
+
+public sealed record GradeCount(string? Grade, int Quantity);

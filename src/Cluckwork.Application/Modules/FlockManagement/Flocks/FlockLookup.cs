@@ -16,11 +16,12 @@ public sealed class FlockLookup(IFlockRepository flocks) : IFlockLookup
         flocks.GetDisplayNamesAsync(ids, ct);
 
     public async Task<FlockNameResolution> ResolveByNameAsync(string name, CancellationToken ct) =>
-        await flocks.ListByNameAsync(name, ct) switch
+        await flocks.ListByNameAsync(name, FlockNameResolution.MaxCandidates + 1, ct) switch
         {
             [] => new FlockNameResolution.NotFound(),
             [var only] => new FlockNameResolution.Found(only),
-            var many => new FlockNameResolution.Ambiguous(many),
+            var many => new FlockNameResolution.Ambiguous(
+                [.. many.Take(FlockNameResolution.MaxCandidates)], many.Count > FlockNameResolution.MaxCandidates),
         };
 
     internal static FlockDetails ToDetails(Flock f) =>

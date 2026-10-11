@@ -69,7 +69,7 @@ connection is held while bytes go to a slow client.
   MCP test reaches it on its own.
 - A replay returns the first call's reply, including the flock name as it was then. It first
   checks that the caller can still see the flock, so a Worker unassigned since the first call
-  gets the same `Flock.NotFound` a fresh call gets. Role and scope are checked by `[Authorize]`
+  gets the same not-found refusal a fresh call gets. Role and scope are checked by `[Authorize]`
   before the unit runs.
 
 ## How it is enforced

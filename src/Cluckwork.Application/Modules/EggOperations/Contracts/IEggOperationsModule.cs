@@ -52,6 +52,10 @@ public interface IEggOperationsModule
     // Null when the lot does not exist or belongs to another farm.
     Task<IReadOnlyList<EggLotMovementDetails>?> ListLotMovementsAsync(Guid lotId, CancellationToken ct);
 
+    // One page of the same ledger, paged in the query (#807).
+    Task<IReadOnlyList<EggLotMovementDetails>?> ListLotMovementsAsync(
+        Guid lotId, int limit, int offset, CancellationToken ct);
+
     Task<Result<RecordEggLotMovementResult>> RecordLotMovementAsync(
         RecordEggLotMovementCommand command, Guid accountId, CancellationToken ct);
 }

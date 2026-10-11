@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -22,6 +23,11 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly string[] BothScopes = [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries];
+    private static readonly string[] ReadTools =
+    [
+        "cluckwork_list_daily_entries", "cluckwork_list_egg_lot_movements", "cluckwork_list_egg_lots",
+        "cluckwork_list_flocks", "cluckwork_read_stock",
+    ];
 
     [Theory]
     [InlineData("2026-07-28")]
@@ -55,7 +61,11 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
 
-        Assert.Equal(expected.Order(), tools.Select(t => t.Name).Where(n => n.StartsWith("cw806_", StringComparison.Ordinal)).Order());
+        // The real read tools (#807) admit every role and need farm:read. The real write tool
+        // (#809) has the probe write's gates, ProductionWrite and daily-entries:write.
+        string[] reads = scopes.Contains(OAuthScopes.ReadFarm) ? ReadTools : [];
+        string[] writes = expected.Contains(ProbeTools.Write) ? [DailyEntryTools.RecordDailyEntry] : [];
+        Assert.Equal(expected.Concat(reads).Concat(writes).Order(), tools.Select(t => t.Name).Order());
     }
 
     [Fact]
