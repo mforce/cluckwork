@@ -30,7 +30,6 @@ public sealed partial class FileSizeLimitTests
         ["web/src/api/client.ts"] = 1107,
         ["web/src/api/cluckwork.ts"] = 1472,
         ["web/src/components/NamedEntityPicker.tsx"] = 1531,
-        ["web/src/routes/AuditPage.tsx"] = 727,
         ["web/src/routes/DailyEntryPage.tsx"] = 1365,
         ["web/src/routes/Dashboard.tsx"] = 1241,
         ["web/src/routes/ExpensesPage.tsx"] = 1082,
