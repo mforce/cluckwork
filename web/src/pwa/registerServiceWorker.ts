@@ -14,6 +14,8 @@
 // The contract: calling this never throws and never rejects. The worst outcome
 // is "no service worker", which is exactly today's behaviour.
 
+import { LANGUAGE_PACK_CACHE, matchesLanguagePack } from "../../scripts/runtime-cache-match.mjs";
+
 export type UpdateHandler = (activate: () => Promise<void>) => void;
 
 // Where vite-plugin-pwa emits the generated worker.
@@ -81,6 +83,7 @@ export async function registerServiceWorker(
     );
 
     scheduleUpdateChecks(registration, signal);
+    if (!navigator.serviceWorker.controller) copyLanguagePacksIntoCache(signal);
 
     return registration;
   } catch {
@@ -89,6 +92,33 @@ export async function registerServiceWorker(
     // rules. None of them should break the page that is already running.
     return null;
   }
+}
+
+// #1149 — the first worker never controls the page that installed it
+// (clientsClaim is off), so a language pack this page imports bypasses the
+// worker's runtime route and would be missing offline after the next load.
+// Copy each one in once the worker is ready. An observer, not
+// getEntriesByType: the resource-timing buffer stops recording at 250 entries,
+// and a switch can come late in a long first session.
+function copyLanguagePacksIntoCache(signal?: AbortSignal) {
+  if (typeof PerformanceObserver === "undefined" || signal?.aborted) return;
+  const observer = new PerformanceObserver((list) => {
+    const packs = list.getEntries().map((entry) => entry.name).filter((name) => {
+      const url = new URL(name);
+      return matchesLanguagePack({
+        url, request: { destination: "script" }, sameOrigin: url.origin === globalThis.location.origin,
+      });
+    });
+    if (packs.length === 0) return;
+    void navigator.serviceWorker.ready
+      .then(() => caches.open(LANGUAGE_PACK_CACHE))
+      .then((cache) => cache.addAll(packs))
+      .catch(() => {
+        // Offline or out of quota: the pack loads again on the next online visit.
+      });
+  });
+  observer.observe({ type: "resource", buffered: true });
+  signal?.addEventListener("abort", () => observer.disconnect(), { once: true });
 }
 
 // Long-lived standalone PWAs do not navigate, so the browser may never discover

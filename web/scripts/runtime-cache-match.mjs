@@ -27,6 +27,9 @@ export function matchesInterExtendedSubsetFont({ url, request, sameOrigin }) {
     && request.destination === "font";
 }
 
+/** #1149 — the runtime cache for language packs, shared with the page (pwa/registerServiceWorker.ts). */
+export const LANGUAGE_PACK_CACHE = "language-packs";
+
 /**
  * #1149 — the es/tl catalog chunks Vite emits for i18n/index.ts's dynamic
  * imports. They stay out of the precache (`globIgnores` in vite.config.ts) and

@@ -386,3 +386,46 @@ describe("activateUpdate", () => {
     expect(globalThis.location.reload).toHaveBeenCalledTimes(1);
   });
 });
+
+// #1149 — the page that installs the first worker stays uncontrolled, so the
+// language-packs route never sees the pack it imported.
+describe("language packs on an uncontrolled page", () => {
+  function stubPacksEnv(controller: unknown) {
+    const { container } = stubEnv({ controller });
+    Object.assign(container, { ready: Promise.resolve() });
+    vi.stubGlobal("location", { reload: vi.fn(), origin: "https://farm.example" });
+    const cache = { addAll: vi.fn(() => Promise.resolve()) };
+    vi.stubGlobal("caches", { open: vi.fn(() => Promise.resolve(cache)) });
+    let deliver: ((names: string[]) => void) | undefined;
+    const observe = vi.fn();
+    vi.stubGlobal("PerformanceObserver", class {
+      constructor(callback: (list: { getEntries(): { name: string }[] }) => void) {
+        deliver = (names) => callback({ getEntries: () => names.map((name) => ({ name })) });
+      }
+      observe = observe;
+      disconnect() {}
+    });
+    return { cache, observe, deliver: (names: string[]) => deliver?.(names) };
+  }
+
+  it("copies a pack the page loaded into the language-packs cache once the worker is ready", async () => {
+    const { cache, observe, deliver } = stubPacksEnv(null);
+    await registerWorker();
+    expect(observe).toHaveBeenCalledWith({ type: "resource", buffered: true });
+
+    deliver([
+      "https://farm.example/assets/es-abc123.js",
+      "https://farm.example/assets/index-abc123.js",
+      "https://cdn.example/assets/tl-abc123.js",
+    ]);
+    await vi.waitFor(() => expect(cache.addAll).toHaveBeenCalledTimes(1));
+    expect(globalThis.caches.open).toHaveBeenCalledWith("language-packs");
+    expect(cache.addAll).toHaveBeenCalledWith(["https://farm.example/assets/es-abc123.js"]);
+  });
+
+  it("leaves a controlled page to the worker's own route", async () => {
+    const { observe } = stubPacksEnv({});
+    await registerWorker();
+    expect(observe).not.toHaveBeenCalled();
+  });
+});

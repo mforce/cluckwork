@@ -4,7 +4,11 @@ import { loadEnv } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import { matchesInterExtendedSubsetFont, matchesLanguagePack } from "./scripts/runtime-cache-match.mjs";
+import {
+  LANGUAGE_PACK_CACHE,
+  matchesInterExtendedSubsetFont,
+  matchesLanguagePack,
+} from "./scripts/runtime-cache-match.mjs";
 
 // #936 — the "available version" side channel (pwa/appVersion.ts). Emitted
 // as a build-only asset, deliberately not part of the Workbox precache glob
@@ -165,7 +169,7 @@ export default defineConfig(({ mode }) => {
               urlPattern: matchesLanguagePack,
               handler: "CacheFirst",
               options: {
-                cacheName: "language-packs",
+                cacheName: LANGUAGE_PACK_CACHE,
                 expiration: { maxEntries: 4 },
                 cacheableResponse: { statuses: [200] },
               },
