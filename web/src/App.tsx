@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes, type NavigateOptions, type To } from "react-router";
 import { AuthProvider } from "./auth/AuthContext";
 import { FarmThemeProvider } from "./theme/FarmThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -8,6 +8,17 @@ import { SessionProvider } from "./session/SessionContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
+
+// Under <BrowserRouter>, navigate() returns nothing; only a data router
+// (<RouterProvider>) returns a Promise. React Router types the union and
+// documents this augmentation for declarative mode. Switching to a data
+// router means flipping these to Promise<void> and awaiting each call.
+declare module "react-router" {
+  interface NavigateFunction {
+    (to: To, options?: NavigateOptions): void;
+    (delta: number): void;
+  }
+}
 
 const ConnectPage = lazy(() => import("./routes/ConnectPage").then(({ ConnectPage }) => ({ default: ConnectPage })));
 const Dashboard = lazy(() => import("./routes/Dashboard").then(({ Dashboard }) => ({ default: Dashboard })));

@@ -65,8 +65,8 @@ describe("farmCodeCache", () => {
     expect(canonicalFarmCode(["sunny-acres"])).toBeNull();
   });
 
-  it("mixed-case and space-padded values normalise on write", () => {
-    rememberFarmCode(" Sunny-Acres ");
+  it("mixed-case and space-padded values normalise on write", async () => {
+    await rememberFarmCode(" Sunny-Acres ");
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "[]");
     expect(stored).toEqual(["sunny-acres"]);
   });
@@ -76,9 +76,9 @@ describe("farmCodeCache", () => {
     expect(readFarmCodes()).toEqual(["sunny-acres"]);
   });
 
-  it("write-side cap: keeps the most-recent 10 of 12 in raw storage, dropping the two oldest", () => {
+  it("write-side cap: keeps the most-recent 10 of 12 in raw storage, dropping the two oldest", async () => {
     const codes = Array.from({ length: 12 }, (_, i) => `farm${String(i + 1).padStart(2, "0")}`);
-    for (const code of codes) rememberFarmCode(code);
+    for (const code of codes) await rememberFarmCode(code);
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "[]");
     expect(stored).toHaveLength(10);
     // most-recent-first, so farm12 is first and the two oldest (farm01, farm02) are dropped
@@ -87,10 +87,10 @@ describe("farmCodeCache", () => {
     expect(stored).not.toContain("farm02");
   });
 
-  it("write-side dedupe + most-recent-first in raw storage", () => {
-    rememberFarmCode("farm-a");
-    rememberFarmCode("farm-b");
-    rememberFarmCode("farm-a"); // re-remembered: moves to front, no duplicate
+  it("write-side dedupe + most-recent-first in raw storage", async () => {
+    await rememberFarmCode("farm-a");
+    await rememberFarmCode("farm-b");
+    await rememberFarmCode("farm-a"); // re-remembered: moves to front, no duplicate
     const stored = JSON.parse(localStorage.getItem(KEY) ?? "[]");
     expect(stored).toEqual(["farm-a", "farm-b"]);
   });
@@ -124,17 +124,17 @@ describe("farmCodeCache", () => {
     spy.mockRestore();
   });
 
-  it("setItem throwing does not throw out", () => {
+  it("setItem throwing does not reject", async () => {
     const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("quota exhausted");
     });
-    expect(() => rememberFarmCode("farm-a")).not.toThrow();
+    await expect(rememberFarmCode("farm-a")).resolves.toBeUndefined();
     spy.mockRestore();
   });
 
-  it("rememberFarmCode with an invalid value is a no-op leaving an existing list intact", () => {
+  it("rememberFarmCode with an invalid value is a no-op leaving an existing list intact", async () => {
     localStorage.setItem(KEY, JSON.stringify(["farm-a"]));
-    rememberFarmCode("ab"); // genuinely invalid
+    await rememberFarmCode("ab"); // genuinely invalid
     expect(JSON.parse(localStorage.getItem(KEY) ?? "[]")).toEqual(["farm-a"]);
   });
 

@@ -329,7 +329,7 @@ export function Dashboard() {
       setPanelsOutcome(rejected.length === issued.length
         ? { state: "allFailed", reason: rejected[0]?.reason }
         : { state: "someOk" });
-    });
+    }).catch((err: unknown) => console.error("dashboard: panels verdict failed", err));
     return () => { cancelled = true; controller.abort(); };
     // #918 — `canSeeSales` is a dep even though none of these three reads is
     // role-gated: `panelsOutcome` is half the "everything failed" verdict, and
