@@ -357,6 +357,11 @@ CASES += [  # round 3: a newline after an operator continues the command; blank 
     )],
     ("cd ../shared &&\ngit sparse-checkout set src", "linked", "block"),
 ]
+CASES += [  # round 3: pushd and popd move the target too
+    ("pushd ../shared && git sparse-checkout set src", "linked", "block"),
+    ("pushd ../shared; git sparse-checkout set src", "linked", "block"),
+    ("popd && git sparse-checkout set src", "linked", "block"),
+]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [

@@ -230,6 +230,8 @@ def git_steps(command, cwd):
         if not argv:
             if operators[n] != ";" or operators[n + 1] != ";":
                 return None  # only `;` and newlines may leave an empty step
+        elif argv[0] in ("pushd", "popd"):
+            return None  # the directory stack is not followed
         elif argv[0] == "cd":
             if len(argv) != 2 or operators[n] != ";" or operators[n + 1] not in ("&&", ";"):
                 return None
