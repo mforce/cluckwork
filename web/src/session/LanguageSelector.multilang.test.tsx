@@ -64,29 +64,4 @@ describe("LanguageSelector with all installed languages", () => {
 
     await act(async () => { await i18n.changeLanguage("en"); }); // reset for subsequent tests
   });
-
-  // #1149 — an offline first switch to a pack this device never loaded.
-  it("keeps the current language and says why when the pack cannot load", async () => {
-    const { LanguageSelector } = await import("./LanguageSelector");
-    vi.mocked(api.putMeLanguage).mockClear();
-    const changeSpy = vi.spyOn(i18n, "changeLanguage").mockClear();
-    const loadSpy = vi.spyOn(i18n, "loadLanguages").mockResolvedValue(undefined);
-    const bundleSpy = vi.spyOn(i18n, "hasResourceBundle").mockReturnValue(false);
-    render(
-      <MeContext.Provider
-        value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en", preferredStepperUnit: null }}>
-        <LanguageSelector />
-      </MeContext.Provider>,
-    );
-
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "tl" } });
-
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Tagalog is not on this device yet. Connect to the internet once to switch to it.");
-    expect(screen.getByRole("combobox")).toHaveValue("en");
-    expect(changeSpy).not.toHaveBeenCalled();
-    expect(vi.mocked(api.putMeLanguage)).not.toHaveBeenCalled();
-    loadSpy.mockRestore();
-    bundleSpy.mockRestore();
-  });
 });

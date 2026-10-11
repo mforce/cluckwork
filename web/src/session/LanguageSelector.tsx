@@ -37,6 +37,16 @@ export function LanguageSelector() {
       // an offline first switch keeps the current language and says why.
       await i18n.loadLanguages(lang);
       if (!i18n.hasResourceBundle(lang, "common")) {
+        // A failed pack stays failed in this document: i18next keeps its load
+        // state and Chromium keeps the failed import, so a retry never refetches.
+        // Back online, save the choice and reload; the next document fetches it.
+        if (navigator.onLine) {
+          await putMeLanguage(lang).catch((err: unknown) => {
+            console.warn("Failed to persist language preference", err);
+          });
+          globalThis.location.reload();
+          return;
+        }
         setUnreachable(lang);
         return;
       }
