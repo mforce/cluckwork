@@ -54,7 +54,9 @@ MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergeP
 # A git subcommand that changes HEAD, the index, the files or a ref, right after `git` and its options.
 CHANGES_CHECKOUT = re.compile(r"\bgit(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:add|am|apply|checkout|cherry-pick|clean|merge|"
                               r"mv|notes|pull|rebase|reset|restore|revert|rm|stash|switch|tag|update-ref)(?![\w-])")
-SHALLOW = re.compile(r"--(?:depth|shallow-since|shallow-exclude|deepen|unshallow)\b")
+# fetch/pull long options that change the shallow state; git also takes any unambiguous prefix (--dep=1).
+SHALLOW_OPTIONS = ("depth", "deepen", "shallow-since", "shallow-exclude", "unshallow", "update-shallow")
+SHALLOW = re.compile(r"\b(?:fetch|pull)\b.*\s--(?:de|sh|un|up)", re.S)
 # What coordinators run in the shared checkout: reads, plain fetch, worktree and branch management.
 SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
                         "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
@@ -105,8 +107,9 @@ MESSAGES = {
                     "joined by &&, ||, ; or |, so each git step can be checked. Split it, or run it in your own worktree.",
     "stash": "every worktree shares one .git, so the stash list is shared with other agents. Commit "
              "work in progress on your own branch instead.",
-    "shallow": "every worktree shares one .git, so a shallow fetch makes every worktree shallow. Fetch "
-               "without --depth, --shallow-*, --deepen or --unshallow.",
+    "shallow": "every worktree shares one .git, so a fetch or pull that changes the shallow state (--depth, "
+               "--deepen, --shallow-*, --unshallow, --update-shallow or an abbreviation) changes it for every "
+               "worktree. Fetch without them.",
     "commit-main": "main is protected. Run `git switch -c <type>/<topic>` first, then commit there.",
     "option": "git-guard does not know this option, so it cannot tell what the write does. Drop it or spell it out.",
 }
@@ -336,6 +339,11 @@ def check_push(args, repo):
             block("upstream-main", shown)
 
 
+def changes_shallow_state(arg):
+    name = arg[2:].split("=", 1)[0] if arg.startswith("--") else ""
+    return len(name) >= 2 and any(option.startswith(name) for option in SHALLOW_OPTIONS)
+
+
 def check_git(args, cwd, shown):
     options = []
     i = 0
@@ -359,7 +367,7 @@ def check_git(args, cwd, shown):
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
         if command == "stash":
             block("stash", shown)
-        if command in ("fetch", "pull") and any(SHALLOW.match(arg) for arg in rest):
+        if command in ("fetch", "pull") and any(changes_shallow_state(arg) for arg in rest):
             block("shallow", shown)
         if command not in SHARED_CHECKOUT_SAFE:
             repo = Repo(cwd, options, shown)

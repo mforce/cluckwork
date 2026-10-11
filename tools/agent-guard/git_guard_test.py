@@ -248,6 +248,16 @@ CASES += [
     ("git sparse-checkout set src", "linked", "allow"),
     ("(git status)", "linked", "allow"),
 ]
+CASES += [  # abbreviated shallow options, as git accepts them (round 1)
+    ("git fetch --dep=1 origin", "linked", "block"),
+    ("git fetch --dee=1 origin", "linked", "block"),
+    ("git fetch --unsh", "linked", "block"),
+    ("git fetch --shallow-s=2026-01-01 origin", "linked", "block"),
+    ("git pull --dep 1", "shared", "block"),
+    ("git fetch --update-shallow origin", "linked", "block"),
+    ("git fetch --dry-run origin", "linked", "allow"),
+    ("git fetch --tags origin", "linked", "allow"),
+]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
