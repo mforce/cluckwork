@@ -149,7 +149,7 @@ public sealed partial class OAuthFailClosedTests
             .Where(a => a.Subject == user.Id.ToString())
             .ExecuteUpdateAsync(setters => setters.SetProperty(
                 a => EF.Property<DateTimeOffset?>(a, OAuthAuthorizationConfiguration.LastUsedAtUtc),
-                a => DateTimeOffset.UtcNow - OAuthLastUsedStamp.Interval - TimeSpan.FromMinutes(1))));
+                a => DateTimeOffset.UtcNow - ConnectedApps.LastUsedInterval - TimeSpan.FromMinutes(1))));
         var backdated = await LastUsedAsync(host, user);
         (await Client(host, app.Token).GetAsync(Probe.Read)).Dispose();
         var third = await LastUsedAsync(host, user);

@@ -2491,8 +2491,9 @@ export const es = {
     signingInAppRefused:
       "<strong>Cuando se rechaza una aplicación de IA.</strong> Mientras <strong>Permitir aplicaciones "
       + "conectadas</strong> está desactivado, las aplicaciones reciben <strong>Las aplicaciones conectadas están "
-      + "desactivadas</strong> y vuelven a funcionar cuando se activa. Después de <strong>Desconectar</strong> o de "
-      + "restablecer tu contraseña, la aplicación debe conectarse de nuevo con tu contraseña. Una herramienta que tu "
+      + "desactivadas</strong> y vuelven a funcionar cuando se activa. Después de <strong>Desconectar</strong>, de "
+      + "cambiar o restablecer tu contraseña, o de un cambio de tu correo o tu rol, la aplicación sale de "
+      + "<strong>Aplicaciones conectadas</strong> y debe conectarse de nuevo con tu contraseña. Una herramienta que tu "
       + "rol no permite queda oculta. Para un permiso que no diste, como <strong>Anotar registros diarios</strong>, "
       + "conéctala de nuevo y permítelo; aparece marcado como <strong>Nuevo</strong>.",
     signingInCredentialEpoch:

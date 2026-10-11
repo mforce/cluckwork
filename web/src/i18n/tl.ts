@@ -2588,8 +2588,9 @@ export const tl = {
     signingInAppRefused:
       "<strong>Kapag tinanggihan ang AI app.</strong> Habang naka-off ang <strong>Payagan ang mga nakakonektang "
       + "app</strong>, natatanggap ng mga app ang <strong>Naka-off ang mga nakakonektang app</strong> at gagana ulit "
-      + "kapag binuksan ito. Pagkatapos ng <strong>Idiskonekta</strong> o ma-reset ang password mo, kailangang "
-      + "kumonekta ulit ang app gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
+      + "kapag binuksan ito. Pagkatapos ng <strong>Idiskonekta</strong>, ng pagpapalit o pag-reset "
+      + "ng password mo, o ng pagbabago ng email o role mo, mawawala ang app sa <strong>Mga nakakonektang "
+      + "app</strong> at kailangan itong kumonekta ulit gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
       + "pahintulot na hindi mo ibinigay, gaya ng <strong>Itala ang araw-araw na tala</strong>, ikonekta ulit at "
       + "payagan ito; may marka itong <strong>Bago</strong>.",
     signingInCredentialEpoch:

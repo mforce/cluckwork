@@ -4,6 +4,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using OpenIddict.EntityFrameworkCore.Models;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -13,8 +14,11 @@ namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
 // than its managers, because the managers exist only where the OAuth server runs and
 // these screens exist everywhere. OpenIddict's tables carry no AccountId: a farm is its
 // users, so every farm-wide query and every revocation goes through AspNetUsers' AccountId.
-public sealed class ConnectedApps(AppDbContext db, IUnitOfWork unitOfWork, IAuditWriter audit)
+public sealed class ConnectedApps(
+    AppDbContext db, IUnitOfWork unitOfWork, IAuditWriter audit, ILogger<ConnectedApps> logger)
 {
+    public static readonly TimeSpan LastUsedInterval = TimeSpan.FromMinutes(15);
+
     public Task<IReadOnlyList<AppConnection>> ListAsync(Guid userId, CancellationToken ct)
     {
         var subject = userId.ToString();
@@ -57,6 +61,52 @@ public sealed class ConnectedApps(AppDbContext db, IUnitOfWork unitOfWork, IAudi
         }, ct);
 
         return disconnected ? Result.Success() : Result.Failure(Error.NotFound("ConnectedApp", clientId));
+    }
+
+    // Called by CredentialEpochMiddleware once the token's credentials are Current, so a
+    // refused request never counts as use (#1229). One conditional UPDATE, which writes at
+    // most once per LastUsedInterval per authorization: a busy app costs one row write every
+    // 15 minutes, and "last used" reads in hours and days. The database's clock decides, so
+    // replicas cannot disagree. A failed stamp is logged and the request goes on.
+    public async Task RecordUseAsync(Guid authorizationId, CancellationToken ct)
+    {
+        try
+        {
+            await db.OAuthAuthorizations
+                .Where(authorization => authorization.Id == authorizationId
+                    && (EF.Property<DateTimeOffset?>(authorization, OAuthAuthorizationConfiguration.LastUsedAtUtc) == null
+                        || EF.Property<DateTimeOffset?>(authorization, OAuthAuthorizationConfiguration.LastUsedAtUtc)
+                            < DateTimeOffset.UtcNow - LastUsedInterval))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(
+                    authorization => EF.Property<DateTimeOffset?>(authorization, OAuthAuthorizationConfiguration.LastUsedAtUtc),
+                    authorization => DateTimeOffset.UtcNow), ct);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Could not record the last use of OAuth authorization {AuthorizationId}.", authorizationId);
+        }
+    }
+
+    // #1229 — the credential epoch only moves forward, so a token it superseded never
+    // passes again. Every bump revokes the user's connections in its own transaction; this
+    // catches a token issued while a bump committed, and any left from before #1229. The
+    // refusal stands whether or not this write lands.
+    public async Task RevokeSupersededAsync(Guid authorizationId, CancellationToken ct)
+    {
+        try
+        {
+            await db.OAuthAuthorizations
+                .Where(authorization => authorization.Id == authorizationId && authorization.Status == Statuses.Valid)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(authorization => authorization.Status, Statuses.Revoked), ct);
+            await db.OAuthTokens
+                .Where(row => row.Authorization!.Id == authorizationId
+                    && (row.Status == Statuses.Valid || row.Status == Statuses.Inactive))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Status, Statuses.Revoked), ct);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Could not revoke superseded OAuth authorization {AuthorizationId}.", authorizationId);
+        }
     }
 
     private static async Task<IReadOnlyList<AppConnection>> LoadAsync(

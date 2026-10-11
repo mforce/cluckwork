@@ -1,6 +1,7 @@
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Diagnostics;
@@ -42,6 +43,17 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                     context.User.HasClaim(claim => claim.Type == OpenIddictConstants.Claims.ClientId),
                     context.RequestAborted)
                 : CredentialVerdict.UnknownUser;
+
+            // #1229 — an OAuth token names its authorization. Only a Current one counts as
+            // use, and a Superseded one can never pass again, so its connection goes.
+            if (Guid.TryParse(context.User.GetAuthorizationId(), out var appAuthorizationId))
+            {
+                var apps = context.RequestServices.GetRequiredService<ConnectedApps>();
+                if (verdict == CredentialVerdict.Current)
+                    await apps.RecordUseAsync(appAuthorizationId, context.RequestAborted);
+                else if (verdict == CredentialVerdict.Superseded)
+                    await apps.RevokeSupersededAsync(appAuthorizationId, context.RequestAborted);
+            }
 
             if (verdict != CredentialVerdict.Current)
             {
