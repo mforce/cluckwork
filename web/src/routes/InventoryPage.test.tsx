@@ -161,11 +161,15 @@ describe("InventoryPage loading & display", () => {
     expect(await screen.findByText("Layer Feed")).toBeInTheDocument();
   });
 
-  // The mount-effect error branch (Promise.all rejects → "Could not load
-  // inventory") is intentionally NOT tested: in this Vitest 3 + React 19 stack a
-  // rejection the component DOES catch is still flagged as an unhandled rejection
-  // the test can't intercept (vitest #7940/#5796). The message is a fixed string
-  // on any mount rejection; the transport is covered in api/client tests.
+  // #1168 — the mount load's own failure re-renders the page through
+  // setPageError, an effect dependency: it must report once and not refetch.
+  it("reports a failed mount load once, without fetching again", async () => {
+    mockListItems.mockRejectedValue(new Error("down"));
+    renderWithProviders(<InventoryPage />, { token: ADMIN });
+
+    expect(await screen.findByText(i18n.t("inventory:loadInventoryFailed"))).toBeInTheDocument();
+    expect(mockListItems).toHaveBeenCalledTimes(1);
+  });
 
   it("renders each item's formatted default cost and active/inactive status", async () => {
     // Give the displayed feed a 3-decimal currency snapshot (BHD) so the assertion

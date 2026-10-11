@@ -975,6 +975,16 @@ describe("HistoryPage error placement (#479)", () => {
     expect(within(dialog()).getByText("boom")).toBeInTheDocument();
   });
 
+  // #1168 — the setup read's own failure re-renders the page through
+  // setPageError, an effect dependency: it must report once and not refetch.
+  it("reports a failed flocks/grades setup read once, without reading again", async () => {
+    mockListFlocks.mockRejectedValue(new Error("down"));
+    renderWithProviders(<HistoryPage />, { token: ADMIN });
+
+    expect(await screen.findByText(i18n.t("history:loadFlocksGradesFailed"))).toBeInTheDocument();
+    expect(mockListEggGrades).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the flocks/grades setup failure out of the open adjust dialog", async () => {
     // Only the setup read fails — grades still load, so the dialog's own
     // fields render normally and the failure has nothing to do with them.

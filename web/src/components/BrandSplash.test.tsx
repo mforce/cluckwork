@@ -87,6 +87,22 @@ describe("BrandSplash", () => {
     expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
   });
 
+  it("caches nothing when the farm binding changes while the banner is still loading", async () => {
+    bindAccount("acct-A");
+    bindFarm("sunny-acres");
+    let resolveBanner!: (v: { blob: Blob; filename: null }) => void;
+    mockGetFarmBanner.mockReturnValue(new Promise((r) => (resolveBanner = r)));
+    const { rerender } = render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
+
+    bindFarm("other-farm");
+    rerender(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);
+    resolveBanner({ blob: new Blob(["png-bytes"]), filename: null });
+
+    await screen.findByAltText("Hen House banner");
+    expect(await readCachedBannerBlob("sunny-acres")).toBeNull();
+    expect(await readCachedBannerBlob("other-farm")).toBeNull();
+  });
+
   it("caches nothing on an unbound tab (a fresh tab restored from the refresh cookie)", async () => {
     mockGetFarmBanner.mockResolvedValue({ blob: new Blob(["png-bytes"]), filename: null });
     render(<BrandSplash farmName="Hen House" bannerContentHash="abc" onDismiss={vi.fn()} />);

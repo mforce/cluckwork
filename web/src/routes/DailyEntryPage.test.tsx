@@ -1729,6 +1729,38 @@ describe("DailyEntryPage picker lifecycle races (#512 T031)", () => {
       restore();
     }
   });
+
+  // #1168 — the deep-link date is checked against the farm's today when the
+  // mount load settles, not the today of the first render: a load still in
+  // flight across the farm's midnight must accept a link to the new day.
+  it("accepts a deep link to the new day when the farm's day rolls over during the mount load", async () => {
+    let releaseFlocks!: () => void;
+    const flocksHeld = new Promise<void>((r) => (releaseFlocks = r));
+    mockListFlocks.mockImplementationOnce(async () => {
+      await flocksHeld;
+      return [FLOCK];
+    });
+    const farmOn = (today: string) => farmState({ farm: account({ timeZoneId: "UTC" }), today });
+    const page = (today: string) => (
+      <MemoryRouter>
+        <FarmContext.Provider value={farmOn(today)}><DailyEntryPage /></FarmContext.Provider>
+      </MemoryRouter>
+    );
+    const restore = withQuery("?flockId=f1&date=2026-10-12");
+    try {
+      const { rerender } = render(page("2026-10-11"));
+      rerender(page("2026-10-12"));
+      await act(async () => releaseFlocks());
+
+      await screen.findByLabelText("Grade A");
+      expect(screen.getByLabelText("Date")).toHaveValue("2026-10-12");
+      expect(screen.queryByText(i18n.t("dailyEntry:deepLinkUnavailable"))).not.toBeInTheDocument();
+      // The new day re-judges the link without reloading the mount data.
+      expect(mockListEggGrades).toHaveBeenCalledTimes(1);
+    } finally {
+      restore();
+    }
+  });
 });
 
 // #703 PR 2 — the abandoned-success hijack (#477 part 2) on Daily Entry's

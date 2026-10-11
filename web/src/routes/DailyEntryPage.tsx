@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -332,6 +332,10 @@ export function DailyEntryPage() {
   const [newFlockPlaced, setNewFlockPlaced] = useState(today);
   const [newFlockCount, setNewFlockCount] = useState(100);
 
+  // #1168 — read when the mount load SETTLES, not when it starts: a load still
+  // in flight across the farm's midnight must not reject a link to the new day.
+  const farmToday = useEffectEvent(() => today);
+
   useEffect(() => {
     // includeInactive: an existing draft may reference a since-deactivated
     // grade; that line must render and survive a re-save (only the ACTIVE
@@ -363,7 +367,7 @@ export function DailyEntryPage() {
           && /^\d{4}-\d{2}-\d{2}$/.test(wantedDate)
           && !Number.isNaN(Date.parse(`${wantedDate}T00:00:00Z`))
           && new Date(`${wantedDate}T00:00:00Z`).toISOString().slice(0, 10) === wantedDate
-          && wantedDate <= today;
+          && wantedDate <= farmToday();
         const flockOk = wantedFlock !== null && f.some((x) => x.id === wantedFlock);
         const deepLinked = flockOk && dateOk;
         if (deepLinked) retarget(() => setDate(wantedDate!));
@@ -395,7 +399,7 @@ export function DailyEntryPage() {
       })
       .catch(() => setLoadError(i18n.t("dailyEntry:loadFlocksGradesFailed")))
       .finally(() => setLoading(false));
-  }, []);
+  }, [setPageError]);
 
   // Edit-awareness: when flock+date match an existing entry, prefill the form
   // so a re-save updates what's really there instead of clobbering it.
