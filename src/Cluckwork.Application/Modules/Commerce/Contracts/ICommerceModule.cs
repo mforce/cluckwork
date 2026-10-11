@@ -67,6 +67,9 @@ public interface ICommerceModule
     Task<long> SumNonVoidedPaymentsAsync(Guid salesOrderId, CancellationToken ct);
 
     Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(CancellationToken ct);
+
+    // Largest outstanding first, ties by customer id; at most limit rows from the database.
+    Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(int limit, int offset, CancellationToken ct);
 }
 
 public sealed record ProductDetails(

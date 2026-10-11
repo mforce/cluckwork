@@ -36,30 +36,36 @@ public sealed class PaymentRepository(AppDbContext db) : IPaymentRepository,
         Guid salesOrderId, CancellationToken ct = default) =>
         db.Payments.AnyAsync(p => p.SalesOrderId == salesOrderId && !p.Voided, ct);
 
-    // Grouped in SQL: confirmed order totals and settled payments per
-    // customer. Two grouped subqueries stitched client-side over the (small)
-    // customer set — a single SQL join would double-count on the many-to-many
-    // of orders × payments.
     public async Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        await Balances().ToListAsync(ct);
+
+    public async Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(
+        int limit, int offset, CancellationToken ct = default) =>
+        await Balances().Skip(offset).Take(limit).ToListAsync(ct);
+
+    // Confirmed order totals and settled payments per customer, each grouped
+    // in its own subquery and then joined, because joining the raw rows would
+    // double-count on the many-to-many of orders × payments. Largest
+    // outstanding first; the customer id breaks ties so pages are stable.
+    private IQueryable<CustomerBalance> Balances()
     {
-        var confirmed = await db.SalesOrders
+        var confirmed = db.SalesOrders
             .Where(o => o.Status == SalesOrderStatus.Confirmed)
             .GroupBy(o => o.CustomerId)
-            .Select(g => new { CustomerId = g.Key, Total = g.Sum(o => o.TotalAmount.MinorUnits) })
-            .ToListAsync(ct);
+            .Select(g => new { CustomerId = g.Key, Total = g.Sum(o => o.TotalAmount.MinorUnits) });
 
-        var paid = await db.Payments
+        var paid = db.Payments
             .Where(p => !p.Voided)
             .GroupBy(p => p.CustomerId)
-            .Select(g => new { CustomerId = g.Key, Total = g.Sum(p => p.AmountMinorUnits) })
-            .ToListAsync(ct);
+            .Select(g => new { CustomerId = g.Key, Total = g.Sum(p => p.AmountMinorUnits) });
 
-        var paidByCustomer = paid.ToDictionary(x => x.CustomerId, x => x.Total);
-        return confirmed
-            .Select(c => new CustomerBalance(
-                c.CustomerId, c.Total, paidByCustomer.GetValueOrDefault(c.CustomerId)))
-            .ToList();
+        return from c in confirmed
+               join p in paid on c.CustomerId equals p.CustomerId into settled
+               from p in settled.DefaultIfEmpty()
+               select new { c.CustomerId, c.Total, Paid = (long?)p!.Total ?? 0 } into b
+               orderby b.Total - b.Paid descending, b.CustomerId
+               select new CustomerBalance(b.CustomerId, b.Total, b.Paid);
     }
 
     public async Task AddAsync(Payment entity, CancellationToken ct = default) =>

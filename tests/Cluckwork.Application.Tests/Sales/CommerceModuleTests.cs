@@ -153,7 +153,8 @@ public sealed class CommerceModuleTests
         Assert.Equal([ExpectedPayment], await Module().ListOrderPaymentsAsync(OrderId, default));
         Assert.Equal(300, await Module().SumNonVoidedPaymentsAsync(OrderId, default));
         Assert.Equal([new CustomerBalance(CustomerId, 4_500, 300)], await Module().ListCustomerBalancesAsync(default));
-        Assert.Equal([$"payments {OrderId}", $"sum {OrderId}", "balances"], _payments.Calls);
+        Assert.Equal([new CustomerBalance(CustomerId, 4_500, 300)], await Module().ListCustomerBalancesAsync(11, 20, default));
+        Assert.Equal([$"payments {OrderId}", $"sum {OrderId}", "balances", "balances 11 20"], _payments.Calls);
     }
 
     private sealed class FakeProducts : IProductRepository
@@ -271,6 +272,12 @@ public sealed class CommerceModuleTests
         public Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(CancellationToken ct = default)
         {
             Calls.Add("balances");
+            return Task.FromResult<IReadOnlyList<CustomerBalance>>([new CustomerBalance(CustomerId, 4_500, 300)]);
+        }
+
+        public Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(int limit, int offset, CancellationToken ct = default)
+        {
+            Calls.Add($"balances {limit} {offset}");
             return Task.FromResult<IReadOnlyList<CustomerBalance>>([new CustomerBalance(CustomerId, 4_500, 300)]);
         }
 
