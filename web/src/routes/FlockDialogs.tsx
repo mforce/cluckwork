@@ -220,54 +220,56 @@ export function FlockDialogs({
         </Stack>
       </Dialog>
 
-      <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}
-        actions={(
-          <DialogActions>
-            <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
-            <BusyButton variant="contained" type="submit"
-              busy={isPending("record-movement")}
-              disabled={busy || mvQty === 0}>
-              {t("recordButton")}
-            </BusyButton>
-          </DialogActions>
-        )}
-        formProps={{ onSubmit: onRecordMovement }}
-      >
-        <Stack spacing={2}>
-          <TextField
-            label={t("dateLabel")}
-            type="date"
-            value={mvDate}
-            slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
-            onChange={(e) => setMvDate(e.target.value)}
-          />
-          <TextField
-            select
-            label={t("typeLabel")}
-            value={mvType}
-            slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-            onChange={(e) => setMvType(e.target.value)}
-          >
-            <option value="Cull">{flockMovementLabel("Cull")}</option>
-            <option value="Adjustment">{flockMovementLabel("Adjustment")}</option>
-          </TextField>
-          {/* A cull removes at least one bird; an Adjustment counts both
-              ways (added or lost), so its floor is unbounded (#250). */}
-          <div className="numfield-field">
-            <label htmlFor={idFor("mv-birds")}>{t("birdsLabel")}</label>
-            <NumberField id={idFor("mv-birds")} label={t("birdsLabel").toLowerCase()}
-              value={mvQty} onChange={setMvQty}
-              min={mvType === "Cull" ? 1 : Number.NEGATIVE_INFINITY} />
-          </div>
-          <TextField
-            label={t("noteLabel")}
-            value={mvNote}
-            slotProps={{ htmlInput: { maxLength: 500 } }}
-            onChange={(e) => setMvNote(e.target.value)}
-          />
-          <DialogError errors={errors} scope="record-movement" />
-        </Stack>
-      </Dialog>
+      {ledgerFlockId && (
+            <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}
+              actions={(
+                <DialogActions>
+                  <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
+                  <BusyButton variant="contained" type="submit"
+                    busy={isPending("record-movement")}
+                    disabled={busy || mvQty === 0}>
+                    {t("recordButton")}
+                  </BusyButton>
+                </DialogActions>
+              )}
+              formProps={{ onSubmit: onRecordMovement }}
+            >
+              <Stack spacing={2}>
+                <TextField
+                  label={t("dateLabel")}
+                  type="date"
+                  value={mvDate}
+                  slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
+                  onChange={(e) => setMvDate(e.target.value)}
+                />
+                <TextField
+                  select
+                  label={t("typeLabel")}
+                  value={mvType}
+                  slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+                  onChange={(e) => setMvType(e.target.value)}
+                >
+                  <option value="Cull">{flockMovementLabel("Cull")}</option>
+                  <option value="Adjustment">{flockMovementLabel("Adjustment")}</option>
+                </TextField>
+                {/* A cull removes at least one bird; an Adjustment counts both
+                    ways (added or lost), so its floor is unbounded (#250). */}
+                <div className="numfield-field">
+                  <label htmlFor={idFor("mv-birds")}>{t("birdsLabel")}</label>
+                  <NumberField id={idFor("mv-birds")} label={t("birdsLabel").toLowerCase()}
+                    value={mvQty} onChange={setMvQty}
+                    min={mvType === "Cull" ? 1 : Number.NEGATIVE_INFINITY} />
+                </div>
+                <TextField
+                  label={t("noteLabel")}
+                  value={mvNote}
+                  slotProps={{ htmlInput: { maxLength: 500 } }}
+                  onChange={(e) => setMvNote(e.target.value)}
+                />
+                <DialogError errors={errors} scope="record-movement" />
+              </Stack>
+            </Dialog>
+      )}
     </>
   );
 }
