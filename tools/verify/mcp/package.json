@@ -1,0 +1,11 @@
+{
+  "name": "cluckwork-mcp-live-verify",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "A real MCP client driving /mcp on a running stack through the real OAuth flow. See README.md.",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "playwright": "1.62.1"
+  }
+}
