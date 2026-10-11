@@ -33,7 +33,7 @@ public sealed class CommerceTools
         this.authorization = authorization;
     }
 
-    [McpServerTool(Name = "cluckwork_list_customers", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_customers", ReadOnly = true, OpenWorld = false)]
     [Authorize(Policy = AuthPolicies.SalesFlow)]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListCustomers")]
@@ -52,7 +52,7 @@ public sealed class CommerceTools
     // One tool for list and detail: every row carries its lines. What an order still owes
     // is the Sales tier's, asked through the live policy as GET /sales does (#769), so
     // widening this tool's gate never widens who sees money.
-    [McpServerTool(Name = "cluckwork_list_sales_orders", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_sales_orders", ReadOnly = true, OpenWorld = false)]
     [Authorize(Policy = AuthPolicies.SalesFlow)]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListSalesOrders", "GetSalesOrder")]
@@ -101,7 +101,7 @@ public sealed class CommerceTools
     // ponytail: the contract loads one order's payments whole and this pages them in memory.
     // An order refuses overpayment, so its rows are bounded by the payments made against it
     // plus the ones an Owner or Manager voided. Page it in the query if orders ever carry hundreds.
-    [McpServerTool(Name = "cluckwork_list_order_payments", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_order_payments", ReadOnly = true, OpenWorld = false)]
     [Authorize(Policy = AuthPolicies.SalesAccess)]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListOrderPayments")]
@@ -124,7 +124,7 @@ public sealed class CommerceTools
             ct);
     }
 
-    [McpServerTool(Name = "cluckwork_list_customer_balances", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_customer_balances", ReadOnly = true, OpenWorld = false)]
     [Authorize(Policy = AuthPolicies.SalesAccess)]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListCustomerBalances")]

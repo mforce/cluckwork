@@ -275,6 +275,7 @@ public sealed class McpToolSurfaceTests
     [InlineData(typeof(RoleOnlyTool), "has no scope policy")]
     [InlineData(typeof(ScopeOnlyTool), "has no role policy")]
     [InlineData(typeof(AnonymousTool), "allows anonymous callers")]
+    [InlineData(typeof(OpenWorldReadTool), "leaves OpenWorld at its default true")]
     public void ToolMissingAGate_IsAGateFinding(Type tool, string finding) =>
         Assert.Contains(McpToolSurface.GateFindings([tool]), f => f.Contains(finding));
 
@@ -353,7 +354,7 @@ public sealed class McpToolSurfaceTests
     [McpServerToolType]
     private sealed class GatedTool(McpCallContext call)
     {
-        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true), Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true, OpenWorld = false), Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
         public string Read() => call.Email;
     }
 
@@ -394,7 +395,7 @@ public sealed class McpToolSurfaceTests
     [McpServerToolType, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
     private sealed class InheritingTool(McpCallContext call) : UngatedBase
     {
-        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true)]
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true, OpenWorld = false)]
         public string Read() => call.Email;
     }
 
@@ -411,6 +412,14 @@ public sealed class McpToolSurfaceTests
     {
         [ModelContextProtocol.Server.McpServerTool, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
         public string Write() => call.Email;
+    }
+
+    // The SDK emits openWorldHint only when set, and the MCP default is true.
+    [McpServerToolType]
+    private sealed class OpenWorldReadTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true), Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+        public string Read() => call.Email;
     }
 
     [McpServerToolType]

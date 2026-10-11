@@ -26,7 +26,7 @@ public sealed class StockTools
     // in memory. Rows are bounded by the grade catalogue, which Owners and Managers curate and
     // which the lot and entry tools, and the SPA's capture form, already load whole. Page it in
     // the query if farms ever hold hundreds of grades.
-    [McpServerTool(Name = "cluckwork_read_stock", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_read_stock", ReadOnly = true, OpenWorld = false)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("GetStock")]
@@ -45,7 +45,7 @@ public sealed class StockTools
             ct);
     }
 
-    [McpServerTool(Name = "cluckwork_list_egg_lots", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_egg_lots", ReadOnly = true, OpenWorld = false)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListEggLots")]
@@ -70,7 +70,7 @@ public sealed class StockTools
             ct);
     }
 
-    [McpServerTool(Name = "cluckwork_list_egg_lot_movements", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_egg_lot_movements", ReadOnly = true, OpenWorld = false)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListEggLotMovements")]

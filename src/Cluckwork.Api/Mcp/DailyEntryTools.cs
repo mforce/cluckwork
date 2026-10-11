@@ -99,7 +99,7 @@ public sealed class DailyEntryTools(
         };
     }
 
-    [McpServerTool(Name = "cluckwork_list_daily_entries", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_daily_entries", ReadOnly = true, OpenWorld = false)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListDailyEntries")]

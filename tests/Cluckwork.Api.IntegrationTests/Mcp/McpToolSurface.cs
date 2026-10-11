@@ -93,6 +93,9 @@ internal static class McpToolSurface
                     findings.Add($"{site} requires {string.Join(" and ", scopes)}; a {(IsReadOnly(method) ? "read" : "write")} tool requires exactly {expected}");
                 if (!gates.Any(g => !ScopePolicies.Contains(g.Policy)))
                     findings.Add($"{site} has no role policy; add [Authorize] or [Authorize(Policy = AuthPolicies.<Tier>)]");
+                // Every read is a query of this farm's own records, never the open world.
+                if (IsReadOnly(method) && !IsClosedWorld(method))
+                    findings.Add($"{site} leaves OpenWorld at its default true; a read tool sets OpenWorld = false");
             }
 
         return findings;
@@ -136,6 +139,10 @@ internal static class McpToolSurface
     private static bool IsReadOnly(MethodInfo method) =>
         method.GetCustomAttributes(inherit: true).Where(a => a.GetType().Name == "McpServerToolAttribute")
             .Any(a => a.GetType().GetProperty("ReadOnly")?.GetValue(a) is true);
+
+    private static bool IsClosedWorld(MethodInfo method) =>
+        method.GetCustomAttributes(inherit: true).Where(a => a.GetType().Name == "McpServerToolAttribute")
+            .Any(a => a.GetType().GetProperty("OpenWorld")?.GetValue(a) is false);
 
     private static bool HasAttribute(MemberInfo member, string name) =>
         member.GetCustomAttributes(inherit: true).Any(a => a.GetType().Name == name);

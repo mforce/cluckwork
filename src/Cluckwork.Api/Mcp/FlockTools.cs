@@ -23,7 +23,7 @@ public sealed class FlockTools
         this.farmClock = farmClock;
     }
 
-    [McpServerTool(Name = "cluckwork_list_flocks", ReadOnly = true)]
+    [McpServerTool(Name = "cluckwork_list_flocks", ReadOnly = true, OpenWorld = false)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
     [MirrorsRoute("ListFlocks")]
