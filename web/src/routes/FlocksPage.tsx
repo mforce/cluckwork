@@ -1,15 +1,12 @@
-import { Fragment, useCallback, useEffect, useId, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Bird, FilterX, Plus, TriangleAlert } from "lucide-react";
 import {
-  Box, Divider, DialogActions, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  TextField, Typography,
+  Box, Divider, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography,
 } from "@mui/material";
 import {
-  archiveFlock, createFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
-  recordBirdMovement, updateFlock,
+  archiveFlock, depleteFlock, listBirdMovements, listFlocks, reactivateFlock,
 } from "../api/cluckwork";
 import type { BirdMovement, Flock } from "../api/cluckwork";
 import { useFormat } from "../farm/useFormat";
@@ -19,10 +16,8 @@ import {
   CONSOLE_DESTRUCTIVE_LINK_SX, CONSOLE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
   STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
-import { Dialog } from "../components/Dialog";
-import { DialogError } from "../components/DialogError";
 import { EmptyState } from "../components/EmptyState";
-import { NumberField } from "../components/NumberField";
+import { FlockDialogs } from "./FlockDialogs";
 import { ProvenanceCell } from "../components/ProvenanceCell";
 import { StatusBadge } from "../components/StatusBadge";
 import { useConfirm } from "../components/useConfirm";
@@ -86,10 +81,6 @@ export function FlocksPage() {
   const [breed, setBreed] = useState("");
   const [placed, setPlaced] = useState(today);
   const [count, setCount] = useState(100);
-  // NumberField owns its own input, so labels point at it by id (#250).
-  const fieldId = useId();
-  const idFor = (name: string) => `${fieldId}-${name}`;
-
   // edit — dialog seeded from the row
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -170,22 +161,6 @@ export function FlocksPage() {
   // reopened, and ends the session, so a late success cannot act on it.
   const closeCreate = () => { setCreating(false); dismissDialog("create"); };
 
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    await run("create", async (current) => {
-      await commit("create-flock", (key) =>
-        createFlock({ name, breed, placementDate: placed, initialCount: count }, key));
-      // Superseded: the flock exists and the list shows it, but the form and
-      // its dialog belong to whatever session is on screen now (#703).
-      if (!current()) return;
-      setName("");
-      setBreed("");
-      setPlaced(today);
-      setCount(100);
-      setCreating(false);
-    });
-  }
-
   const closeEdit = () => { setEditingId(null); dismissDialog("edit"); };
 
   function startEdit(f: Flock) {
@@ -201,22 +176,6 @@ export function FlocksPage() {
     setEditBreed(f.breed);
     setEditPlaced(f.placementDate);
     setEditCount(f.initialCount);
-  }
-
-  async function onSaveEdit(e: FormEvent) {
-    e.preventDefault();
-    const id = editingId;
-    if (id === null) return;
-    // The run scope is the dialog's; the idempotency key stays per flock.
-    await run("edit", async (current) => {
-      await commit(`update:${id}`, (key) =>
-        updateFlock(id, {
-          name: editName, breed: editBreed,
-          placementDate: editPlaced, initialCount: editCount,
-        }, key));
-      if (!current()) return;
-      setEditingId(null);
-    });
   }
 
   // #511 — the ledger is server-paged; the open flock IS the fetch identity, so
@@ -245,26 +204,6 @@ export function FlocksPage() {
     }
     setLedgerFlockId(id);
     setMvDate(today);
-  }
-
-  async function onRecordMovement(e: FormEvent) {
-    e.preventDefault();
-    if (!ledgerFlockId) return;
-    const id = ledgerFlockId;
-    await run("record-movement", async (current) => {
-      await commit(`movement:${id}`, async (key) => {
-        await ledger.runWrite(async () => {
-          await recordBirdMovement(id, {
-            date: mvDate, type: mvType, quantity: mvQty,
-            note: mvNote || undefined,
-          }, key);
-        });
-      });
-      if (!current()) return;
-      setMvQty(1);
-      setMvNote("");
-      setRecording(false);
-    });
   }
 
   if (errors.page && flocks === null) {
@@ -334,91 +273,22 @@ export function FlocksPage() {
         {t("intro")}
       </p>
 
-      <Dialog open={creating && isAdmin} title={t("newFlockDialogTitle")} onClose={closeCreate}
-        actions={(
-          <DialogActions>
-            <button type="button" className="link" onClick={closeCreate}>{tc("cancel")}</button>
-            <BusyButton variant="contained" type="submit" busy={isPending("create")} disabled={busy}>{t("addFlockButton")}</BusyButton>
-          </DialogActions>
-        )}
-        formProps={{ onSubmit: onCreate }}
-      >
-        <Stack spacing={2}>
-          <TextField
-            label={t("nameLabel")}
-            value={name}
-            slotProps={{ htmlInput: { maxLength: 100, required: true } }}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <TextField
-            label={t("breedLabel")}
-            value={breed}
-            slotProps={{ htmlInput: { maxLength: 100, required: true } }}
-            onChange={(e) => setBreed(e.target.value)}
-          />
-          <TextField
-            label={t("placedLabel")}
-            type="date"
-            value={placed}
-            slotProps={{ htmlInput: { max: today, required: true }, inputLabel: { shrink: true } }}
-            onChange={(e) => setPlaced(e.target.value)}
-          />
-          {/* #250: sibling label, not wrapping — a <label> may not contain
-              interactive content other than its own control, and the stepper
-              carries two buttons. NumberField itself is out of this slice's
-              scope (pair 3, #828), so it and its wrapper keep their existing
-              markup unconverted. */}
-          <div className="numfield-field">
-            <label htmlFor={idFor("birds")}>{t("birdsLabel")}</label>
-            <NumberField id={idFor("birds")} label={t("birdsLabel").toLowerCase()}
-              value={count} onChange={setCount} min={1} />
-          </div>
-          <DialogError errors={errors} scope="create" />
-        </Stack>
-      </Dialog>
-
-      {/* Editing is admin-only, so a role change mid-edit closes it. */}
-      <Dialog open={editingId !== null && isAdmin} title={t("editFlockDialogTitle")} onClose={closeEdit}
-        actions={(
-          <DialogActions>
-            <button type="button" className="link" onClick={closeEdit}>{tc("cancel")}</button>
-            <BusyButton variant="contained" type="submit" busy={isPending("edit")} disabled={busy}>
-              {tc("save")}
-            </BusyButton>
-          </DialogActions>
-        )}
-        formProps={{ onSubmit: onSaveEdit, noValidate: true }}
-      >
-        {/* noValidate: the row's save used to be a plain button — native
-            constraint validation never ran on these fields. */}
-        <Stack spacing={2}>
-          <TextField
-            label={t("editNameLabel")}
-            value={editName}
-            slotProps={{ htmlInput: { maxLength: 100 } }}
-            onChange={(e) => setEditName(e.target.value)}
-          />
-          <TextField
-            label={t("editBreedLabel")}
-            value={editBreed}
-            slotProps={{ htmlInput: { maxLength: 100 } }}
-            onChange={(e) => setEditBreed(e.target.value)}
-          />
-          <TextField
-            label={t("editPlacedLabel")}
-            type="date"
-            value={editPlaced}
-            slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
-            onChange={(e) => setEditPlaced(e.target.value)}
-          />
-          <div className="numfield-field">
-            <label htmlFor={idFor("edit-count")}>{t("editCountLabel")}</label>
-            <NumberField id={idFor("edit-count")} label={t("editCountLabel").toLowerCase()}
-              value={editCount} onChange={setEditCount} min={1} />
-          </div>
-          <DialogError errors={errors} scope="edit" />
-        </Stack>
-      </Dialog>
+      <FlockDialogs
+        creating={creating} setCreating={setCreating}
+        editingId={editingId} setEditingId={setEditingId}
+        isAdmin={isAdmin}
+        recording={recording} setRecording={setRecording}
+        busy={busy} isPending={isPending} errors={errors}
+        run={run} commit={commit}
+        ledger={ledger} ledgerFlockId={ledgerFlockId} today={today}
+        name={name} setName={setName} breed={breed} setBreed={setBreed}
+        placed={placed} setPlaced={setPlaced} count={count} setCount={setCount}
+        editName={editName} setEditName={setEditName} editBreed={editBreed} setEditBreed={setEditBreed}
+        editPlaced={editPlaced} setEditPlaced={setEditPlaced} editCount={editCount} setEditCount={setEditCount}
+        mvDate={mvDate} setMvDate={setMvDate} mvType={mvType} setMvType={setMvType}
+        mvQty={mvQty} setMvQty={setMvQty} mvNote={mvNote} setMvNote={setMvNote}
+        closeCreate={closeCreate} closeEdit={closeEdit} closeRecordMovement={closeRecordMovement}
+      />
 
       {/* #479 — unconditional: each dialog now renders its own failure through
           its own slot (DialogError above), so nothing here can be a stale copy
@@ -537,55 +407,6 @@ export function FlocksPage() {
                 <Plus size={16} aria-hidden /> {t("recordMovementButton")}
               </button>
             )}
-
-            <Dialog open={recording && isAdmin} title={t("recordMovementDialogTitle")} onClose={closeRecordMovement}
-              actions={(
-                <DialogActions>
-                  <button type="button" className="link" onClick={closeRecordMovement}>{tc("cancel")}</button>
-                  <BusyButton variant="contained" type="submit"
-                    busy={isPending("record-movement")}
-                    disabled={busy || mvQty === 0}>
-                    {t("recordButton")}
-                  </BusyButton>
-                </DialogActions>
-              )}
-              formProps={{ onSubmit: onRecordMovement }}
-            >
-              <Stack spacing={2}>
-                <TextField
-                  label={t("dateLabel")}
-                  type="date"
-                  value={mvDate}
-                  slotProps={{ htmlInput: { max: today }, inputLabel: { shrink: true } }}
-                  onChange={(e) => setMvDate(e.target.value)}
-                />
-                <TextField
-                  select
-                  label={t("typeLabel")}
-                  value={mvType}
-                  slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-                  onChange={(e) => setMvType(e.target.value)}
-                >
-                  <option value="Cull">{flockMovementLabel("Cull")}</option>
-                  <option value="Adjustment">{flockMovementLabel("Adjustment")}</option>
-                </TextField>
-                {/* A cull removes at least one bird; an Adjustment counts both
-                    ways (added or lost), so its floor is unbounded (#250). */}
-                <div className="numfield-field">
-                  <label htmlFor={idFor("mv-birds")}>{t("birdsLabel")}</label>
-                  <NumberField id={idFor("mv-birds")} label={t("birdsLabel").toLowerCase()}
-                    value={mvQty} onChange={setMvQty}
-                    min={mvType === "Cull" ? 1 : Number.NEGATIVE_INFINITY} />
-                </div>
-                <TextField
-                  label={t("noteLabel")}
-                  value={mvNote}
-                  slotProps={{ htmlInput: { maxLength: 500 } }}
-                  onChange={(e) => setMvNote(e.target.value)}
-                />
-                <DialogError errors={errors} scope="record-movement" />
-              </Stack>
-            </Dialog>
 
             {/* #511 round 5 — the error renders BESIDE the rows, never instead of
                 them. usePagedList keeps `rows` and `hasMore` when an EXTENSION
