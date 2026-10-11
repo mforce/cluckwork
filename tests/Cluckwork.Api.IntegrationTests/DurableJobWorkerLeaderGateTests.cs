@@ -10,9 +10,7 @@ namespace Cluckwork.Api.IntegrationTests;
 // FAULTED acquisition (could not reach the lock) does no work AND does not stamp the
 // heartbeat, so a sustained fault degrades /health. No database: the only thing
 // ProcessPendingJobsAsync does first is ask the scope factory for a scope, so a
-// counting scope factory observes whether the poll ran without any real work. Each
-// test waits for the lease's second acquisition, which the worker only reaches once
-// its first iteration has finished (#1202).
+// counting scope factory observes whether the poll ran without any real work.
 public sealed class DurableJobWorkerLeaderGateTests
 {
     // Counts scope creations (proof the poll ran) and throws — the worker's guarded
