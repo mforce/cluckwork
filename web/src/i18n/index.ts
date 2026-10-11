@@ -26,7 +26,7 @@ export const DEFAULT_LANGUAGE: Language = "en";
 // loader fails there.
 type Catalog = Record<string, Record<string, string>>;
 
-const LAZY_PACKS = {
+export const LAZY_PACKS = {
   es: () => import("./es").then((module) => module.es),
   tl: () => import("./tl").then((module) => module.tl),
 } satisfies Record<Exclude<Language, "en">, () => Promise<Catalog>>;
@@ -35,16 +35,32 @@ export function loadPack(language: Language): Promise<Catalog> {
   return language === "en" ? Promise.resolve(en) : LAZY_PACKS[language]();
 }
 
-// i18next calls `read` once per namespace; the module cache makes every call
-// after the first free. `false` as the second argument tells i18next not to
-// retry: a failed chunk import means offline, and LanguageSelector reports
-// that at once instead of after i18next's backoff.
+// A stalled request would otherwise hold the first render forever (main.tsx
+// waits on i18nReady); past this deadline the load counts as failed and the app
+// starts in English. 10 s covers the ~55 KiB gzipped pack on a slow 3G link.
+export const PACK_TIMEOUT_MS = 10_000;
+
+// i18next calls `read` once per namespace, ten at a time, so the deadline
+// belongs to the language: one bounded load that every namespace shares. A
+// failed load stays failed in this document anyway (see LanguageSelector).
+// `false` as the second argument tells i18next not to retry: a failed chunk
+// import means offline, and LanguageSelector reports that at once instead of
+// after i18next's backoff.
+const boundedLoads = new Map<string, Promise<Catalog>>();
+
 const lazyPackBackend: BackendModule = {
   type: "backend",
   init() {},
   read(language, namespace, callback) {
     if (!(language in LAZY_PACKS)) return callback(null, {});
-    loadPack(language as Language).then(
+    let load = boundedLoads.get(language);
+    if (!load) {
+      const deadline = new Promise<never>((_, reject) =>
+        setTimeout(reject, PACK_TIMEOUT_MS, new Error(`The ${language} catalog timed out`)));
+      load = Promise.race([loadPack(language as Language), deadline]);
+      boundedLoads.set(language, load);
+    }
+    load.then(
       (pack) => callback(null, pack[namespace] ?? {}),
       (error) => callback(error, false),
     );
