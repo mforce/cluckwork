@@ -390,12 +390,15 @@ def check_push(args, repo):
 BRANCH_LISTING = {"list", "all", "remotes", "show-current", "merged", "no-merged", "contains", "no-contains",
                   "points-at", "verbose", "sort", "format", "column", "no-column", "color", "no-color",
                   "ignore-case", "abbrev", "no-abbrev", "omit-empty", "delete"}
+BRANCH_VALUES = {"--format", "--sort", "--points-at"}
 BRANCH_TAKES_NAMES = {"list", "all", "remotes", "merged", "no-merged", "contains", "no-contains", "points-at", "delete"}
 
 
 def writes_anyway(command, args):
     """A SHARED_CHECKOUT_SAFE subcommand in a form that writes: --output=<file>, fetch --update-head-ok, or
     branch other than listing and deleting (create, -m, -c, -f, --set-upstream-to)."""
+    if command == "branch":  # drop the separate values of --format, --sort and --points-at before classifying
+        args = [arg for n, arg in enumerate(args) if not (n and args[n - 1] in BRANCH_VALUES)]
     longs = {arg[2:].split("=", 1)[0] for arg in args if arg.startswith("--") and len(arg) > 3}
     shorts = set("".join(arg[1:] for arg in args if arg.startswith("-") and not arg.startswith("--")))
     if any("output".startswith(name) for name in longs):

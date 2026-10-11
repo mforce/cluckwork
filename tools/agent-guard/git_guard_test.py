@@ -319,6 +319,14 @@ CASES += [  # round 2: git init creates its target (finding 2)
     ("git -C ../shared init", "linked", "block"),
 ]
 
+CASES += [  # round 2: branch listing options take values (finding 3)
+    ("git branch --format '%(refname:short)'", "shared", "allow"),
+    ("git branch --sort -committerdate", "shared", "allow"),
+    ("git branch --points-at HEAD", "shared", "allow"),
+    ("git branch --sort -committerdate feat/new", "shared", "block"),
+    ("git branch --format '%(refname)' -m feat/renamed", "shared", "block"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
