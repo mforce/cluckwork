@@ -4,11 +4,8 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -18,8 +15,8 @@ namespace Cluckwork.Api.IntegrationTests;
 // sweep modeled on RefreshTokenPurgeSweep) purges rows whose CreatedAt is older
 // than IdempotencyRecordPurgeSweep.PurgeRetention, across every account in one
 // global batched delete (the table is not tenant-query-filtered).
-public sealed class IdempotencyRecordPurgeSweepTests(IdempotencyPurgeSweepFactory factory)
-    : IClassFixture<IdempotencyPurgeSweepFactory>
+public sealed class IdempotencyRecordPurgeSweepTests(NoHostWorkerFactory factory)
+    : IClassFixture<NoHostWorkerFactory>
 {
     private static IdempotencyRecord NewRecord(
         DateTimeOffset createdAt,
@@ -317,16 +314,5 @@ public sealed class IdempotencyRecordPurgeSweepTests(IdempotencyPurgeSweepFactor
         var count = await factory.WithTenantScopeAsync(accountId,
             db => db.Expenses.CountAsync(e => e.ExpenseCategoryId == categoryId));
         Assert.Equal(2, count); // re-executed: two rows, not one
-    }
-}
-
-public sealed class IdempotencyPurgeSweepFactory : CluckworkWebApplicationFactory
-{
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureTestServices(services => services.Remove(services.Single(
-            descriptor => descriptor.ServiceType == typeof(IHostedService)
-                && descriptor.ImplementationType == typeof(DurableJobWorker))));
     }
 }
