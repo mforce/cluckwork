@@ -17,8 +17,8 @@ namespace Cluckwork.Api.IntegrationTests;
 // deleted its arm and the suite went from 4 green to 3 green — silently. So the
 // v2 defect (a guard proven by nothing) was re-openable by editing the test, and
 // any guard added later was covered by nothing at all. "Adding a guard is a row"
-// was an invariant living in a comment, which AGENTS.md calls a bug unless a
-// line enforces it.
+// was an invariant living in a comment, which is a bug unless a line enforces it
+// (docs/decisions/347-process-role.md).
 //
 // These enumerate the two places a serving-only guard can be added and hold each
 // against the table. Neither reads the table's own definition of what a guard is

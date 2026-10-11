@@ -1,7 +1,8 @@
 # Design-time migration connection, fail-closed (#318)
 
-> **Rule** — the one-paragraph version lives in [`src/Cluckwork.Infrastructure/Persistence/AGENTS.md`](../../src/Cluckwork.Infrastructure/Persistence/AGENTS.md);
-> this file is the relocated rationale.
+> **Rule** — a guard, a verb or the Dockerfile carries this rule, so [`src/Cluckwork.Infrastructure/Persistence/AGENTS.md`](../../src/Cluckwork.Infrastructure/Persistence/AGENTS.md)
+> only lists it under *Enforced rules and their records*;
+> this file is the rationale.
 
 **Status:** accepted · **Date:** 2026-07
 

@@ -11,7 +11,7 @@ namespace Cluckwork.Infrastructure.Modules.Insights.Repositories;
 // #95 — flattens every tenant-owned dataset for CSV export. Rows come through
 // the global tenant query filters, so an export only ever contains the calling
 // account's data. Money is exported as raw minor units + currency columns —
-// never converted to decimals (AGENTS.md money rule).
+// never converted to decimals (tech_spec.md §3.2 money rule).
 public sealed class ExportQueries(AppDbContext db, TenantContext tenant, FlockScope flockScope) : IExportQueries
 {
     // Ordered as packed into the full backup. Infra tables (idempotency,

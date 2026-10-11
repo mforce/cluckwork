@@ -111,7 +111,7 @@ usual workaround is a shim workflow declaring a same-named job on the inverse
 filter, which is a second copy that silently drifts. A job skipped by `if:`
 reports as skipped, which satisfies a required check.
 
-**Use `tj-actions/changed-files` or `dorny/paths-filter`.** `.github/AGENTS.md` names the
+**Use `tj-actions/changed-files` or `dorny/paths-filter`.** [146](146-ci-security-gates.md) names the
 2025-03 `tj-actions/changed-files` compromise as the reason third-party actions
 are pinned to a full commit SHA here. `git diff --name-only` plus a 70-line Node
 module needs no dependency at all.

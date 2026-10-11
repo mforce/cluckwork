@@ -57,8 +57,8 @@ public sealed class AccountMaxDiscountMigrationTests
     // unreachable — that getter runs on the role-agnostic GET /account, so a
     // single out-of-range row would 500 every page load on the farm, including
     // the Settings screen that would correct it, leaving raw SQL as the only
-    // recovery. AGENTS.md records under #732 that raw UPDATEs against this
-    // table do happen.
+    // recovery. docs/decisions/732-farm-code-rename.md records that raw
+    // UPDATEs against this table do happen.
     [Theory]
     [InlineData(-1)]
     [InlineData(10_001)]
