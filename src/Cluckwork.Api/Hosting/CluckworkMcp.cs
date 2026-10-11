@@ -60,10 +60,15 @@ internal static class CluckworkMcp
     {
         var schema = new AIJsonSchemaCreateOptions { TransformSchemaNode = WithoutNull };
         foreach (var type in typeof(McpCallContext).Assembly.GetTypes().Where(t => t.IsDefined(typeof(McpServerToolTypeAttribute))))
-        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Where(m => m.IsDefined(typeof(McpServerToolAttribute))))
-            services.AddSingleton(sp => McpServerTool.Create(method,
-                r => ActivatorUtilities.CreateInstance(r.Services!, type),
-                new McpServerToolCreateOptions { Services = sp, SchemaCreateOptions = schema }));
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+                     .Where(m => m.IsDefined(typeof(McpServerToolAttribute))))
+            services.AddSingleton(sp =>
+            {
+                var options = new McpServerToolCreateOptions { Services = sp, SchemaCreateOptions = schema };
+                return method.IsStatic
+                    ? McpServerTool.Create(method, target: null, options)
+                    : McpServerTool.Create(method, r => ActivatorUtilities.CreateInstance(r.Services!, type), options);
+            });
     }
 
     // An omitted parameter binds to its default, so a client never needs to send null.

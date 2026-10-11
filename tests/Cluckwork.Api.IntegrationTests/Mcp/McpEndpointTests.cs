@@ -65,7 +65,7 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         var tools = await client.ListToolsAsync();
 
         var declared = typeof(McpCallContext).Assembly.GetTypes()
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance))
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name)
             .OfType<string>().ToHashSet();
         Assert.True(declared.Count >= 9, $"the walk found {declared.Count} tools");
