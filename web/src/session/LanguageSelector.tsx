@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { putMeLanguage } from "../api/cluckwork";
 import { usePendingAction } from "../components/usePendingAction";
@@ -13,10 +14,12 @@ const LANGUAGE_NAMES: Record<string, string> = { en: "English", es: "Español", 
 // persists to the server (PUT /me/language) AND switches i18next live.
 export function LanguageSelector() {
   const { t } = useTranslation("account");
-  // #236: component-local flight — the select disables while the persist is in
-  // flight so a second switch cannot race the first (no spinner; a <select>
-  // cannot carry one). Called before the early return: hooks are unconditional.
+  // #236: component-local flight — the select disables while the pack loads
+  // and the persist is in flight, so a second switch cannot race the first (no
+  // spinner; a <select> cannot carry one). Called before the early return:
+  // hooks are unconditional.
   const { busy, run } = usePendingAction();
+  const [unreachable, setUnreachable] = useState<string | null>(null);
 
   if (SUPPORTED_LANGUAGES.length <= 1) return null;
 
@@ -28,24 +31,41 @@ export function LanguageSelector() {
   const current = i18n.language;
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const lang = e.target.value;
-    // The i18next switch stays outside the flight — it is local and instant;
-    // only the server persist holds the select inert.
-    void i18n.changeLanguage(lang);
-    void run("language", () => putMeLanguage(lang)).catch((err) => {
+    void run("language", async () => {
+      // #1149 — load the pack before switching. i18next switches even when the
+      // load fails, which would show English under a non-English selection, so
+      // an offline first switch keeps the current language and says why.
+      await i18n.loadLanguages(lang);
+      if (!i18n.hasResourceBundle(lang, "common")) {
+        setUnreachable(lang);
+        return;
+      }
+      setUnreachable(null);
+      await i18n.changeLanguage(lang);
       // Optimistic: the UI already switched; the preference reconciles from /me
       // on next bootstrap. Log rather than revert (reverting mid-session is jarring).
-      console.warn("Failed to persist language preference", err);
+      await putMeLanguage(lang).catch((err: unknown) => {
+        console.warn("Failed to persist language preference", err);
+      });
     });
   };
 
+  // The note sits outside the <label> so it never joins the select's name.
   return (
-    <label className="field">
-      <span>{t("language")}</span>
-      <select value={current} onChange={onChange} disabled={busy}>
-        {SUPPORTED_LANGUAGES.map((code) => (
-          <option key={code} value={code}>{LANGUAGE_NAMES[code] ?? code}</option>
-        ))}
-      </select>
-    </label>
+    <>
+      <label className="field">
+        <span>{t("language")}</span>
+        <select value={current} onChange={onChange} disabled={busy}>
+          {SUPPORTED_LANGUAGES.map((code) => (
+            <option key={code} value={code}>{LANGUAGE_NAMES[code] ?? code}</option>
+          ))}
+        </select>
+      </label>
+      {unreachable !== null && (
+        <p role="status" className="muted">
+          {t("languageNeedsConnection", { language: LANGUAGE_NAMES[unreachable] ?? unreachable })}
+        </p>
+      )}
+    </>
   );
 }

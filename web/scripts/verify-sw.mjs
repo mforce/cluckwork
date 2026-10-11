@@ -16,6 +16,7 @@
 
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { matchesLanguagePack } from "./runtime-cache-match.mjs";
 
 const dist = process.argv[2] ?? "dist";
 const swPath = join(dist, "sw.js");
@@ -112,6 +113,8 @@ function readBalancedAt(source, i, open, close) {
  * source, minified variable names and all — see check 2 for what still
  * survives that).
  */
+const STRATEGY_RE = /^\s*,\s*new\s+[$\w]+\.(\w+)\(\s*\{\s*cacheName:\s*"([^"]+)"/;
+
 function extractRuntimeCacheRoutes(source) {
   const routes = [];
   const marker = "registerRoute(";
@@ -124,8 +127,8 @@ function extractRuntimeCacheRoutes(source) {
     if (source[j] === "/") {
       const read = readRegexAt(source, j);
       if (!read) continue;
-      const strategy = /^\s*,\s*new\s+[$\w]+\.(\w+)\(/.exec(source.slice(read.next, read.next + 200));
-      routes.push({ kind: "regex", regex: read.regex, strategy: strategy ? strategy[1] : null });
+      const strategy = STRATEGY_RE.exec(source.slice(read.next, read.next + 200));
+      routes.push({ kind: "regex", regex: read.regex, strategy: strategy?.[1] ?? null, cacheName: strategy?.[2] ?? null });
       continue;
     }
     if (source.startsWith("function", j)) {
@@ -139,8 +142,11 @@ function extractRuntimeCacheRoutes(source) {
       if (source[m] !== "{") continue;
       const afterBody = readBalancedAt(source, m, "{", "}");
       if (afterBody === null) continue;
-      const strategy = /^\s*,\s*new\s+[$\w]+\.(\w+)\(/.exec(source.slice(afterBody, afterBody + 200));
-      routes.push({ kind: "function", source: source.slice(j, afterBody), strategy: strategy ? strategy[1] : null });
+      const strategy = STRATEGY_RE.exec(source.slice(afterBody, afterBody + 200));
+      routes.push({
+        kind: "function", source: source.slice(j, afterBody),
+        strategy: strategy?.[1] ?? null, cacheName: strategy?.[2] ?? null,
+      });
       continue;
     }
     // navigation route (`new $wb.NavigationRoute(...)`), or something unrecognized.
@@ -204,14 +210,15 @@ if (denylist) {
     check(!regexes.some((r) => r.test(path)), `app route ${path} is wrongly excluded from the fallback`);
 }
 
-// 2. Exactly one runtime caching route may exist beyond the navigation route:
+// 2. Exactly two runtime caching routes may exist beyond the navigation route:
 //    #948's CacheFirst cache for the five Inter subsets `globIgnores` drops
-//    from the precache (check 5). #948 review round 2: a RegExp `urlPattern`
+//    from the precache (check 5), and #1149's for the es/tl catalog chunks
+//    (check 3). #948 review round 2: a RegExp `urlPattern`
 //    is tested against the request's full href, UNANCHORED, so round 1's
 //    route also matched an unrelated same-origin path that merely ended in
 //    the right suffix (e.g. an /api/ route echoing a font-like filename) —
 //    and a regex has no way to see `request.destination` at all. The route
-//    must now be a match-callback FUNCTION (`font-cache-match.mjs`,
+//    must now be a match-callback FUNCTION (`runtime-cache-match.mjs`,
 //    independently unit-tested elsewhere in this file), so a regex-typed
 //    route — however narrow — fails this check outright, and the function's
 //    own source is checked for the specific guards that close the gap.
@@ -233,8 +240,10 @@ check(navigationRegistrations === 1, "expected exactly one navigation route regi
 const runtimeRoutes = extractRuntimeCacheRoutes(sw);
 check(routeRegistrations === navigationRegistrations + runtimeRoutes.length,
   "found a registerRoute() call this script could not classify as navigation or runtime caching");
-check(runtimeRoutes.length === 1,
-  `expected exactly one runtime caching route (the Inter extended-subset font cache), found ${runtimeRoutes.length}`);
+const RUNTIME_CACHES = ["inter-extended-subsets", "language-packs"];
+check(JSON.stringify(runtimeRoutes.map((route) => route.cacheName).sort()) === JSON.stringify(RUNTIME_CACHES),
+  `expected exactly the runtime caching routes ${RUNTIME_CACHES.join(", ")}, ` +
+  `found ${runtimeRoutes.map((route) => route.cacheName ?? "an unnamed cache").join(", ") || "none"}`);
 for (const route of runtimeRoutes) {
   check(route.strategy === "CacheFirst",
     `runtime caching route uses ${route.strategy ?? "an unrecognized"} strategy, not CacheFirst`);
@@ -248,14 +257,21 @@ for (const route of runtimeRoutes) {
   check(fn.includes("request:"), "match-callback does not destructure `request` from its argument");
   check(fn.includes("sameOrigin:"),
     "match-callback does not destructure `sameOrigin` — it could match a cross-origin request");
+  check(!fn.includes("||"),
+    "match-callback combines a check with || — every guard must be required (&&), none may be optional");
+  if (route.cacheName === "language-packs") {
+    check(fn.includes(String.raw`/^\/assets\/(?:es|tl)-[\w-]+\.js$/.test(`),
+      "language-pack match-callback does not anchor the pathname to /assets/{es,tl}-<hash>.js");
+    check(/\.destination\b/.test(fn) && /["']script["']/.test(fn),
+      "language-pack match-callback does not check request.destination === \"script\"");
+    continue;
+  }
   check(/\.pathname\.startsWith\(\s*["']\/assets\/["']\s*\)/.test(fn),
     "match-callback does not require the /assets/ pathname prefix — it could match an /api/ path with a font-like suffix");
   check(/\.pathname\.endsWith\(\s*["']\.woff2["']\s*\)/.test(fn),
     "match-callback does not require a .woff2 suffix");
   check(/\.destination\b/.test(fn) && /["']font["']/.test(fn),
     "match-callback does not check request.destination === \"font\"");
-  check(!fn.includes("||"),
-    "match-callback combines a check with || — every guard must be required (&&), none may be optional");
 }
 
 // 3. Nothing resembling an API URL may be in the precache manifest, and every
@@ -268,7 +284,31 @@ const emittedJs = readdirSync(join(dist, "assets"), { withFileTypes: true })
   .filter((entry) => entry.isFile() && entry.name.endsWith(".js"))
   .map((entry) => `assets/${entry.name}`)
   .sort();
-const missingJs = emittedJs.filter((asset) => !normalizedPrecache.has(asset));
+// #1149 — the es/tl catalogs are the one deliberate exception: each must be
+// emitted as its own chunk (a static import would fold it back into the
+// bundle, and this saving with it), left out of the precache, and covered by
+// the language-packs route. The real match-callback decides membership.
+const isLanguagePack = (asset) => matchesLanguagePack({
+  url: new URL(`/${asset}`, "https://cluckwork.invalid"), request: { destination: "script" }, sameOrigin: true,
+});
+for (const code of ["es", "tl"])
+  check(emittedJs.filter((asset) => isLanguagePack(asset) && asset.startsWith(`assets/${code}-`)).length === 1,
+    `expected exactly one emitted ${code} catalog chunk (assets/${code}-<hash>.js) — is it statically imported?`);
+const precachedPacks = emittedJs.filter((asset) => isLanguagePack(asset) && normalizedPrecache.has(asset));
+check(precachedPacks.length === 0, `language-pack chunks found in the precache: ${precachedPacks.join(", ")}`);
+const missingJs = emittedJs.filter((asset) => !normalizedPrecache.has(asset) && !isLanguagePack(asset));
+// Rolldown still splits a pack into its own chunk when something imports it
+// statically, so the chunk count above cannot see that mistake: the shell would
+// then need an un-precached chunk to boot at all. Every reference to a pack
+// file must be a dynamic `import(` instead.
+for (const pack of emittedJs.filter(isLanguagePack)) {
+  const file = pack.slice("assets/".length).replace(/[.$]/g, "\\$&");
+  for (const asset of emittedJs) {
+    const statics = [...readFileSync(join(dist, asset), "utf8").matchAll(new RegExp(`(.{0,8})["'\`]\\./${file}["'\`]`, "g"))]
+      .filter(([, before]) => !before.endsWith("import("));
+    check(statics.length === 0, `${asset} imports ${pack} statically; a language pack must load through import()`);
+  }
+}
 
 const apiish = precached.filter((url) => /(^|\/)api(\/|$)/i.test(url));
 check(apiish.length === 0, `API paths found in the precache manifest: ${apiish.join(", ")}`);
@@ -327,7 +367,12 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // minification cannot shorten, and the branch measures 1,959.97 KiB after
 // trimming. #1149 is still the planned way to win the space back. Any further
 // raise needs a new maintainer decision.
-const PRECACHE_CEILING_KIB = 1970;
+//
+// 2026-10-11, lowered to 1,640 KiB by #1149: the es/tl catalogs left the
+// precache and load on first use instead. `main` measured 1,969.37 KiB; the
+// branch measures 1,623.25 KiB, 346.12 KiB less. The ceiling keeps about
+// 17 KiB of margin over that measurement, roughly one more screen.
+const PRECACHE_CEILING_KIB = 1640;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

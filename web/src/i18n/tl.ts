@@ -165,6 +165,7 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+    languageNeedsConnection: "Wala pa ang {{language}} sa device na ito. Kumonekta sa internet nang isang beses para lumipat dito.",
     stepperUnit: "Yunit ng pagbilang sa Daily Entry",
     stepperUnitHint:
       "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry, para lang sa iyo — "
@@ -3234,7 +3235,8 @@ export const tl = {
       + "iba mong device — magagawa ito ng bawat role para sa sarili nila.",
     accountLanguage:
       "Ang <strong>Wika</strong> ay nagpapalit ng interface para lang sa iyo, agad-agad, sa bawat device "
-      + "na pinag-sign in mo.",
+      + "na pinag-sign in mo. Sa unang pagpalit mo sa isang wika sa isang device, kailangan mo ng koneksyon "
+      + "sa internet. Pagkatapos nito, gagana na rin ito offline.",
     accountCountingUnit:
       "<strong>Yunit ng pagbilang sa Daily Entry</strong> — kung magkano ang bilang ng IYONG mga tap ng "
       + "+/−, na nag-o-override sa default ng bukid mula sa Settings. Pumili ng pack unit tulad ng Tray "

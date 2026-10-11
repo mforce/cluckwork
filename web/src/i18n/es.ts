@@ -159,6 +159,7 @@ export const es = {
     preferences: "Preferencias",
     language: "Idioma",
     languageHint: "El idioma en que se muestra la interfaz, solo para usted.",
+    languageNeedsConnection: "{{language}} todavía no está en este dispositivo. Conéctese a internet una vez para cambiar a este idioma.",
     stepperUnit: "Unidad de conteo de la entrada diaria",
     stepperUnitHint:
       "Cuánto cuentan los botones +/− de la entrada diaria, solo para usted — elija una "
@@ -3112,7 +3113,8 @@ export const es = {
       + "— todos los roles pueden hacerlo por sí mismos.",
     accountLanguage:
       "<strong>Idioma</strong> cambia la interfaz solo para usted, de inmediato, en cada dispositivo donde "
-      + "inicie sesión.",
+      + "inicie sesión. La primera vez que cambia a un idioma en un dispositivo, necesita conexión a "
+      + "internet. Después, también funciona sin conexión.",
     accountCountingUnit:
       "<strong>Unidad de conteo de la entrada diaria</strong> — cuánto cuentan SUS toques de +/−, "
       + "anulando el valor predeterminado de la granja en Configuración. Elija una unidad de empaque como "

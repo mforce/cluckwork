@@ -2,7 +2,8 @@ import { afterEach, describe, it, expect } from "vitest";
 import { en } from "./en";
 import { STATUS_VALUES } from "../components/StatusBadge";
 import { auditActionLabel, ENUMS, statusLabel } from "./enums";
-import i18n, { RESOURCES } from "./index";
+import i18n from "./index";
+import { ALL_PACKS } from "../test/allPacks";
 
 afterEach(async () => {
   await i18n.changeLanguage("en");
@@ -25,7 +26,7 @@ function flatKey(qualified: string): string {
 
 describe("enums module (#182)", () => {
   it("resolves Account.Provisioned through its own key in every locale", async () => {
-    for (const [language, catalog] of Object.entries(RESOURCES)) {
+    for (const [language, catalog] of Object.entries(ALL_PACKS)) {
       await i18n.changeLanguage(language);
       expect(auditActionLabel("Account.Provisioned")).toBe(
         catalog.enums["auditAction.Account.Provisioned"],
@@ -37,7 +38,7 @@ describe("enums module (#182)", () => {
   // missing locale key falls back to English silently. Pinned per locale like the
   // Account.Provisioned case above.
   it("resolves Account.Rename through its own key in every locale", async () => {
-    for (const [language, catalog] of Object.entries(RESOURCES)) {
+    for (const [language, catalog] of Object.entries(ALL_PACKS)) {
       await i18n.changeLanguage(language);
       expect(auditActionLabel("Account.Rename")).toBe(
         catalog.enums["auditAction.Account.Rename"],

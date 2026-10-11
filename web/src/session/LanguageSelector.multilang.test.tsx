@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { MeContext } from "./SessionContext";
 import * as api from "../api/cluckwork";
 import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
@@ -29,7 +29,7 @@ describe("LanguageSelector with all installed languages", () => {
     expect(optionLabels).toEqual(["English", "Español", "Tagalog"]);
 
     fireEvent.change(select, { target: { value: "es" } });
-    expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("es");
+    await waitFor(() => expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("es"));
     expect(changeSpy).toHaveBeenCalledWith("es");
     // Regression guard: the select must reflect the live i18n language, not the
     // stale `me` object (MeContext is never updated on a language switch).
@@ -56,10 +56,37 @@ describe("LanguageSelector with all installed languages", () => {
     const select = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "tl" } });
     expect(select).toBeDisabled(); // in flight — a second switch cannot race the first
+    await waitFor(() => expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("tl"));
+    expect(select).toBeDisabled();
 
     await act(async () => resolvePut());
     expect(select).toBeEnabled();
 
     await act(async () => { await i18n.changeLanguage("en"); }); // reset for subsequent tests
+  });
+
+  // #1149 — an offline first switch to a pack this device never loaded.
+  it("keeps the current language and says why when the pack cannot load", async () => {
+    const { LanguageSelector } = await import("./LanguageSelector");
+    vi.mocked(api.putMeLanguage).mockClear();
+    const changeSpy = vi.spyOn(i18n, "changeLanguage").mockClear();
+    const loadSpy = vi.spyOn(i18n, "loadLanguages").mockResolvedValue(undefined);
+    const bundleSpy = vi.spyOn(i18n, "hasResourceBundle").mockReturnValue(false);
+    render(
+      <MeContext.Provider
+        value={{ id: "u1", email: "a@b.co", name: null, role: "Admin", language: "en", preferredStepperUnit: null }}>
+        <LanguageSelector />
+      </MeContext.Provider>,
+    );
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "tl" } });
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Tagalog is not on this device yet. Connect to the internet once to switch to it.");
+    expect(screen.getByRole("combobox")).toHaveValue("en");
+    expect(changeSpy).not.toHaveBeenCalled();
+    expect(vi.mocked(api.putMeLanguage)).not.toHaveBeenCalled();
+    loadSpy.mockRestore();
+    bundleSpy.mockRestore();
   });
 });
