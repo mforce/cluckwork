@@ -772,7 +772,7 @@ customer owes, for Owner, Manager and Sales. Amounts carry their currency code.
 flock's day as a **Draft**. Recording the same flock and day again replaces the
 draft's numbers, and a submitted entry cannot be changed. The eggs reach stock
 only when a person submits the draft in Cluckwork. The app sends an idempotency
-key with each recording: a label it picks for that one recording. Sending the
+key with each recording, a label it picks for that one recording. Sending the
 recording again with the same label returns the first answer and records
 nothing new; the same label with different numbers is refused. Keys belong to
 the person, so two people's apps never collide. A Worker with assigned flocks

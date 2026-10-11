@@ -3227,7 +3227,7 @@ export const en = {
       "<strong>When an AI app is refused.</strong> While the Owner has <strong>Allow connected apps</strong> turned off, "
       + "every app is refused with <strong>Connected apps are off</strong>. Nothing is disconnected, so the app works "
       + "again once it is turned back on. After <strong>Disconnect</strong>, or after your password is reset, the app "
-      + "is refused and has to connect again: it sends you back to the same screen and you type your password. If your "
+      + "is refused and has to connect again. It sends you back to the same screen and you type your password. If your "
       + "role does not allow a tool, the app does not see it, and connecting again does not change that. If you did "
       + "not allow a permission, such as <strong>Record daily entries</strong>, connect again and allow it; the screen "
       + "marks it <strong>New</strong>.",

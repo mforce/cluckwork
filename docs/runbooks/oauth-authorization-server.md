@@ -139,7 +139,7 @@ session token is refused.
 An app finds everything else from the endpoint. Its first request has no token, gets 401,
 and the challenge names the protected-resource metadata (RFC 9728). That document names the
 authorization server, and the app continues with discovery as in B. Both documents build
-their URLs from `OAuth:Issuer`, never from the request's `Host`. So A covers `/mcp` too:
+their URLs from `OAuth:Issuer`, never from the request's `Host`. Section A covers `/mcp` too.
 `AllowedHosts` must name the issuer's host, or every request gets the `Invalid Hostname`
 400, and the TLS proxy must be trusted, or the authorization flow the app needs answers
 `This server only accepts HTTPS requests.`

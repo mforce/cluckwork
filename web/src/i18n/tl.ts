@@ -2590,7 +2590,7 @@ export const tl = {
       + "nakakonektang app</strong>, tinatanggihan ang bawat app nang may <strong>Naka-off ang mga nakakonektang "
       + "app</strong>. Walang naididiskonekta, kaya gagana ulit ang app kapag binuksan itong muli. Pagkatapos ng "
       + "<strong>Idiskonekta</strong>, o pagkatapos ma-reset ang password mo, tinatanggihan ang app at kailangan "
-      + "nitong kumonekta ulit: ibabalik ka nito sa parehong screen at ita-type mo ang password mo. Kung hindi "
+      + "nitong kumonekta ulit. Ibabalik ka nito sa parehong screen at ita-type mo ang password mo. Kung hindi "
       + "pinapayagan ng role mo ang isang tool, hindi ito nakikita ng app, at hindi iyon nababago ng muling "
       + "pagkonekta. Kung hindi mo ibinigay ang isang pahintulot, gaya ng <strong>Itala ang araw-araw na "
       + "tala</strong>, ikonekta ulit at payagan ito; may markang <strong>Bago</strong> ito sa screen.",

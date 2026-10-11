@@ -2494,7 +2494,7 @@ export const es = {
       + "<strong>Permitir aplicaciones conectadas</strong>, toda aplicación se rechaza con <strong>Las aplicaciones "
       + "conectadas están desactivadas</strong>. No se desconecta nada, así que la aplicación vuelve a funcionar "
       + "cuando se activa otra vez. Después de <strong>Desconectar</strong>, o después de que se restablezca tu "
-      + "contraseña, la aplicación se rechaza y tiene que conectarse de nuevo: te envía a la misma pantalla y "
+      + "contraseña, la aplicación se rechaza y tiene que conectarse de nuevo. Te envía a la misma pantalla y "
       + "escribes tu contraseña. Si tu rol no permite una herramienta, la aplicación no la ve, y conectarla de nuevo "
       + "no lo cambia. Si no diste un permiso, como <strong>Anotar registros diarios</strong>, conéctala de nuevo y "
       + "permítelo; la pantalla lo marca como <strong>Nuevo</strong>.",
