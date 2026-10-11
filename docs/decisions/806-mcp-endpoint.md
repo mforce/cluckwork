@@ -85,11 +85,16 @@ get a fresh budget per request. The same endpoints therefore count refused beare
 address in the shared counter: 300 a minute, checked before authentication. A presented bearer
 answered 401 spends one; a valid call, a per-token 429 and a tokenless discovery probe spend
 nothing. Once an address has spent its budget, its valid tokens are refused too until the
-minute rolls over, because nothing can tell them apart before authentication. A 429 on
+minute rolls over, because nothing can tell them apart before authentication. Refusals
+reach that budget only when they finish, so the same endpoints also cap bearer requests in
+flight per address at 32, per process: in-flight work is each instance's own (#271 records
+the classification). A 429 on
 `oauth-api` is a JSON-RPC error with a null id, because the limiter runs before the body is read.
 
 **A foreign `Origin` gets 403.** Both MCP revisions require Origin validation against DNS
-rebinding. The check runs on every `/mcp` method before rate limiting and authentication. A
+rebinding. The check matches the `/mcp` path as routing does, whatever the method, so
+DELETE, PUT and OPTIONS, which select routing's own 405, are covered too. It runs before rate
+limiting and authentication. A
 request without `Origin` (a native client) passes. Otherwise it must carry exactly one value,
 an origin and nothing more, whose scheme, ASCII host and effective port equal those of
 `OAuth:Issuer`, never of the request's Host. The SDK leaves this check

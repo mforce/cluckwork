@@ -775,8 +775,9 @@ only when a person submits the draft in Cluckwork. The app sends an idempotency
 key with each recording, a label it picks for that one recording. Sending the
 recording again with the same label within 48 hours of a successful recording
 returns the first answer and records nothing new; the same label with different
-numbers is refused. After 48 hours Cluckwork forgets the key, so an older resend
-records again; the app should check the current draft first. Keys belong to
+numbers is refused. The key is kept for at least 48 hours, after which it may be
+forgotten, so an older resend may record again; the app should check the current
+draft first. Keys belong to
 the person, so two people's apps never collide. A Worker with assigned flocks
 reads and records only those flocks, as in the app, and any other flock reads
 as not found. A shared flock name is refused with each flock's id, and the app
