@@ -56,16 +56,24 @@ public sealed class McpRouteParityTests(CluckworkWebApplicationFactory factory)
     // #810: a scope is granted only through a tool, so a scope no tool requires is one an
     // app can be granted for nothing. Read from the policies themselves, not their names.
     [Fact]
-    public async Task RealTree_EveryOAuthScopeIsRequiredByATool()
+    public async Task RealTree_EveryOAuthScopeIsRequiredByATool() =>
+        Assert.Equal(OAuthScopes.All.Order(), (await RequiredScopesAsync(typeof(McpCallContext).Assembly.GetTypes())).Order());
+
+    // The SDK reads a tool's policies from its declaring class too, so a scope declared only
+    // there is used.
+    [Fact]
+    public async Task ScopeDeclaredOnTheToolClass_CountsAsRequired() =>
+        Assert.Equal([OAuthScopes.WriteDailyEntries], await RequiredScopesAsync([typeof(ClassScopedWriteTool)]));
+
+    private async Task<IReadOnlyList<string>> RequiredScopesAsync(IEnumerable<Type> tools)
     {
         var provider = factory.Services.GetRequiredService<IAuthorizationPolicyProvider>();
         var required = new HashSet<string>();
-        foreach (var gate in McpToolSurface.ToolTypes(typeof(McpCallContext).Assembly.GetTypes()).SelectMany(McpToolSurface.ToolMethods)
-            .SelectMany(m => m.GetCustomAttributes(inherit: true).OfType<IAuthorizeData>())
+        foreach (var gate in McpToolSurface.ToolTypes(tools).SelectMany(McpToolSurface.ToolMethods)
+            .SelectMany(m => m.GetCustomAttributes(inherit: true).Concat(m.DeclaringType!.GetCustomAttributes(inherit: true)).OfType<IAuthorizeData>())
             .Where(a => McpToolSurface.ScopePolicies.Contains(a.Policy)))
             required.UnionWith((await provider.GetPolicyAsync(gate.Policy!))!.Requirements.OfType<OAuthScopeRequirement>().SelectMany(r => r.AnyOf));
-
-        Assert.Equal(OAuthScopes.All.Order(), required.Order());
+        return [.. required];
     }
 
     private async Task<IReadOnlyList<string>> FindingsAsync(IEnumerable<Type> tools)
@@ -148,6 +156,13 @@ public sealed class McpRouteParityTests(CluckworkWebApplicationFactory factory)
     {
         [McpServerTool, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope), MirrorsRoute("RecordEggLotMovement")]
         public string Write() => "";
+    }
+
+    [McpServerToolType, Authorize(Policy = AuthPolicies.ProductionWrite), Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]
+    private sealed class ClassScopedWriteTool
+    {
+        [McpServerTool, MirrorsRoute("RecordDailyEntry")]
+        public string Write(string idempotencyKey) => idempotencyKey;
     }
 
     [McpServerToolType]

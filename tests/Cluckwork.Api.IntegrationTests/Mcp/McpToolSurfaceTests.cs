@@ -107,12 +107,13 @@ public sealed class McpToolSurfaceTests
         McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
             .Where(m => m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
 
-    // Row 28 (#808): an amount crosses as McpMoney's decimal string, so no reply field names
-    // minor units, whether an amount or the currency's exponent beside one.
+    // Row 28 (#808): an amount crosses as McpMoney's decimal string, so no tool's reply, read
+    // or write, names minor units, whether an amount or the currency's exponent beside one.
     [Fact]
-    public void RealTree_ReadToolRepliesCarryNoMinorUnits()
+    public void RealTree_ToolRepliesCarryNoMinorUnits()
     {
-        var fields = ReadTools().SelectMany(m => Leaves(m.ReturnType, m.Name, [])).Select(l => l.Holder).Distinct().ToList();
+        var fields = McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
+            .SelectMany(m => Leaves(m.ReturnType, m.Name, [])).Select(l => l.Holder).Distinct().ToList();
 
         Assert.Contains("McpMoney.Amount", fields);
         AssertNone([.. fields.Where(IsMinorUnits)]);
