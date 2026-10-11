@@ -15,11 +15,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+// The term rule is the checkout's own, so docs-impact and helpGlossary.test.ts
+// cannot read GLOSSARY.md differently.
+import { normalise, termSections } from "../../web/src/routes/glossaryCoverage.ts";
 
 const EN = "web/src/i18n/en.ts";
 const SPEC = "specs/product/GLOSSARY.md";
 const IN_APP = "web/src/routes/helpGlossary.ts";
-const HEADING = /^#{1,6}(?:\s|$)/;
 const COVERAGE = "web/src/routes/glossaryCoverage.ts";
 
 export const ESCAPE = /^Docs-impact:\s*none\s*(?:—|–|-{1,2})[ \t]+\S/;
@@ -64,28 +66,6 @@ export function newStringFindings({ baseEn, headEn, glossaryChanged }) {
     `New user-facing strings with no Help or glossary change: ${added.join(", ")}.\n`
     + `  Update ${SPEC} and the in-app Help (en/es/tl \`help.*\`), or add \`Docs-impact: none — <reason>\` to the PR body.`,
   ];
-}
-
-// The same term rule as web/src/routes/glossaryCoverage.ts: a bold run that
-// opens a paragraph (after a blank line or a heading), or an h3, with any
-// parenthetical dropped. A term's text
-// runs to the next term or heading, so a paragraph added under it counts.
-export const normalise = (term) => term.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
-export function termSections(markdown) {
-  const sections = new Map();
-  let current = null;
-  const lines = markdown.split("\n");
-  lines.forEach((line, i) => {
-    const m = /^\*\*([^*]+)\*\*|^### (.+)/.exec(line);
-    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "" || HEADING.test(lines[i - 1]))) {
-      current = normalise(m[1] ?? m[2]);
-      sections.set(current, "");
-    } else if (HEADING.test(line)) {
-      current = null;
-    }
-    if (current !== null) sections.set(current, sections.get(current) + line + "\n");
-  });
-  return sections;
 }
 
 export function driftFindings({ baseEn, headEn, baseSpec, headSpec, entries }) {
