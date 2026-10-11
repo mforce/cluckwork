@@ -1,6 +1,7 @@
 # Break-glass recovery: `recover-admin` (#265)
 
-> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
+> **Rule** — a guard, a verb or the Dockerfile carries this rule, so [`src/AGENTS.md`](../../src/AGENTS.md)
+> only lists it under *Enforced rules and their records*;
 > the **procedure and its verification drill** are in
 > [`docs/runbooks/break-glass-account-recovery.md`](../runbooks/break-glass-account-recovery.md).
 > This file is the design rationale.

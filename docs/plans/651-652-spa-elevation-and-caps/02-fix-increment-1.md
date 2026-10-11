@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #661; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 1 — close the `filter: drop-shadow()` bypass in the elevation guard
 
 Review round 1, `false-green` seat. **Driver-verified before dispatch**, not taken on the reviewer's word.

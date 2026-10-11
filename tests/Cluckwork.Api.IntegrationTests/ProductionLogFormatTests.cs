@@ -180,7 +180,7 @@ public sealed class ProductionLogFormatTests
     // CompactJsonFormatter writes it as `@tr`/`@sp` — NOT as `TraceId`, which
     // is what Development's outputTemplate renders it under. A collector query
     // written against the wrong one silently matches nothing, so the name is
-    // asserted here and stated in AGENTS.md.
+    // asserted here and stated in docs/decisions/404-production-logs.md.
     [Fact]
     public void The_bound_production_formatter_emits_trace_context_as_at_tr()
     {

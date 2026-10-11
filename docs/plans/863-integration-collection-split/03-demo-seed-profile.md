@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #1000, #1002 and #1003; the collection split was measured and reverted in #1004; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #863: demo seed profile
 
 **Base:** `1953cdea0737a6bb382d051680bcbac9bc3af639` (`origin/main`, including #1002). **Date:** 2026-09-30. This is a diagnosis, not an optimization. The measurements used the Release integration project, real Postgres through Testcontainers, and the 12-core local host. Temporary source and test probes were removed before this document was committed.

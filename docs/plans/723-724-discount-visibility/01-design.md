@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #741; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #723 + #724 — Discount visibility on the sales order screen and in history
 
 One PR (owner's call, 2026-09-09). Epic #719, after #720 shipped as PR #734 (`cffed5e`).

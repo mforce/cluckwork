@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #661; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 2 — fold case, and stop enumerating properties
 
 Review round 2, `false-green` seat. **All three holes driver-reproduced before dispatch.**

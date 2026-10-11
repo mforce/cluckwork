@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #677; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix runbook 4 — #672: the same lint class in the first runbook
 
 Same rules as `01-implementer-runbook.md`. Branch `fix/672-fake-otlp-collector`, head `04f238a4`.

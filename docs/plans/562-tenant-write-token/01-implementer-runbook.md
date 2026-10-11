@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #671; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #562: the database refuses a detached cross-tenant write (AccountId as a concurrency token)
 
 You are an autonomous coding agent with FULL tools (read, edit, write, bash) in the `cluckwork` repo

@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #671; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 3 — #562 / PR #671, round-3 findings (one heading level, one message string)
 
 You are an autonomous coding agent with FULL tools in the `cluckwork` repo (cwd = the repo root of the git

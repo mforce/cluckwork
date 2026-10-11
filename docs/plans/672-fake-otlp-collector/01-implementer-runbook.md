@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #677; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #672 (+#676): a collector that survives a lost bind and ignores traffic that is not an OTLP export
 
 You are an autonomous coding agent with FULL tools (read, edit, write, bash) in the `cluckwork` repo

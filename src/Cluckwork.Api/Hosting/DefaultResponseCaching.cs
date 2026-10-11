@@ -7,7 +7,7 @@ namespace Cluckwork.Api.Hosting;
 // intermediary, or a future edge rule could retain tenant data (JSON bodies,
 // CSV/zip exports, even auth responses carrying session material). Hand-rolled
 // the same way as SecurityHeaders (#144) rather than reaching for
-// [ResponseCache]/OutputCaching: this app is minimal-API only (AGENTS.md — "no
+// [ResponseCache]/OutputCaching: this app is minimal-API only (src/AGENTS.md: "no
 // MediatR", same spirit applies to MVC-only filters), and [ResponseCache] is an
 // MVC filter-pipeline attribute that minimal-API endpoints never run — it would
 // need to be remembered on every new MapGroup, exactly the per-endpoint

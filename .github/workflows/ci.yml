@@ -74,8 +74,8 @@ jobs:
   # a skipped MATRIX job is the exception, handled by `image-summary` below.
   #
   # The changed paths come from plain `git diff`, not a third-party action:
-  # `.github/AGENTS.md` cites the 2025-03 `tj-actions/changed-files` compromise as the
-  # reason actions are SHA-pinned, and this needs no dependency at all.
+  # `docs/decisions/146-ci-security-gates.md` cites the 2025-03 `tj-actions/changed-files`
+  # compromise as the reason actions are SHA-pinned, and this needs no dependency at all.
   # The classifier's own guard. It lives in its own job, and NOTHING depends on
   # it, on purpose. It cannot sit inside `changes` below, because `changes` is
   # `continue-on-error` and a guard that cannot fail the run is not a guard; and

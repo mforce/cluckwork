@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #675; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #670: AspNetUserRoles carries a tenant column, so a role write naming another farm's user is refused
 
 You are an autonomous coding agent with FULL tools (read, edit, write, bash) in the `cluckwork` repo

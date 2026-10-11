@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #749; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #745 — the audit Details column · design
 
 **Slice:** #745, epic #719. **Mode:** feature. Base `0481c06` (main, with #722 and #747 merged).

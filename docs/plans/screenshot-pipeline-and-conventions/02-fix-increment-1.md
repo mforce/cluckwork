@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #665; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 1 — #660 is not met yet
 
 Driver review of the first dispatch. **You flagged this yourself and were right to** — the runbook told you
