@@ -250,12 +250,13 @@ def refuse_unresolved(command, cwd):
         block("unresolved", command)
 
 
-def in_shared_checkout(cwd):
-    """True when cwd is the shared checkout; False outside any repository; any other lookup failure blocks."""
+def in_shared_checkout(cwd, options=()):
+    """True when cwd (with git's global options) is the shared checkout; False outside any repository; any other
+    lookup failure blocks."""
     if cwd is None or not os.path.isdir(cwd):
         return False
     try:
-        return Repo(cwd, [], cwd).is_shared_checkout()
+        return Repo(cwd, list(options), cwd).is_shared_checkout()
     except Blocked as failure:
         if "not a git repository" in str(failure):
             return False
@@ -464,7 +465,10 @@ def check_git(args, cwd, shown):
     if command == "clone":
         return  # a clone has its own .git, shallow or not; the current checkout plays no part
     if command == "init":  # creates its target, so a missing repository there is not the shared checkout
-        if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1" and in_shared_checkout(init_target(rest, cwd, options)):
+        # with --git-dir or --work-tree, git resolves the repository init writes; otherwise init_target does
+        overridden = any(option.startswith(("--git-dir", "--work-tree")) for option in options)
+        target = in_shared_checkout(cwd, options) if overridden else in_shared_checkout(init_target(rest, cwd, options))
+        if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1" and target:
             block("shared", shown)
         return
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":

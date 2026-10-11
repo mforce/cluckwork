@@ -362,6 +362,13 @@ CASES += [  # round 3: pushd and popd move the target too
     ("pushd ../shared; git sparse-checkout set src", "linked", "block"),
     ("popd && git sparse-checkout set src", "linked", "block"),
 ]
+CASES += [  # round 3: init through --git-dir targets that repository
+    ("git --git-dir=../shared/.git init --bare", "linked", "block"),
+    ("git --git-dir=../shared/.git init --separate-git-dir=/tmp/moved", "linked", "block"),
+    ("git --git-dir ../shared/.git init --bare", "linked", "block"),
+    ("git --git-dir=new-repo.git init --bare", "plain", "allow"),
+    ("git --git-dir=new-repo.git init --bare", "linked", "allow"),
+]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
