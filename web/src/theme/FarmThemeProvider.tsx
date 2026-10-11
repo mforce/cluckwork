@@ -667,10 +667,13 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
  * plus deleting `styles.css`'s `*` and `body` rules.
  */
 export function FarmThemeProvider({ children }: { children: ReactNode }) {
-  const [signal, setSignal] = useState(0);
+  // Held in state, not derived in render: this reads live DOM state, so each
+  // trigger below re-reads it.
+  const [tokens, setTokens] = useState(readThemeTokens);
 
   useEffect(() => {
-    const observer = new MutationObserver(() => setSignal((n) => n + 1));
+    const reread = () => setTokens(readThemeTokens());
+    const observer = new MutationObserver(reread);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-brand", "data-theme"],
@@ -679,7 +682,7 @@ export function FarmThemeProvider({ children }: { children: ReactNode }) {
     // (the pre-paint script is synchronous, but Settings can commit a palette
     // in the same tick a route mounts). Re-read once on attach rather than
     // trusting the render-time read to still be current.
-    setSignal((n) => n + 1);
+    reread();
 
     // #976 round 1 — follow-device mode must react to a LIVE OS scheme
     // change. watchDeviceTheme writes data-theme directly, which the
@@ -692,22 +695,15 @@ export function FarmThemeProvider({ children }: { children: ReactNode }) {
     // data-theme/data-brand — this is the one trigger the observer can't see.
     // jsdom has no matchMedia (BottomNav.tsx/lib/theme.ts guard the same way).
     const layout = typeof window.matchMedia === "function" ? window.matchMedia(MD_UP_QUERY) : null;
-    const onLayoutChange = () => setSignal((n) => n + 1);
-    layout?.addEventListener("change", onLayoutChange);
+    layout?.addEventListener("change", reread);
 
     return () => {
       observer.disconnect();
       stopWatchingDevice();
-      layout?.removeEventListener("change", onLayoutChange);
+      layout?.removeEventListener("change", reread);
     };
   }, []);
 
-  const tokens = useMemo(
-    // `signal` is the dependency that matters: this reads live DOM state, so
-    // it must re-run whenever the observer fires.
-    () => readThemeTokens(),
-    [signal],
-  );
   const theme = useMemo(() => createFarmTheme(tokens, readThemeMode()), [tokens]);
 
   // #974 — same cadence as the theme itself: on mount, and again whenever the

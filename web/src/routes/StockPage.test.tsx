@@ -66,15 +66,15 @@ describe("StockPage", () => {
     await screen.findByText(/No stock yet/);
   });
 
-  // The error-branch render (getStock rejects → "Could not load stock. Is the
-  // API up?") is not asserted here: in this Vitest 3.2.7 + React 19.1 stack, a
-  // rejection the component *does* handle (its own `.catch` → setError) is still
-  // flagged as unhandled through an internal promise the test can't reach — a
-  // documented interaction (vitest-dev/vitest #7940, #5796). Every reviewer-
-  // suggested workaround (pending-promise + reject-in-act; a scoped no-op
-  // `.catch`) was tried and still tripped the detector. The error path itself is
-  // a fixed message on any getStock rejection; the fetch client's error + refresh
-  // transport is covered directly in api/client.test.ts (PR #111).
+  // #1168 — the mount load's own failure re-renders the page through
+  // setPageError, an effect dependency: it must report once and not refetch.
+  it("reports a failed stock load once, without fetching again", async () => {
+    mockGetStock.mockRejectedValue(new Error("down"));
+    render(<StockPage />);
+
+    expect(await screen.findByText(i18n.t("stock:loadStockFailed"))).toBeInTheDocument();
+    expect(mockGetStock).toHaveBeenCalledTimes(1);
+  });
 
   it("shows the empty-state hint when there is no stock", async () => {
     mockGetStock.mockResolvedValue([]);

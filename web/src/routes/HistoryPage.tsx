@@ -161,7 +161,7 @@ export function HistoryPage() {
     ])
       .then(([f, g, units]) => { setFlocks(f); setGrades(g); setEggUnitConversions(units); })
       .catch(() => setPageError(i18n.t("history:loadFlocksGradesFailed")));
-  }, []);
+  }, [setPageError]);
 
   // #469 — six call sites (the filter effect, load-more, the adjust and void
   // refreshes, the 409 refresh, and the conflict rebind) shared one load with
