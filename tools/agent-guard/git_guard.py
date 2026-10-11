@@ -184,7 +184,8 @@ def simple_command(command, cwd):
 
 
 def semicolons_for_newlines(command):
-    """The command with each unquoted, unescaped newline replaced by `;`, the separator it is to the shell."""
+    """The command with each unquoted, unescaped newline replaced by `;`, the separator it is to the shell. After
+    &&, ||, |, ; or another newline, it continues the command or is a blank line, so it becomes a space."""
     out, quote, escaped = [], None, False
     for c in command:
         if escaped:
@@ -196,7 +197,8 @@ def semicolons_for_newlines(command):
         elif c in "'\"":
             quote = c
         elif c == "\n":
-            c = ";"
+            before = "".join(out).rstrip(" \t")
+            c = " " if not before or before.endswith(("&&", "|", ";")) else ";"
         out.append(c)
     return "".join(out)
 

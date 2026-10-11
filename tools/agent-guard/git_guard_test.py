@@ -346,6 +346,18 @@ CASES += [  # round 2: global flags that do not change the target (finding 5)
     ("git --exec-path=/tmp status", "linked", "block"),
 ]
 
+CASES += [  # round 3: a newline after an operator continues the command; blank lines are harmless
+    *[(command, where, "allow") for where in ("linked", "feature") for command in (
+        "cd . &&\ngit log --oneline -1",
+        "cd . && git status\ngit log --oneline -1",
+        "git status\n\ngit log --oneline -1",
+        "git status;\ngit log --oneline -1",
+        "git log --oneline |\nhead -1",
+        "\ngit status\n",
+    )],
+    ("cd ../shared &&\ngit sparse-checkout set src", "linked", "block"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
