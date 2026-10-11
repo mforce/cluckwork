@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Cluckwork.Application.Tests.Sales;
 
-// #721 — DiscountReasonCode is mirrored by hand into web/src/i18n/enums.ts's
+// #721 — DiscountReasonCode is mirrored by hand into web/src/i18n/enums-commerce.ts's
 // DISCOUNT_REASON_VALUES, which is what the confirm dialog's picklist renders.
 // Nothing else couples them: the SPA's own enums.test.ts checks that every
 // listed value has an en.enums label, not that the list is the server's list,
@@ -28,7 +28,7 @@ public sealed class DiscountReasonVocabularyTests
 
         Assert.True(
             missingFromClient.Count == 0 && missingFromServer.Count == 0,
-            "DiscountReasonCode vs web/src/i18n/enums.ts DISCOUNT_REASON_VALUES drifted."
+            "DiscountReasonCode vs web/src/i18n/enums-commerce.ts DISCOUNT_REASON_VALUES drifted."
             + (missingFromClient.Count > 0
                 ? $"\nThe server accepts but the picklist is missing: {string.Join(", ", missingFromClient)}"
                 : "")
@@ -51,13 +51,13 @@ public sealed class DiscountReasonVocabularyTests
             StringComparison.Ordinal);
     }
 
-    // web/src/i18n/enums.ts's `export const NAME = [...] as const;` array, read
+    // web/src/i18n/enums-commerce.ts's `export const NAME = [...] as const;` array, read
     // as text: this is a C# test with no TypeScript runtime. Line comments are
     // stripped first, because commenting a value out (`// "Foo",`) is a natural
     // edit and must read as a removal.
     private static HashSet<string> ParseTsStringArray(string constantName)
     {
-        var path = Path.Combine(RepositoryRoot(), "web", "src", "i18n", "enums.ts");
+        var path = Path.Combine(RepositoryRoot(), "web", "src", "i18n", "enums-commerce.ts");
         var source = Regex.Replace(File.ReadAllText(path), @"//[^\n]*", string.Empty);
 
         var declaration = Regex.Match(
