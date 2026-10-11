@@ -1,21 +1,21 @@
 import { Box, Button } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import type { DailyEntry, EggGrade, Flock } from "../../api/cluckwork";
+import type { DailyEntry } from "../../api/cluckwork";
 import { Dialog } from "../../components/Dialog";
 import { CONSOLE_LINK_SX } from "../../components/FieldConsole";
 import { PhoneDetailsField } from "../../components/PhoneLedger";
 import { ProvenanceSummary } from "../../components/ProvenanceCell";
 import { useFormat } from "../../farm/useFormat";
-import { conditionStock, gradeList, rowFlockName } from "./historyUi";
 
 export function HistoryDetailsDialog({
-  details, setDetails, flocks, grades, rowActions, busy, startAdjust, onVoid,
+  details, setDetails, rowActions, rowFlockName, conditionStock, gradeList, busy, startAdjust, onVoid,
 }: {
   details: DailyEntry | null;
   setDetails: (details: DailyEntry | null) => void;
-  flocks: Flock[];
-  grades: EggGrade[];
+  rowFlockName: (e: { flockId: string; flockName?: string | null }) => string;
+  conditionStock: (e: DailyEntry) => string;
+  gradeList: (e: DailyEntry) => string;
   rowActions: (e: DailyEntry) => { viewHistory: boolean; edit: boolean; correct: boolean };
   busy: boolean;
   startAdjust: (e: DailyEntry) => void;
@@ -37,7 +37,7 @@ export function HistoryDetailsDialog({
       // nameless during its exit transition (same shape as the adjust
       // dialog's `adjustDialogTitle`).
       title={details
-        ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: rowFlockName(details, flocks, t) })
+        ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: rowFlockName(details) })
         : t("title")}
       onClose={() => setDetails(null)}
       actions={details && (
@@ -78,8 +78,8 @@ export function HistoryDetailsDialog({
             [te("crackedLabel"), fmt.count(details.crackedEggs)],
             [te("dirtyLabel"), fmt.count(details.dirtyEggs)],
             [te("discardedLabel"), fmt.count(details.discardedEggs)],
-            [t("conditionHeader"), conditionStock(details, fmt)],
-            [t("gradedHeader"), gradeList(details, grades, fmt)],
+            [t("conditionHeader"), conditionStock(details)],
+            [t("gradedHeader"), gradeList(details)],
             [tc("recordHistoryHeader"), <ProvenanceSummary history={details} official="submitted" />],
           ] as const).map(([label, value]) => (
             <PhoneDetailsField key={label} label={label}>{value}</PhoneDetailsField>

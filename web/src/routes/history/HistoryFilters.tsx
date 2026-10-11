@@ -28,7 +28,7 @@ export function HistoryFilters({
     // (onCommit), always a full entity; there is no external/deep-link
     // source that could name an id the picker's exact GET might fail to
     // resolve (Opus review). Used ONLY for the filter trigger — never for a
-    // row (see rowFlockName below).
+    // row (see rowFlockName on the page).
     if (id === flockFilter && flockFilterEntity)
       return flockFilterEntity.name;
     return flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);

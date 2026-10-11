@@ -1,7 +1,7 @@
 import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Box, Button, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, useMediaQuery } from "@mui/material";
-import type { DailyEntry, EggGrade, Flock } from "../../api/cluckwork";
+import type { DailyEntry } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { FarmDate } from "../../components/FarmDate";
 import { CONSOLE_LINK_SX, LedgerTableContainer } from "../../components/FieldConsole";
@@ -10,7 +10,7 @@ import { PhoneLedgerList, PhoneLedgerRow } from "../../components/PhoneLedger";
 import { ProvenanceCell } from "../../components/ProvenanceCell";
 import { useFormat } from "../../farm/useFormat";
 import { MD_UP_QUERY } from "../../lib/breakpoints";
-import { conditionStock, gradeList, rowFlockName, type PagedEntries } from "./historyUi";
+import type { PagedEntries } from "./historyUi";
 
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
@@ -19,11 +19,12 @@ const NOWRAP = { whiteSpace: "nowrap" as const };
 // the actions stop living off the right edge. The desktop table is untouched.
 
 export function HistoryLedgers({
-  entries, flocks, grades, rowActions, busy, isPending, startAdjust, onVoid, setDetails,
+  entries, rowActions, rowFlockName, conditionStock, gradeList, busy, isPending, startAdjust, onVoid, setDetails,
 }: {
   entries: PagedEntries;
-  flocks: Flock[];
-  grades: EggGrade[];
+  rowFlockName: (e: { flockId: string; flockName?: string | null }) => string;
+  conditionStock: (e: DailyEntry) => string;
+  gradeList: (e: DailyEntry) => string;
   rowActions: (e: DailyEntry) => { viewHistory: boolean; edit: boolean; correct: boolean };
   busy: boolean;
   isPending: (scope: string) => boolean;
@@ -89,13 +90,13 @@ export function HistoryLedgers({
                   // MUI cell colours override inherited row colours.
                   sx={e.status === "Voided" ? { "& .MuiTableCell-root": { color: "var(--muted)" } } : undefined}>
                   <TableCell sx={NOWRAP}><FarmDate iso={e.date} /></TableCell>
-                  <TableCell>{rowFlockName(e, flocks, t)}</TableCell>
+                  <TableCell>{rowFlockName(e)}</TableCell>
                   <TableCell>{statusCell(e)}</TableCell>
                   <TableCell align="right">{fmt.count(e.totalEggs)}</TableCell>
                   <TableCell align="right">{lossList(e)}</TableCell>
-                  <TableCell align="right">{conditionStock(e, fmt)}</TableCell>
+                  <TableCell align="right">{conditionStock(e)}</TableCell>
                   <TableCell align="right">{fmt.count(e.mortalityCount)}</TableCell>
-                  <TableCell>{gradeList(e, grades, fmt)}</TableCell>
+                  <TableCell>{gradeList(e)}</TableCell>
                   <ProvenanceCell history={e} official="submitted" />
                   <TableCell sx={NOWRAP}>
                     {/* The audit endpoint is AdminOnly, even when this ledger is readable by workers. */}
@@ -133,7 +134,7 @@ export function HistoryLedgers({
           {entries.rows.map((e) => (
             <li key={e.id}>
               <PhoneLedgerRow onClick={() => setDetails(e)} muted={e.status === "Voided"}
-                date={<FarmDate iso={e.date} />} primary={rowFlockName(e, flocks, t)} trailing={statusCell(e)}
+                date={<FarmDate iso={e.date} />} primary={rowFlockName(e)} trailing={statusCell(e)}
                 summary={
                   <Trans ns="history" i18nKey="rowSummary" components={{ strong: <strong /> }}
                     count={e.mortalityCount}

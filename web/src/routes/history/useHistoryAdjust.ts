@@ -6,10 +6,10 @@ import { ApiError } from "../../api/client";
 import type { DialogAction } from "../../components/useDialogAction";
 import { armedState, gradingState } from "../../lib/grading";
 import i18n from "../../i18n";
-import { correctable, type PagedEntries } from "./historyUi";
+import type { PagedEntries } from "./historyUi";
 
 export function useHistoryAdjust({
-  grades, entries, keyFor, settleKey, setMessage, setPageError, dialog,
+  grades, entries, keyFor, settleKey, setMessage, setPageError, dialog, correctable,
 }: {
   grades: EggGrade[];
   entries: PagedEntries;
@@ -18,6 +18,7 @@ export function useHistoryAdjust({
   setMessage: (message: string | null) => void;
   setPageError: (error: string | null) => void;
   dialog: DialogAction<"adjust">;
+  correctable: (e: DailyEntry) => boolean;
 }) {
   const { busy, run, errors, openDialog, dismissDialog } = dialog;
 

@@ -2,7 +2,7 @@ import { useId } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, DialogActions, Stack, TextField, Typography } from "@mui/material";
-import type { DailyEntry, EggGrade, Flock } from "../../api/cluckwork";
+import type { DailyEntry, EggGrade } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
@@ -13,17 +13,16 @@ import { NumberField } from "../../components/NumberField";
 import { useFormat } from "../../farm/useFormat";
 import { gradingState } from "../../lib/grading";
 import { resolveStepperUnit } from "../../lib/stepperUnit";
-import { rowFlockName } from "./historyUi";
 
 export function HistoryAdjustDialog({
-  adjusting, flocks, closeAdjust, busy, isPending, errors, onAdjustSubmit, gradesReconciled,
+  adjusting, rowFlockName, closeAdjust, busy, isPending, errors, onAdjustSubmit, gradesReconciled,
   lossesExceedTotal, sellable, gradesSum, grading, total, setTotal, cracked, setCracked,
   dirty, setDirty, discarded, setDiscarded, mortality, setMortality, stepSize, stepperUnit,
   panelGrades, lineQty, setLine, armed, canAssign, remaining, assignRest, reason, setReason,
   setAssigning,
 }: {
   adjusting: DailyEntry | null;
-  flocks: Flock[];
+  rowFlockName: (e: { flockId: string; flockName?: string | null }) => string;
   closeAdjust: () => void;
   busy: boolean;
   isPending: (scope: string) => boolean;
@@ -75,7 +74,7 @@ export function HistoryAdjustDialog({
     <Dialog
       open={adjusting !== null}
       title={adjusting
-        ? t("adjustDialogTitleWithEntry", { date: fmt.date(adjusting.date), flock: rowFlockName(adjusting, flocks, t) })
+        ? t("adjustDialogTitleWithEntry", { date: fmt.date(adjusting.date), flock: rowFlockName(adjusting) })
         : t("adjustDialogTitle")}
       onClose={closeAdjust}
       // Two panes side by side need the room; on a phone the dialog is a

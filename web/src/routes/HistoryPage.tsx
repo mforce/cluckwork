@@ -24,7 +24,6 @@ import { HistoryAdjustDialog } from "./history/HistoryAdjustDialog";
 import { HistoryDetailsDialog } from "./history/HistoryDetailsDialog";
 import { HistoryFilters } from "./history/HistoryFilters";
 import { HistoryLedgers } from "./history/HistoryLedgers";
-import { correctable, rowFlockName } from "./history/historyUi";
 import { useHistoryAdjust } from "./history/useHistoryAdjust";
 
 const PAGE = 50;
@@ -134,13 +133,44 @@ export function HistoryPage() {
     errorText: () => i18n.t("history:loadEntriesFailed"),
   });
 
+
+  // #512 US4 (T051) — a row's own name, independent of the picker/catalog
+  // entirely: the row-owned `flockName` the endpoint's scoped bulk read
+  // already resolved, or the translated unavailable label. Never the capped
+  // `flocks` list and never an id fragment (contracts/http-api.md: "Required
+  // names are never replaced with identifier fragments").
+  const rowFlockName = (e: { flockId: string; flockName?: string | null }) => {
+    if (e.flockName !== undefined)
+      return e.flockName ?? t("rowFlockUnavailable");
+    return flocks.find((f) => f.id === e.flockId)?.name ?? t("rowFlockUnavailable");
+  };
+  const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
+  const correctable = (e: DailyEntry) =>
+    e.status === "Submitted" || e.status === "Locked" || e.status === "ManagerAdjusted";
+  // #396 — how many of this day's cracked/dirty eggs became stock. Read from
+  // the ENTRY's snapshot, never from the current grade catalog: a farm that
+  // switched Cracked off after recording a day must still see that day as it
+  // was recorded, and one that switched it on must not see past losses
+  // retroactively turn into stock.
+  //
+  // A draft has resolved nothing yet, so it shows an em dash rather than 0 —
+  // "not decided" and "decided to be a loss" are different facts, and 0 would
+  // state the second while the first is true.
+  const conditionStock = (e: DailyEntry) => {
+    if (e.status === "Draft") return "—";
+    return fmt.count((e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0));
+  };
+  const gradeList = (e: DailyEntry) =>
+    e.grades.length === 0
+      ? "—"
+      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ");
+
   const {
     adjusting, setAdjusting, closeAdjust, startAdjust, onAdjustSubmit, panelGrades,
     setLine, assignRest, lineQty, total, setTotal, cracked, setCracked, dirty, setDirty,
     discarded, setDiscarded, mortality, setMortality, reason, setReason, armed, canAssign,
     remaining, grading, gradesSum, gradesReconciled, lossesExceedTotal, sellable, setAssigning,
-  } = useHistoryAdjust({ grades, entries, keyFor, settleKey, setMessage, setPageError, dialog });
-
+  } = useHistoryAdjust({ grades, entries, keyFor, settleKey, setMessage, setPageError, dialog, correctable });
   // The Daily entry screen can't target archived flocks (capture excludes
   // them), so an edit link for one would silently fall back to a different
   // flock — worse than no link (codex review of #86).
@@ -182,7 +212,7 @@ export function HistoryPage() {
     // app's own dialog, so the required check is inline and the typed text
     // survives it — window.prompt validated only after it had closed.
     const voidReason = await askReason({
-      title: i18n.t("history:voidConfirmTitle", { date: fmt.date(e.date), flock: rowFlockName(e, flocks, t) }),
+      title: i18n.t("history:voidConfirmTitle", { date: fmt.date(e.date), flock: rowFlockName(e) }),
       body: i18n.t("history:voidConfirmBody"),
       confirmLabel: i18n.t("history:voidConfirmLabel"),
       destructive: true,
@@ -268,11 +298,12 @@ export function HistoryPage() {
         from={from} setFrom={setFrom} to={to} setTo={setTo} flocks={flocks}
       />
 
-      <HistoryDetailsDialog details={details} setDetails={setDetails} flocks={flocks} grades={grades}
-        rowActions={rowActions} busy={busy} startAdjust={startAdjust} onVoid={onVoid} />
+      <HistoryDetailsDialog details={details} setDetails={setDetails}
+        rowActions={rowActions} rowFlockName={rowFlockName} conditionStock={conditionStock} gradeList={gradeList}
+        busy={busy} startAdjust={startAdjust} onVoid={onVoid} />
 
       <HistoryAdjustDialog
-        adjusting={adjusting} flocks={flocks} closeAdjust={closeAdjust}
+        adjusting={adjusting} rowFlockName={rowFlockName} closeAdjust={closeAdjust}
         busy={busy} isPending={isPending} errors={errors} onAdjustSubmit={onAdjustSubmit}
         gradesReconciled={gradesReconciled} lossesExceedTotal={lossesExceedTotal}
         sellable={sellable} gradesSum={gradesSum} grading={grading}
@@ -308,7 +339,7 @@ export function HistoryPage() {
           ? <EmptyState icon={FilterX} message={t("noEntriesMatch")} />
           : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
-          <HistoryLedgers entries={entries} flocks={flocks} grades={grades} rowActions={rowActions} busy={busy}
+          <HistoryLedgers entries={entries} rowFlockName={rowFlockName} conditionStock={conditionStock} gradeList={gradeList} rowActions={rowActions} busy={busy}
             isPending={isPending} startAdjust={startAdjust} onVoid={onVoid} setDetails={setDetails} />
       )}
 
