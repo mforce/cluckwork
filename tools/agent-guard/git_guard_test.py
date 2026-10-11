@@ -286,6 +286,30 @@ CASES += [  # allowed subcommands narrowed to the forms that do not write the sh
     ("git diff --output=/tmp/out.diff", "linked", "allow"),
 ]
 
+CASES += [  # round 2: decide by the executable, not argument text (finding 4) ...
+    *[(command, where, "allow") for where in ("shared", "linked", "feature") for command in (
+        "gh pr list --search 'git guard'",
+        "rg git tools/agent-guard",
+        "gh pr create --title x --body 'uses git worktree add, then git status'",
+        "grep -rn 'git sparse-checkout' docs | head -3",
+    )],
+    ("xargs git sparse-checkout set src", "shared", "block"),
+    ("env git sparse-checkout set src", "shared", "block"),
+    ("GIT_DIR=../shared/.git git sparse-checkout set src", "linked", "block"),
+    ("gh pr merge 1 --squash", "shared", "block"),
+    # ... and resolve each step's target, newline-separated or terminated too (finding 1)
+    ("git -C ../shared status\ngit -C ../shared sparse-checkout set src", "linked", "block"),
+    ("cd ../shared && git sparse-checkout set src\n", "linked", "block"),
+    ("git -C ../shared sparse-checkout set src;", "linked", "block"),
+    ("git status\ngit log --oneline -1\n", "shared", "allow"),
+    ("git status\ngit log --oneline -1", "linked", "allow"),
+    ("cd ../linked | git sparse-checkout set src", "shared", "block"),
+    ("cd ../linked || git status", "shared", "block"),
+    ("(cd ../shared && git status)", "linked", "block"),
+    ("(git status)", "linked", "allow"),
+    ("(git status)", "plain", "allow"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),

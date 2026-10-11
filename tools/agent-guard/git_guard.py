@@ -64,6 +64,13 @@ SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "di
                         "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
                         "shortlog", "show", "status", "version", "worktree"}
 GIT_WORD = re.compile(r"\bgit\b")
+ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
+# Programs that run another command from their arguments.
+RUNNERS = {"bash", "builtin", "chronic", "command", "dash", "doas", "env", "eval", "exec", "find", "flock", "ionice",
+           "nice", "nohup", "parallel", "runuser", "script", "sg", "sh", "ssh", "stdbuf", "su", "sudo", "time",
+           "timeout", "unbuffer", "watch", "xargs", "zsh"}
+# Text that can move a git command's target to another checkout.
+DIRECTORY_CHANGE = re.compile(r"(?:^|[\s;&|(){}])(?:cd|pushd|popd)\b|\s-C\b|--git-dir|--work-tree|\bGIT_(?:DIR|WORK_TREE)\b")
 EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
@@ -105,8 +112,9 @@ MESSAGES = {
     "shared": "this is the shared checkout, the main worktree other agents' worktrees hang off; git commands that "
               "change its HEAD, index, files or refs are refused here. Run it in your own worktree: "
               "`cd <your worktree> && git ...`.",
-    "shared-shape": "this is the shared checkout; a git command here must be one simple command, or simple steps "
-                    "joined by &&, ||, ; or |, so each git step can be checked. Split it, or run it in your own worktree.",
+    "unresolved": "git-guard cannot tell which checkout each git step targets here (a subshell, wrapper, "
+                  "variable assignment or directory change it cannot follow), and it may be the shared checkout. "
+                  "Run each git command as its own simple command, or join simple steps with &&, ; or newlines.",
     "stash": "every worktree shares one .git, so the stash list is shared with other agents. Commit "
              "work in progress on your own branch instead.",
     "shallow": "every worktree shares one .git, so a fetch or pull that changes the shallow state (--depth, "
@@ -174,34 +182,67 @@ def simple_command(command, cwd):
     return argv, cwd
 
 
+def semicolons_for_newlines(command):
+    """The command with each unquoted, unescaped newline replaced by `;`, the separator it is to the shell."""
+    out, quote, escaped = [], None, False
+    for c in command:
+        if escaped:
+            escaped = False
+        elif c == "\\" and quote != "'":
+            escaped = True
+        elif quote:
+            quote = None if c == quote else quote
+        elif c in "'\"":
+            quote = c
+        elif c == "\n":
+            c = ";"
+        out.append(c)
+    return "".join(out)
+
+
 def git_steps(command, cwd):
-    """[(argv, cwd)] of the git steps in simple steps joined by &&, ||, ; or |, the first optionally `cd <dir>`;
-    None for any other shape, or when git runs under another program."""
-    command = ALLOWED_SUFFIX.sub("", command)
+    """[(program, argv, cwd)] for the git and gh steps of simple steps joined by &&, ||, ;, | or newlines. A
+    `cd <dir>` step moves the steps after it; beside a pipe or || it runs in a subshell or may not run, so it
+    cannot be followed. None for any other shape, a variable assignment, or a runner (xargs, env, sh -c, ...)
+    whose arguments name git: those steps' target cannot be resolved."""
+    command = semicolons_for_newlines(ALLOWED_SUFFIX.sub("", command))
     if not has_simple_shape(command, operators=";|"):
         return None
     lex = shlex.shlex(command, posix=True, punctuation_chars=";&|")
     lex.whitespace_split = True
     lex.commenters = ""
-    steps = [[]]
+    steps, operators = [[]], [";"]  # operators[n] is the one before steps[n]
     for token in lex:
         if token in ("&&", "||", ";", "|"):
             steps.append([])
+            operators.append(token)
         elif set(token) <= set(";&|"):
             return None
         else:
             steps[-1].append(token)
+    operators.append(";")
     found = []
     for n, argv in enumerate(steps):
-        if not argv or (argv[0] == "cd" and (n or len(argv) != 2)):
-            return None
-        if argv[0] == "cd":
+        program = os.path.basename(argv[0]) if argv else ""
+        if not argv:
+            if operators[n] != ";" or operators[n + 1] != ";":
+                return None  # only `;` and newlines may leave an empty step
+        elif argv[0] == "cd":
+            if len(argv) != 2 or "|" in (operators[n], operators[n + 1]) or operators[n + 1] == "||":
+                return None
             cwd = cd_dir(cwd, argv[1], command)
-        elif os.path.basename(argv[0]) == "git":
-            found.append((argv, cwd))
-        elif os.path.basename(argv[0]) not in INERT_PROGRAMS and any(GIT_WORD.search(token) for token in argv):
+        elif program in ("git", "gh"):
+            found.append((program, argv, cwd))
+        elif ASSIGNMENT.match(argv[0]) or (program in RUNNERS and any(GIT_WORD.search(arg) for arg in argv[1:])):
             return None
     return found
+
+
+def refuse_unresolved(command, cwd):
+    """A git command git_steps cannot resolve runs where the session is only if nothing in it can move the
+    target; it refuses when something can, or when the session is in the shared checkout."""
+    if DIRECTORY_CHANGE.search(plain_text(command)) or in_shared_checkout(cwd):
+        block("unresolved", command)
 
 
 def in_shared_checkout(cwd):
@@ -488,10 +529,13 @@ def check(command, cwd, unchecked=None):
         if unchecked or not GIT_WORD.search(plain_text(command)):
             return
         steps = git_steps(command, cwd)
-        if steps is None and in_shared_checkout(cwd):
-            block("shared-shape", command)
-        for argv, step_cwd in steps or []:
-            check_git(argv[1:], step_cwd, " ".join(argv))
+        if steps is None:
+            refuse_unresolved(command, cwd)
+        for program, argv, step_cwd in steps or []:
+            if program == "gh":
+                check_gh(argv[1:], " ".join(argv))
+            else:
+                check_git(argv[1:], step_cwd, " ".join(argv))
         return
     if unchecked:
         raise Blocked(f"this terminal call mentions, or could spell, a git write or PR merge, and {unchecked}. "
