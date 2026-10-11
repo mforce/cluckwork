@@ -1758,6 +1758,18 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
     expect(screen.queryByText("Could not load.")).not.toBeInTheDocument();
     expect(mockOrders).not.toHaveBeenCalled();
   });
+
+  // #1167 — the verdict chain used to end without a rejection handler, so a
+  // failure inside it surfaced only as an unhandled rejection.
+  it("logs a failure in the page-level verdict instead of leaving it unhandled", async () => {
+    const broken = new Error("verdict broke");
+    const settled = vi.spyOn(Promise, "allSettled").mockImplementationOnce(() => Promise.reject(broken));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderWithProviders(<Dashboard />, asSales);
+    await waitFor(() => expect(logged).toHaveBeenCalledWith("dashboard: panels verdict failed", broken));
+    settled.mockRestore();
+    logged.mockRestore();
+  });
 });
 
 // #127 — the customer/sales reads 403 for ReadOnly; the dashboard must not

@@ -1,14 +1,4 @@
 {
-  "src/api/client.test.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 6
-    }
-  },
-  "src/auth/farmCodeCache.test.ts": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 6
-    }
-  },
   "src/components/BrandSplash.tsx": {
     "react-hooks/exhaustive-deps": {
       "count": 1
@@ -16,11 +6,6 @@
   },
   "src/components/NamedEntityPicker.tsx": {
     "no-restricted-syntax": {
-      "count": 1
-    }
-  },
-  "src/routes/AppLayout.tsx": {
-    "@typescript-eslint/no-floating-promises": {
       "count": 1
     }
   },
@@ -43,9 +28,6 @@
     }
   },
   "src/routes/Dashboard.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 1
-    },
     "no-restricted-syntax": {
       "count": 7
     }
@@ -87,9 +69,6 @@
     }
   },
   "src/routes/Login.tsx": {
-    "@typescript-eslint/no-floating-promises": {
-      "count": 2
-    },
     "no-restricted-syntax": {
       "count": 1
     }

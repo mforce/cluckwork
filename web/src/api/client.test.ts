@@ -1324,7 +1324,7 @@ describe("cross-tab refresh coordination (#169)", () => {
 
     // Occupy the lock as 'another tab' still rotating the cookie; ours must queue.
     const otherTab = deferred<void>();
-    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    const otherTabHold = locks.request("cluckwork.auth.refresh", () => otherTab.promise);
 
     clearAccessToken(); // next call forces a silent refresh
     fetchMock.mockImplementation(async (url: string) =>
@@ -1338,6 +1338,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
 
     otherTab.resolve(); // the other tab finished; the cookie is now the fresh token
+    await otherTabHold;
     const a = await inflight;
 
     expect(a).toEqual({ ok: true });
@@ -1362,7 +1363,7 @@ describe("cross-tab refresh coordination (#169)", () => {
 
     // Another tab is mid-refresh: its rotated cookie has not arrived yet.
     const otherTab = deferred<void>();
-    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    const otherTabHold = locks.request("cluckwork.auth.refresh", () => otherTab.promise);
 
     fetchMock.mockImplementation(async (url: string) =>
       url.endsWith("/auth/login")
@@ -1378,6 +1379,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     expect(callsTo(fetchMock, "/auth/login")).toHaveLength(0);
 
     otherTab.resolve();
+    await otherTabHold;
     await loggingIn;
 
     expect(callsTo(fetchMock, "/auth/login")).toHaveLength(1);
@@ -1395,7 +1397,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     vi.stubGlobal("navigator", { locks });
 
     const otherTab = deferred<void>();
-    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    const otherTabHold = locks.request("cluckwork.auth.refresh", () => otherTab.promise);
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
       if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("post-logout-login"));
@@ -1407,6 +1409,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     await drain();
     await logout();
     otherTab.resolve();
+    await otherTabHold;
     await loggingIn;
 
     expect(getAccessToken()).toBeNull();
@@ -1456,7 +1459,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // Another tab owns the cookie lock, so this tab's password change queues
     // without starting a request. Logout must make that queued operation inert.
     const otherTab = deferred<void>();
-    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    const otherTabHold = locks.request("cluckwork.auth.refresh", () => otherTab.promise);
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/auth/logout")) return new Response(null, { status: 204 });
       if (url.endsWith("/auth/refresh")) return accessResponse("post-logout-refresh");
@@ -1469,6 +1472,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     await drain();
     await logout();
     otherTab.resolve();
+    await otherTabHold;
     await changing;
 
     expect(getAccessToken()).toBeNull();
@@ -1482,7 +1486,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     vi.stubGlobal("navigator", { locks });
 
     const otherTab = deferred<void>();
-    locks.request("cluckwork.auth.refresh", () => otherTab.promise);
+    const otherTabHold = locks.request("cluckwork.auth.refresh", () => otherTab.promise);
     fetchMock.mockImplementation(async (url: string) => {
       if (url.endsWith("/auth/login")) return accessResponse(claimfulToken("new-login-token"));
       if (url.endsWith("/auth/change-password")) return accessResponse("stale-change-token");
@@ -1498,6 +1502,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
     await drain();
     otherTab.resolve();
+    await otherTabHold;
     await loggingIn;
     await changing;
 
@@ -1776,7 +1781,7 @@ describe("cross-tab refresh coordination (#169)", () => {
 
     // Some unrelated feature holds a different lock — must NOT serialise refresh.
     const unrelated = deferred<void>();
-    locks.request("some-other-feature", () => unrelated.promise);
+    const unrelatedHold = locks.request("some-other-feature", () => unrelated.promise);
 
     clearAccessToken();
     fetchMock.mockImplementation(async (url: string) =>
@@ -1785,6 +1790,7 @@ describe("cross-tab refresh coordination (#169)", () => {
 
     const a = await apiGet<{ ok: boolean }>("/a"); // proceeds despite the other lock
     unrelated.resolve();
+    await unrelatedHold;
 
     expect(a).toEqual({ ok: true });
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
