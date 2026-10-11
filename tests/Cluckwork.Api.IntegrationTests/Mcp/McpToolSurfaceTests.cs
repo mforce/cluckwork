@@ -32,6 +32,54 @@ public sealed class McpToolSurfaceTests
         AssertNone(McpToolSurface.ScopeOpenerDeclarations(mcpTypes));
     }
 
+    // #807, row 31: a read tool's reply says whether it is complete and where to continue.
+    [Fact]
+    public void RealTree_EveryReadToolReturnsAPage()
+    {
+        var reads = ReadTools().ToList();
+
+        Assert.True(reads.Count >= 5, $"the walk found {reads.Count} read tools");
+        AssertNone([.. reads.Where(m => !(m.ReturnType.IsGenericType && m.ReturnType.GetGenericTypeDefinition() == typeof(Task<>)
+                && m.ReturnType.GetGenericArguments()[0].IsGenericType
+                && m.ReturnType.GetGenericArguments()[0].GetGenericTypeDefinition() == typeof(McpPage<>)))
+            .Select(m => $"{m.DeclaringType!.FullName}.{m.Name} returns {m.ReturnType.Name}; return Task<McpPage<T>>")]);
+    }
+
+    // #792: phase 1 tools return no farm-entered free text. Every text field a read tool
+    // returns is listed here with why it is not one, so a new note or reason field fails.
+    private static readonly string[] ReplyText =
+    [
+        "DailyEntryRow.FlockName", // a flock's name: the label tools address flocks by, set by Owner or Manager
+        "DailyEntryRow.Status", // enum
+        "EggLotMovementRow.MovementType", // enum
+        "EggLotMovementRow.ReferenceType", // the source record's type name, set by code
+        "EggLotRow.Grade", // a grade's name, set by Owner or Manager
+        "FlockRow.Name",
+        "FlockRow.Status", // enum
+        "GradeCount.Grade",
+        "StockRow.Grade",
+    ];
+
+    [Fact]
+    public void RealTree_ReadToolRepliesReturnOnlyReviewedText() =>
+        Assert.Equal(ReplyText.Order(), ReadTools().SelectMany(m => TextFields(m.ReturnType, [])).Distinct().Order());
+
+    private static IEnumerable<MethodInfo> ReadTools() =>
+        McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
+            .Where(m => m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
+
+    private static IEnumerable<string> TextFields(Type type, HashSet<Type> seen)
+    {
+        if (!seen.Add(type))
+            return [];
+        var fromArguments = type.IsGenericType ? type.GetGenericArguments().SelectMany(t => TextFields(t, seen)).ToList() : [];
+        if (type.Namespace != "Cluckwork.Api.Mcp")
+            return fromArguments;
+        return fromArguments.Concat(type.GetProperties().SelectMany(p => p.PropertyType == typeof(string)
+            ? [$"{type.Name}.{p.Name}"]
+            : TextFields(p.PropertyType, seen)));
+    }
+
     [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>
         Assert.Empty(McpToolSurface.Findings([typeof(ConstructorTool), typeof(StaticTool)]));

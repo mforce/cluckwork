@@ -49,8 +49,12 @@ only proves that each serving guard fails a boot, not that `/mcp` works.)
 | 16 | `ToolsList_IsFilteredByRole` (integration, real request) | unauthorized tools are invisible, not merely refused | remove `AddAuthorizationFilters()`. Single point of proof for SDK list-filtering behaviour — flagged as a risk in [`01-design.md`](01-design.md). |
 
 #806 implements row 16 as `McpAuthorizationTests.ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow`,
-over probe tools that exist only in its test host, for role and for scope. Rows 13 to 15 wait
-for the first tool (#807): with no tool there is no route to mirror. #806 adds a walk the
+over probe tools that exist only in its test host, for role and for scope. #807 implements rows
+13 to 15 as `McpRouteParityTests`. A tool method carries `[MirrorsRoute("<WithName>")]`, and the
+test combines the tool's role gates and the route's authorization metadata through the live
+`IAuthorizationService`, then checks Owner, Manager, Sales, ReadOnly and Worker callers. No tool
+needs `[MirrorsNoRoute]` yet, so that attribute does not exist; add it with the first tool that
+has no route. #806 adds a walk the
 table did not have, `McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy`:
 the SDK runs a tool with no `[Authorize]`, or with `[AllowAnonymous]`, for any caller.
 
@@ -84,6 +88,18 @@ and `McpMessages_WithoutAnIdempotencyKey_AreServed`.
 | 31 | `ReadTools_ReturnBoundedResponses` | every read tool's **reply** is bounded and says so | remove the page cap from a read tool; the reply grows past it and carries no completeness field. |
 | 31b | `BalanceReads_AreBoundedInTheDATABASE` (row-consumption assertion) | the **query** is bounded, not just the reply | keep the reply's `Take(cap)` and remove the bound from the query. Row 31 stays GREEN — every response is correctly capped with correct continuation metadata — while `ListCustomerBalancesAsync` materializes the entire farm's balance book first. `PaymentRepository` takes no paging arguments and materializes both grouped queries before building its list, so **reusing it at all is the defect**; this needs a paged balance query, and the test must assert rows consumed from the database, not items returned. A signature walk cannot establish this. **Measure rows CONSUMED, not SQL shape.** `ReportQueryBoundingTests`' `SqlCaptureInterceptor` is the right harness shape and the right precedent (#311 was the identical "loaded the whole ledger, walked it in memory" defect), but it records `(Sql, Parameters)` only — so an implementation that fetches every page in a loop and accumulates the book emits perfectly paged SQL and passes. Keep SQL inspection as *supporting* evidence and count consumption across the whole operation: wrap the returned `DbDataReader` and count successful `Read`/`ReadAsync` calls, covering both aggregate queries and any page-fetch loop. (Round-3 finding 3 — the round-2 fix named a mechanism that cannot measure what the row requires.) (Round-2 finding 2 — row 31 alone claimed an invariant its mutation did not test.) |
 | 32 | `NameResolution_IsExactlyOneAccessibleMatch` | a name-addressed write cannot hit the wrong row | make resolution take the first match. **Duplicate flock names are legal** (`FlockRepository.cs` says so, and its `ThenBy(f => f.Id)` tie-break exists because of it), so first-match records production against an arbitrary flock and `Single` throws on valid farm data. Zero matches → not-found; two or more → an ambiguity error listing candidate ids and distinguishing fields, and the follow-up write must pass an id. Test two same-name flocks in one accessible scope. (#770 adversarial review, finding 3.) |
+
+#807 implements row 26 as `McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm`, and
+row 31 twice: `McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage` walks every read tool for an
+`McpPage<T>` reply, and `McpReadToolsTests.EveryReadTool_PagesWithCompletenessAndContinuation` and
+`OversizedLimit_IsCappedAndSaysSo` drive each tool through its page. Each paged query fetches one row
+past the page, so the query is bounded too. Two contracts return a whole set that the tool pages in
+memory: the grade catalogue (`cluckwork_read_stock`) and one lot's ledger
+(`cluckwork_list_egg_lot_movements`). A code comment on each names its ceiling. Row 32's
+ambiguity contract applies to the read filter too: `SharedFlockName_IsRefusedWithTheCandidates_AndAnIdResolvesIt`.
+#792 decided that phase 1 tools return no farm-entered free text.
+`McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText` lists every text field a read
+tool returns, so a new note or reason field fails.
 
 #806 implements rows 29 and 30 as `McpEndpointTests.McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate`
 and `OversizedBody_IsRefused`. `/mcp` takes its budget from `AcceptOAuthTokens`, the

@@ -22,6 +22,11 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly string[] BothScopes = [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries];
+    private static readonly string[] ReadTools =
+    [
+        "cluckwork_list_daily_entries", "cluckwork_list_egg_lot_movements", "cluckwork_list_egg_lots",
+        "cluckwork_list_flocks", "cluckwork_read_stock",
+    ];
 
     [Theory]
     [InlineData("2026-07-28")]
@@ -55,7 +60,9 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
 
-        Assert.Equal(expected.Order(), tools.Select(t => t.Name).Order());
+        // The real read tools (#807) admit every role and need farm:read.
+        string[] reads = scopes.Contains(OAuthScopes.ReadFarm) ? ReadTools : [];
+        Assert.Equal(expected.Concat(reads).Order(), tools.Select(t => t.Name).Order());
     }
 
     [Fact]
