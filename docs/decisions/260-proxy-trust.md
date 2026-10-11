@@ -1,7 +1,8 @@
 # Proxy-trust boot guard (#260)
 
-> **Rule** — the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
-> this file is the relocated rationale. Why the guard is scoped to the serving
+> **Rule** — a guard, a verb or the Dockerfile carries this rule, so [`src/AGENTS.md`](../../src/AGENTS.md)
+> only lists it under *Enforced rules and their records*;
+> this file is the rationale. Why the guard is scoped to the serving
 > process and not to the CLI verbs is in [#347](347-process-role.md).
 
 **Status:** accepted · **Date:** 2026-07

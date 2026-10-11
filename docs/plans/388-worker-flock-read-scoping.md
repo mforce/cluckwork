@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #611; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](README.md).
 # #388 Worker Flock Read-Scoping — Implementation Plan
 
 > **For agentic workers:** Execute this plan task-by-task. Steps use checkbox (`- [ ]`) syntax. Each task ends with an independently testable deliverable. **Transcribe code blocks verbatim.** Do not reformat, rename, or "improve" them.

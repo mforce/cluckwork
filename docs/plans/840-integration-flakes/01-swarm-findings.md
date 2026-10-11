@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #866, #876 and #895; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #840 findings — four remaining integration flakes
 
 Four read-only investigation lanes over the census on #775. Two lanes returned

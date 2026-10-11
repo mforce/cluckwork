@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #605; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Driver handout — #357 change a user's email
 
 Driver-owned working artifact. The locked design, increment plan, runbook, verification evidence,

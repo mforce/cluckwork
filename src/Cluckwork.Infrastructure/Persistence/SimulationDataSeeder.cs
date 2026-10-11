@@ -507,8 +507,8 @@ public sealed class SimulationDataSeeder(
     // an empty one: SimulationOptions validates no count, so Managers/Sales/
     // Workers may each be 0 and `pool[index % pool.Count]` would divide by zero.
     //
-    // The fallback is a fidelity DEGRADATION, so it is never silent (AGENTS.md
-    // "no silent caps") — hiding it would be the same class of defect #500
+    // The fallback is a fidelity DEGRADATION, so it is never silent (#500 review
+    // round 2, finding 6) — hiding it would be the same class of defect #500
     // reports. Failing instead would be worse: Workers == 0 is already a
     // deliberately tolerated configuration (RestrictOneWorkerAsync warns and
     // carries on).

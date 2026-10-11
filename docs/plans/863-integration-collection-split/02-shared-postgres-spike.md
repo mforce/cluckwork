@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #1000, #1002 and #1003; the collection split was measured and reverted in #1004; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #863: shared Postgres server spike
 
 **Base:** `af3eb471b336071ccea904f6e2d8d6b3f48eeaf4` (the #1000 merge). The worktree HEAD equaled `origin/main` before measurement. **Date:** 2026-09-30. All local runs used the Release integration project, real Postgres through Testcontainers, the same 12-core host, and `tools/test-timing/measure.py`. Raw timing logs and TRX files are under `/tmp/cluckwork-863-*` on that host.

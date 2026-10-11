@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #619; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #612 Worker Sale-Allocation Policy — Implementation Runbook
 
 > **For the Claude Sonnet implementer:** Use test-driven development and execute

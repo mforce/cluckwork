@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #677; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix runbook 1 — #672 review round 1: an aborted export must not read as "no export arrived"
 
 Same rules as `01-implementer-runbook.md` (read its Rules section again). Branch

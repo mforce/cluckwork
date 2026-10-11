@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #609; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Design review brief — #606
 
 Review `01-threat-model.md` as a pre-implementation security design. This is

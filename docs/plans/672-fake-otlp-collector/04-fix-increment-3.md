@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #677; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix runbook 3 — #672 review round 3: markdown lint in the committed runbooks
 
 Same rules as `01-implementer-runbook.md`. Branch `fix/672-fake-otlp-collector` is checked out at

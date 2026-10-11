@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #861; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Integration suite wall clock, issue #839
 
 ## Checkout and method

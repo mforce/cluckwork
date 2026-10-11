@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #700; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #508: order same-instant audit events by a durable monotonic key, not a random Guid
 
 You are an autonomous coding agent with FULL tools (read, edit, write, bash) in the `cluckwork` repo

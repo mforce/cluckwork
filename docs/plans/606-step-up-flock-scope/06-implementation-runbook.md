@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #609; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Implementer runbook — #606 step-up for durable flock scope
 
 > **Owner-approved:** 2026-08-26. Execute this runbook on branch
