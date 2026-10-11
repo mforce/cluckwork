@@ -1760,13 +1760,13 @@ describe("Dashboard degrades one panel at a time (#654, INV-1)", () => {
   });
 
   // #1167 — the verdict chain used to end without a rejection handler, so a
-  // failure inside it surfaced only as an unhandled rejection.
+  // throw inside the verdict surfaced only as an unhandled rejection. A null
+  // result makes the verdict's own `issued.filter` throw.
   it("logs a failure in the page-level verdict instead of leaving it unhandled", async () => {
-    const broken = new Error("verdict broke");
-    const settled = vi.spyOn(Promise, "allSettled").mockImplementationOnce(() => Promise.reject(broken));
+    const settled = vi.spyOn(Promise, "allSettled").mockImplementationOnce(() => Promise.resolve(null as never));
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     renderWithProviders(<Dashboard />, asSales);
-    await waitFor(() => expect(logged).toHaveBeenCalledWith("dashboard: panels verdict failed", broken));
+    await waitFor(() => expect(logged).toHaveBeenCalledWith("dashboard: panels verdict failed", expect.any(TypeError)));
     settled.mockRestore();
     logged.mockRestore();
   });
