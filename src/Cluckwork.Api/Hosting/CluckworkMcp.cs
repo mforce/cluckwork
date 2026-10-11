@@ -5,6 +5,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.AspNetCore.Authentication;
 using ModelContextProtocol.Authentication;
@@ -67,26 +68,12 @@ internal static class CluckworkMcp
     // Either scope admits the request; each tool then requires its own (AuthPolicies).
     public static void MapCluckworkMcp(this IEndpointRouteBuilder app, Uri issuer)
     {
-        var origin = issuer.GetLeftPart(UriPartial.Authority);
+        var origin = new RequiredOrigin(issuer);
         app.MapMcp(Path)
-            .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute())
+            .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute(), origin)
             .WithMaxRequestBodyBytes(MaxRequestBodyBytes)
             .AcceptOAuthTokens(OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries)
-            .RequireAuthorization()
-            .Add(endpoint =>
-            {
-                // MCP transports require Origin validation against DNS rebinding. A native
-                // client sends none; a browser sends its page's origin, which must be ours.
-                var dispatch = endpoint.RequestDelegate!;
-                endpoint.RequestDelegate = context =>
-                {
-                    var sent = context.Request.Headers.Origin;
-                    if (sent.Count == 0 || string.Equals(sent, origin, StringComparison.OrdinalIgnoreCase))
-                        return dispatch(context);
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    return Task.CompletedTask;
-                };
-            });
+            .RequireAuthorization();
 
         // Stateless serves no GET stream, and the MCP spec then wants 405. Without this the
         // SPA fallback, which takes every GET and HEAD, would answer with the app's HTML.
@@ -95,6 +82,29 @@ internal static class CluckworkMcp
                 response.Headers.Allow = HttpMethods.Post;
                 return Results.StatusCode(StatusCodes.Status405MethodNotAllowed);
             })
+            .WithMetadata(origin)
             .ExcludeFromDescription();
+    }
+
+    // MCP transports require Origin validation against DNS rebinding, for every request to
+    // the endpoint. It runs before authentication and rate limiting, so a foreign page gets
+    // 403 whatever it sends. A native client sends no Origin; a browser sends its page's.
+    public static void UseMcpOriginCheck(this IApplicationBuilder app) =>
+        app.Use((context, next) =>
+        {
+            if (context.GetEndpoint()?.Metadata.GetMetadata<RequiredOrigin>() is not { } required
+                || required.Allows(context.Request.Headers.Origin))
+                return next(context);
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        });
+
+    // The configured issuer's origin, never one derived from the request's Host.
+    internal sealed class RequiredOrigin(Uri issuer)
+    {
+        private readonly string origin = issuer.GetLeftPart(UriPartial.Authority);
+
+        public bool Allows(StringValues sent) =>
+            sent.Count == 0 || string.Equals(sent, origin, StringComparison.OrdinalIgnoreCase);
     }
 }

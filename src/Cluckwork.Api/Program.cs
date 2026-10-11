@@ -301,6 +301,7 @@ app.UseCluckworkBindingFailureResponse();
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
 // opt in via RequireRateLimiting are affected. oauth-api endpoints also count
 // refused bearers per address, checked first.
+app.UseMcpOriginCheck();
 app.UseOAuthApiFailureBudget();
 app.UseRateLimiter();
 

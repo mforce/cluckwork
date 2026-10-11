@@ -109,6 +109,37 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(["POST"], response.Content.Headers.Allow);
     }
 
+    // The Origin check covers every request to /mcp and runs before authentication, so a
+    // foreign page gets 403 with no token and on GET. Without Origin, the 401 and 405 stand.
+    [Theory]
+    [InlineData("2026-07-28")]
+    [InlineData("2025-11-25")]
+    public async Task ForeignOrigin_Gets403_BeforeAuthentication_OnEveryMethod(string protocolVersion)
+    {
+        using var foreignPost = await SendAsync(HttpMethod.Post, protocolVersion, "https://untrusted.example");
+        using var foreignGet = await SendAsync(HttpMethod.Get, protocolVersion, "https://untrusted.example");
+        using var plainPost = await SendAsync(HttpMethod.Post, protocolVersion, origin: null);
+        using var plainGet = await SendAsync(HttpMethod.Get, protocolVersion, origin: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, foreignPost.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, foreignGet.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, plainPost.StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, plainGet.StatusCode);
+    }
+
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string protocolVersion, string? origin)
+    {
+        var request = new HttpRequestMessage(method, CluckworkMcp.Path);
+        if (method == HttpMethod.Post)
+            request.Content = new StringContent("""{"jsonrpc":"2.0","id":1,"method":"tools/list"}""", System.Text.Encoding.UTF8, "application/json");
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        request.Headers.Add("MCP-Protocol-Version", protocolVersion);
+        if (origin is not null)
+            request.Headers.Add("Origin", origin);
+        return OAuthServerTests.HttpsClient(factory, bearer: null).SendAsync(request);
+    }
+
     // The tool walks in McpToolSurfaceTests must reach every tool the SDK serves. The
     // probe host adds two tools, so a walk that finds nothing fails here today.
     [Fact]
