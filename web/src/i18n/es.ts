@@ -2441,10 +2441,9 @@ export const es = {
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
       + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
     signingInAppAddress:
-      "<strong>Conectar una aplicación de IA.</strong> Una aplicación de IA compatible con MCP puede trabajar con "
-      + "esta granja. Dale esta dirección: <code>{{address}}</code>. Después te envía a Cluckwork para permitirla. "
-      + "Permite <strong>Leer datos de la granja</strong> para que consulte datos, <strong>Anotar registros "
-      + "diarios</strong> para que anote la producción de un día, o ambos.",
+      "<strong>Conectar una aplicación de IA.</strong> Una aplicación de IA compatible con MCP se conecta en "
+      + "esta dirección: <code>{{address}}</code>. Después te envía a Cluckwork para permitirla. "
+      + "Permite <strong>Leer datos de la granja</strong>, <strong>Anotar registros diarios</strong> o ambos.",
     signingInConnectApp:
       "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede pedir actuar "
       + "como tú. Cluckwork muestra lo que pide, <strong>Leer datos de la granja</strong>, <strong>Anotar registros "
@@ -2479,10 +2478,11 @@ export const es = {
       "<strong>Qué anota y qué ve una aplicación de IA.</strong> Una entrada hecha por una aplicación siempre es un "
       + "<strong>Borrador</strong>. Sus huevos entran en existencias solo cuando una persona la abre en "
       + "<strong>Registro diario</strong> y pulsa <strong>Enviar día</strong>. Anotar otra vez el mismo lote y día "
-      + "cambia el borrador. Cada anotación lleva una clave de idempotencia, una etiqueta que la aplicación elige "
-      + "para ella, así que una anotación reenviada tras un corte de conexión no se guarda dos veces. La aplicación "
-      + "lee como máximo 100 filas a la vez. Ve nombres, pero nunca notas, motivos, referencias ni datos de "
-      + "contacto, porque cualquiera podría escribir ahí instrucciones para una IA.",
+      + "cambia el borrador. Cada anotación lleva una clave de idempotencia, una etiqueta que elige la aplicación, "
+      + "así que reenviarla en las 48 horas tras su éxito no guarda nada dos veces. Un reenvío posterior se "
+      + "ejecuta de nuevo, así que revisa antes el borrador. La aplicación lee como máximo 100 filas a la vez. "
+      + "Nunca ve notas de texto libre, referencias de pago, motivos escritos ni datos de contacto, porque "
+      + "cualquiera podría escribir ahí instrucciones para una IA.",
     signingInAppRefused:
       "<strong>Cuando se rechaza una aplicación de IA.</strong> Mientras <strong>Permitir aplicaciones "
       + "conectadas</strong> está desactivado, las aplicaciones reciben <strong>Las aplicaciones conectadas están "
@@ -3552,7 +3552,7 @@ export const es = {
       "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
       + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
       + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
-      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que una persona las envía, y nunca ve notas ni motivos.",
+      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que una persona las envía, y nunca ve notas de texto libre ni motivos escritos.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "

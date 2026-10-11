@@ -773,8 +773,10 @@ flock's day as a **Draft**. Recording the same flock and day again replaces the
 draft's numbers, and a submitted entry cannot be changed. The eggs reach stock
 only when a person submits the draft in Cluckwork. The app sends an idempotency
 key with each recording, a label it picks for that one recording. Sending the
-recording again with the same label returns the first answer and records
-nothing new; the same label with different numbers is refused. Keys belong to
+recording again with the same label within 48 hours of a successful recording
+returns the first answer and records nothing new; the same label with different
+numbers is refused. After 48 hours Cluckwork forgets the key, so an older resend
+records again; the app should check the current draft first. Keys belong to
 the person, so two people's apps never collide. A Worker with assigned flocks
 reads and records only those flocks, as in the app, and any other flock reads
 as not found. A shared flock name is refused with each flock's id, and the app
@@ -783,7 +785,7 @@ then uses the id.
 Every read returns 50 rows unless the app asks for more, at most 100, and says
 whether more remain and where to continue. No tool returns text a farm user
 typed beyond names (#792). Flock, grade and customer names come through. Breed,
-notes, references, discount notes, void, adjust and movement reasons, and a
+notes, payment references, discount notes, void, adjust and movement reasons, and a
 customer's phone, email and address do not. A tool that the role or the
 permissions do not cover is not listed, and calling it is refused. While the
 Owner's **Allow connected apps** switch is off, every call is refused with

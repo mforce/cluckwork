@@ -2533,10 +2533,10 @@ export const tl = {
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
     signingInAppAddress:
-      "<strong>Pagkonekta ng AI app.</strong> Puwedeng gumana sa bukid na ito ang AI app na sumusuporta sa MCP. "
-      + "Ibigay dito ang address na ito: <code>{{address}}</code>. Ipapadala ka nito sa Cluckwork para payagan "
-      + "ito. Payagan ang <strong>Basahin ang datos ng bukid</strong> para makatingin ito ng datos, ang "
-      + "<strong>Itala ang araw-araw na tala</strong> para maitala nito ang produksyon ng isang araw, o pareho.",
+      "<strong>Pagkonekta ng AI app.</strong> Kumokonekta sa address na ito ang AI app na sumusuporta sa MCP: "
+      + "<code>{{address}}</code>. Ipapadala ka nito sa Cluckwork para payagan "
+      + "ito. Payagan ang <strong>Basahin ang datos ng bukid</strong>, <strong>Itala ang araw-araw na "
+      + "tala</strong> o pareho.",
     signingInConnectApp:
       "<strong>Pagkonekta ng app.</strong> Puwedeng humiling ang isang panlabas na app, gaya ng AI assistant, na "
       + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito, <strong>Basahin ang datos ng bukid</strong>, "
@@ -2574,10 +2574,11 @@ export const tl = {
       "<strong>Ang itinatala at nakikita ng AI app.</strong> Laging <strong>Draft</strong> ang tala mula sa app. "
       + "Papasok lang sa stock ang mga itlog nito kapag binuksan ito ng isang tao sa <strong>Araw-araw na "
       + "Tala</strong> at pinindot ang <strong>Isumite ang araw</strong>. Kapag itinala ulit ang parehong kawan at "
-      + "araw, nagbabago ang draft. May idempotency key ang bawat pagtatala, isang label na pinipili ng app para "
-      + "dito, kaya hindi nase-save nang dalawang beses ang pagtatalang ipinadala ulit matapos maputol ang "
-      + "koneksyon. Hanggang 100 hilera lang ang nababasa ng app bawat beses. Nakikita nito ang mga pangalan, pero "
-      + "hindi kailanman ang mga note, dahilan, reference o contact details, dahil puwedeng mag-type ang kahit sino "
+      + "araw, nagbabago ang draft. May idempotency key ang bawat pagtatala, isang label na pinipili ng app, kaya "
+      + "walang nase-save nang dalawang beses kapag ipinadala ito ulit sa loob ng 48 oras matapos magtagumpay. "
+      + "Tatakbo ulit ang mas lumang pagpapadala, kaya tingnan muna ang draft. Hanggang 100 hilera lang ang "
+      + "nababasa ng app bawat beses. Hindi nito kailanman nakikita ang free-text na note, reference ng bayad, "
+      + "nakasulat na dahilan o contact details, dahil puwedeng mag-type ang kahit sino "
       + "ng utos para sa AI doon.",
     signingInAppRefused:
       "<strong>Kapag tinanggihan ang AI app.</strong> Habang naka-off ang <strong>Payagan ang mga nakakonektang "
@@ -3687,7 +3688,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, at hindi nito kailanman nakikita ang mga note o dahilan.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, at hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

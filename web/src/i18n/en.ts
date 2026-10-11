@@ -3179,10 +3179,9 @@ export const en = {
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
     signingInAppAddress:
-      "<strong>Connecting an AI app.</strong> An AI app that supports MCP can work with this farm. Give it this "
-      + "address: <code>{{address}}</code>. It then sends you to Cluckwork to allow it. Allow <strong>Read farm "
-      + "data</strong> so it can look things up, <strong>Record daily entries</strong> so it can record a day's "
-      + "production, or both.",
+      "<strong>Connecting an AI app.</strong> An AI app that supports MCP connects at this address: "
+      + "<code>{{address}}</code>. It then sends you to Cluckwork to allow it. Allow <strong>Read farm "
+      + "data</strong>, <strong>Record daily entries</strong> or both.",
     signingInConnectApp:
       "<strong>Connecting an app.</strong> An outside app, such as an AI assistant, can ask to act as you. "
       + "Cluckwork shows what it asks for, <strong>Read farm data</strong>, <strong>Record daily entries</strong> or both, "
@@ -3214,9 +3213,10 @@ export const en = {
       "<strong>What an AI app records and sees.</strong> An entry from an app is always a <strong>Draft</strong>. "
       + "Its eggs reach stock only when a person opens it in <strong>Daily entry</strong> and presses "
       + "<strong>Submit day</strong>. Recording the same flock and day again changes the draft. Each recording "
-      + "carries an idempotency key, a label the app picks for it, so a recording resent after a dropped connection "
-      + "is not saved twice. The app reads at most 100 rows at a time. It sees names, but never notes, reasons, "
-      + "references or contact details, because anyone could type instructions for an AI there.",
+      + "carries an idempotency key, a label the app picks, so resending it within 48 hours of success saves "
+      + "nothing twice. An older resend runs again, so check the draft first. The app reads at most 100 rows at a "
+      + "time. It never sees free-text notes, payment references, written reasons or contact details, because "
+      + "anyone could type instructions for an AI there.",
     signingInAppRefused:
       "<strong>When an AI app is refused.</strong> While <strong>Allow connected apps</strong> is off, apps get "
       + "<strong>Connected apps are off</strong> and work again once it is back on. After <strong>Disconnect</strong> "
@@ -4218,7 +4218,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, and it never sees notes or reasons.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, and it never sees free-text notes or written reasons.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
