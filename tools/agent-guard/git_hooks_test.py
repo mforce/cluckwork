@@ -268,6 +268,21 @@ class PreCommitTest(unittest.TestCase):
             result = subprocess.run([os.path.join(HOOKS, "pre-commit")], cwd=repo.work, capture_output=True, text=True, env=env)
             self.check("feat/x, symbolic-ref exits 128", result, "refuse")
 
+    def test_unreadable_worktree_layout_refuses(self):
+        for failing in ("--git-dir", "worktree list"):
+            with tempfile.TemporaryDirectory() as root:
+                repo = Repo(root)
+                shim = os.path.join(root, "bin")
+                os.mkdir(shim)
+                with open(os.path.join(shim, "git"), "w") as f:  # fails only the named lookup
+                    f.write(f'#!/bin/sh\ncase " $* " in *" {failing} "*) exit 128;; esac\nexec {shutil.which("git")} "$@"\n')
+                os.chmod(os.path.join(shim, "git"), 0o755)
+                env = {**ENV, "PATH": shim + os.pathsep + ENV["PATH"]}
+                result = subprocess.run([os.path.join(HOOKS, "pre-commit")], cwd=repo.work, capture_output=True,
+                                        text=True, env=env)
+                self.check(f"feat/x, `{failing}` lookup exits 128", result, "refuse")
+                self.assertIn("cannot read the worktree layout", result.stderr)
+
     def test_tests_skipped_when_hook_tests_off(self):
         with tempfile.TemporaryDirectory() as root:
             repo = Repo(root)

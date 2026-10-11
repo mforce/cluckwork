@@ -25,11 +25,15 @@ if [ "$head" = refs/heads/main ]; then
 fi
 # Nor in the shared checkout, a main worktree with linked worktrees beside it (#1205).
 # The maintainer can set GIT_GUARD_ALLOW_SHARED=1 for a deliberate commit there.
-if [ "${GIT_GUARD_ALLOW_SHARED:-}" != 1 ] &&
-  [ "$(git rev-parse --path-format=absolute --git-dir)" = "$(git rev-parse --path-format=absolute --git-common-dir)" ] &&
-  [ "$(git worktree list --porcelain | grep -c '^worktree ')" -gt 1 ]; then
-  echo "pre-commit: refusing to commit in the shared checkout, the main worktree other worktrees hang off. Commit in your own worktree." >&2
-  exit 1
+if [ "${GIT_GUARD_ALLOW_SHARED:-}" != 1 ]; then
+  git_dir=$(git rev-parse --path-format=absolute --git-dir) &&
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir) &&
+    worktrees=$(git worktree list --porcelain) ||
+    { echo "pre-commit: refusing: cannot read the worktree layout." >&2; exit 1; }
+  if [ "$git_dir" = "$common_dir" ] && [ "$(printf '%s\n' "$worktrees" | grep -c '^worktree ')" -gt 1 ]; then
+    echo "pre-commit: refusing to commit in the shared checkout, the main worktree other worktrees hang off. Commit in your own worktree." >&2
+    exit 1
+  fi
 fi
 
 [ "${SKIP_HOOKS:-0}" = "1" ] && exit 0
