@@ -17,8 +17,8 @@ the rate figure. The rest is recorded here.
 
 ## The rule
 
-**`/mcp` exists only beside the authorization server.** `Program.cs` maps it inside
-`if (identity.OAuthServer)`. Without an issuer the OAuth scheme is not registered, and
+**`/mcp` exists only beside the authorization server.** `Program.cs` maps it only when
+`identity.OAuthIssuer` is set. Without an issuer the OAuth scheme is not registered, and
 `/mcp` accepts no other token. The SDK is `ModelContextProtocol.AspNetCore` 2.2.0, and one
 endpoint serves MCP 2026-07-28 and 2025-11-25 clients.
 
@@ -80,8 +80,14 @@ SDK's own client against this endpoint, a session spends 3 POSTs to its first to
 count); each later call is one POST. In process a call took 4 to 6 ms, so only a runaway loop
 reaches the limit; a model spends seconds between calls. No account-wide
 ceiling: each token costs a step-up password entry (#798), which the password limiter
-already bounds. A 429 on `oauth-api` is a JSON-RPC error with a null id, because the limiter
-runs before the body is read, and its text names the connection, not an address.
+already bounds. The per-token key is unverified text, so the same endpoints also count per
+client address before authentication, at ten tokens' worth (3,000 per minute by default), or
+a caller rotating forged bearers would get a fresh budget per request. A 429 on `oauth-api` is
+a JSON-RPC error with a null id, because the limiter runs before the body is read.
+
+**A foreign `Origin` gets 403.** Both MCP revisions require Origin validation against DNS
+rebinding. A request without `Origin` (a native client) passes; any other value must equal the
+`OAuth:Issuer` origin, never one derived from the request's Host.
 
 **The body cap is 32 KiB** (`WithMaxRequestBodyBytes`), beside `ReadsRequestBodyAttribute`,
 which only classifies binding errors.
