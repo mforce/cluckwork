@@ -35,6 +35,10 @@ internal static partial class RealModuleLedger
             "Access",
             "Farm",
         ]),
+        new("Cluckwork.Api.Mcp.DailyEntryTools.ctor", [
+            "EggOperations",
+            "FlockManagement",
+        ]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetAccount", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetSettings", ["Farm"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.SetConnectedApps", ["Farm"]),

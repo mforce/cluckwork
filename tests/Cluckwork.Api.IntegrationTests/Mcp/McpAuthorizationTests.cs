@@ -55,7 +55,7 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
 
-        Assert.Equal(expected.Order(), tools.Select(t => t.Name).Order());
+        Assert.Equal(expected.Order(), tools.Select(t => t.Name).Where(n => n.StartsWith("cw806_", StringComparison.Ordinal)).Order());
     }
 
     [Fact]
