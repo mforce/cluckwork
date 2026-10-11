@@ -140,6 +140,26 @@ public sealed class McpToolSurfaceTests
         [property: JsonIgnore] string Hidden);
 
     [Fact]
+    public void RealTree_EveryWriteToolTakesAnIdempotencyKey()
+    {
+        var writes = McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
+            .Where(m => m.Name == nameof(DailyEntryTools.RecordAsync));
+
+        Assert.Single(writes);
+        AssertNone(McpToolSurface.WriteToolFindings(ApiTypes));
+    }
+
+    [Fact]
+    public void WriteToolWithoutARequiredKey_IsAFinding_AndAReadOrAKeyedWriteIsNot() =>
+        Assert.Equal(
+            [
+                $"{typeof(KeylessWriteTool).FullName}.Write writes without a required string idempotencyKey parameter",
+                $"{typeof(OptionalKeyWriteTool).FullName}.Write writes without a required string idempotencyKey parameter",
+            ],
+            McpToolSurface.WriteToolFindings(
+                [typeof(KeylessWriteTool), typeof(OptionalKeyWriteTool), typeof(KeyedWriteTool), typeof(KeylessReadTool)]));
+
+    [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>
         Assert.Empty(McpToolSurface.Findings([typeof(ConstructorTool), typeof(StaticTool)]));
 
@@ -330,6 +350,34 @@ public sealed class McpToolSurfaceTests
     private sealed class InheritingTool(McpCallContext call) : UngatedBase
     {
         [McpServerTool]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class KeylessWriteTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool]
+        public string Write(int eggs) => $"{call.UserId} {eggs}";
+    }
+
+    [McpServerToolType]
+    private sealed class OptionalKeyWriteTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool]
+        public string Write(int eggs, string idempotencyKey = "shared") => $"{call.UserId} {idempotencyKey} {eggs}";
+    }
+
+    [McpServerToolType]
+    private sealed class KeyedWriteTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool]
+        public string Write(string idempotencyKey, int eggs) => $"{call.UserId} {idempotencyKey} {eggs}";
+    }
+
+    [McpServerToolType]
+    private sealed class KeylessReadTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true)]
         public string Read() => call.Email;
     }
 

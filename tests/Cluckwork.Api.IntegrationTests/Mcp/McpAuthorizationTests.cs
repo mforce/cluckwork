@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -60,9 +61,11 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
 
-        // The real read tools (#807) admit every role and need farm:read.
+        // The real read tools (#807) admit every role and need farm:read. The real write tool
+        // (#809) has the probe write's gates, ProductionWrite and daily-entries:write.
         string[] reads = scopes.Contains(OAuthScopes.ReadFarm) ? ReadTools : [];
-        Assert.Equal(expected.Concat(reads).Order(), tools.Select(t => t.Name).Order());
+        string[] writes = expected.Contains(ProbeTools.Write) ? [DailyEntryTools.RecordDailyEntry] : [];
+        Assert.Equal(expected.Concat(reads).Concat(writes).Order(), tools.Select(t => t.Name).Order());
     }
 
     [Fact]

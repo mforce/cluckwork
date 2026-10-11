@@ -80,7 +80,7 @@ public sealed class FlockTools
         };
     }
 
-    private static McpException NotFound(string flock) => new($"No flock you can see is named or numbered '{flock.Trim()}'.");
+    internal static McpException NotFound(string flock) => new($"No flock you can see is named or numbered '{flock.Trim()}'.");
 }
 
 public sealed record FlockRow(
