@@ -92,8 +92,8 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                         context.HttpContext.Request.Path.Value);
                 }
 
-                // #806 — oauth-api counts per token and serves /mcp, whose client reads a
-                // JSON-RPC error. The body is unread here, so the request id is unknown.
+                // #806 — oauth-api counts per token and per address and serves /mcp, whose
+                // client reads a JSON-RPC error. The body is unread here, so the request id is unknown.
                 if (policyName == RateLimitingOptions.OAuthApiPolicyName)
                 {
                     context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
@@ -101,7 +101,7 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     {
                         jsonrpc = "2.0",
                         id = (string?)null,
-                        error = new { code = -32000, message = "Too many requests with this connection. Try again later." },
+                        error = new { code = -32000, message = "Too many requests. Try again later." },
                     });
                     return;
                 }
@@ -159,6 +159,18 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     rateLimiting.OAuthApi.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds),
                     RateLimitKey.ForBearer));
+
+            // The global limiter runs before the endpoint policy, so a forged-bearer burst
+            // stops here before OpenIddict looks each token up.
+            var oauthApiPerAddress = new DistributedFixedWindowPolicy(
+                RateLimitingOptions.OAuthApiAddressKeyPrefix,
+                rateLimiting.OAuthApi.PermitLimit * RateLimitingOptions.OAuthApiTokensPerAddress,
+                TimeSpan.FromSeconds(rateLimiting.OAuthApi.WindowSeconds));
+            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+                    == RateLimitingOptions.OAuthApiPolicyName
+                    ? oauthApiPerAddress.GetPartition(context)
+                    : RateLimitPartition.GetNoLimiter(string.Empty));
         });
 
         // #311/#545 — account-scoped report concurrency cap. Registered separately

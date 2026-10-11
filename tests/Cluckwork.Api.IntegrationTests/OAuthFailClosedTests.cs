@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.OAuth;
+using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
@@ -275,6 +276,24 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Equal(HttpStatusCode.OK, other.StatusCode);
     }
 
+    // The per-token key is unverified text, so a forged bearer per request would never run
+    // out. The address budget (ten tokens' worth) stops the burst before authentication.
+    [Fact]
+    public async Task ForgedBearers_FromOneAddress_RunOutOfTheAddressBudget()
+    {
+        using var host = Host(limits: ("OAuthApi", 2));
+        var budget = 2 * RateLimitingOptions.OAuthApiTokensPerAddress;
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i <= budget; i++)
+        {
+            using var response = await Client(host, $"forged-{Guid.NewGuid():N}").GetAsync(Probe.Read);
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.Equal(Enumerable.Repeat(HttpStatusCode.Unauthorized, budget).Append(HttpStatusCode.TooManyRequests), statuses);
+    }
+
     [Fact]
     public async Task TokenEndpoint_IsRateLimited()
     {
@@ -358,8 +377,9 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Contains("Authorization requests must use GET.", await authorized.Content.ReadAsStringAsync());
     }
 
-    // The three OAuth policies count in the shared store (#543/#544), not in this process:
-    // a store that refuses everything decides each response, and sees each policy's key.
+    // The three OAuth policies and oauth-api's address budget count in the shared store
+    // (#543/#544), not in this process: a store that refuses decides each response, and sees
+    // each key.
     [Fact]
     public async Task OAuthLimits_AreDecidedByTheSharedCounter()
     {
@@ -383,8 +403,10 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.True(called.StatusCode == HttpStatusCode.TooManyRequests, "oauth-api did not ask the shared counter");
         var bearerKey = "oauth-api:token:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
         Assert.Contains(bearerKey, counter.Keys);
+        Assert.Contains($"{RateLimitingOptions.OAuthApiAddressKeyPrefix}:local", counter.Keys);
     }
 
+    // Admits oauth-api's address budget, which runs first, so the per-token budget is asked too.
     private sealed class RefusingCounter : IFixedWindowCounter
     {
         public ConcurrentBag<string> Keys { get; } = [];
@@ -392,15 +414,18 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         public long Increment(string key, TimeSpan window)
         {
             Keys.Add(key);
-            return long.MaxValue;
+            return Count(key);
         }
 
         public ValueTask<FixedWindowResult> IncrementAsync(
             string key, TimeSpan window, CancellationToken cancellationToken = default)
         {
             Keys.Add(key);
-            return ValueTask.FromResult(new FixedWindowResult(long.MaxValue, window));
+            return ValueTask.FromResult(new FixedWindowResult(Count(key), window));
         }
+
+        private static long Count(string key) =>
+            key.StartsWith(RateLimitingOptions.OAuthApiAddressKeyPrefix + ":", StringComparison.Ordinal) ? 1 : long.MaxValue;
     }
 
     private sealed record SeededUser(Guid Id, Guid AccountId, string Jwt, string OwnerEmail);
