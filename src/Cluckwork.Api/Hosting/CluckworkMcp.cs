@@ -66,11 +66,10 @@ internal static class CluckworkMcp
     }
 
     // Either scope admits the request; each tool then requires its own (AuthPolicies).
-    public static void MapCluckworkMcp(this IEndpointRouteBuilder app, Uri issuer)
+    public static void MapCluckworkMcp(this IEndpointRouteBuilder app)
     {
-        var origin = new RequiredOrigin(issuer);
         app.MapMcp(Path)
-            .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute(), origin)
+            .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute())
             .WithMaxRequestBodyBytes(MaxRequestBodyBytes)
             .AcceptOAuthTokens(OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries)
             .RequireAuthorization();
@@ -82,22 +81,29 @@ internal static class CluckworkMcp
                 response.Headers.Allow = HttpMethods.Post;
                 return Results.StatusCode(StatusCodes.Status405MethodNotAllowed);
             })
-            .WithMetadata(origin)
             .ExcludeFromDescription();
     }
 
     // MCP transports require Origin validation against DNS rebinding, for every request to
     // the endpoint. It runs before authentication and rate limiting, so a foreign page gets
     // 403 whatever it sends. A native client sends no Origin; a browser sends its page's.
-    public static void UseMcpOriginCheck(this IApplicationBuilder app) =>
+    // Keyed on the path, not the endpoint, because a method /mcp does not map (DELETE, PUT,
+    // OPTIONS) selects routing's own 405 endpoint. Matched as routing matches the route:
+    // ignoring case, with one optional trailing slash.
+    public static void UseMcpOriginCheck(this IApplicationBuilder app, Uri issuer)
+    {
+        var required = new RequiredOrigin(issuer);
         app.Use((context, next) =>
         {
-            if (context.GetEndpoint()?.Metadata.GetMetadata<RequiredOrigin>() is not { } required
+            var path = context.Request.Path.Value;
+            if (!(string.Equals(path, Path, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(path, Path + "/", StringComparison.OrdinalIgnoreCase))
                 || required.Allows(context.Request.Headers.Origin))
                 return next(context);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
         });
+    }
 
     // The configured issuer's origin, never one derived from the request's Host. An origin
     // is a scheme, host and port (RFC 6454), and a browser sends it once, ASCII-serialized,

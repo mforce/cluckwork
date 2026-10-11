@@ -119,13 +119,19 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
     {
         using var foreignPost = await SendAsync(HttpMethod.Post, protocolVersion, "https://untrusted.example");
         using var foreignGet = await SendAsync(HttpMethod.Get, protocolVersion, "https://untrusted.example");
+        using var foreignDelete = await SendAsync(HttpMethod.Delete, protocolVersion, "https://untrusted.example");
+        using var foreignTrailingSlash = await SendAsync(HttpMethod.Post, protocolVersion, "https://untrusted.example", "/MCP/");
         using var plainPost = await SendAsync(HttpMethod.Post, protocolVersion, origin: null);
         using var plainGet = await SendAsync(HttpMethod.Get, protocolVersion, origin: null);
+        using var plainDelete = await SendAsync(HttpMethod.Delete, protocolVersion, origin: null);
 
         Assert.Equal(HttpStatusCode.Forbidden, foreignPost.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, foreignGet.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, foreignDelete.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, foreignTrailingSlash.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, plainPost.StatusCode);
         Assert.Equal(HttpStatusCode.MethodNotAllowed, plainGet.StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, plainDelete.StatusCode);
     }
 
     [Theory]
@@ -150,9 +156,9 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
     public void RequiredOrigin_ComparesSchemeAsciiHostAndEffectivePort(string issuer, string[] sent, bool allowed) =>
         Assert.Equal(allowed, new CluckworkMcp.RequiredOrigin(new Uri(issuer)).Allows(new StringValues(sent)));
 
-    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string protocolVersion, string? origin)
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string protocolVersion, string? origin, string path = CluckworkMcp.Path)
     {
-        var request = new HttpRequestMessage(method, CluckworkMcp.Path);
+        var request = new HttpRequestMessage(method, path);
         if (method == HttpMethod.Post)
             request.Content = new StringContent("""{"jsonrpc":"2.0","id":1,"method":"tools/list"}""", System.Text.Encoding.UTF8, "application/json");
         request.Headers.Accept.ParseAdd("application/json");

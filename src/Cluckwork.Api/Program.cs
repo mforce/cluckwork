@@ -301,7 +301,8 @@ app.UseCluckworkBindingFailureResponse();
 // Endpoint rate-limit policies (#143) — no global limiter, only routes that
 // opt in via RequireRateLimiting are affected. oauth-api endpoints also count
 // refused bearers per address, checked first.
-app.UseMcpOriginCheck();
+if (identity.OAuthIssuer is { } mcpIssuer)
+    app.UseMcpOriginCheck(mcpIssuer);
 app.UseOAuthApiFailureBudget();
 app.UseRateLimiter();
 
@@ -475,12 +476,12 @@ app.MapGroup("/api/v1/export")
 
 // #795 — OpenIddict answers the token endpoint itself; only authorization reaches an endpoint.
 // #806 — /mcp accepts only OAuth tokens, so it exists only beside the server that issues them.
-if (identity.OAuthIssuer is { } oauthIssuer)
+if (identity.OAuthIssuer is not null)
 {
     app.MapGroup("/api/v1/oauth")
         .WithTags("OAuth")
         .MapOAuthEndpoints();
-    app.MapCluckworkMcp(oauthIssuer);
+    app.MapCluckworkMcp();
 }
 
 // #217 — browser error reports. Anonymous (the login screen can crash too);
