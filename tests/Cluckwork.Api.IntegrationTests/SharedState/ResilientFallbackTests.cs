@@ -211,7 +211,7 @@ public sealed class ResilientFallbackTests
     }
 
     // Redis answers the read but refuses the increments, which land in the fallback and alarm.
-    // The read must add them, or a budget kept in this counter never runs out.
+    // The read must see them, or a budget kept in this counter never runs out.
     [Fact]
     public async Task CountAsync_WhenRedisReadsButRefusesIncrements_AddsTheFallbackCount()
     {
@@ -223,14 +223,53 @@ public sealed class ResilientFallbackTests
         await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
         var read = await counter.CountAsync("k", TimeSpan.FromMinutes(5));
 
-        Assert.Equal(ReadOnlyFixedWindowCounter.SharedCount + 2, read.Count);
+        Assert.Equal(2, read.Count);
         Assert.Equal(2, logger.Warnings.Count);
         Assert.All(logger.Warnings, w => Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, w));
     }
 
+    // Redis applied each increment, then the reply timed out, so the fallback counted it too.
+    // Once reads recover, the same three increments must read as three, not six.
+    [Fact]
+    public async Task CountAsync_AfterIncrementsAppliedThenTimedOut_DoesNotDoubleCount()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var counter = new ResilientFixedWindowCounter(
+            new AppliesThenTimesOutCounter(), new InProcessFixedWindowCounter(new FakeTimeProvider()), logger);
+
+        for (var i = 0; i < 3; i++)
+            await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
+        var read = await counter.CountAsync("k", TimeSpan.FromMinutes(5));
+
+        Assert.Equal(3, read.Count);
+        Assert.Equal(3, logger.Warnings.Count);
+    }
+
+    private sealed class AppliesThenTimesOutCounter : IFixedWindowCounter
+    {
+        private readonly InProcessFixedWindowCounter applied = new(new FakeTimeProvider());
+
+        public long Increment(string key, TimeSpan window)
+        {
+            applied.Increment(key, window);
+            throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
+        }
+
+        public async ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default)
+        {
+            await applied.IncrementAsync(key, window, cancellationToken);
+            throw new RedisTimeoutException(CommandFlags.None, "timeout", CommandStatus.Unknown);
+        }
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            applied.CountAsync(key, window, cancellationToken);
+    }
+
     private sealed class ReadOnlyFixedWindowCounter : IFixedWindowCounter
     {
-        public const long SharedCount = 5;
+        public const long SharedCount = 1;
 
         public long Increment(string key, TimeSpan window) => throw new RedisException("NOPERM");
 
