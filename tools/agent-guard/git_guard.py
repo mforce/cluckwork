@@ -203,10 +203,15 @@ def git_steps(command, cwd):
 
 
 def in_shared_checkout(cwd):
-    try:
-        return cwd is not None and Repo(cwd, [], cwd).is_shared_checkout()
-    except Blocked:  # not a repository
+    """True when cwd is the shared checkout; False outside any repository; any other lookup failure blocks."""
+    if cwd is None:
         return False
+    try:
+        return Repo(cwd, [], cwd).is_shared_checkout()
+    except Blocked as failure:
+        if "not a git repository" in str(failure):
+            return False
+        raise
 
 
 def cd_dir(base, operand, shown):

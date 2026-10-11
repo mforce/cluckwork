@@ -5,6 +5,7 @@ Run: python3 tools/agent-guard/git_guard_test.py
 """
 import importlib.util
 import json
+import shutil
 import os
 import subprocess
 import sys
@@ -383,6 +384,18 @@ class GitGuardTest(unittest.TestCase):
             body = json.dumps(payload("claude", command, self.dirs["shared"]))
             result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, f"{command}: {result.stderr}")
+
+    def test_unreadable_git_shape_refuses_when_the_layout_lookup_fails(self):
+        shim = os.path.join(self.tmp.name, "bin")
+        os.makedirs(shim, exist_ok=True)
+        with open(os.path.join(shim, "git"), "w") as f:
+            f.write(f'#!/bin/sh\ncase "$*" in *"worktree list"*) exit 128;; esac\nexec {shutil.which("git")} "$@"\n')
+        os.chmod(os.path.join(shim, "git"), 0o755)
+        env = {**os.environ, "PATH": shim + os.pathsep + os.environ["PATH"]}
+        for where, expected in (("shared", 2), ("plain", 0)):  # a failed lookup blocks; no repository is not shared
+            body = json.dumps(payload("claude", "(git status)", self.dirs[where]))
+            result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, expected, f"{where}: {result.stderr}")
 
     def test_other_tools_pass(self):
         for name in ("Read", "read_file"):
