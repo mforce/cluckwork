@@ -58,6 +58,7 @@ CHANGES_CHECKOUT = re.compile(r"\bgit(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:add|am|a
 SHALLOW_OPTIONS = ("depth", "deepen", "shallow-since", "shallow-exclude", "unshallow", "update-shallow")
 SHALLOW = re.compile(r"\b(?:fetch|pull)\b.*\s--(?:de|sh|un|up)", re.S)
 # What coordinators run in the shared checkout: reads, plain fetch, worktree and branch management.
+# writes_anyway() refuses the forms of these that still write there.
 SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
                         "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
                         "shortlog", "show", "status", "version", "worktree"}
@@ -344,6 +345,28 @@ def check_push(args, repo):
             block("upstream-main", shown)
 
 
+BRANCH_LISTING = {"list", "all", "remotes", "show-current", "merged", "no-merged", "contains", "no-contains",
+                  "points-at", "verbose", "sort", "format", "column", "no-column", "color", "no-color",
+                  "ignore-case", "abbrev", "no-abbrev", "omit-empty", "delete"}
+BRANCH_TAKES_NAMES = {"list", "all", "remotes", "merged", "no-merged", "contains", "no-contains", "points-at", "delete"}
+
+
+def writes_anyway(command, args):
+    """A SHARED_CHECKOUT_SAFE subcommand in a form that writes: --output=<file>, fetch --update-head-ok, or
+    branch other than listing and deleting (create, -m, -c, -f, --set-upstream-to)."""
+    longs = {arg[2:].split("=", 1)[0] for arg in args if arg.startswith("--") and len(arg) > 3}
+    shorts = set("".join(arg[1:] for arg in args if arg.startswith("-") and not arg.startswith("--")))
+    if any("output".startswith(name) for name in longs):
+        return True
+    if command == "fetch":
+        return "u" in shorts or any("update-head-ok".startswith(name) for name in longs)
+    if command == "branch":
+        names = any(not arg.startswith("-") for arg in args)
+        listing = shorts <= set("dDlarvi") and longs <= BRANCH_LISTING
+        return not listing or (names and not (shorts & set("dDlar") or longs & BRANCH_TAKES_NAMES))
+    return False
+
+
 def changes_shallow_state(arg):
     name = arg[2:].split("=", 1)[0] if arg.startswith("--") else ""
     return len(name) >= 2 and any(option.startswith(name) for option in SHALLOW_OPTIONS)
@@ -376,7 +399,7 @@ def check_git(args, cwd, shown):
             block("stash", shown)
         if command in ("fetch", "pull") and any(changes_shallow_state(arg) for arg in rest):
             block("shallow", shown)
-        if command not in SHARED_CHECKOUT_SAFE:
+        if command not in SHARED_CHECKOUT_SAFE or writes_anyway(command, rest):
             repo = Repo(cwd, options, shown)
             if repo.is_shared_checkout():
                 block("shared", shown)

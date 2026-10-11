@@ -264,6 +264,27 @@ CASES += [  # a clone gets its own .git (round 1)
     ("git clone --depth 1 file:///tmp/source child", "shared", "allow"),
     ("git clone file:///tmp/source child", "shared", "allow"),
 ]
+CASES += [  # allowed subcommands narrowed to the forms that do not write the shared checkout (round 1)
+    ("git branch -m feat/renamed", "shared", "block"),
+    ("git branch -M feat/renamed", "shared", "block"),
+    ("git branch -f feat/s HEAD~1", "shared", "block"),
+    ("git branch -c feat/copy", "shared", "block"),
+    ("git branch --set-upstream-to=origin/main", "shared", "block"),
+    ("git branch feat/new", "shared", "block"),
+    ("git fetch --update-head-ok origin main:feat/s", "shared", "block"),
+    ("git fetch -u origin main:feat/s", "shared", "block"),
+    ("git diff --output=/tmp/out.diff", "shared", "block"),
+    ("git log --out=/tmp/log.txt", "shared", "block"),
+    ("git branch", "shared", "allow"),
+    ("git branch -a --merged main", "shared", "allow"),
+    ("git branch --show-current", "shared", "allow"),
+    ("git branch -vv", "shared", "allow"),
+    ("git branch -d feat/old", "shared", "allow"),
+    ("git branch --list 'feat/*'", "shared", "allow"),
+    ("git diff --output-indicator-new=+ HEAD", "shared", "allow"),
+    ("git branch -m feat/renamed", "linked", "allow"),
+    ("git diff --output=/tmp/out.diff", "linked", "allow"),
+]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
