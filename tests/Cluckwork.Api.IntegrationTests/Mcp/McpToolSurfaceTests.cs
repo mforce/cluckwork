@@ -49,8 +49,8 @@ public sealed class McpToolSurfaceTests
             .Select(m => $"{m.DeclaringType!.FullName}.{m.Name} returns {m.ReturnType.Name}; return Task<McpPage<T>>")]);
     }
 
-    // #792: phase 1 tools return no farm-entered free text. Every text field a read tool
-    // returns is listed here with why it is not one, so a new note or reason field fails.
+    // #792: phase 1 tools return no farm-entered free text. Every text field a read or write
+    // tool returns is listed here with why it is not one, so a new note or reason field fails.
     private static readonly string[] ReplyText =
     [
         "CustomerBalanceRow.Customer", // a customer's name: an identifier, at most 120 characters (#792, 2026-10-11)
@@ -66,6 +66,7 @@ public sealed class McpToolSurfaceTests
         "McpMoney.Amount", // a decimal rendered from minor units
         "McpMoney.Currency", // an ISO currency code
         "PaymentRow.Method", // enum
+        "RecordedDailyEntry.FlockName",
         "SalesOrderLine.Grade",
         "SalesOrderLine.Unit", // enum
         "SalesOrderRow.Customer",
@@ -76,8 +77,9 @@ public sealed class McpToolSurfaceTests
     ];
 
     [Fact]
-    public void RealTree_ReadToolRepliesReturnOnlyReviewedText() =>
-        Assert.Equal(ReplyText.Order(), ReadTools().SelectMany(m => TextFields(m.ReturnType, m.Name, [])).Distinct().Order());
+    public void RealTree_ToolRepliesReturnOnlyReviewedText() =>
+        Assert.Equal(ReplyText.Order(), McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
+            .SelectMany(m => TextFields(m.ReturnType, m.Name, [])).Distinct().Order());
 
     // The walk reaches text a serializer would emit from any namespace, inside a collection
     // or array, and refuses a reply shape it cannot see into.
