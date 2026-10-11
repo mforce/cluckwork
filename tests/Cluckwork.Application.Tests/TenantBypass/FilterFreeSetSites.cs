@@ -157,7 +157,7 @@ internal static class FilterFreeSetSites
             "db.OAuthAuthorizations", "27c45816",
             "caller-scoped: OAuth authorizations carry no AccountId (#795); the subject is a user the same transaction first confirmed is on the caller's farm (db.Users with an AccountId compare), and the client id narrows it to one app (#799)."),
         new("Cluckwork.Infrastructure.Modules.Access.OAuth.ConnectedApps.DisconnectAsync(Guid accountId, Guid userId, string clientId, CancellationToken ct)",
-            "db.OAuthTokens", "5b13ff7d",
+            "db.OAuthTokens", "a590b0ad",
             "caller-scoped: OAuth tokens carry no AccountId (#795); revoked only for the subject and app whose authorizations the same transaction just revoked after confirming the user is on the caller's farm (#799)."),
         new("Cluckwork.Infrastructure.Modules.Access.OAuth.ConnectedApps.RecordUseAsync(Guid authorizationId, CancellationToken ct)",
             "db.OAuthAuthorizations", "401fddaf",

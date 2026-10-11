@@ -33,10 +33,12 @@ public sealed class ConnectedApps(
 
     // Every valid authorization, not one: two approvals can race and leave two (#798).
     // Validation checks the authorization on every request (#796), so revoking it is what
-    // refuses the app next time; its tokens are revoked too, so none outlives it.
+    // refuses the app next time; its tokens are revoked too, so none outlives it. A new
+    // ConcurrencyToken fails any in-flight OpenIddict write of a row (#1229).
     public async Task<Result> DisconnectAsync(Guid accountId, Guid userId, string clientId, CancellationToken ct)
     {
         var subject = userId.ToString();
+        var concurrencyToken = Guid.NewGuid().ToString();
         var disconnected = await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
             if (!await db.Users.AnyAsync(user => user.Id == userId && user.AccountId == accountId, token))
@@ -46,15 +48,18 @@ public sealed class ConnectedApps(
                 && authorization.Application!.ClientId == clientId && authorization.Status == Statuses.Valid);
             var appName = await authorizations.Select(authorization => authorization.Application!.DisplayName)
                 .FirstOrDefaultAsync(token);
-            var revoked = await authorizations.ExecuteUpdateAsync(
-                setters => setters.SetProperty(authorization => authorization.Status, Statuses.Revoked), token);
+            var revoked = await authorizations.ExecuteUpdateAsync(setters => setters
+                .SetProperty(authorization => authorization.Status, Statuses.Revoked)
+                .SetProperty(authorization => authorization.ConcurrencyToken, concurrencyToken), token);
             if (revoked == 0)
                 return false;
 
             await db.OAuthTokens
                 .Where(row => row.Subject == subject && row.Application!.ClientId == clientId
                     && (row.Status == Statuses.Valid || row.Status == Statuses.Inactive))
-                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Status, Statuses.Revoked), token);
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(row => row.Status, Statuses.Revoked)
+                    .SetProperty(row => row.ConcurrencyToken, concurrencyToken), token);
             await audit.WriteAsync(AuditActions.UserAppDisconnected, "User", userId,
                 details: new { clientId, appName }, ct: token);
             return true;
