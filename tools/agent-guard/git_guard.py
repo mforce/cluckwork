@@ -26,12 +26,21 @@ GIT_GUARD_ALLOW_SHARED=1 lifts those three rules wherever it is set. It is for t
 maintainer, on one command in their own shell (CONTRIBUTING.md); set for a harness,
 every agent started from it would inherit it.
 
-Not covered: gh aliases defined earlier, a GraphQL merge whose query comes from a
-file, git aliases from config, other commands that create commits (merge, rebase,
-cherry-pick, pull), a verb spelled by brace or extglob expansion (`pu{s..s}h`,
-`p@(u)sh`), a configured push destination that the remote resolves as a
-symbolic ref to main (no remote lookups), and Codex `exec_command` calls whose
-`workdir` differs from the session `cwd` (Codex does not send `workdir`).
+Also refused (#1221): a non-GET `gh api` call on `merges`, `contents`, `git/refs`,
+`rulesets` or `branches/<b>/protection` (explicit `-X`/`--method`, or the POST that
+`-f`/`-F`/`--input` imply), `git send-pack`, `git update-ref` on a main ref,
+`git config` writing `alias.*` or `core.hooksPath` in any scope, and
+`git push --no-verify`.
+
+Not covered: gh aliases defined earlier, a GraphQL query that comes from a file or
+mutates anything but a PR merge (createCommitOnBranch, updateRef, the ruleset and
+branch-protection mutations), git aliases already in config, `git config
+--remove-section`, other commands that move a local ref (branch -f, fetch -f) or
+create commits (merge, rebase, cherry-pick, pull), a verb spelled by brace or
+extglob expansion (`pu{s..s}h`, `p@(u)sh`), a configured push destination that
+the remote resolves as a symbolic ref to main (no remote lookups), and Codex
+`exec_command` calls whose `workdir` differs from the session `cwd` (Codex does
+not send `workdir`).
 """
 import json
 import os
@@ -50,8 +59,12 @@ REFUSED_TOOLS = {
 }
 MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
-MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
-MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
+# gh words that can merge, commit, move a ref or change main's protection: `gh pr merge`, `gh alias`, and the
+# REST paths GH_API_PROTECTED names.
+GH_WRITE_WORDS = r"\b(?:merges?|alias|rulesets)\b|/(?:contents|protection)\b|git/refs"
+MENTIONS_WRITE = re.compile(rf"\bgit\b.*\b(push|commit|send-pack)\b|\bgh\b.*(?:{GH_WRITE_WORDS})|mergePullRequest|AutoMerge", re.S)
+MENTIONS_TOOL_OR_VERB = re.compile(rf"\b(git|gh|push|commit|merge|alias|send-pack|update-ref)\b|(?i:hookspath)|{GH_WRITE_WORDS}"
+                                   r"|mergePullRequest|AutoMerge")
 # A git subcommand that changes HEAD, the index, the files or a ref, right after `git` and its options.
 CHANGES_CHECKOUT = re.compile(r"\bgit(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:add|am|apply|checkout|cherry-pick|clean|merge|"
                               r"mv|notes|pull|rebase|reset|restore|revert|rm|stash|switch|tag|update-ref)(?![\w-])")
@@ -87,6 +100,13 @@ GH_API_VALUES = {"-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", 
                  "-q", "--jq", "-t", "--template", "--hostname", "-p", "--preview", "--cache"}
 GH_API_FLAGS = {"--paginate", "-i", "--include", "--silent", "--verbose", "--slurp"}
 GH_API_BODY = {"-f", "--raw-field", "-F", "--field", "--input"}
+# REST paths whose non-GET methods merge, commit, move a ref or change main's protection outside a PR.
+GH_API_PROTECTED = re.compile(r"(^|/)(merges|contents|git/refs|rulesets|branches/[^/]+/protection)(/|$)")
+# `git config` forms that read; everything else naming a guarded key writes it.
+CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l", "get", "list"}
+CONFIG_WRITES = {"--add", "--replace-all", "--unset", "--unset-all", "-e", "--edit"}
+CONFIG_VALUES = {"-f", "--file", "--blob", "--default", "--type"}
+CONFIG_GUARDED_KEY = re.compile(r"alias\.|core\.hookspath$", re.I)
 
 PUSH_YOUR_BRANCH = "Run `git branch --show-current`, then `git push -u origin <that-branch>` (or plain `git push`)."
 MESSAGES = {
@@ -100,7 +120,7 @@ MESSAGES = {
     ),
     "merge": "only the maintainer merges a PR. Report the PR as ready instead.",
     "alias": "a gh alias can hide `gh pr merge`. Run the gh command it stands for directly.",
-    "git-config": "a `-c` override of alias.*, push.*, remote.* or branch.* can change what the command does. "
+    "git-config": "a `-c` override of alias.*, push.*, remote.*, branch.* or core.hooksPath can change what the command does. "
                   "Run it without the override.",
     "refspec": "a src:dst push can land one branch's commits on another branch (#900). " + PUSH_YOUR_BRANCH,
     "force": "a fix is a new commit, never a rewrite of pushed history. Commit the fix and push normally.",
@@ -123,6 +143,15 @@ MESSAGES = {
                "worktree. Fetch without them.",
     "commit-main": "main is protected. Run `git switch -c <type>/<topic>` first, then commit there.",
     "option": "git-guard does not know this option, so it cannot tell what the write does. Drop it or spell it out.",
+    "gh-api-write": "a non-GET call on merges, contents, git/refs, rulesets or branches/<b>/protection can merge, "
+                    "commit, move a branch or change main's protection outside a PR. Push changes on your branch instead; "
+                    "reads of these paths are allowed.",
+    "send-pack": "send-pack is `git push` without its checks or the pre-push hook. " + PUSH_YOUR_BRANCH,
+    "update-ref-main": "it moves the local main ref. Fast-forward it with `git fetch origin main:main`; anything else "
+                       "reaches main through a merged PR.",
+    "config-write": "an alias.* entry can hide a write and core.hooksPath turns the hook backstop off. Run the git "
+                    "command it stands for directly, and leave the hooks as configured.",
+    "no-verify": "--no-verify skips .githooks/pre-push, the backstop behind this guard. Push without it.",
 }
 
 
@@ -346,6 +375,8 @@ def check_push(args, repo):
             name = long_option(arg, shown)
             if name in ("force", "mirror"):
                 block("force", shown)
+            if name == "no-verify":
+                block("no-verify", shown)
             if name in ("all", "branches", "prune"):
                 block("all", shown)
             if name in ("repo", "receive-pack", "exec"):
@@ -420,6 +451,15 @@ def writes_anyway(command, args):
     return False
 
 
+def config_writes_guarded_key(args):
+    """`git config` that sets, adds, unsets or edits an alias.* or core.hooksPath key, in any scope. A read
+    (--get*, --list, the get/list subcommands, or a lone key) is not a write."""
+    args = [arg for n, arg in enumerate(args) if not (n and args[n - 1] in CONFIG_VALUES)]
+    if not any(CONFIG_GUARDED_KEY.match(arg) for arg in args) or any(arg in CONFIG_READS for arg in args):
+        return False
+    return len([arg for arg in args if not arg.startswith("-")]) > 1 or any(arg in CONFIG_WRITES for arg in args)
+
+
 INIT_VALUES = {"-b", "--initial-branch", "--separate-git-dir", "--template", "--object-format", "--ref-format"}
 
 
@@ -452,7 +492,7 @@ def check_git(args, cwd, shown):
         name = arg.split("=", 1)[0]
         if arg in GIT_GLOBAL_VALUES and i + 1 < len(args):
             value = args[i + 1]
-            if arg == "-c" and re.match(r"(alias|push|remote|branch)\.", value, re.I):
+            if arg == "-c" and re.match(r"(alias|push|remote|branch)\.|core\.hookspath", value, re.I):
                 block("git-config", shown)
             options += [arg, value]  # -C included: git resolves the path itself, symlinks and all
             i += 2
@@ -473,6 +513,10 @@ def check_git(args, cwd, shown):
         if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1" and target:
             block("shared", shown)
         return
+    if command == "send-pack":
+        block("send-pack", shown)
+    if command == "config" and config_writes_guarded_key(rest):
+        block("config-write", shown)
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
         if command == "stash":
             block("stash", shown)
@@ -482,11 +526,15 @@ def check_git(args, cwd, shown):
             repo = Repo(cwd, options, shown)
             if repo.is_shared_checkout():
                 block("shared", shown)
-    if command not in ("commit", "push"):
+    if command not in ("commit", "push", "update-ref"):
         return
     repo = repo or Repo(cwd, options, shown)
     if command == "push":
         check_push(rest, repo)
+    elif command == "update-ref":
+        refs = {repo.branch() if arg in ("HEAD", "@") else arg for arg in rest if not arg.startswith("-")}
+        if refs & MAIN_REFS:
+            block("update-ref-main", shown)
     elif repo.branch() == MAIN:
         block("commit-main", shown)
 
@@ -523,6 +571,8 @@ def check_gh_api(args, shown):
     path = urllib.parse.unquote(urllib.parse.urlparse(positional[0]).path) if positional else ""  # URL, query or not
     if method != "GET" and re.search(r"(^|/)pulls/[^/]+/merge/?$", path):
         block("merge", shown)
+    if method != "GET" and GH_API_PROTECTED.search(path):
+        block("gh-api-write", shown)
     if re.search(r"(^|/)graphql/?$", path) and any(re.search(r"mergePullRequest|AutoMerge", f) for f in fields):
         block("merge", shown)
 
