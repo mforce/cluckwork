@@ -118,7 +118,7 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
 
         var fault = await ErrorAsync(client, ConstructionFaultTools.Name, Parse("""{"date":"2026-10-11"}"""));
         var error = Assert.Single(sink.Observed, e => e.Level == LogEventLevel.Error);
-        sink.Events.Clear();
+        sink.Clear();
         var bad = await ErrorAsync(client, ConstructionFaultTools.Name, Parse("""{"date":"10/11/2026"}"""));
 
         Assert.Equal($"An error occurred invoking '{ConstructionFaultTools.Name}'.", fault);
@@ -157,14 +157,12 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
             services.AddMcpServer().WithTools<FaultTools>().WithTools<ConstructionFaultTools>();
         }));
 
-    // Only the call under test is left in the sink, apart from the handshake's late events.
+    // Only the call under test is left in the sink.
     private async Task<McpClient> ConnectAsync(WebApplicationFactory<Program> host, Sink sink, string scope)
     {
         var token = await IssueAsync(host, await SeedAsync(factory, Roles.Manager), [scope]);
         var client = await McpConnection.ConnectAsync(host, token);
-        sink.Handshake = sink.Events.FirstOrDefault(e => e.Properties.TryGetValue("Method", out var method)
-            && method.ToString() == "\"server/discover\"")?.TraceId;
-        sink.Events.Clear();
+        sink.Clear();
         return client;
     }
 
@@ -176,15 +174,23 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
 
     private sealed class Sink : ILogEventSink
     {
+        private readonly HashSet<ActivityTraceId> cleared = [];
+
         public ConcurrentQueue<LogEvent> Events { get; } = new();
         public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
 
-        // The handshake's request can finish logging after ConnectAsync has returned, and
-        // a cancelled one logs a 500 at Error. Only that request's trace is dropped; an event
-        // of unknown origin stays.
-        public ActivityTraceId? Handshake { get; set; }
+        // A request already logged can still finish after the clear, the handshake's or an
+        // earlier call's, and a cancelled one logs a 500 at Error (#1246). Late events of
+        // those requests are dropped by trace; an event of unknown origin stays.
+        public void Clear()
+        {
+            foreach (var e in Events)
+                if (e.TraceId is { } trace)
+                    cleared.Add(trace);
+            Events.Clear();
+        }
 
-        public IEnumerable<LogEvent> Observed => Events.Where(e => Handshake is null || e.TraceId != Handshake);
+        public IEnumerable<LogEvent> Observed => Events.Where(e => e.TraceId is not { } trace || !cleared.Contains(trace));
     }
 
     [McpServerToolType]
