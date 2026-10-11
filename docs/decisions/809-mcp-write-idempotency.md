@@ -47,6 +47,19 @@ agents can both choose `entry-2026-10-11`. With an account-wide key, the second 
 would be refused as a reused key or replay the first person's entry. The tool scopes the key
 to the user, as `/api/v1/me` does.
 
+## What changed for HTTP
+
+The database protocol is unchanged: claim, one transaction, guarded publication, steal-loss
+rollback, failure release and the lost-commit probe. One HTTP timing changed. The middleware
+now writes the response after the unit has committed, released its connection and returned.
+Before, it wrote inside the unit's recovery path. If that write failed after a committed
+success, the old code entered the cleanup, found its own completed claim, and tried to write
+the stored response a second time. Now the write failure goes to the upstream error handling,
+and the client sees a failed request. The mutation is still durable and published, so the
+client's retry with the same key replays it and writes nothing new.
+`IdempotencyResponseWriteFailureTests` proves that retry. The change also means no database
+connection is held while bytes go to a slow client.
+
 ## What this does NOT cover
 
 - Guard 20 (two tools, same caller key) needs a second write tool. Today the operation key is
@@ -54,7 +67,10 @@ to the user, as `/api/v1/me` does.
 - A Worker naming a flock outside their assignments is refused by the flock-scoped read
   (`IFlockLookup`) before the handler runs. `FlockScopeGuard` sits behind that read, and no
   MCP test reaches it on its own.
-- A replay returns the first call's reply, including the flock name as it was then.
+- A replay returns the first call's reply, including the flock name as it was then. It first
+  checks that the caller can still see the flock, so a Worker unassigned since the first call
+  gets the same `Flock.NotFound` a fresh call gets. Role and scope are checked by `[Authorize]`
+  before the unit runs.
 
 ## How it is enforced
 
@@ -65,4 +81,7 @@ to the user, as `/api/v1/me` does.
   scope, Worker, cross-farm, farm-switch and audit-attribution checks.
 - `RecordDailyEntryToolFaultTests`: the stolen-lease rollback and the lost commit
   acknowledgment on the MCP path.
-- `McpToolSurfaceTests.RealTree_EveryWriteToolTakesAnIdempotencyKey`: guard 21.
+- `McpToolSurfaceTests.RealTree_EveryWriteToolTakesAnIdempotencyKey`: guard 21, which also
+  refuses a key with a default value.
+- `IdempotencyResponseWriteFailureTests`: a failed response write after the commit, then a
+  same-key retry that replays.
