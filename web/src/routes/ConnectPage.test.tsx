@@ -179,7 +179,7 @@ describe("ConnectPage (#798, consent D)", () => {
   it("starts focus at the request, not the password", async () => {
     await show(REQUEST);
 
-    // The heading takes focus in a passive effect that lands after the heading is in the DOM.
+    // #1201 — the heading takes focus in a passive effect, after show() sees it in the DOM.
     await waitFor(() => expect(screen.getByRole("heading", { level: 1 })).toHaveFocus());
     expect(screen.getByLabelText(/Your current password/)).not.toHaveFocus();
   });
