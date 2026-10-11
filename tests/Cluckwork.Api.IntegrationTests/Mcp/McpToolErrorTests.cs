@@ -51,7 +51,7 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, scope);
+        await using var client = await ConnectAsync(host, scope);
 
         var text = await ErrorAsync(client, tool, Parse(arguments));
 
@@ -65,7 +65,7 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        await using var client = await ConnectAsync(host, OAuthScopes.ReadFarm);
 
         var page = await PageAsync<JsonElement>(client, "cluckwork_list_flocks", Parse("""{"limit":"2"}"""));
 
@@ -77,13 +77,13 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        await using var client = await ConnectAsync(host, OAuthScopes.ReadFarm);
 
         var text = await ErrorAsync(client, "cluckwork_list_daily_entries", new() { ["flock"] = "No Such Flock" });
 
         Assert.Equal("An error occurred invoking 'cluckwork_list_daily_entries': No flock you can see is named or numbered 'No Such Flock'.", text);
         AssertLoggedBelowError(sink, "cluckwork_list_daily_entries");
-        Assert.DoesNotContain(sink.Events, e => Render(e).Contains("No Such Flock"));
+        Assert.DoesNotContain(sink.Call, e => Render(e).Contains("No Such Flock"));
     }
 
     // Each argument here is valid, so a JsonException or ArgumentException from the body is
@@ -96,12 +96,12 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        await using var client = await ConnectAsync(host, OAuthScopes.ReadFarm);
 
         var text = await ErrorAsync(client, tool, new() { ["date"] = "2026-10-11" });
 
         Assert.Equal($"An error occurred invoking '{tool}'.", text);
-        var error = Assert.Single(sink.Events, e => e.Level == LogEventLevel.Error);
+        var error = Assert.Single(sink.Call, e => e.Level == LogEventLevel.Error);
         Assert.Contains(FaultTools.Secret, error.Exception?.Message);
     }
 
@@ -113,11 +113,10 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        await using var client = await ConnectAsync(host, OAuthScopes.ReadFarm);
 
         var fault = await ErrorAsync(client, ConstructionFaultTools.Name, Parse("""{"date":"2026-10-11"}"""));
-        var error = Assert.Single(sink.Events, e => e.Level == LogEventLevel.Error);
-        sink.Events.Clear();
+        var error = Assert.Single(sink.Call, e => e.Level == LogEventLevel.Error);
         var bad = await ErrorAsync(client, ConstructionFaultTools.Name, Parse("""{"date":"10/11/2026"}"""));
 
         Assert.Equal($"An error occurred invoking '{ConstructionFaultTools.Name}'.", fault);
@@ -132,7 +131,7 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        await using var client = await ConnectAsync(host, OAuthScopes.ReadFarm);
 
         var refused = await Assert.ThrowsAsync<McpProtocolException>(() =>
             client.CallToolAsync(FaultTools.Protocol, new Dictionary<string, object?> { ["date"] = "2026-10-11" }).AsTask());
@@ -142,8 +141,8 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
 
     private static void AssertLoggedBelowError(Sink sink, string tool)
     {
-        Assert.DoesNotContain(sink.Events, e => e.Level >= LogEventLevel.Error);
-        var refusal = Assert.Single(sink.Events, e => e.MessageTemplate.Text.StartsWith("MCP tool {Tool} refused"));
+        Assert.DoesNotContain(sink.Call, e => e.Level >= LogEventLevel.Error);
+        var refusal = Assert.Single(sink.Call, e => e.MessageTemplate.Text.StartsWith("MCP tool {Tool} refused"));
         Assert.Equal(LogEventLevel.Information, refusal.Level);
         Assert.Null(refusal.Exception);
         Assert.Equal($"\"{tool}\"", refusal.Properties["Tool"].ToString());
@@ -156,14 +155,8 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
             services.AddMcpServer().WithTools<FaultTools>().WithTools<ConstructionFaultTools>();
         }));
 
-    // Only the call under test is left in the sink.
-    private async Task<McpClient> ConnectAsync(WebApplicationFactory<Program> host, Sink sink, string scope)
-    {
-        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Manager), [scope]);
-        var client = await McpConnection.ConnectAsync(host, token);
-        sink.Events.Clear();
-        return client;
-    }
+    private async Task<McpClient> ConnectAsync(WebApplicationFactory<Program> host, string scope) =>
+        await McpConnection.ConnectAsync(host, await IssueAsync(host, await SeedAsync(factory, Roles.Manager), [scope]));
 
     private static Dictionary<string, object?> Parse(string json) =>
         JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!.ToDictionary(a => a.Key, a => (object?)a.Value);
@@ -175,6 +168,20 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
     {
         public ConcurrentQueue<LogEvent> Events { get; } = new();
         public void Emit(LogEvent logEvent) => Events.Enqueue(logEvent);
+
+        // The latest tools/call request's events. Every event of one request shares its
+        // trace, and the handshake's request can finish logging after ConnectAsync has
+        // returned, so clearing the sink after connecting does not leave the call alone.
+        public IEnumerable<LogEvent> Call
+        {
+            get
+            {
+                var trace = Events.Last(e => e.Properties.TryGetValue("Method", out var method)
+                    && method.ToString() == "\"tools/call\"").TraceId
+                    ?? throw new InvalidOperationException("The tools/call request logged no trace.");
+                return Events.Where(e => e.TraceId == trace);
+            }
+        }
     }
 
     [McpServerToolType]
