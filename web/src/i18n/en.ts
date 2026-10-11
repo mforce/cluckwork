@@ -4227,7 +4227,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, and it never sees free-text notes or written reasons.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. A password change or reset, or a change to the person's email or role, disconnects all of that person's apps. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, and it never sees free-text notes or written reasons.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "

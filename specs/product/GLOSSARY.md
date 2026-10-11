@@ -1498,7 +1498,7 @@ Connecting, disconnecting, auditing and the farm switch work the same either way
 **Connected apps** lists the apps you allowed, each with what it **Can** do (the
 consent screen's words), when it was **Connected**, and when it was **Last used**,
 which the server records at most once every 15 minutes per approval, and only
-for a request it accepted (#1229). An app
+for a request that passed the account and credential checks (#1229). An app
 unused for 30 days is marked, and the panel suggests disconnecting it. The Owner's
 **Setup** › **Connected apps** page lists every app on the farm, with a **Person**
 filter. **Disconnect**, after a confirmation, revokes every approval the person

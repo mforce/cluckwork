@@ -3559,7 +3559,7 @@ export const es = {
       "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
       + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
       + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
-      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que una persona las envía, y nunca ve notas de texto libre ni motivos escritos.",
+      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Cambiar o restablecer la contraseña, o cambiar el correo o el rol de la persona, desconecta todas sus aplicaciones. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que una persona las envía, y nunca ve notas de texto libre ni motivos escritos.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "
