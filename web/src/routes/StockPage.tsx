@@ -93,7 +93,7 @@ export function StockPage() {
     getStock()
       .then(setRows)
       .catch(() => setPageError(i18n.t("stock:loadStockFailed")));
-  }, []);
+  }, [setPageError]);
 
   // One page of lots under a filter; empty date strings mean "no bound".
   function fetchLotPage(gradeId: string, from: string, to: string, offset: number) {

@@ -174,7 +174,7 @@ export function InventoryPage() {
         setAccount(acct);
       })
       .catch(() => setPageError(i18n.t("inventory:loadInventoryFailed")));
-  }, []);
+  }, [setPageError]);
 
   useEffect(() => {
     if (busy) return;
