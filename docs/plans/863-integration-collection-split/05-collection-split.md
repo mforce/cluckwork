@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #1000, #1002 and #1003; the collection split was measured and reverted in #1004; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #863: splitting the shared integration collection
 
 **Base:** `ad258d8f` (`origin/main`, including #1002 and #1003). **Date:** 2026-10-01. All local runs used the Release integration project, real Postgres through Testcontainers, `tools/test-timing/measure.py`, and the same 12-core host as the prior three documents in this series.

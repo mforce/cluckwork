@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #665; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — screenshot pipeline + the conventions #651/#652 earned (#660, #662, #663, #664)
 
 You are an autonomous coding agent with full tools in a git worktree of the Cluckwork repo

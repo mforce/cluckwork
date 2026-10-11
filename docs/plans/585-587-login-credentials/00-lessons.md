@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: #587 shipped in #598; #585 closed as not planned, its stable field identifiers shipped under #587. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Lessons — #585 + #587: farm-qualified credentials and revocable remembered farms
 
 Opened at Phase 0 by the driver.
