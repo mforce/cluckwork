@@ -6,7 +6,7 @@ import { pickInitialLanguage, readLanguageHint, writeLanguageHint } from "../lib
 
 // English-first parity allowlist (#182) — see translations-status.ts for the
 // full rationale. Re-exported here so both the parity test and future code can
-// import it from the same place as SUPPORTED_LANGUAGES/RESOURCES.
+// import it from the same place as SUPPORTED_LANGUAGES and loadPack.
 export { TRANSLATED_NAMESPACES } from "./translations-status";
 export type { TranslatedNamespace } from "./translations-status";
 
