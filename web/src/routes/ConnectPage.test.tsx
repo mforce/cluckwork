@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import { Route, Routes } from "react-router";
 import { ConnectPage } from "./ConnectPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { account } from "../test/fixtures";
 import { ApiError, logout, stepUp } from "../api/client";
 import { approveConsent, askConsent, declineConsent } from "../api/oauth";
 import type { ConsentRequest } from "../api/oauth";
@@ -44,6 +45,7 @@ async function show(request: ConsentRequest, role: string | null = "Manager") {
     <Routes><Route path="/connect" element={<ConnectPage />} /></Routes>,
     {
       route: `/connect${SEARCH}`,
+      farm: account({ name: "Hen House" }),
       token: role ? { sub: "u1", role } : { sub: "u1" },
       me: { id: "u1", email: "ana.reyes@meadowlark.farm", name: null, role: role ?? "Worker", language: null, preferredStepperUnit: null },
     },
@@ -81,6 +83,16 @@ describe("ConnectPage (#798, consent D)", () => {
     const email = screen.getByText("Signed in as").parentElement!;
     expect(email).toHaveTextContent("Signed in as ana.reyes@meadowlark.farm");
     expect(getComputedStyle(email).fontWeight).toBe("600");
+  });
+
+  // #1212 — `--brand` is a fill in both themes, about 1.3:1 as text at night.
+  // styles.test.ts pins --stat-accent's contrast per palette and mode.
+  it("colours the farm name and role badge with the theme-aware accent", async () => {
+    await show(REQUEST);
+
+    expect(getComputedStyle(screen.getByText("Hen House")).color).toBe("var(--stat-accent)");
+    const badge = getComputedStyle(screen.getByText("Your role:").parentElement!);
+    expect(badge.color).toBe("var(--stat-accent)");
   });
 
   it("spends a step-up grant on Allow and sends the browser to the app", async () => {

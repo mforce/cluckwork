@@ -114,7 +114,7 @@ export function ConnectPage() {
     <Box component="main" sx={{ minHeight: "100dvh", background: "var(--surface-2)", padding: { xs: "14px", md: "32px" } }}>
       <Box sx={{ maxWidth: 432, marginInline: "auto" }}>
         <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", columnGap: 2, marginBottom: 1.5 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, color: "var(--brand)" }}>{farm?.name}</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: "var(--stat-accent)" }}>{farm?.name}</Typography>
           {/* body1 sets tabular figures, which space an address's hyphens like gaps. */}
           <Typography variant="body1" sx={{ fontWeight: 600, color: "var(--ink)", overflowWrap: "anywhere", fontVariantNumeric: "normal" }}>
             <span className="sr-only">{t("signedInAs")} </span>{email}
@@ -241,7 +241,7 @@ function Permissions({ request }: { request: ConsentRequest }) {
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{t("acts")}</Typography>
         <Box component="span" sx={{
           display: "inline-flex", alignItems: "center", gap: 0.5, padding: "1px 10px",
-          border: "1px solid var(--brand)", borderRadius: "var(--r-pill)", color: "var(--brand)",
+          border: "1px solid var(--stat-accent)", borderRadius: "var(--r-pill)", color: "var(--stat-accent)",
           fontSize: "0.8rem", fontWeight: 600,
         }}>
           <span className="sr-only">{t("roleSr")} </span>{roleLabel(role)}

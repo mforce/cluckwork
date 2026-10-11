@@ -158,7 +158,8 @@ describe.each(BRANDS)("palette: %s", (brand) => {
     expect(contrast(at("--on-brand-mute"), at("--brand-press"))).toBeGreaterThanOrEqual(4.5);
 
     // Accent-on-surface, and the badge fill it sits in.
-    expect(contrast(at("--stat-accent"), at("--surface"))).toBeGreaterThanOrEqual(4.5);
+    for (const bg of ["--surface", "--surface-2"])
+      expect(contrast(at("--stat-accent"), at(bg)), `${brand}/${mode} --stat-accent vs ${bg}`).toBeGreaterThanOrEqual(4.5);
     expect(contrast(at("--stat-accent"), at("--tint-accent"))).toBeGreaterThanOrEqual(4.5);
 
     // --focus is var(--stat-accent) and is never redeclared per palette, so it
