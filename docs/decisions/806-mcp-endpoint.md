@@ -87,7 +87,11 @@ a JSON-RPC error with a null id, because the limiter runs before the body is rea
 
 **A foreign `Origin` gets 403.** Both MCP revisions require Origin validation against DNS
 rebinding. A request without `Origin` (a native client) passes; any other value must equal the
-`OAuth:Issuer` origin, never one derived from the request's Host.
+`OAuth:Issuer` origin, never one derived from the request's Host. The SDK leaves this check
+to the app: its maintainers declined an SDK Origin filter
+([csharp-sdk#1819](https://github.com/modelcontextprotocol/csharp-sdk/pull/1819)) in favour of
+ASP.NET Core's `AllowedHosts` and CORS
+([csharp-sdk#1554](https://github.com/modelcontextprotocol/csharp-sdk/issues/1554)).
 
 **The body cap is 32 KiB** (`WithMaxRequestBodyBytes`), beside `ReadsRequestBodyAttribute`,
 which only classifies binding errors.
