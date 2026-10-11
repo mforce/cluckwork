@@ -259,6 +259,11 @@ CASES += [  # abbreviated shallow options, as git accepts them (round 1)
     ("git fetch --dry-run origin", "linked", "allow"),
     ("git fetch --tags origin", "linked", "allow"),
 ]
+CASES += [  # a clone gets its own .git (round 1)
+    ("git clone --depth 1 file:///tmp/source child", "plain", "allow"),
+    ("git clone --depth 1 file:///tmp/source child", "shared", "allow"),
+    ("git clone file:///tmp/source child", "shared", "allow"),
+]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [

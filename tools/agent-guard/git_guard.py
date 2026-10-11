@@ -369,6 +369,8 @@ def check_git(args, cwd, shown):
     if i >= len(args):
         return
     command, rest, repo = args[i], args[i + 1 :], None
+    if command == "clone":
+        return  # a clone has its own .git, shallow or not; the current checkout plays no part
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
         if command == "stash":
             block("stash", shown)
