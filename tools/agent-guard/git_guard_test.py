@@ -499,6 +499,40 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("gh api repos/mforce/cluckwork/rulesets; git push --force", "linked", "block"),
     ("gh api repos/{owner}/{repo}/rulesets && git push origin HEAD:main", "linked", "block"),
     ("git push origin HEAD:{main}", "linked", "block"),  # braced words stay out of the write parser
+    # Codex round 2 on #1224: every step of a read chain is accounted for; config option prefixes; query sources
+    # are regular files whose --input body is JSON with a string query; `-m` consumes its value
+    ("gh api repos/mforce/cluckwork/rulesets && sh -c \"gh pr merge 1224 --squash\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets && sh -c \"gh api -X DELETE repos/mforce/cluckwork/rulesets/1\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets; sh -c \"gh pr merge 1224 --squash\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets\nsh -c \"gh pr merge 1224 --squash\"", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/contents/install.sh --jq .content | base64 -d | sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | python3 -c 'import sys; print(sys.stdin.read())'", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | sort --compress-program=sh", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | tee /tmp/rulesets.json", "linked", "block"),
+    ("X=1; gh api repos/mforce/cluckwork/rulesets", "linked", "block"),
+    ("gh api repos/mforce/cluckwork/rulesets | jq -r '.[].name' | sort | head -3", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | grep -c name", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | tail -n 20 | wc -l", "linked", "allow"),
+    ("gh api repos/mforce/cluckwork/rulesets | cat", "linked", "allow"),
+    ("git config --ed", "linked", "block"),
+    ("git config --global --ed", "linked", "block"),
+    ("git config --unknown-option core.hooksPath x", "linked", "block"),
+    ("git config --sho --list", "linked", "block"),  # ambiguous: show-names, show-origin, show-scope
+    ("git config --li", "linked", "allow"),
+    ("git config --get-r '^alias\\.'", "linked", "allow"),
+    ("git config --show-o --get core.hooksPath", "linked", "allow"),
+    ("gh api graphql --input /dev/stdin", "linked", "block"),
+    ("gh api graphql -F query=@/dev/stdin", "linked", "block"),
+    ("gh api graphql -F query=@/proc/self/fd/0", "linked", "block"),
+    ("gh api graphql -F query=@fifo.graphql", "linked", "block"),
+    ("gh api graphql -F query=@link-read.graphql", "linked", "allow"),
+    ("gh api graphql --input escaped.json", "linked", "block"),
+    ("gh api graphql --input noquery.json", "linked", "block"),
+    ("gh api graphql --input notjson.json", "linked", "block"),
+    ("gh api graphql --input read.json", "linked", "allow"),
+    ("git update-ref -m -m refs/heads/main HEAD", "linked", "block"),
+    ("git update-ref -m -m refs/heads/feat/l HEAD", "linked", "allow"),
     ("git push -f origin HEAD:main", "linked", "block"),  # the audit's controls
     ("gh pr merge 1221 --squash", "linked", "block"),
 ]
@@ -588,6 +622,14 @@ class GitGuardTest(unittest.TestCase):
                 f.write(text)
             with open(os.path.join(cls.dirs["linked"], name.replace(".graphql", ".json")), "w") as f:
                 json.dump({"query": text}, f)
+        linked = cls.dirs["linked"]
+        os.mkfifo(os.path.join(linked, "fifo.graphql"))
+        os.symlink("read.graphql", os.path.join(linked, "link-read.graphql"))
+        for name, text in (("escaped.json", '{"query": "mutation M { a: delete\\u0052ef(input: {}) { clientMutationId } }"}'),
+                           ("noquery.json", '{"q": "mutation { deleteRef(input: {}) { clientMutationId } }"}'),
+                           ("notjson.json", "mutation { deleteRef(input: {}) { clientMutationId } }")):
+            with open(os.path.join(linked, name), "w") as f:
+                f.write(text)
         spaced_main = os.path.join(root, "p with space")
         git("init", "-q", "-b", "feat/p", spaced_main)
         git("-C", spaced_main, "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")

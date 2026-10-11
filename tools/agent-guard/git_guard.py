@@ -16,8 +16,9 @@ guard cannot parse (Hermes `execute_code`, Pi `powershell`) are refused outright
 A command that mentions a git write (`git push`, `git commit`, a subcommand that
 changes a checkout, a shallow fetch) or a PR merge must be one simple command,
 optionally after `cd <dir> &&`. Anything else is refused rather than parsed, so
-the agent re-runs the write on its own. The one exception is a chain whose git
-and gh steps are all `gh api` GETs, since a read of a write route is still a read.
+the agent re-runs the write on its own. The one exception is a chain whose every
+step is a `gh api` GET or a READ_FILTERS program, since a read of a write route is
+still a read.
 
 The shared checkout is a main worktree that has linked worktrees: agents work in
 the linked ones, and all of them share its `.git` (#1205). There, only the
@@ -47,6 +48,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import urllib.parse
@@ -93,6 +95,8 @@ INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf
 # arguments name git may run it (xargs, env, sh -c, python -c, make, ...), so its target is unresolved.
 DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "nl", "rg", "sort", "tee", "tr", "uniq"}
 DATA_PROGRAM_RUNNERS = ("--pre", "--hostname-bin", "--compress-program")  # rg and sort options that run a program
+# Filters a chain of `gh api` GETs may pipe through: each only reads its input and runs no program.
+READ_FILTERS = {"cat", "grep", "head", "jq", "sort", "tail", "wc"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
                     "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path",
                     "--no-advice", "--no-lazy-fetch", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"}
@@ -112,7 +116,13 @@ GH_API_PROTECTED = re.compile(r"(^|/)(merges|contents|git/refs|rulesets|branches
 CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
 CONFIG_WRITES = {"--add", "--replace-all", "--unset", "--unset-all"}
 CONFIG_EDIT = {"-e", "--edit", "edit"}
-CONFIG_VALUES = {"-f", "--file", "--blob", "--default", "--type"}
+CONFIG_VALUES = {"-f", "--file", "--blob", "--comment", "--default", "--type", "--url", "--value"}
+CONFIG_LONG_OPTIONS = [
+    "add", "all", "blob", "bool", "bool-or-int", "bool-or-str", "comment", "default", "edit", "expiry-date", "file",
+    "fixed-value", "get", "get-all", "get-color", "get-colorbool", "get-regexp", "get-urlmatch", "global", "includes",
+    "int", "list", "local", "name-only", "null", "path", "regexp", "remove-section", "rename-section", "replace-all",
+    "show-names", "show-origin", "show-scope", "system", "type", "unset", "unset-all", "url", "value", "worktree",
+]
 CONFIG_GUARDED_KEY = re.compile(r"alias\.|core\.hookspath$", re.I)
 
 PUSH_YOUR_BRANCH = "Run `git branch --show-current`, then `git push -u origin <that-branch>` (or plain `git push`)."
@@ -162,7 +172,8 @@ MESSAGES = {
     "no-verify": "--no-verify skips .githooks/pre-push, the backstop behind this guard. Push without it.",
     "graphql-write": "this mutation can merge a PR, commit, move a branch or change main's protection outside a PR. "
                      "Only the maintainer merges; push changes on your branch instead. Read-only queries are allowed.",
-    "query-file": "git-guard cannot read the GraphQL query from that file or stdin, so it cannot tell what it mutates. "
+    "query-file": "git-guard cannot read the GraphQL query from that source (a regular file with the query, or JSON "
+                  "with a string `query` for --input; never stdin or a device), so it cannot tell what it mutates. "
                   "Pass the query inline with `-f query='…'`.",
 }
 
@@ -248,11 +259,10 @@ def semicolons_for_newlines(command):
     return "".join(out)
 
 
-def git_steps(command, cwd):
-    """[(program, argv, cwd)] for the git and gh steps of simple steps joined by &&, ||, ;, | or newlines. A
-    `cd <dir>` step moves the steps after it only when it always runs and its result is used: first or after
-    `;`, and followed by && or `;`. None for any other shape, another cd, a variable assignment, or a program
-    outside DATA_PROGRAMS whose arguments name git: those steps' target cannot be resolved."""
+def shell_steps(command, cwd):
+    """[(program, argv, cwd)] for every step of simple steps joined by &&, ||, ;, | or newlines. A `cd <dir>`
+    step moves the steps after it only when it always runs and its result is used: first or after `;`, and
+    followed by && or `;`. None for any other shape, another cd, pushd or popd."""
     command = semicolons_for_newlines(ALLOWED_SUFFIX.sub("", command))
     if not has_simple_shape(command, operators=";|", braced_words=True):
         return None
@@ -281,13 +291,24 @@ def git_steps(command, cwd):
             if len(argv) != 2 or operators[n] != ";" or operators[n + 1] not in ("&&", ";"):
                 return None
             cwd = cd_dir(cwd, argv[1], command)
-        elif program in ("git", "gh"):
+        else:
             found.append((program, argv, cwd))
+    return found
+
+
+def git_steps(command, cwd):
+    """The git and gh steps of shell_steps. None when a step's target cannot be resolved: a variable assignment,
+    or a program outside DATA_PROGRAMS whose arguments name git (it may run git itself)."""
+    steps = shell_steps(command, cwd)
+    found = []
+    for program, argv, step_cwd in steps or []:
+        if program in ("git", "gh"):
+            found.append((program, argv, step_cwd))
         elif ASSIGNMENT.match(argv[0]) or (
                 (program not in DATA_PROGRAMS or any(arg.startswith(DATA_PROGRAM_RUNNERS) for arg in argv[1:]))
                 and any(GIT_WORD.search(arg) for arg in argv[1:])):
             return None
-    return found
+    return None if steps is None else found
 
 
 def refuse_unresolved(command, cwd):
@@ -366,12 +387,12 @@ class Repo:
         return entries
 
 
-def long_option(arg, shown):
-    """Full name of a push long option, resolving git's unambiguous prefixes."""
+def long_option(arg, shown, options=PUSH_LONG_OPTIONS):
+    """Full name of a long option from `options`, resolving git's unambiguous prefixes."""
     name = arg[2:].split("=", 1)[0]
     negated = name.startswith("no-")
     base = name[3:] if negated else name
-    matches = [base] if base in PUSH_LONG_OPTIONS else [o for o in PUSH_LONG_OPTIONS if o.startswith(base)]
+    matches = [base] if base in options else [o for o in options if o.startswith(base)]
     if len(matches) != 1:
         block("option", shown)
     return ("no-" if negated else "") + matches[0]
@@ -467,10 +488,13 @@ def writes_anyway(command, args):
     return False
 
 
-def config_writes(args):
+def config_writes(args, shown):
     """`git config` in edit mode (an editor, possibly `-c core.editor=sed`, can change any key unseen), or one that
     sets, adds or unsets an alias.* or core.hooksPath key in any scope. A read (--get*, --list, the get/list
-    subcommands, or a lone key) is not a write."""
+    subcommands, or a lone key) is not a write. Long options are resolved from their prefixes; an unknown one
+    blocks."""
+    args = [f"--{long_option(arg, shown, CONFIG_LONG_OPTIONS)}" + ("=" + arg.split("=", 1)[1] if "=" in arg else "")
+            if arg.startswith("--") else arg for arg in args]
     args = [arg for n, arg in enumerate(args) if not (n and args[n - 1] in CONFIG_VALUES)]
     positional = [arg for arg in args if not arg.startswith("-")]
     if any(arg in CONFIG_EDIT for arg in args if arg.startswith("-")) or positional[:1] == ["edit"]:
@@ -537,7 +561,7 @@ def check_git(args, cwd, shown):
         return
     if command == "send-pack":
         block("send-pack", shown)
-    if command == "config" and config_writes(rest):
+    if command == "config" and config_writes(rest, shown):
         block("config-write", shown)
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
         if command == "stash":
@@ -556,7 +580,13 @@ def check_git(args, cwd, shown):
     elif command == "update-ref":
         if any(len(arg) >= 3 and "--stdin".startswith(arg) for arg in rest):
             block("update-ref-stdin", shown)
-        operands = [arg for n, arg in enumerate(rest) if not arg.startswith("-") and not (n and rest[n - 1] == "-m")]
+        operands, i = [], 0
+        while i < len(rest):
+            if rest[i] == "-m":
+                i += 1  # its message, even one spelled `-m`
+            elif not rest[i].startswith("-"):
+                operands.append(rest[i])
+            i += 1
         destination = operands[0] if operands else None
         if (repo.branch() if destination in ("HEAD", "@") else destination) in MAIN_REFS:
             block("update-ref-main", shown)
@@ -565,18 +595,31 @@ def check_git(args, cwd, shown):
 
 
 def query_text(name, value, cwd, shown):
-    """The text a body option sends to graphql: the value, or the file behind `-F key=@file` or `--input file`.
-    A file that cannot be read (missing, stdin as `-`, relative to an unknown directory) blocks."""
+    """The query a body option sends to graphql: the value, the file behind `-F key=@file`, or the string `query`
+    of the JSON file behind `--input file`. Anything the guard cannot read as that blocks: a missing file, a
+    device, FIFO or stdin spelling, a path relative to an unknown directory, or a body that is not JSON with a
+    string query."""
     path = value.split("=", 1)[1][1:] if name in ("-F", "--field") and "=@" in value else value if name == "--input" else None
     if path is None:
         return value
-    if cwd is None and not os.path.isabs(path):
+    if path == "-" or path.startswith(("/dev/", "/proc/")) or (cwd is None and not os.path.isabs(path)):
         block("query-file", shown)
+    full = os.path.join(cwd or "/", path)
     try:
-        with open(os.path.join(cwd or "/", path)) as f:
-            return f.read()
+        if not stat.S_ISREG(os.stat(full).st_mode):  # stat first: opening a FIFO would hang
+            raise OSError
+        with open(full) as f:
+            text = f.read()
     except (OSError, UnicodeDecodeError):
         block("query-file", shown)
+    if name == "--input":  # the JSON body gh sends; the server reads its decoded `query`
+        try:
+            text = json.loads(text)["query"]
+        except (ValueError, KeyError, TypeError):
+            block("query-file", shown)
+        if not isinstance(text, str):
+            block("query-file", shown)
+    return text
 
 
 def gh_api_request(args, shown):
@@ -651,6 +694,15 @@ def is_gh_api_read(args):
     return method == "GET" and bool(path) and not re.search(r"(^|/)graphql/?$", path)
 
 
+def is_read_chain(steps):
+    """Every step is a `gh api` GET on a REST path or a READ_FILTERS program: the one chain that mentions a
+    write route and still runs without the simple-command rule. Any other step, or an unparsed chain, is not."""
+    return bool(steps) and all(
+        (program == "gh" and is_gh_api_read(argv[1:]))
+        or (program in READ_FILTERS and not any(arg.startswith(DATA_PROGRAM_RUNNERS) for arg in argv[1:]))
+        for program, argv, _ in steps)
+
+
 def check_gh(args, shown, cwd):
     words = gh_words(args)
     names = [word for _, word in words]
@@ -693,8 +745,7 @@ def check(command, cwd, unchecked=None):
     if unchecked:
         raise Blocked(f"this terminal call mentions, or could spell, a git write or PR merge, and {unchecked}. "
                       "Run the git command on the local backend with an absolute `workdir`.")
-    steps = git_steps(command, cwd)
-    if steps and all(program == "gh" and is_gh_api_read(argv[1:]) for program, argv, _ in steps):
+    if is_read_chain(shell_steps(command, cwd)):
         return  # reads of write routes (rulesets, protection, ...) may be piped or chained
     argv, cwd = simple_command(command, cwd)
     program = os.path.basename(argv[0])
