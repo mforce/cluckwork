@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #733; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #732: `rename-account`, a one-shot verb that changes a farm code
 
 **Historical implementation handout; PR #733 review-round fixes supersede named code blocks and mutation rows. Do not execute it against the current tree.**

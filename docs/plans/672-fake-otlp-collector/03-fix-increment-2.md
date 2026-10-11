@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #677; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix runbook 2 — #672 review round 2
 
 Same rules as `01-implementer-runbook.md`. Branch `fix/672-fake-otlp-collector` is checked out at

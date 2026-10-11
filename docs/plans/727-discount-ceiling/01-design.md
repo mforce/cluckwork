@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #766; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #727 — Per-farm discount ceiling, with Owner/Manager approval above it
 
 Epic #719, slice 6. Cut from `origin/main` at `e6b37d0`, after #720 (`cffed5e`),

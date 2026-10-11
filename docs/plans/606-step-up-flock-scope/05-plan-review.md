@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #609; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Implementation-plan review disposition — #606
 
 Reviewed on 2026-08-26 against `04-implementation-plan.md`, the approved threat

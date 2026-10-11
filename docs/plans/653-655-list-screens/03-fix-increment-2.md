@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #668, with a #653 follow-up in #678; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 2 — a red CI check, a real filter bug, and a guard that proves less than it claims
 
 Three sources: CI, CodeRabbit on head `3e58fc6b`, and the driver. **All verified before dispatch.**

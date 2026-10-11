@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #661; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 3 — a keyframe is not a surface
 
 Review round 3, CodeRabbit on head `1ac69b3b`. **Driver-reproduced before dispatch.**

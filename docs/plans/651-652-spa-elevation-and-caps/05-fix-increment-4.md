@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #661; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 4 — two badge strings that relied on CSS to capitalise them
 
 **The first genuine PRODUCT defect of this slice.** Every earlier round found defects in the guards or

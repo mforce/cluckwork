@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #668, with a #653 follow-up in #678; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — list-screen layout and empty states (#653, #655)
 
 You are an autonomous coding agent with full tools in a git worktree of the Cluckwork repo

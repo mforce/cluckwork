@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #704, #705, #706, #707, #710, #711 and #714; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Handoff — #703: shared dialog-session guard for the SPA
 
 Follow-up to #477 / PR #702. Read this before planning; it corrects two things

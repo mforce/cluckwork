@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #668, with a #653 follow-up in #678; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 1 — the two empty-state variants say the same sentence
 
 Driver review of the #655 dispatch.
