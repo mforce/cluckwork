@@ -26,6 +26,7 @@ HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plu
 #   solo      repo on feat/x whose only remote, `backup`, has push = HEAD:refs/heads/main
 #   shared    a main worktree on feat/s with a linked worktree beside it: the shared checkout (#1205)
 #   linked    that linked worktree, on feat/l
+#   spaced    a linked worktree of another shared checkout whose path has a space, `p with space`
 #   tagged    repo on main that also has a tag named main
 #   feature also has remotes `matchall` (push = :), `mirror2` (mirror = 2), `nomirror` (mirror = false)
 CASES = [
@@ -230,6 +231,22 @@ CASES += [
     ("git pull --depth 1", "linked", "block"),
     ("git fetch --unshallow", "linked", "block"),
     ("git checkout -b feat/new", "feature", "allow"),  # a lone clone has no linked worktrees: not shared
+    # Every git step meets the allow-list in the shared checkout, not only verbs the text check knows (round 1).
+    ("git sparse-checkout set src", "shared", "block"),
+    ("git sparse-checkout disable", "shared", "block"),
+    ("git update-index --skip-worktree AGENTS.md", "shared", "block"),
+    ("git read-tree -mu HEAD", "shared", "block"),
+    ("git symbolic-ref HEAD refs/heads/feat/new", "shared", "block"),
+    ("git -C '../p with space' checkout -b feat/new", "spaced", "block"),
+    ("git -c user.name=\"A B\" checkout -b feat/new", "shared", "block"),
+    ("git status && git sparse-checkout set src", "shared", "block"),
+    ("(git status)", "shared", "block"),
+    ("git status && git log --oneline -3", "shared", "allow"),
+    ("git log --oneline | head -5", "shared", "allow"),
+    ("echo git && git status", "shared", "allow"),
+    ("git --version", "shared", "allow"),
+    ("git sparse-checkout set src", "linked", "allow"),
+    ("(git status)", "linked", "allow"),
 ]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
@@ -284,7 +301,8 @@ class GitGuardTest(unittest.TestCase):
         cls.dirs = {"main": main, "feature": os.path.join(main, "feature"),
                     "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root,
                     "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged"),
-                    "shared": os.path.join(root, "shared"), "linked": os.path.join(root, "linked")}
+                    "shared": os.path.join(root, "shared"), "linked": os.path.join(root, "linked"),
+                    "spaced": os.path.join(root, "spaced")}
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
@@ -310,6 +328,10 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
         git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
+        spaced_main = os.path.join(root, "p with space")
+        git("init", "-q", "-b", "feat/p", spaced_main)
+        git("-C", spaced_main, "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
+        git("-C", spaced_main, "worktree", "add", "-q", "-b", "feat/sp", cls.dirs["spaced"])
         git("init", "-q", "-b", "feat/m", cls.dirs["matching"])
         git("-C", cls.dirs["matching"], "config", "push.default", "matching")
         git("init", "-q", "--bare", "-b", "main", remote)

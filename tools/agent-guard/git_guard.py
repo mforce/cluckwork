@@ -59,10 +59,12 @@ SHALLOW = re.compile(r"--(?:depth|shallow-since|shallow-exclude|deepen|unshallow
 SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
                         "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
                         "shortlog", "show", "status", "version", "worktree"}
+GIT_WORD = re.compile(r"\bgit\b")
 EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
-GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects"}
+GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
+                    "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path"}
 GIT_GLOBAL_VALUES = {"-C", "-c", "--git-dir", "--work-tree"}
 PUSH_LONG_OPTIONS = [
     "all", "atomic", "branches", "delete", "dry-run", "exec", "follow-tags", "force", "force-if-includes",
@@ -99,6 +101,8 @@ MESSAGES = {
     "shared": "this is the shared checkout, the main worktree other agents' worktrees hang off; git commands that "
               "change its HEAD, index, files or refs are refused here. Run it in your own worktree: "
               "`cd <your worktree> && git ...`.",
+    "shared-shape": "this is the shared checkout; a git command here must be one simple command, or simple steps "
+                    "joined by &&, ||, ; or |, so each git step can be checked. Split it, or run it in your own worktree.",
     "stash": "every worktree shares one .git, so the stash list is shared with other agents. Commit "
              "work in progress on your own branch instead.",
     "shallow": "every worktree shares one .git, so a shallow fetch makes every worktree shallow. Fetch "
@@ -116,8 +120,8 @@ def block(rule, shown):
     raise Blocked(f"`{shown}` is blocked: {MESSAGES[rule]}")
 
 
-def has_simple_shape(command):
-    """True when the only unquoted shell operator is `&&`."""
+def has_simple_shape(command, operators=""):
+    """True when the only unquoted shell operators are `&&` and any of `operators` (`;`, `|`)."""
     quote = None
     i = 0
     while i < len(command):
@@ -135,7 +139,7 @@ def has_simple_shape(command):
             quote = None if c == '"' else quote
         elif c in "'\"":
             quote = c
-        elif c in "\n;|(){}<>*?[" or (c == "#" and (i == 0 or command[i - 1] in " \t")):
+        elif (c in "\n;|(){}<>*?[" and c not in operators) or (c == "#" and (i == 0 or command[i - 1] in " \t")):
             return False
         i += 1
     return True  # an unclosed quote fails in shlex below
@@ -163,6 +167,43 @@ def simple_command(command, cwd):
     if any(set(token) <= {"&"} for token in argv):
         block("simple", command)
     return argv, cwd
+
+
+def git_steps(command, cwd):
+    """[(argv, cwd)] of the git steps in simple steps joined by &&, ||, ; or |, the first optionally `cd <dir>`;
+    None for any other shape, or when git runs under another program."""
+    command = ALLOWED_SUFFIX.sub("", command)
+    if not has_simple_shape(command, operators=";|"):
+        return None
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+    lex.whitespace_split = True
+    lex.commenters = ""
+    steps = [[]]
+    for token in lex:
+        if token in ("&&", "||", ";", "|"):
+            steps.append([])
+        elif set(token) <= set(";&|"):
+            return None
+        else:
+            steps[-1].append(token)
+    found = []
+    for n, argv in enumerate(steps):
+        if not argv or (argv[0] == "cd" and (n or len(argv) != 2)):
+            return None
+        if argv[0] == "cd":
+            cwd = cd_dir(cwd, argv[1], command)
+        elif os.path.basename(argv[0]) == "git":
+            found.append((argv, cwd))
+        elif os.path.basename(argv[0]) not in INERT_PROGRAMS and any(GIT_WORD.search(token) for token in argv):
+            return None
+    return found
+
+
+def in_shared_checkout(cwd):
+    try:
+        return cwd is not None and Repo(cwd, [], cwd).is_shared_checkout()
+    except Blocked:  # not a repository
+        return False
 
 
 def cd_dir(base, operand, shown):
@@ -388,17 +429,30 @@ def check_gh(args, shown):
         check_gh_api(args[words[0][0] + 1 :], shown)
 
 
+def plain_text(command):
+    """The command with quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be."""
+    return urllib.parse.unquote(re.sub(r"[\"'\\]", "", command.replace("\\\n", "")))
+
+
 def mentions_write(command):
-    """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be.
-    An expansion beside git, gh or a write verb counts too, since it can spell the rest (`/usr/bin/gi? push`)."""
-    plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command.replace("\\\n", "")))
+    """Text check before parsing. An expansion beside git, gh or a write verb counts too, since it can spell
+    the rest (`/usr/bin/gi? push`)."""
+    plain = plain_text(command)
     return (MENTIONS_WRITE.search(plain) or CHANGES_CHECKOUT.search(plain)
-            or (SHALLOW.search(plain) and re.search(r"\bgit\b", plain))
+            or (SHALLOW.search(plain) and GIT_WORD.search(plain))
             or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain)))
 
 
 def check(command, cwd, unchecked=None):
     if not mentions_write(command):
+        # No write in the text, but in the shared checkout every git step still meets the allow-list.
+        if unchecked or not GIT_WORD.search(plain_text(command)):
+            return
+        steps = git_steps(command, cwd)
+        if steps is None and in_shared_checkout(cwd):
+            block("shared-shape", command)
+        for argv, step_cwd in steps or []:
+            check_git(argv[1:], step_cwd, " ".join(argv))
         return
     if unchecked:
         raise Blocked(f"this terminal call mentions, or could spell, a git write or PR merge, and {unchecked}. "
