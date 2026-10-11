@@ -171,9 +171,16 @@ This is enforced by a [guard test](./src/i18n/formattingIndependence.test.ts) �
 To ship a new UI language:
 
 1. **Create the pack** — `src/i18n/<code>.ts`, mirroring [`en.ts`](./src/i18n/en.ts)'s structure and keys **exactly**: same namespaces, same keys, in the same order is nice-to-have but not required. Keep every `{{placeholder}}` and every `<Trans>` tag structure (e.g. `<strong>`) **verbatim** — only the translated text changes. Export the catalog under the language code (e.g. `export const fr = { … } as const;`).
-2. **Register it** in [`src/i18n/index.ts`](./src/i18n/index.ts): import the pack, add it to the exported `RESOURCES` object (`export const RESOURCES = { en, es, tl, <code> };`), and add its code to `SUPPORTED_LANGUAGES`. `RESOURCES` is the single source both `i18n.init` and `catalogParity.test.ts` read from, so this one edit wires up and parity-checks the new pack.
-3. **Name it** — add its display name, written in its own script (not translated), to `LANGUAGE_NAMES` in [`src/session/LanguageSelector.tsx`](./src/session/LanguageSelector.tsx).
-4. **Mark provenance** — if the pack wasn't reviewed by a native speaker, say so in a header comment, following the convention at the top of [`es.ts`](./src/i18n/es.ts) / [`tl.ts`](./src/i18n/tl.ts) (`MACHINE-DRAFTED translation, PENDING NATIVE-SPEAKER REVIEW`).
+2. **Register it** in [`src/i18n/index.ts`](./src/i18n/index.ts): add its code to `SUPPORTED_LANGUAGES` and a loader to `LAZY_PACKS` (`<code>: () => import("./<code>").then((module) => module.<code>)`). The `satisfies` clause on `LAZY_PACKS` fails the build if a supported language has no loader. **Never import a pack statically.** Only English ships in the bundle, as every pack's fallback; each other pack is its own chunk that a device downloads the first time it uses that language (#1149). `catalogParity.test.ts` loads every pack through `loadPack` (via [`src/test/allPacks.ts`](./src/test/allPacks.ts)), so the new pack is parity-checked with no further edit.
+3. **Wire it into the service worker.** The pack's chunk stays out of the precache and is cached at runtime instead. Add the code in four places, then run `npm run build && npm run verify:sw`:
+   - `globIgnores` in [`vite.config.ts`](./vite.config.ts) (`"**/assets/{es,tl,<code>}-*.js"`).
+   - The regex inside `matchesLanguagePack` in [`scripts/runtime-cache-match.mjs`](./scripts/runtime-cache-match.mjs). Keep it a literal: Workbox copies the function's source into `sw.js`, so it cannot read a constant.
+   - The `["es", "tl"]` chunk list and the matcher-regex check in [`scripts/verify-sw.mjs`](./scripts/verify-sw.mjs).
+   - The fixtures in [`scripts/verify-sw.test.mjs`](./scripts/verify-sw.test.mjs).
+
+   `verify-sw` fails if a pack is precached, imported statically, or not covered by the `language-packs` route.
+4. **Name it** — add its display name, written in its own script (not translated), to `LANGUAGE_NAMES` in [`src/session/LanguageSelector.tsx`](./src/session/LanguageSelector.tsx).
+5. **Mark provenance** — if the pack wasn't reviewed by a native speaker, say so in a header comment, following the convention at the top of [`es.ts`](./src/i18n/es.ts) / [`tl.ts`](./src/i18n/tl.ts) (`MACHINE-DRAFTED translation, PENDING NATIVE-SPEAKER REVIEW`).
 
 **Parity is enforced, not just conventional.** [`src/i18n/catalogParity.test.ts`](./src/i18n/catalogParity.test.ts) fails the build if a pack is missing any of `en`'s keys, carries extra ones, or has an empty value anywhere. This matters because a missing key doesn't error at runtime — with `fallbackLng: "en"` it silently renders the English string instead, which is easy to miss in review without the test catching it.
 

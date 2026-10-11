@@ -165,6 +165,11 @@ export const tl = {
     preferences: "Mga Kagustuhan",
     language: "Wika",
     languageHint: "Ang wikang gagamitin sa interface, para lang sa iyo.",
+    languageNeedsConnection: "Wala pa ang {{language}} sa device na ito. Kumonekta sa internet nang isang beses para lumipat dito.",
+    languageSavedReload: "Naka-save na ang {{language}} para sa iyo, pero hindi ito na-load ng page na ito. Piliin ang I-reload para lumipat dito.",
+    languageReload: "I-reload",
+    languageSaveFailed: "Hindi ma-save ang {{language}}. Tingnan ang iyong koneksyon, saka piliin ang Subukan Ulit.",
+    languageTryAgain: "Subukan Ulit",
     stepperUnit: "Yunit ng pagbilang sa Daily Entry",
     stepperUnitHint:
       "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry, para lang sa iyo — "
@@ -3234,7 +3239,8 @@ export const tl = {
       + "iba mong device — magagawa ito ng bawat role para sa sarili nila.",
     accountLanguage:
       "Ang <strong>Wika</strong> ay nagpapalit ng interface para lang sa iyo, agad-agad, sa bawat device "
-      + "na pinag-sign in mo.",
+      + "na pinag-sign in mo. Sa unang pagpalit mo sa isang wika sa isang device, kailangan mo ng koneksyon "
+      + "sa internet. Pagkatapos nito, gagana na rin ito offline.",
     accountCountingUnit:
       "<strong>Yunit ng pagbilang sa Daily Entry</strong> — kung magkano ang bilang ng IYONG mga tap ng "
       + "+/−, na nag-o-override sa default ng bukid mula sa Settings. Pumili ng pack unit tulad ng Tray "
@@ -3772,7 +3778,8 @@ export const tl = {
     glossaryUiLanguageDef:
       "Ang wikang ipinapakita sa interface, kada user — English, Español, o Tagalog — pinipili mula sa "
       + "Account → Preferences. Ang English ang fallback para sa anumang screen na hindi pa naisasalin, "
-      + "kahit anong wika ang pinili mo.",
+      + "kahit anong wika ang pinili mo. Dina-download ng device ang isang wika sa unang pagpalit dito, "
+      + "kaya kailangan ng koneksyon sa unang pagpalit na iyon.",
 
     // #356 — appended last so it doesn't reshuffle the rows above.
     // (machine-drafted, pending native review)

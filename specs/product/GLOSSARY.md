@@ -1603,6 +1603,10 @@ from Account → Preferences. English is the fallback for any string a pack
 hasn't translated yet: the string sweep (#182) is ongoing, so screens not yet
 externalized to the catalog still render in English regardless of the chosen
 language. Set via `PUT /api/v1/me/language`; read via `GET /api/v1/me`.
+Only English ships with the app; a device downloads another pack the first
+time it switches to it, then keeps it for offline use (#1149). Switching to a
+pack the device has never loaded needs a connection; offline, the interface
+stays in its current language and says so.
 Independent of **farm locale**, which controls number/date/currency
 formatting.
 

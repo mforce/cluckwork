@@ -1,13 +1,12 @@
 import i18n from "i18next";
+import type { BackendModule } from "i18next";
 import { initReactI18next } from "react-i18next";
 import { en } from "./en";
-import { es } from "./es";
-import { tl } from "./tl";
 import { pickInitialLanguage, readLanguageHint, writeLanguageHint } from "../lib/languageHint";
 
 // English-first parity allowlist (#182) — see translations-status.ts for the
 // full rationale. Re-exported here so both the parity test and future code can
-// import it from the same place as SUPPORTED_LANGUAGES/RESOURCES.
+// import it from the same place as SUPPORTED_LANGUAGES and loadPack.
 export { TRANSLATED_NAMESPACES } from "./translations-status";
 export type { TranslatedNamespace } from "./translations-status";
 
@@ -19,10 +18,54 @@ export const SUPPORTED_LANGUAGES = ["en", "es", "tl"] as const;
 export type Language = (typeof SUPPORTED_LANGUAGES)[number];
 export const DEFAULT_LANGUAGE: Language = "en";
 
-// Single source of truth for the installed packs. i18n.init reads it directly,
-// and catalogParity.test.ts iterates its non-en entries — so a new pack added
-// here is both wired up AND parity-checked without touching either site again.
-export const RESOURCES = { en, es, tl };
+// #1149 — only English ships in the bundle, because it is every other pack's
+// fallback. Each other pack is its own chunk, kept out of the service worker's
+// precache and cached at runtime on first use (vite.config.ts), so a device
+// precaches one language instead of all three. catalogParity.test.ts loads
+// every SUPPORTED_LANGUAGES pack through loadPack, so a new language without a
+// loader fails there.
+type Catalog = Record<string, Record<string, string>>;
+
+export const LAZY_PACKS = {
+  es: () => import("./es").then((module) => module.es),
+  tl: () => import("./tl").then((module) => module.tl),
+} satisfies Record<Exclude<Language, "en">, () => Promise<Catalog>>;
+
+export function loadPack(language: Language): Promise<Catalog> {
+  return language === "en" ? Promise.resolve(en) : LAZY_PACKS[language]();
+}
+
+// A stalled request would otherwise hold the first render forever (main.tsx
+// waits on i18nReady); past this deadline the load counts as failed and the app
+// starts in English. 10 s covers the ~55 KiB gzipped pack on a slow 3G link.
+export const PACK_TIMEOUT_MS = 10_000;
+
+// i18next calls `read` once per namespace, ten at a time, so the deadline
+// belongs to the language: one bounded load that every namespace shares. A
+// failed load stays failed in this document anyway (see LanguageSelector).
+// `false` as the second argument tells i18next not to retry: a failed chunk
+// import means offline, and LanguageSelector reports that at once instead of
+// after i18next's backoff.
+const boundedLoads = new Map<string, Promise<Catalog>>();
+
+const lazyPackBackend: BackendModule = {
+  type: "backend",
+  init() {},
+  read(language, namespace, callback) {
+    if (!(language in LAZY_PACKS)) return callback(null, {});
+    let load = boundedLoads.get(language);
+    if (!load) {
+      const deadline = new Promise<never>((_, reject) =>
+        setTimeout(reject, PACK_TIMEOUT_MS, new Error(`The ${language} catalog timed out`)));
+      load = Promise.race([loadPack(language as Language), deadline]);
+      boundedLoads.set(language, load);
+    }
+    load.then(
+      (pack) => callback(null, pack[namespace] ?? {}),
+      (error) => callback(error, false),
+    );
+  },
+};
 
 // Register the <html lang> + hint-persistence listener BEFORE init(), so it
 // catches init()'s OWN first `languageChanged`. With in-memory resources i18next
@@ -32,11 +75,14 @@ export const RESOURCES = { en, es, tl };
 // the bootstrap's resolved-language switch and every later LanguageSelector change,
 // with no risk of a call site forgetting to set it.
 i18n.on("languageChanged", (lng) => {
-  document.documentElement.lang = lng;
+  // #1149 — the language the text is actually in: a pack that failed to load
+  // leaves English on screen under the requested language.
+  document.documentElement.lang = i18n.resolvedLanguage ?? lng;
   // Persist the device hint on EVERY switch — init's seed, the bootstrap's
   // resolved-language self-heal, and every LanguageSelector change — so the next
   // load (the login screen OR a signed-in refresh) opens in this language instead
-  // of flashing back to English.
+  // of flashing back to English. It keeps the REQUESTED language, so a pack that
+  // failed to load is tried again on the next load.
   writeLanguageHint(lng);
 });
 
@@ -44,12 +90,13 @@ i18n.on("languageChanged", (lng) => {
 // last used on this device — see lib/languageHint.ts) so a refresh or the pre-auth
 // login screen (which has no `/me` to resolve from) isn't forced back to English.
 // pickInitialLanguage validates against the installed packs — a stale/removed/
-// garbage code degrades to English rather than erroring. i18next.init is synchronous
-// with in-memory resources, so React's first paint already renders in this language
-// — no flash, no pre-paint script. The authenticated bootstrap (SessionProvider)
-// later calls changeLanguage with the language resolved from /me + /account, which
-// OVERRIDES the hint for signed-in users (no flash — the shell is gated until that
-// switch completes) and self-heals the hint to the authoritative value. fallbackLng
+// garbage code degrades to English rather than erroring. English initialises
+// synchronously; another hinted language loads its chunk first, and main.tsx waits
+// on i18nReady, so React's first paint already renders in this language. The
+// authenticated bootstrap (SessionProvider) later calls changeLanguage with the
+// language resolved from /me + /account, which OVERRIDES the hint for signed-in
+// users (no flash — the shell is gated until that switch completes) and self-heals
+// the hint to the authoritative value. fallbackLng
 // "en" + returnNull:false → a missing key renders its English string (from this same
 // catalog), never blank or a raw key. escapeValue:false because React already escapes
 // interpolated values.
@@ -59,8 +106,12 @@ const initialLanguage = pickInitialLanguage(
   DEFAULT_LANGUAGE,
 ) as Language;
 
-void i18n.use(initReactI18next).init({
-  resources: RESOURCES,
+// Resolves once the initial language is loaded, or has failed to load and
+// falls back to English. main.tsx renders after it, so the login screen opens
+// in the hinted language with no English flash.
+export const i18nReady = i18n.use(lazyPackBackend).use(initReactI18next).init({
+  resources: { en },
+  partialBundledLanguages: true,
   lng: initialLanguage,
   fallbackLng: DEFAULT_LANGUAGE,
   defaultNS: "common",

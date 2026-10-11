@@ -7,7 +7,7 @@ namespace Cluckwork.Application.Tests.Common;
 
 // #258 root-cause fix (symptom fixed by #247): the SPA's audit-log action
 // filter and entity-type labels are driven by two hand-maintained lists in
-// web/src/i18n/enums.ts (AUDIT_ACTION_VALUES, ENTITY_TYPE_VALUES). Nothing
+// web/src/i18n/enums-audit.ts (AUDIT_ACTION_VALUES, ENTITY_TYPE_VALUES). Nothing
 // previously kept them in sync with what the server actually emits — a new
 // audit.WriteAsync(...) call site silently fell out of the admin filter
 // and/or rendered its entityType as a raw code instead of a translated label.
@@ -67,7 +67,7 @@ public sealed class AuditVocabularyCoverageTests
         var clientActions = ParseTsStringArray("AUDIT_ACTION_VALUES");
 
         AssertSetsMatch(
-            "AuditActions vs web/src/i18n/enums.ts AUDIT_ACTION_VALUES", serverActions, clientActions);
+            "AuditActions vs web/src/i18n/enums-audit.ts AUDIT_ACTION_VALUES", serverActions, clientActions);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class AuditVocabularyCoverageTests
         var clientEntityTypes = ParseTsStringArray("ENTITY_TYPE_VALUES");
 
         AssertSetsMatch(
-            "observed audit.WriteAsync entityType arguments vs web/src/i18n/enums.ts ENTITY_TYPE_VALUES",
+            "observed audit.WriteAsync entityType arguments vs web/src/i18n/enums-audit.ts ENTITY_TYPE_VALUES",
             serverEntityTypes, clientEntityTypes);
     }
 
@@ -490,13 +490,13 @@ public sealed class AuditVocabularyCoverageTests
             "nameof(Type) nor a bare quoted literal; teach ResolveEntityType this shape.");
     }
 
-    // web/src/i18n/enums.ts's `export const NAME = [...] as const;` array —
+    // web/src/i18n/enums-audit.ts's `export const NAME = [...] as const;` array —
     // parsed as text (this is a C# test with no TypeScript runtime available),
     // not derived from the compiled type NAME's own literal union, which is
     // exactly the vocabulary this test exists to check.
     private static HashSet<string> ParseTsStringArray(string constantName)
     {
-        var enumsPath = Path.Combine(RepositoryRoot, "web", "src", "i18n", "enums.ts");
+        var enumsPath = Path.Combine(RepositoryRoot, "web", "src", "i18n", "enums-audit.ts");
         // Comment-stripped for the same reason as the C# side: removing a value
         // by commenting out its line (`// "Foo.Bar",`) is a natural edit, and
         // StripComments's "//"/"/* */" handling is language-agnostic — it only

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { relativeTime } from "./relativeTime";
-import i18n, { RESOURCES } from "../i18n";
+import i18n from "../i18n";
+import { ALL_PACKS } from "../test/allPacks";
 
 afterEach(async () => {
   await i18n.changeLanguage("en");
@@ -69,7 +70,7 @@ describe("relativeTime", () => {
   });
 
   it("translates the phrase in every installed language pack", async () => {
-    for (const language of Object.keys(RESOURCES)) {
+    for (const language of Object.keys(ALL_PACKS)) {
       await i18n.changeLanguage(language);
       const phrase = relativeTime("2026-03-14T01:00:00Z", "UTC", NOW);
       expect(phrase.length).toBeGreaterThan(0);

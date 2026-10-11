@@ -159,6 +159,11 @@ export const es = {
     preferences: "Preferencias",
     language: "Idioma",
     languageHint: "El idioma en que se muestra la interfaz, solo para usted.",
+    languageNeedsConnection: "{{language}} todavía no está en este dispositivo. Conéctese a internet una vez para cambiar a este idioma.",
+    languageSavedReload: "{{language}} quedó guardado para usted, pero esta página no pudo cargarlo. Seleccione Recargar para cambiar a este idioma.",
+    languageReload: "Recargar",
+    languageSaveFailed: "No se pudo guardar {{language}}. Revise su conexión y seleccione Reintentar.",
+    languageTryAgain: "Reintentar",
     stepperUnit: "Unidad de conteo de la entrada diaria",
     stepperUnitHint:
       "Cuánto cuentan los botones +/− de la entrada diaria, solo para usted — elija una "
@@ -3112,7 +3117,8 @@ export const es = {
       + "— todos los roles pueden hacerlo por sí mismos.",
     accountLanguage:
       "<strong>Idioma</strong> cambia la interfaz solo para usted, de inmediato, en cada dispositivo donde "
-      + "inicie sesión.",
+      + "inicie sesión. La primera vez que cambia a un idioma en un dispositivo, necesita conexión a "
+      + "internet. Después, también funciona sin conexión.",
     accountCountingUnit:
       "<strong>Unidad de conteo de la entrada diaria</strong> — cuánto cuentan SUS toques de +/−, "
       + "anulando el valor predeterminado de la granja en Configuración. Elija una unidad de empaque como "
@@ -3635,7 +3641,8 @@ export const es = {
     glossaryUiLanguageDef:
       "El idioma por usuario en que se muestra la interfaz — inglés, español o tagalo — elegido desde "
       + "Cuenta → Preferencias. El inglés es el idioma de reserva para cualquier pantalla aún no "
-      + "traducida, sea cual sea el idioma que eligió.",
+      + "traducida, sea cual sea el idioma que eligió. Un dispositivo descarga un idioma la primera vez "
+      + "que cambia a él, así que ese primer cambio necesita conexión.",
 
     // #356 — appended last so it doesn't reshuffle the rows above.
     // (machine-drafted, pending native review)
