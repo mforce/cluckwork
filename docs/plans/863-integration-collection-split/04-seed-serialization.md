@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #1000, #1002 and #1003; the collection split was measured and reverted in #1004; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #863: serializing the five full-seed classes against each other
 
 **Base:** `0d97a4d1` (`origin/main`, including the demo seed profile in `03-demo-seed-profile.md`). **Date:** 2026-09-30. All runs used the Release integration project, real Postgres through Testcontainers, `tools/test-timing/measure.py`, and the same 12-core host as the prior two documents in this series.

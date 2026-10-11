@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #609; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Design review disposition — #606
 
 Reviewed on 2026-08-26 against draft `01-threat-model.md` and shipped SHA

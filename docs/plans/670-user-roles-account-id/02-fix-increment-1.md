@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #675; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #670 fix increment 1: pin the tracked shape on AspNetUserRoles, and one stale tsv header line
 
 You are the same implementer, in the same worktree (`/home/mforce/.herdr/worktrees/cluckwork/fix-670-user-roles-account-id`, branch `fix/670-user-roles-account-id`, PR #675 open at `4d4f73dec478bdf1b95b97a00e3987fca22f71e0`). Same rules as `docs/plans/670-user-roles-account-id/01-implementer-runbook.md` — this file is committed beside it as `02-fix-increment-1.md`. Execute top to bottom: edit, build, test, the two mutation rows, commit, push. Do NOT open a new PR; the push updates #675.

@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #742; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #722 — implementation plan
 
 Companion to `01-design.md` (signed off 2026-09-10, sha256 `ed99f1ada709c97d…`).

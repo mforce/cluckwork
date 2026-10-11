@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #665; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Fix increment 2 — review findings on head `a1966740`
 
 CodeRabbit raised four. **Three are real; one is stale and the driver is refuting it on the thread —

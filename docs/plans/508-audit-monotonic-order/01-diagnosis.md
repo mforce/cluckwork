@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #700; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #508 — diagnosis: same-instant audit events order by a random Guid
 
 **Mode:** bugfix. **Front half:** `bugfix-diagnosis`. **Base commit:** `7f8f31725608e42ac236a52b3bbbcf4cb9b187fc` (`main`).

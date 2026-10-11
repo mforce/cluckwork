@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #661; issues closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # Runbook — #651 + #652: elevation hierarchy, and the end of tracked all-caps
 
 You are an autonomous coding agent with FULL tools (read, edit, write, bash) in the

@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in slices #795 to #800, #1146, #1148 and #1164; issue closed; #793 (SPA login on OpenIddict) deferred. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # How it works (#788)
 
 ## The flow, from a user's side

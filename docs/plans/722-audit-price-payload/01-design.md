@@ -1,3 +1,4 @@
+> Planning record, not current documentation. Status: Shipped in #742; issue closed. Where this disagrees with the code, the code is right. See [docs/plans/README.md](../README.md).
 # #722 — Price change in the sales-line audit payload · design
 
 **Slice:** #722, epic #719 (discount visibility). **Mode:** feature.
