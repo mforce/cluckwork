@@ -86,9 +86,10 @@ address in the shared counter: 300 a minute, checked before authentication. A pr
 answered 401 spends one; a valid call, a per-token 429 and a tokenless discovery probe spend
 nothing. Once an address has spent its budget, its valid tokens are refused too until the
 minute rolls over, because nothing can tell them apart before authentication. Refusals
-reach that budget only when they finish, so the same endpoints also cap bearer requests in
-flight per address at 32, per process: in-flight work is each instance's own (#271 records
-the classification). A 429 on
+reach that budget only when they finish, so the same endpoints also cap bearer
+authentications in flight per address at 32, per process: in-flight work is each instance's
+own (#271 records the classification). A request gives its permit back once the credential
+gates have decided, so a valid call's body and tool work hold none. A 429 on
 `oauth-api` is a JSON-RPC error with a null id, because the limiter runs before the body is read.
 
 **A foreign `Origin` gets 403.** Both MCP revisions require Origin validation against DNS

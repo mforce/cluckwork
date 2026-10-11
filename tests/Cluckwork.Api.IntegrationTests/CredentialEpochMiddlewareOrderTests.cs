@@ -27,6 +27,9 @@ public sealed class CredentialEpochMiddlewareOrderTests
             "app.UseMiddleware<TenantResolutionMiddleware>();",
             "app.UseMiddleware<FlockScopeResolutionMiddleware>();",
             "app.UseMiddleware<CredentialEpochMiddleware>();",
+            // Gives back the oauth-api authentication permit taken before
+            // UseAuthentication, once every credential gate above has decided.
+            "app.UseOAuthApiInFlightRelease();",
             "app.UseMiddleware<MustChangePasswordMiddleware>();",
             "app.UseAuthorization();",
             "app.UseMiddleware<IdempotencyMiddleware>();",

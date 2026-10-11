@@ -343,6 +343,9 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 // CredentialEpochMiddlewareOrderTests.
 app.UseMiddleware<FlockScopeResolutionMiddleware>();
 app.UseMiddleware<CredentialEpochMiddleware>();
+// The credential gates have decided, so an oauth-api request gives back its
+// authentication permit before its body and tool work (UseOAuthApiAddressLimits).
+app.UseOAuthApiInFlightRelease();
 // #283 — the first-run "you must set a new password" gate. BEFORE
 // UseAuthorization (deliberately) so it applies uniformly regardless of which
 // AuthPolicies tier an endpoint carries, and before idempotency so a blocked

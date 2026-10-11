@@ -48,8 +48,9 @@ public sealed class RateLimitingOptions
     public const int OAuthApiFailuresPerAddress = 300;
     public static readonly TimeSpan OAuthApiFailuresWindow = TimeSpan.FromMinutes(1);
     // Refusals reach that budget only when they finish, so concurrent lookups would all be
-    // admitted. Bearer requests in flight per address are capped too, per process. 32 is far
-    // above one assistant's concurrent calls and caps what a burst can start at once.
+    // admitted. Bearer authentications in flight per address are capped too, per process. A
+    // request holds its permit only until the credential gates decide, so 32 bounds lookups
+    // running at once, not the tool calls behind one egress address.
     public const string OAuthApiInFlightPolicyName = "oauth-api-in-flight";
     public const int OAuthApiBearersInFlightPerAddress = 32;
     public FixedWindow OAuthRegister { get; init; } = new() { PermitLimit = 10, WindowSeconds = 3600 };

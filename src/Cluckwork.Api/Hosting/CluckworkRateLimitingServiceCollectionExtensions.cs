@@ -183,8 +183,9 @@ internal static class OAuthApiAddressLimits
     // - the failure budget, shared across replicas: only a presented bearer refused with 401
     //   spends it, so a valid call, a scope 403, a per-token 429 and a client's tokenless
     //   discovery probe spend nothing;
-    // - bearer requests in flight, which bounds the authentications admitted before their
-    //   refusals reach the failure budget.
+    // - bearer authentications in flight, which bounds the lookups admitted before their
+    //   refusals reach the failure budget. UseOAuthApiInFlightRelease gives the permit back once
+    //   the credential gates have decided, so a valid call's body and tool work hold none.
     public static void UseOAuthApiAddressLimits(this IApplicationBuilder app)
     {
         var budget = new FailedAuthenticationBudget(
@@ -222,6 +223,8 @@ internal static class OAuthApiAddressLimits
                 return;
             }
 
+            // Disposed here on every path the release below does not reach: a refusal, an
+            // exception, a cancellation. A lease's Dispose releases its permit once.
             using var lease = inFlight.AttemptAcquire(RateLimitKey.ForClient(context.Connection.RemoteIpAddress));
             if (!lease.IsAcquired)
             {
@@ -229,11 +232,22 @@ internal static class OAuthApiAddressLimits
                 return;
             }
 
+            context.Features.Set(new InFlightAuthentication(lease));
             await next(context);
             if (context.Response.StatusCode == StatusCodes.Status401Unauthorized)
                 await budget.RecordAsync(context);
         });
     }
+
+    // After the credential gates, before authorization, body reading and tool work.
+    public static void UseOAuthApiInFlightRelease(this IApplicationBuilder app) =>
+        app.Use((context, next) =>
+        {
+            context.Features.Get<InFlightAuthentication>()?.Lease.Dispose();
+            return next(context);
+        });
+
+    private sealed record InFlightAuthentication(RateLimitLease Lease);
 
     private static Task RefuseAsync(HttpContext context, string policy, TimeSpan retryAfter)
     {

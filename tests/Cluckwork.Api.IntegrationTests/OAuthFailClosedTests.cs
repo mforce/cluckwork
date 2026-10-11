@@ -368,6 +368,62 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Equal(HttpStatusCode.Unauthorized, afterwards.StatusCode);
     }
 
+    // The permit covers authentication only. Once the credential gates pass, the request gives
+    // it back, so tool work held open on every slot does not refuse the next authentication.
+    [Fact]
+    public async Task AuthenticatedWorkInFlight_DoesNotHoldAuthenticationPermits()
+    {
+        var work = new HeldWork();
+        using var host = FrozenHost(new FakeTimeProvider()).WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(work);
+            services.AddSingleton<IStartupFilter, HeldProbe>();
+        }));
+        var token = await IssueAsync(host, await SeedAsync(Roles.Manager), ReadScope);
+        const int cap = RateLimitingOptions.OAuthApiBearersInFlightPerAddress;
+
+        HttpResponseMessage fresh;
+        var held = Enumerable.Range(0, cap).Select(_ => Client(host, token).GetAsync(HeldProbe.Path)).ToList();
+        try
+        {
+            await UntilAsync(() => Volatile.Read(ref work.Entered) == cap);
+            fresh = await Client(host, token).GetAsync(Probe.Read).WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            work.Gate.TrySetResult();
+        }
+        var finished = await Task.WhenAll(held);
+
+        Assert.Equal(HttpStatusCode.OK, fresh.StatusCode);
+        Assert.All(finished, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
+    }
+
+    private sealed class HeldWork
+    {
+        public TaskCompletionSource Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int Entered;
+    }
+
+    // An authenticated endpoint whose work waits on the gate, standing in for a slow tool call.
+    private sealed class HeldProbe(HeldWork work) : IStartupFilter
+    {
+        public const string Path = "/test/oauth/held";
+
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            next(app);
+            var endpoints = (IEndpointRouteBuilder)app.Properties["__EndpointRouteBuilder"]!;
+            endpoints.MapGet(Path, async () =>
+                {
+                    Interlocked.Increment(ref work.Entered);
+                    await work.Gate.Task;
+                    return Results.Ok();
+                })
+                .AcceptOAuthTokens(ReadScope);
+        };
+    }
+
     private static async Task UntilAsync(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
