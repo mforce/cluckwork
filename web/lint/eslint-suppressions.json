@@ -9,11 +9,6 @@
       "count": 6
     }
   },
-  "src/components/BrandSplash.tsx": {
-    "react-hooks/exhaustive-deps": {
-      "count": 1
-    }
-  },
   "src/components/NamedEntityPicker.tsx": {
     "no-restricted-syntax": {
       "count": 1
@@ -37,9 +32,6 @@
   "src/routes/DailyEntryPage.tsx": {
     "no-restricted-syntax": {
       "count": 5
-    },
-    "react-hooks/exhaustive-deps": {
-      "count": 1
     }
   },
   "src/routes/Dashboard.tsx": {
@@ -73,16 +65,10 @@
   "src/routes/HistoryPage.tsx": {
     "no-restricted-syntax": {
       "count": 1
-    },
-    "react-hooks/exhaustive-deps": {
-      "count": 1
     }
   },
   "src/routes/InventoryPage.tsx": {
     "no-restricted-syntax": {
-      "count": 1
-    },
-    "react-hooks/exhaustive-deps": {
       "count": 1
     }
   },
@@ -101,9 +87,6 @@
   },
   "src/routes/StockPage.tsx": {
     "no-restricted-syntax": {
-      "count": 1
-    },
-    "react-hooks/exhaustive-deps": {
       "count": 1
     }
   },
@@ -124,11 +107,6 @@
   },
   "src/routes/sales/usePayments.tsx": {
     "no-restricted-syntax": {
-      "count": 1
-    }
-  },
-  "src/theme/FarmThemeProvider.tsx": {
-    "react-hooks/exhaustive-deps": {
       "count": 1
     }
   }

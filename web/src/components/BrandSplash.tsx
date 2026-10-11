@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useBannerObjectUrl } from "../farm/useLogoObjectUrl";
 import { farmBindingToken } from "../auth/tokenStore";
@@ -24,7 +24,7 @@ interface BrandSplashProps {
 export function BrandSplash({ farmName, bannerContentHash, onDismiss }: BrandSplashProps) {
   const { t } = useTranslation("splash");
   // Capture the binding before fetch so a farm switch cannot misattribute it.
-  const boundAt = useMemo(() => farmBindingToken(), [bannerContentHash]);
+  const [boundAt] = useState(farmBindingToken);
   const { url, failed } = useBannerObjectUrl(
     bannerContentHash,
     (blob) => void cacheBannerBytes(blob, boundAt),
