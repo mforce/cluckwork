@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { matchesInterExtendedSubsetFont } from "./font-cache-match.mjs";
+import { matchesInterExtendedSubsetFont, matchesLanguagePack } from "./runtime-cache-match.mjs";
 
 const scriptPath = fileURLToPath(new URL("./verify-sw.mjs", import.meta.url));
 
@@ -30,6 +30,13 @@ const DENYLIST = "[/^\\/api(?:[/?]|$)/i,/^\\/health(?:[/?]|$)/i]";
 const RUNTIME_ROUTE_FN =
   'function({url:s,request:e,sameOrigin:l}){return l&&s.pathname.startsWith("/assets/")' +
   '&&s.pathname.endsWith(".woff2")&&"font"===e.destination}';
+// #1149 — copied from an actual `vite build` output, like the route above.
+const LANGUAGE_ROUTE =
+  'registerRoute(function({url:s,request:e,sameOrigin:l}){return l&&"script"===e.destination' +
+  '&&/^\\/assets\\/(?:es|tl)-[\\w-]+\\.js$/.test(s.pathname)},new s.CacheFirst({cacheName:"language-packs",' +
+  'plugins:[new s.ExpirationPlugin({maxEntries:4}),new s.CacheableResponsePlugin({statuses:[200]})]}),"GET");';
+const LANGUAGE_PACKS = ["es-deadbeef.js", "tl-deadbeef.js"];
+
 // #948 round 1's shape, kept only as the negative fixture below: a RegExp is
 // tested against the request's full href, unanchored, so this one also
 // matched `/api/v1/x/inter-greek-opsz-normal-deadbeef.woff2`.
@@ -41,19 +48,23 @@ const RUNTIME_ROUTE_REGEX_ROUND_1 =
 // this suite asserts on — `assetByteSize` stays the only KiB in play.
 const OPSZ_FONTS = ["inter-latin-opsz-normal.woff2", "inter-latin-ext-opsz-normal.woff2"];
 
-/** Builds a minimal dist/ that satisfies every OTHER verify-sw.mjs check, so a test only exercises the precache-size guard. */
-function buildFixture(assetByteSize, runtimeRoute = RUNTIME_ROUTE_FN) {
+/** Builds a minimal dist/ that satisfies every OTHER verify-sw.mjs check, so a test only exercises the guard it mutates. */
+function buildFixture(assetByteSize, runtimeRoute = RUNTIME_ROUTE_FN,
+  { languageRoute = LANGUAGE_ROUTE, packs = LANGUAGE_PACKS, precachePacks = false, appImports = "" } = {}) {
   const dist = mkdtempSync(join(tmpdir(), "verify-sw-fixture-"));
   mkdirSync(join(dist, "assets", "fonts"), { recursive: true });
-  writeFileSync(join(dist, "assets", "app.js"), "a".repeat(assetByteSize));
+  writeFileSync(join(dist, "assets", "app.js"), appImports + "a".repeat(assetByteSize));
   for (const font of OPSZ_FONTS) writeFileSync(join(dist, "assets", "fonts", font), "");
+  for (const pack of packs) writeFileSync(join(dist, "assets", pack), "");
   const entries = [
     { url: "assets/app.js", revision: "deadbeef" },
+    ...(precachePacks ? packs.map((pack) => ({ url: `assets/${pack}`, revision: "deadbeef" })) : []),
     ...OPSZ_FONTS.map((font) => ({ url: `assets/fonts/${font}`, revision: "deadbeef" })),
   ].map(({ url, revision }) => `{url:"${url}",revision:"${revision}"}`).join(",");
   const sw = `precacheAndRoute([${entries}]);` +
     `registerRoute(new wb.NavigationRoute(wb.createHandlerBoundToURL("/index.html"),{denylist:${DENYLIST}}));` +
-    `registerRoute(${runtimeRoute},new wb.CacheFirst({cacheName:"inter-extended-subsets"}),"GET");`;
+    `registerRoute(${runtimeRoute},new wb.CacheFirst({cacheName:"inter-extended-subsets"}),"GET");` +
+    languageRoute;
   writeFileSync(join(dist, "sw.js"), sw);
   return dist;
 }
@@ -114,13 +125,58 @@ test("rejects a RegExp runtime-caching route (#948 round 1 regression)", () => {
 });
 
 test("accepts the real match-callback function route", () => {
-  const dist = buildFixture(1024, RUNTIME_ROUTE_FN);
+  const dist = buildFixture(1024, RUNTIME_ROUTE_FN, { appImports: "const p=()=>import(`./es-deadbeef.js`);" });
   try {
     const { status } = runVerifySw(dist);
     assert.equal(status, 0);
   } finally {
     rmSync(dist, { recursive: true, force: true });
   }
+});
+
+// #1149 — the es/tl catalog exclusion, against the real script.
+for (const [name, options, message] of [
+  ["a language pack that is precached", { precachePacks: true }, /language-pack chunks found in the precache/],
+  ["a missing es chunk (statically imported)", { packs: ["tl-deadbeef.js"] }, /exactly one emitted es catalog chunk/],
+  ["a missing language-packs route", { languageRoute: "" }, /expected exactly the runtime caching routes/],
+  // #1149 review R5 — the route's wiring, not only its matcher.
+  ["a language-packs route for POST", { languageRoute: LANGUAGE_ROUTE.replace('"GET")', '"POST")') },
+    /runtime caching route language-packs is not registered for GET/],
+  ["a language-packs route caching 404s", { languageRoute: LANGUAGE_ROUTE.replace("statuses:[200]", "statuses:[404]") },
+    /language-pack route does not cache exactly status 200/],
+  ["a language-packs route without expiration",
+    { languageRoute: LANGUAGE_ROUTE.replace("new s.ExpirationPlugin({maxEntries:4}),", "") },
+    /language-pack route has no ExpirationPlugin maxEntries/],
+  ["a static import of a pack", { appImports: 'import{t as e}from"./es-deadbeef.js";' },
+    /assets\/app\.js imports assets\/es-deadbeef\.js statically/],
+]) {
+  test(`rejects ${name} (#1149)`, () => {
+    const dist = buildFixture(1024, RUNTIME_ROUTE_FN, options);
+    try {
+      const { status, stderr } = runVerifySw(dist);
+      assert.equal(status, 1);
+      assert.match(stderr, message);
+    } finally {
+      rmSync(dist, { recursive: true, force: true });
+    }
+  });
+}
+
+test("matchesLanguagePack", async (t) => {
+  const script = { destination: "script" };
+  const match = (path, request = script, sameOrigin = true) =>
+    matchesLanguagePack({ url: new URL(`https://cluckwork.example${path}`), request, sameOrigin });
+
+  await t.test("accepts the es and tl chunks", () => {
+    assert.equal(match("/assets/es-DFvSxGCR.js"), true);
+    assert.equal(match("/assets/tl-BFgO3jhs.js"), true);
+  });
+  await t.test("rejects an API path, another chunk, a cross-origin or a non-script request", () => {
+    assert.equal(match("/api/v1/assets/es-x.js"), false);
+    assert.equal(match("/assets/index-DyRt379z.js"), false);
+    assert.equal(match("/assets/es-x.js", script, false), false);
+    assert.equal(match("/assets/es-x.js", { destination: "" }), false);
+  });
 });
 
 // #948 review round 2, P2 — the match-callback itself, called directly (a

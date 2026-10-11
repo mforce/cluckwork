@@ -163,7 +163,7 @@ describe("HelpPage", () => {
     expect(screen.getByText(/Escape closes the popup you are working in/i)).toBeInTheDocument();
 
     for (const lng of ["es", "tl"] as const) {
-      const value = i18n.getResource(lng, "help", "dialogsModal") as string;
+      const value = { es, tl }[lng].help.dialogsModal;
       expect(value).toBeTruthy();
       expect(value).not.toBe(i18n.getResource("en", "help", "dialogsModal"));
     }
@@ -203,7 +203,7 @@ describe("HelpPage", () => {
     expect(screen.getByText(/Closing the form drops its message/i)).toBeInTheDocument();
 
     for (const lng of ["es", "tl"] as const) {
-      const value = i18n.getResource(lng, "help", "gettingAroundWhereMessagesAppear") as string;
+      const value = { es, tl }[lng].help.gettingAroundWhereMessagesAppear;
       expect(value).toBeTruthy();
       expect(value).not.toBe(i18n.getResource("en", "help", "gettingAroundWhereMessagesAppear"));
     }
