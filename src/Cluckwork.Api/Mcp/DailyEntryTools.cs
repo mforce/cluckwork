@@ -69,14 +69,23 @@ public sealed class DailyEntryTools(
             return recorded.IsSuccess
                 ? new IdempotentResponse(true, StatusCodes.Status200OK, "application/json", JsonSerializer.Serialize(recorded.Value))
                 : new IdempotentResponse(false, StatusCodes.Status422UnprocessableEntity, "text/plain",
-                    $"{recorded.Error.Code}: {recorded.Error.Description}");
+                    Refusal(recorded.Error));
         }, ct);
+
+        // A replay never runs RecordOnceAsync, so the caller's current flock access is checked
+        // here. A Worker unassigned since the first call gets the refusal a fresh call gets.
+        if (result is IdempotentResult.Replayed replayed)
+        {
+            var reply = Deserialize(replayed.Response);
+            if (await flocks.GetAsync(reply.FlockId, ct) is null)
+                throw new McpException(Refusal(FlockNotFound(flock)));
+            return reply with { Replayed = true };
+        }
 
         return result switch
         {
             IdempotentResult.Executed { Response.Succeeded: true } executed => Deserialize(executed.Response),
             IdempotentResult.Executed failed => throw new McpException(failed.Response.Body),
-            IdempotentResult.Replayed replayed => Deserialize(replayed.Response) with { Replayed = true },
             IdempotentResult.KeyReused => throw new McpException(
                 "Idempotency.KeyReused: this idempotencyKey was already used with different values. "
                 + "Use a new key for a new recording."),
@@ -168,6 +177,8 @@ public sealed class DailyEntryTools(
 
     private static Error FlockNotFound(string flock) =>
         Error.NotFound("Flock", flock) with { Description = $"No flock '{flock}' that you can record for." };
+
+    private static string Refusal(Error error) => $"{error.Code}: {error.Description}";
 
     private static RecordedDailyEntry Deserialize(IdempotentResponse response) =>
         JsonSerializer.Deserialize<RecordedDailyEntry>(response.Body)!;

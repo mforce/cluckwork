@@ -177,6 +177,55 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         Assert.True(replay.GetProperty("replayed").GetBoolean());
     }
 
+    // A replay re-checks current flock access. B stays assigned, so the Worker stays
+    // restricted (no assignment rows means unrestricted). Once A is unassigned, the stored
+    // reply for A is refused exactly as a fresh call is, and nothing is written.
+    [Fact]
+    public async Task Replay_AfterTheFlockIsUnassigned_IsRefusedLikeAFreshCall()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(role: null);
+        var accountId = farm.User.AccountId;
+        var other = await factory.SeedFlockAsync(accountId, farm.FarmId);
+        var assignment = Guid.NewGuid();
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.UserRoleAssignments.Add(UserRoleAssignment.Create(assignment, accountId, farm.User.Id, null, null, farm.FlockId));
+            db.UserRoleAssignments.Add(UserRoleAssignment.Create(Guid.NewGuid(), accountId, farm.User.Id, null, null, other));
+            await db.SaveChangesAsync();
+        });
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, WriteOnly));
+        var arguments = Arguments(farm.FlockId.ToString());
+        var entryId = (await RecordAsync(client, arguments)).GetProperty("dailyEntryId").GetGuid();
+
+        await factory.WithTenantScopeAsync(accountId,
+            db => db.UserRoleAssignments.Where(a => a.Id == assignment).ExecuteDeleteAsync());
+        var replay = ErrorText(await CallAsync(client, arguments));
+        var fresh = ErrorText(await CallAsync(client, With(arguments, "idempotencyKey", Guid.NewGuid().ToString())));
+
+        Assert.Contains("Flock.NotFound:", replay);
+        Assert.Equal(fresh, replay);
+        Assert.Equal([AuditActions.DailyEntryCreate], (await AuditAsync(accountId, entryId)).Select(a => a.Action));
+    }
+
+    // The role and scope gates run before the unit, so a token without the write scope
+    // cannot reach a stored reply either.
+    [Fact]
+    public async Task Replay_WithATokenLackingTheWriteScope_IsRefusedBeforeTheUnit()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(Roles.Manager);
+        var arguments = Arguments(farm.FlockName);
+        await using (var writer = await ConnectAsync(host, await IssueAsync(host, farm.User, WriteOnly)))
+            await RecordAsync(writer, arguments);
+        await using var reader = await ConnectAsync(host, await IssueAsync(host, farm.User, [OAuthScopes.ReadFarm]));
+
+        var refused = await Assert.ThrowsAsync<McpProtocolException>(() =>
+            reader.CallToolAsync(DailyEntryTools.RecordDailyEntry, arguments).AsTask());
+
+        Assert.Equal(McpErrorCode.InvalidRequest, refused.ErrorCode);
+    }
+
     // Guard 22.
     [Fact]
     public async Task SameKey_DifferentArguments_IsRefused_AndChangesNothing()
