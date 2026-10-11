@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.IntegrationTests.SharedState;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Api.RateLimiting;
 using Cluckwork.Application.Common;
@@ -282,7 +283,7 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
     [Fact]
     public async Task ForgedBearers_FromOneAddress_RunOutOfTheFailureBudget()
     {
-        using var host = Host();
+        using var host = FrozenHost(new FakeTimeProvider());
         const int budget = RateLimitingOptions.OAuthApiFailuresPerAddress;
 
         var statuses = new List<HttpStatusCode>();
@@ -300,7 +301,7 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
     [Fact]
     public async Task ValidTokenCalls_SpendNoFailureBudget()
     {
-        using var host = Host();
+        using var host = FrozenHost(new FakeTimeProvider());
         var token = await IssueAsync(host, await SeedAsync(Roles.Manager), ReadScope);
 
         var statuses = new List<HttpStatusCode>();
@@ -318,11 +319,29 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Equal(1, await FailuresAsync(host));
     }
 
+    // The budget is a window, so a spent address may try again once it rolls over.
+    [Fact]
+    public async Task SpentFailureBudget_RecoversWhenTheWindowRollsOver()
+    {
+        var clock = new FakeTimeProvider();
+        using var host = FrozenHost(clock);
+        var counter = host.Services.GetRequiredService<IFixedWindowCounter>();
+        for (var i = 0; i < RateLimitingOptions.OAuthApiFailuresPerAddress; i++)
+            await counter.IncrementAsync(FailureKey, RateLimitingOptions.OAuthApiFailuresWindow);
+
+        using var spent = await Client(host, "forged").GetAsync(Probe.Read);
+        clock.Advance(RateLimitingOptions.OAuthApiFailuresWindow);
+        using var rolledOver = await Client(host, "forged").GetAsync(Probe.Read);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, spent.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, rolledOver.StatusCode);
+    }
+
     // A busy connection hitting its own per-token limit is not a refused credential.
     [Fact]
     public async Task PerTokenRefusals_SpendNoFailureBudget()
     {
-        using var host = Host(limits: ("OAuthApi", 2));
+        using var host = FrozenHost(new FakeTimeProvider(), ("OAuthApi", 2));
         var token = await IssueAsync(host, await SeedAsync(Roles.Manager), ReadScope);
 
         var statuses = new List<HttpStatusCode>();
@@ -355,9 +374,20 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         Assert.Equal(TimeSpan.FromSeconds(42), response.Headers.RetryAfter?.Delta);
     }
 
+    private const string FailureKey = $"{RateLimitingOptions.OAuthApiFailuresKeyPrefix}:local";
+
     private static async Task<long> FailuresAsync(WebApplicationFactory<Program> host) =>
         (await host.Services.GetRequiredService<IFixedWindowCounter>().CountAsync(
-            $"{RateLimitingOptions.OAuthApiFailuresKeyPrefix}:local", RateLimitingOptions.OAuthApiFailuresWindow)).Count;
+            FailureKey, RateLimitingOptions.OAuthApiFailuresWindow)).Count;
+
+    // The failure budget's window is a fixed minute, so a test that spends or reads it runs on
+    // a counter whose clock stands still unless the test moves it.
+    private WebApplicationFactory<Program> FrozenHost(FakeTimeProvider clock, params (string Policy, int PermitLimit)[] limits) =>
+        Host(limits).WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IFixedWindowCounter>();
+            services.AddSingleton<IFixedWindowCounter>(new InProcessFixedWindowCounter(clock));
+        }));
 
     // Admits every increment; reports every failure budget spent.
     private sealed class SpentFailureBudgetCounter : IFixedWindowCounter
