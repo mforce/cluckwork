@@ -143,30 +143,42 @@ public sealed class McpCommerceToolsTests(CluckworkWebApplicationFactory factory
         Assert.NotEqual(first.Items[0].GetRawText(), rest.Items[0].GetRawText());
     }
 
-    // Largest outstanding first; equal balances fall back to the customer id, in
-    // Postgres's uuid order, which is the ordinal order of the lowercase text.
+    // Largest outstanding first; equal balances fall back to the customer id, in Postgres's
+    // uuid order, which is the ordinal order of the lowercase text. Enough ties that a small
+    // page makes Postgres use its unstable top-N sort, so paging through them only returns
+    // each customer once, in order, because of the tie-break.
     [Fact]
-    public async Task Balances_OrderByOutstanding_ThenCustomerId()
+    public async Task BalancePages_OrderByOutstanding_ThenCustomerId()
     {
         using var host = Host(factory);
         var user = await SeedAsync(factory, Roles.Manager);
-        var tied = new List<Guid>();
-        foreach (var name in new[] { "Tie 1", "Tie 2", "Tie 3" })
+        var most = Guid.NewGuid();
+        var least = Guid.NewGuid();
+        var tied = Enumerable.Range(0, 24).Select(_ => Guid.NewGuid()).ToList();
+        await factory.WithTenantScopeAsync(user.AccountId, async db =>
         {
-            var customer = await SeedCustomerAsync(user.AccountId, name);
-            await SeedConfirmedOrderAsync(user.AccountId, customer, 3_000, [1_000]);
-            tied.Add(customer);
-        }
-        var most = await SeedCustomerAsync(user.AccountId, "Most");
-        await SeedConfirmedOrderAsync(user.AccountId, most, 3_000, []);
-        var least = await SeedCustomerAsync(user.AccountId, "Least");
-        await SeedConfirmedOrderAsync(user.AccountId, least, 9_000, [8_500]);
+            foreach (var (id, total, paid) in tied.Select(id => (id, 3_000L, 1_000L)).Append((most, 3_000L, 0L)).Append((least, 9_000L, 8_500L)))
+            {
+                db.Customers.Add(Customer.Create(id, user.AccountId, $"Tie {id}", "555-0100"));
+                AddConfirmedOrder(db, user.AccountId, id, total, ("USD", 2), out var orderId);
+                if (paid > 0)
+                    db.Payments.Add(Payment.Create(Guid.NewGuid(), user.AccountId, orderId, id, Today, paid, "USD", 2, PaymentMethod.Cash));
+            }
+            await db.SaveChangesAsync();
+        });
 
         await using var client = await ConnectAsync(host, await IssueAsync(host, user, [OAuthScopes.ReadFarm]));
-        var page = await PageAsync<CustomerBalanceRow>(client, "cluckwork_list_customer_balances");
+        var seen = new List<Guid>();
+        int? offset = 0;
+        while (offset is not null)
+        {
+            var page = await PageAsync<CustomerBalanceRow>(client, "cluckwork_list_customer_balances", new() { ["limit"] = 3, ["offset"] = offset });
+            seen.AddRange(page.Items.Select(b => b.CustomerId));
+            offset = page.NextOffset;
+        }
 
         Guid[] expected = [most, .. tied.OrderBy(id => id.ToString(), StringComparer.Ordinal), least];
-        Assert.Equal(expected, page.Items.Select(b => b.CustomerId));
+        Assert.Equal(expected, seen);
     }
 
     // Row 31b: a balance page reads that page from the database, however large the book.
