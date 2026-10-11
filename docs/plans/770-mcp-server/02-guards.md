@@ -92,8 +92,9 @@ and `McpMessages_WithoutAnIdempotencyKey_AreServed`.
 
 #807 implements row 26 as `McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm`, and
 row 31 for both the reply and the query. `McpPage<T>.ReadAsync` is the only way to build a reply.
-It clamps the window and asks the query for one row past the page, so no tool chooses the row
-count; `McpPageTests` pins it without a host. `McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage`
+It clamps the limit, keeps a nonnegative offset as given, and asks the query for one row past the
+page, so no tool chooses the row count. A continuation past `int.MaxValue` is refused, never
+clamped back onto a page already read. `McpPageTests` pins it without a host. `McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage`
 walks every read tool for an `McpPage<T>` reply, and `McpReadToolsTests` drives each tool through its
 page. `LotMovementPage_ReadsOnlyThePageFromTheDatabase` and
 `SharedFlockName_ListsBoundedCandidates_AndReadsBoundedRows` count the rows each data reader
@@ -105,8 +106,8 @@ contract applies to the read filter too. #388's flock scope is tested for the fl
 egg reads (`AssignedWorker_ReadsOnlyTheirFlocks`, `AssignedWorker_ReadsOnlyTheirFlocksEggs`).
 #792 decided that phase 1 tools return no farm-entered free text, and its 2026-10-11
 clarification allows flock and grade names. `McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText`
-follows each reply as the serializer does, through nested types from any namespace and through
-collections and arrays, and lists every text field it reaches. A new note or reason field, or a
+follows each reply as the serializer does, through nested types from any namespace, collections,
+arrays and conditionally ignored properties, and lists every text field it reaches. A new note or reason field, or a
 reply shape it cannot see into, fails.
 
 #806 implements rows 29 and 30 as `McpEndpointTests.McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate`

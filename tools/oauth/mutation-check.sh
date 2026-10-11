@@ -267,7 +267,9 @@ route-renamed#kill#STOCK_ENDPOINTS#.WithName("ListEggLots")#.WithName("ListEggLo
 tool-mirrors-nothing#kill#STOCK_TOOLS#[MirrorsRoute("GetStock")]##Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#declares no [MirrorsRoute]
 read-tool-unpaged#kill#STOCK_TOOLS#public async Task<McpPage<StockRow>> ReadStockAsync#public async Task<object> ReadStockAsync#Mcp.McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage#return Task<McpPage<T>>
 page-without-lookahead#kill#PAGE#var rows = await fetch(take + 1, skip, ct);#var rows = await fetch(take, skip, ct);#Mcp.McpPageTests.AsksForOneRowPastTheClampedLimit#Collections differ
-page-lookahead-ignored#kill#PAGE#return rows.Count > take#return rows.Count > take + 1#Mcp.McpPageTests.MoreThanTheLimit_KeepsThePage_AndContinuesAfterIt#Collections differ
+page-lookahead-ignored#kill#PAGE#if (rows.Count <= take)#if (rows.Count <= take + 1)#Mcp.McpPageTests.MoreThanTheLimit_KeepsThePage_AndContinuesAfterIt#Collections differ
+page-offset-clamped-back#kill#PAGE#var skip = Math.Max(offset, 0);#var skip = Math.Clamp(offset, 0, int.MaxValue - McpPage.MaxLimit);#Mcp.McpPageTests.NearTheIntegerLimit_ContinuesForward_ThenRefuses#No exception was thrown
+page-next-overflows#kill#PAGE#if (next > int.MaxValue)#if (next > int.MaxValue + 1000L)#Mcp.McpPageTests.NearTheIntegerLimit_ContinuesForward_ThenRefuses#No exception was thrown
 page-uncapped#kill#PAGE#Math.Clamp(limit, 1, McpPage.MaxLimit)#Math.Max(limit, 1)#Mcp.McpPageTests.AsksForOneRowPastTheClampedLimit#Collections differ
 flock-id-unchecked#kill#FLOCK_TOOLS#return (await lookup.GetDisplayNamesAsync([id], ct)).GetValueOrDefault(id) ?? throw NotFound(flock);#return new FlockReference(id, flock, Cluckwork.Domain.Modules.FlockManagement.Contracts.FlockStatus.Active);#Mcp.McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm#"items":[]
 flock-scope-ignored#kill#FLOCK_SCOPE#IsUnrestricted = unrestricted;#IsUnrestricted = true;#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocks#Collections differ
@@ -278,6 +280,7 @@ name-resolution-unbounded#kill#FLOCK_REPO#.OrderBy(f => f.Id)\n            .Take
 name-candidates-uncapped#kill#FLOCK_LOOKUP#[.. many.Take(FlockNameResolution.MaxCandidates)]#many#Mcp.McpReadToolsTests.SharedFlockName_ListsBoundedCandidates_AndReadsBoundedRows#Values differ
 text-walk-namespace-bound#kill#TEXT_WALK#        if (!seen.Add(type))#        if (type.Namespace?.StartsWith("Cluckwork.Api") != true || !seen.Add(type))#Mcp.McpToolSurfaceTests.TextWalk_ReachesNestedCollectionAndOpaqueText#Assert.Contains() Failure
 text-walk-skips-elements#kill#TEXT_WALK#if (ElementType(type) is { } element)#if (ElementType(type) is { } element && type.IsArray)#Mcp.McpToolSurfaceTests.TextWalk_ReachesNestedCollectionAndOpaqueText#Assert.Contains() Failure
+text-walk-ignores-conditional#kill#TEXT_WALK#&& p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)#&& p.GetCustomAttribute<JsonIgnoreAttribute>() is null)#Mcp.McpToolSurfaceTests.TextWalk_FollowsTheSerializer_OnIgnoredProperties#Collections differ
 egg-lot-scope-ignored#kill#DB_CONTEXT#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId\n            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId);#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocksEggs#Values differ
 EOF
 )

@@ -1,3 +1,5 @@
+using ModelContextProtocol;
+
 namespace Cluckwork.Api.Mcp;
 
 // #807 — every read tool's reply. A silently truncated first page reads to a model as a
@@ -19,12 +21,16 @@ public sealed record McpPage<T>
         Func<TRow, T> map, CancellationToken ct)
     {
         var take = Math.Clamp(limit, 1, McpPage.MaxLimit);
-        // Capped so skip + take, the next offset, cannot overflow.
-        var skip = Math.Clamp(offset, 0, int.MaxValue - McpPage.MaxLimit);
+        var skip = Math.Max(offset, 0);
         var rows = await fetch(take + 1, skip, ct);
-        return rows.Count > take
-            ? new([.. rows.Take(take).Select(map)], complete: false, nextOffset: skip + take)
-            : new([.. rows.Select(map)], complete: true, nextOffset: null);
+        if (rows.Count <= take)
+            return new([.. rows.Select(map)], complete: true, nextOffset: null);
+
+        // An offset is an int, so a continuation past int.MaxValue cannot be expressed.
+        var next = (long)skip + take;
+        if (next > int.MaxValue)
+            throw new McpException("This page has more rows after it than an offset can reach. Narrow the request with its filters.");
+        return new([.. rows.Take(take).Select(map)], complete: false, nextOffset: (int)next);
     }
 }
 

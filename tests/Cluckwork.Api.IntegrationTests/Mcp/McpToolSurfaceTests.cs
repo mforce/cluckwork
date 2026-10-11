@@ -80,6 +80,18 @@ public sealed class McpToolSurfaceTests
     public void TextWalk_ReachesNestedCollectionAndOpaqueText(Type row, string field) =>
         Assert.Contains(field, TextFields(typeof(Task<>).MakeGenericType(typeof(McpPage<>).MakeGenericType(row)), "Fixture", []));
 
+    // A conditionally ignored property still serializes when it holds a value; only an
+    // always-ignored one never does. The walk agrees with the serializer on both.
+    [Fact]
+    public void TextWalk_FollowsTheSerializer_OnIgnoredProperties()
+    {
+        var json = JsonSerializer.Serialize(new IgnoredRow("farm-entered note", "never sent"), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var fields = TextFields(typeof(IgnoredRow), "Fixture", []);
+
+        Assert.Equal("""{"reason":"farm-entered note"}""", json);
+        Assert.Equal(["IgnoredRow.Reason"], fields);
+    }
+
     private static IEnumerable<MethodInfo> ReadTools() =>
         McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
             .Where(m => m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
@@ -105,7 +117,8 @@ public sealed class McpToolSurfaceTests
         if (!seen.Add(type))
             return [];
         return [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.GetIndexParameters().Length == 0 && p.GetCustomAttribute<JsonIgnoreAttribute>() is null)
+            .Where(p => p.GetIndexParameters().Length == 0
+                && p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)
             .SelectMany(p => TextFields(p.PropertyType, $"{type.Name}.{p.Name}", seen))];
     }
 
@@ -121,6 +134,10 @@ public sealed class McpToolSurfaceTests
     private sealed record TextCollectionRow(Guid Id, IReadOnlyList<string> Notes, string[] Tags);
 
     private sealed record OpaqueRow(Guid Id, object Extra, JsonElement Raw);
+
+    private sealed record IgnoredRow(
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Reason,
+        [property: JsonIgnore] string Hidden);
 
     [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>

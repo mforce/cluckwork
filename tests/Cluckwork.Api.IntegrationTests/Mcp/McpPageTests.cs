@@ -1,4 +1,5 @@
 using Cluckwork.Api.Mcp;
+using ModelContextProtocol;
 
 namespace Cluckwork.Api.IntegrationTests.Mcp;
 
@@ -25,8 +26,8 @@ public sealed class McpPageTests
     [InlineData(-1, 0)]
     [InlineData(0, 0)]
     [InlineData(1_000_000, 1_000_000)]
-    [InlineData(int.MaxValue, int.MaxValue - McpPage.MaxLimit)]
-    public async Task ClampsTheOffset(int offset, int skip)
+    [InlineData(int.MaxValue, int.MaxValue)]
+    public async Task KeepsANonnegativeOffset(int offset, int skip)
     {
         var asked = new List<(int Take, int Skip)>();
 
@@ -51,7 +52,6 @@ public sealed class McpPageTests
     [Theory]
     [InlineData(0, 10)]
     [InlineData(30, 40)]
-    [InlineData(int.MaxValue, int.MaxValue - McpPage.MaxLimit + 10)]
     public async Task MoreThanTheLimit_KeepsThePage_AndContinuesAfterIt(int offset, int next)
     {
         var page = await McpPage<int>.ReadAsync(10, offset, Rows([], 11), r => r, default);
@@ -59,6 +59,28 @@ public sealed class McpPageTests
         Assert.Equal(Enumerable.Range(0, 10), page.Items);
         Assert.False(page.Complete);
         Assert.Equal(next, page.NextOffset);
+    }
+
+    // Near int.MaxValue a continuation is followed, never moved backwards, until the next
+    // offset no longer fits in an int; then the call is refused rather than repeated.
+    [Fact]
+    public async Task NearTheIntegerLimit_ContinuesForward_ThenRefuses()
+    {
+        var asked = new List<(int Take, int Skip)>();
+        Func<int, int, CancellationToken, Task<IReadOnlyList<long>>> endless = (take, skip, _) =>
+        {
+            asked.Add((take, skip));
+            return Task.FromResult<IReadOnlyList<long>>([.. Enumerable.Range(0, take).Select(i => (long)skip + i)]);
+        };
+
+        var first = await McpPage<long>.ReadAsync(100, int.MaxValue - 150, endless, r => r, default);
+        var refused = await Assert.ThrowsAsync<McpException>(() =>
+            McpPage<long>.ReadAsync(100, first.NextOffset!.Value, endless, r => r, default));
+
+        Assert.Equal(int.MaxValue - 50, first.NextOffset);
+        Assert.Equal((long)int.MaxValue - 150, first.Items[0]);
+        Assert.Equal([(101, int.MaxValue - 150), (101, int.MaxValue - 50)], asked);
+        Assert.Contains("more rows after it than an offset can reach", refused.Message);
     }
 
     [Fact]
