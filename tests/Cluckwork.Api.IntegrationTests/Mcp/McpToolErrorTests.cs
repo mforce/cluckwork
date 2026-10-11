@@ -23,55 +23,53 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 [Collection(IntegrationCollection.Name)]
 public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
 {
+    private const string Entry =
+        "\"idempotencyKey\":\"k\",\"flock\":\"Any\",\"date\":\"2026-10-11\",\"totalEggs\":1,"
+        + "\"crackedEggs\":0,\"dirtyEggs\":0,\"discardedEggs\":0,\"mortalityCount\":0";
+
+    // Each value fails the SDK's binding of its parameter's declared type.
+    public static TheoryData<string, string, string, string> BadArguments => new()
+    {
+        { "cluckwork_list_daily_entries", OAuthScopes.ReadFarm, """{"from":"10/11/2026"}""", "from must be a date, YYYY-MM-DD." },
+        { "cluckwork_list_daily_entries", OAuthScopes.ReadFarm, """{"from":123}""", "from must be a date, YYYY-MM-DD." },
+        { "cluckwork_list_flocks", OAuthScopes.ReadFarm, """{"limit":"ten"}""", "limit must be a whole number." },
+        { "cluckwork_list_flocks", OAuthScopes.ReadFarm, """{"limit":null}""", "limit must be a whole number." },
+        { "cluckwork_list_flocks", OAuthScopes.ReadFarm, """{"limit":" 1"}""", "limit must be a whole number." },
+        { "cluckwork_list_flocks", OAuthScopes.ReadFarm, """{"limit":2147483648}""", "limit must be a whole number from -2147483648 to 2147483647." },
+        { "cluckwork_list_sales_orders", OAuthScopes.ReadFarm, """{"customerId":"Acme"}""", "customerId must be an id." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":"invalid"}""", "grades must be a list." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[1]}""", "grades[0] must be an object." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[{"grade":"Large","quantity":"ten"}]}""", "grades[0].quantity must be a whole number." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[{"grade":"Large","quantity":null}]}""", "grades[0].quantity must be a whole number." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[{"grade":"Large","Quantity":"ten"}]}""", "grades[0].quantity must be a whole number." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, """{"idempotencyKey":"k","flock":"Any","totalEggs":1,"crackedEggs":0,"dirtyEggs":0,"discardedEggs":0,"mortalityCount":0}""", "date is required." },
+    };
+
     [Theory]
-    [InlineData("cluckwork_list_daily_entries", "from", "10/11/2026", "from must be a date, YYYY-MM-DD.")]
-    [InlineData("cluckwork_list_flocks", "limit", "ten", "limit must be a whole number.")]
-    [InlineData("cluckwork_list_sales_orders", "customerId", "Acme", "customerId must be an id.")]
-    public async Task BadArgument_IsNamedWithItsShape_AndLogsNoError(string tool, string argument, string value, string expected)
+    [MemberData(nameof(BadArguments))]
+    public async Task BadArgument_IsNamedWithItsShape_AndLogsNoError(string tool, string scope, string arguments, string expected)
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        await using var client = await ConnectAsync(host, sink, scope);
 
-        var text = await ErrorAsync(client, tool, new() { [argument] = value });
+        var text = await ErrorAsync(client, tool, Parse(arguments));
 
         Assert.Equal($"An error occurred invoking '{tool}': {expected}", text);
         AssertLoggedBelowError(sink, tool);
     }
 
+    // The SDK reads integers from strings, and the check binds as the SDK does.
     [Fact]
-    public async Task BadNestedArgument_IsNamedByItsPath()
+    public async Task NumericString_StillBinds()
     {
         var sink = new Sink();
         using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.WriteDailyEntries);
+        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
 
-        var text = await ErrorAsync(client, DailyEntryTools.RecordDailyEntry, new()
-        {
-            ["idempotencyKey"] = "k", ["flock"] = "Any", ["date"] = "2026-10-11", ["totalEggs"] = 1,
-            ["crackedEggs"] = 0, ["dirtyEggs"] = 0, ["discardedEggs"] = 0, ["mortalityCount"] = 0,
-            ["grades"] = new[] { new { grade = "Large", quantity = "ten" } },
-        });
+        var page = await PageAsync<JsonElement>(client, "cluckwork_list_flocks", Parse("""{"limit":"2"}"""));
 
-        Assert.EndsWith(": grades[0].quantity must be a whole number.", text);
-        AssertLoggedBelowError(sink, DailyEntryTools.RecordDailyEntry);
-    }
-
-    [Fact]
-    public async Task MissingRequiredArgument_IsNamed()
-    {
-        var sink = new Sink();
-        using var host = Host(sink);
-        await using var client = await ConnectAsync(host, sink, OAuthScopes.WriteDailyEntries);
-
-        var text = await ErrorAsync(client, DailyEntryTools.RecordDailyEntry, new()
-        {
-            ["idempotencyKey"] = "k", ["flock"] = "Any", ["totalEggs"] = 1,
-            ["crackedEggs"] = 0, ["dirtyEggs"] = 0, ["discardedEggs"] = 0, ["mortalityCount"] = 0,
-        });
-
-        Assert.EndsWith(": date is required.", text);
-        AssertLoggedBelowError(sink, DailyEntryTools.RecordDailyEntry);
+        Assert.True(page.Complete);
     }
 
     [Fact]
@@ -107,6 +105,27 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(FaultTools.Secret, error.Exception?.Message);
     }
 
+    // The SDK constructs the tool before it binds the arguments. A construction fault with
+    // valid arguments is a fault; with a bad argument, the argument is named and the tool is
+    // never constructed.
+    [Fact]
+    public async Task ConstructionFault_LogsAtError_UnlessAnArgumentIsBad()
+    {
+        var sink = new Sink();
+        using var host = Host(sink);
+        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+
+        var fault = await ErrorAsync(client, ConstructionFaultTools.Name, Parse("""{"date":"2026-10-11"}"""));
+        var error = Assert.Single(sink.Events, e => e.Level == LogEventLevel.Error);
+        sink.Events.Clear();
+        var bad = await ErrorAsync(client, ConstructionFaultTools.Name, Parse("""{"date":"10/11/2026"}"""));
+
+        Assert.Equal($"An error occurred invoking '{ConstructionFaultTools.Name}'.", fault);
+        Assert.Contains(FaultTools.Secret, error.Exception?.ToString());
+        Assert.Equal($"An error occurred invoking '{ConstructionFaultTools.Name}': date must be a date, YYYY-MM-DD.", bad);
+        AssertLoggedBelowError(sink, ConstructionFaultTools.Name);
+    }
+
     // A tool's protocol error stays a JSON-RPC error, as the SDK sends it.
     [Fact]
     public async Task ProtocolError_StaysAJsonRpcError()
@@ -134,7 +153,7 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
         McpConnection.Host(factory).WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ILogEventSink>(sink);
-            services.AddMcpServer().WithTools<FaultTools>();
+            services.AddMcpServer().WithTools<FaultTools>().WithTools<ConstructionFaultTools>();
         }));
 
     // Only the call under test is left in the sink.
@@ -145,6 +164,9 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
         sink.Events.Clear();
         return client;
     }
+
+    private static Dictionary<string, object?> Parse(string json) =>
+        JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)!.ToDictionary(a => a.Key, a => (object?)a.Value);
 
     private static string Render(LogEvent e) =>
         string.Join('\n', [e.RenderMessage(), .. e.Properties.Values.Select(v => v.ToString()), e.Exception?.ToString() ?? ""]);
@@ -175,5 +197,16 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
 
         [McpServerTool(Name = Protocol), Description("Throws.")]
         public string ThrowProtocol(DateOnly date) => throw new McpProtocolException(Secret, McpErrorCode.InvalidParams);
+    }
+
+    [McpServerToolType]
+    public sealed class ConstructionFaultTools
+    {
+        public const string Name = "cw1227_construction";
+
+        public ConstructionFaultTools() => throw new JsonException(FaultTools.Secret);
+
+        [McpServerTool(Name = Name), Description("Cannot be constructed.")]
+        public string Read(DateOnly date) => date.ToString();
     }
 }
