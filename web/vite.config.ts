@@ -4,7 +4,12 @@ import { loadEnv } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import { matchesInterExtendedSubsetFont } from "./scripts/font-cache-match.mjs";
+import {
+  LANGUAGE_PACK_CACHE,
+  LANGUAGE_PACK_MAX_ENTRIES,
+  matchesInterExtendedSubsetFont,
+  matchesLanguagePack,
+} from "./scripts/runtime-cache-match.mjs";
 
 // #936 — the "available version" side channel (pwa/appVersion.ts). Emitted
 // as a build-only asset, deliberately not part of the Workbox precache glob
@@ -107,7 +112,15 @@ export default defineConfig(({ mode }) => {
           // renders. They stay in `dist` and unicode-range still fetches them
           // on demand for a farm or customer name; only the offline precopy
           // goes. Measured 1,979.79 KiB without this, 1,848.93 KiB with.
-          globIgnores: ["**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2"],
+          //
+          // #1149 — the es/tl catalogs (~350 KiB together) leave the precache
+          // too: a device uses one language, and English ships in the bundle as
+          // every pack's fallback. The `language-packs` route below caches the
+          // one a device loads.
+          globIgnores: [
+            "**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2",
+            "**/assets/{es,tl}-*.js",
+          ],
           // An unknown route serves index.html from the cache, EXCEPT the
           // server's own namespaces, which must always reach the network.
           //
@@ -147,6 +160,19 @@ export default defineConfig(({ mode }) => {
                 cacheName: "inter-extended-subsets",
                 expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
                 cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            // #1149 — a pack's URL carries its content hash, so CacheFirst can
+            // never serve a stale catalog: a new release's shell imports the
+            // new hash, which misses here and is fetched. The cap evicts the
+            // previous release's copies.
+            {
+              urlPattern: matchesLanguagePack,
+              handler: "CacheFirst",
+              options: {
+                cacheName: LANGUAGE_PACK_CACHE,
+                expiration: { maxEntries: LANGUAGE_PACK_MAX_ENTRIES },
+                cacheableResponse: { statuses: [200] },
               },
             },
           ],

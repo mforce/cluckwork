@@ -101,10 +101,10 @@
     <File Path="web/public/theme-init.js" />
   </Folder>
   <Folder Name="/web/scripts/">
-    <File Path="web/scripts/font-cache-match.d.mts" />
-    <File Path="web/scripts/font-cache-match.mjs" />
     <File Path="web/scripts/i18n-scan-allowlist.txt" />
     <File Path="web/scripts/i18n-scan.mjs" />
+    <File Path="web/scripts/runtime-cache-match.d.mts" />
+    <File Path="web/scripts/runtime-cache-match.mjs" />
     <File Path="web/scripts/verify-sw.mjs" />
     <File Path="web/scripts/verify-sw.test.mjs" />
   </Folder>

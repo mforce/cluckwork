@@ -215,6 +215,13 @@ export const en = {
     preferences: "Preferences",
     language: "Language",
     languageHint: "The language the interface is shown in, just for you.",
+    // #1149 — only English ships with the app; another language downloads the
+    // first time a device switches to it. Shown when that switch happens offline.
+    languageNeedsConnection: "{{language}} is not on this device yet. Connect to the internet once to switch to it.",
+    languageSavedReload: "{{language}} is saved for you, but this page could not load it. Select Reload to switch to it.",
+    languageReload: "Reload",
+    languageSaveFailed: "{{language}} could not be saved. Check your connection, then select Try again.",
+    languageTryAgain: "Try again",
     // #444 — the pack unit YOUR Daily Entry steppers bump by. {{unit}} in the
     // farm-default option is the raw EggUnit code (DATA, e.g. "Tray"), matching
     // how the Products screen renders unit codes.
@@ -3818,7 +3825,8 @@ export const en = {
       + "role can do this for themselves.",
     accountLanguage:
       "<strong>Language</strong> switches the interface just for you, immediately, on every device you "
-      + "sign into.",
+      + "sign into. The first time you switch to a language on a device, you need an internet connection. "
+      + "After that, it works offline too.",
     accountCountingUnit:
       "<strong>Daily Entry counting unit</strong> — how much YOUR +/− taps count by, overriding the farm "
       + "default from Settings. Pick a pack unit like Tray to count by the tray, or follow the farm "
@@ -4291,7 +4299,8 @@ export const en = {
     glossaryUiLanguageDef:
       "The per-user language the interface is shown in — English, Español, or Tagalog — chosen from "
       + "Account → Preferences. English is the fallback for any screen not yet translated, whatever "
-      + "language you picked.",
+      + "language you picked. A device downloads a language the first time it switches to it, so that "
+      + "first switch needs a connection.",
 
     // #356 — appended last so it doesn't reshuffle the rows above.
     glossaryDisabledUserTerm: "Disabled user",

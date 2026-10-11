@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { MeContext } from "./SessionContext";
 import * as api from "../api/cluckwork";
 import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
@@ -29,7 +29,7 @@ describe("LanguageSelector with all installed languages", () => {
     expect(optionLabels).toEqual(["English", "Español", "Tagalog"]);
 
     fireEvent.change(select, { target: { value: "es" } });
-    expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("es");
+    await waitFor(() => expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("es"));
     expect(changeSpy).toHaveBeenCalledWith("es");
     // Regression guard: the select must reflect the live i18n language, not the
     // stale `me` object (MeContext is never updated on a language switch).
@@ -56,6 +56,8 @@ describe("LanguageSelector with all installed languages", () => {
     const select = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "tl" } });
     expect(select).toBeDisabled(); // in flight — a second switch cannot race the first
+    await waitFor(() => expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledWith("tl"));
+    expect(select).toBeDisabled();
 
     await act(async () => resolvePut());
     expect(select).toBeEnabled();
