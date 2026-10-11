@@ -155,7 +155,9 @@ public sealed class EggLotRepository(AppDbContext db) : IEggLotRepository
                 s.EggGradeId, s.EggGradeId.ToString(), int.MaxValue,
                 s.Available, s.Restricted, LowStockFloor: null)));
 
-        return rows.OrderBy(r => r.SortOrder).ThenBy(r => r.GradeName).ToList();
+        // Grade names are unique per farm, not per account, so the id breaks the tie
+        // and a paged reader sees each row once.
+        return rows.OrderBy(r => r.SortOrder).ThenBy(r => r.GradeName).ThenBy(r => r.EggGradeId).ToList();
     }
 
     public async Task AddAsync(EggLot entity, CancellationToken ct = default) =>

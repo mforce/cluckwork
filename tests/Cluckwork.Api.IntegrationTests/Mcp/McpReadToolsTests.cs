@@ -138,6 +138,34 @@ public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
         Assert.NotEqual(first.Items[0].GetRawText(), rest.Items[0].GetRawText());
     }
 
+    // Grade names are unique per farm, not per account, so two farms' "Large" at one sort
+    // order tie. The id breaks the tie, so each page holds the row it held last time. The
+    // larger id is inserted first, so the table's own order disagrees with the id's.
+    [Fact]
+    public async Task ReadStock_PagesTiedGradesOfTwoFarms_InIdOrder()
+    {
+        using var host = Host(factory);
+        var user = await SeedAsync(factory, Roles.Manager);
+        Guid[] ids = [Guid.NewGuid(), Guid.NewGuid()];
+        Array.Sort(ids);
+        foreach (var (id, quantity) in new[] { (ids[1], 20), (ids[0], 10) })
+        {
+            await factory.WithTenantScopeAsync(user.AccountId, async db =>
+            {
+                db.EggGrades.Add(EggGrade.Create(id, user.AccountId, Guid.NewGuid(), "Large", Domain.Modules.EggOperations.Contracts.EggGradeType.Size, 0, isSaleable: true));
+                await db.SaveChangesAsync();
+            });
+            await factory.SeedEggLotAsync(user.AccountId, id, quantity);
+        }
+
+        await using var client = await ConnectAsync(host, await IssueAsync(host, user, [OAuthScopes.ReadFarm]));
+        var first = await PageAsync<StockRow>(client, "cluckwork_read_stock", new() { ["limit"] = 1 });
+        var second = await PageAsync<StockRow>(client, "cluckwork_read_stock", new() { ["limit"] = 1, ["offset"] = first.NextOffset });
+
+        Assert.Equal([10, 20], first.Items.Concat(second.Items).Select(r => r.Available));
+        Assert.True(second.Complete);
+    }
+
     // The tool's own cap holds when a caller asks for more.
     [Fact]
     public async Task OversizedLimit_IsCappedAndSaysSo()
