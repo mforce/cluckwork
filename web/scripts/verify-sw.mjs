@@ -327,7 +327,13 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // minification cannot shorten, and the branch measures 1,959.97 KiB after
 // trimming. #1149 is still the planned way to win the space back. Any further
 // raise needs a new maintainer decision.
-const PRECACHE_CEILING_KIB = 1970;
+//
+// 2026-10-11, a fifth raise: the maintainer approved per-PR raises for #1215
+// file splits, each to the next whole KiB above that split's CI measurement
+// and named in its PR body. Splitting a component adds wiring that
+// minification cannot remove. #1234 (FeedPage) set 1,971 KiB; CI measured
+// 1,970.47 KiB. #1149 is still the planned way to win the space back.
+const PRECACHE_CEILING_KIB = 1971;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
