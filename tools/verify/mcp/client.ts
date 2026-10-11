@@ -17,8 +17,12 @@ import { UnauthorizedError, type OAuthClientProvider } from "@modelcontextprotoc
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { chromium, type Page } from "playwright";
 import { en } from "../../../web/src/i18n/en.ts";
+import { resolveBrowser } from "../../simulation/ui/src/browser.ts";
 
 const BASE = process.env.MCP_BASE ?? "https://localhost:8495";
+// The throwaway certificate is accepted only for the local proxy. Any other origin keeps
+// normal verification, and while the exception is on the browser may reach only BASE.
+const LOCAL_PROXY = ["localhost", "127.0.0.1"].includes(new URL(BASE).hostname);
 const MCP = new URL("/mcp", BASE);
 const APP = "Cluckwork live verifier";
 const CAST = new URL("../../simulation/.sim-cast.json", import.meta.url);
@@ -46,9 +50,12 @@ async function freePort(): Promise<number> {
 }
 
 async function withPage<T>(run: (page: Page) => Promise<T>): Promise<T> {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ executablePath: resolveBrowser().executablePath });
   try {
-    const context = await browser.newContext({ ignoreHTTPSErrors: true, colorScheme: process.env.MCP_SCHEME === "dark" ? "dark" : "light", viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+    const context = await browser.newContext({ ignoreHTTPSErrors: LOCAL_PROXY, colorScheme: process.env.MCP_SCHEME === "dark" ? "dark" : "light", viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+    if (LOCAL_PROXY)
+      await context.route("**/*", (route) =>
+        new URL(route.request().url()).origin === new URL(BASE).origin ? route.fallback() : route.abort());
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
@@ -100,10 +107,11 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
         }
       await page.setViewportSize({ width: 1280, height: 800 });
     }
-    // Allow with no password is refused by the form; the step-up is mandatory.
+    // The password field is required, so this checks form validation only; the server's
+    // step-up refusal is checked with a direct request (features/mcp.md).
     await page.getByRole("button", { name: en.connect.allow }).click();
     await page.waitForTimeout(500);
-    console.log(`allow without password -> still on consent: ${!code && (await password.isVisible())}`);
+    console.log(`form validation: Allow with no password stays on consent: ${!code && (await password.isVisible())}`);
     await password.fill(member.password);
     await page.getByRole("button", { name: en.connect.allow }).click();
     for (let i = 0; i < 100 && !code; i++) await page.waitForTimeout(100);
@@ -196,8 +204,9 @@ try {
   } else if (cmd === "call") {
     const c = await bearerClient(rest[0]!);
     const r = await c.callTool({ name: rest[1]!, arguments: rest[2] ? JSON.parse(rest[2]) : {} });
-    console.log(JSON.stringify(r.structuredContent ?? r.content, null, 1));
+    // Text only, so a successful reply pipes straight into jq.
     if (r.isError) console.log("isError: true");
+    for (const c of r.content as { type: string; text?: string }[]) if (c.type === "text") console.log(c.text);
     await c.close();
   } else throw new Error("usage: connect <persona> <scope> <token-file> [shots-dir] | tools <token-file> | call <token-file> <tool> [json-args] | disconnect <persona> [app-name]");
 } catch (e) {

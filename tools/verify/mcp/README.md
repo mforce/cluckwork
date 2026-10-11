@@ -16,4 +16,6 @@ dotnet run probe.cs -- https://localhost:8495/mcp ~/.tmp/mcp-verify/owner-read.t
 ```
 
 `MCP_BASE` overrides `https://localhost:8495`; `MCP_SCHEME=dark` starts the browser dark.
+`NODE_EXTRA_CA_CERTS` and `MCP_TLS_CERT` name the proxy's generated certificate for Node and
+`probe.cs`; certificate errors are ignored nowhere else.
 Personas are `owner`, `restricted-worker` and `readme-owner`. Keep tokens outside the repo.
