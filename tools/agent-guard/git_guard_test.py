@@ -371,6 +371,14 @@ CASES += [  # round 3: init through --git-dir targets that repository
     ("git --git-dir=new-repo.git init --bare", "plain", "allow"),
     ("git --git-dir=new-repo.git init --bare", "linked", "allow"),
 ]
+CASES += [  # round 3 note: data programs that can run a program
+    ("rg --pre git . gc", "shared", "block"),
+    ("rg --hostname-bin=git -n x .", "shared", "block"),
+    ("sort --compress-program=git -S 1K /tmp/words", "shared", "block"),
+    ("less '+!git sparse-checkout set src' src/file", "shared", "block"),
+    ("more '+!git sparse-checkout set src' src/file", "shared", "block"),
+    ("rg --pre git . gc", "linked", "allow"),
+]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [

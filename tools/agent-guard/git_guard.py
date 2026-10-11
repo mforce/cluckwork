@@ -72,8 +72,8 @@ ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
 # Programs whose arguments are only data: a `git` among them is text, not a command. Any other program whose
 # arguments name git may run it (xargs, env, sh -c, python -c, make, ...), so its target is unresolved.
-DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "less", "more", "nl", "rg", "sort",
-                                  "tee", "tr", "uniq"}
+DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "nl", "rg", "sort", "tee", "tr", "uniq"}
+DATA_PROGRAM_RUNNERS = ("--pre", "--hostname-bin", "--compress-program")  # rg and sort options that run a program
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
                     "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path",
                     "--no-advice", "--no-lazy-fetch", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"}
@@ -238,7 +238,9 @@ def git_steps(command, cwd):
             cwd = cd_dir(cwd, argv[1], command)
         elif program in ("git", "gh"):
             found.append((program, argv, cwd))
-        elif ASSIGNMENT.match(argv[0]) or (program not in DATA_PROGRAMS and any(GIT_WORD.search(arg) for arg in argv[1:])):
+        elif ASSIGNMENT.match(argv[0]) or (
+                (program not in DATA_PROGRAMS or any(arg.startswith(DATA_PROGRAM_RUNNERS) for arg in argv[1:]))
+                and any(GIT_WORD.search(arg) for arg in argv[1:])):
             return None
     return found
 
