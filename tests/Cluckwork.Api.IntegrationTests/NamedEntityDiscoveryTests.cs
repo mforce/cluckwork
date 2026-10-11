@@ -856,7 +856,7 @@ public sealed class NamedEntityDiscoveryTests(CluckworkWebApplicationFactory fac
 
     // --- tenant isolation ------------------------------------------------------
 
-    // AGENTS.md multi-tenancy — `search` must not become a cross-tenant read.
+    // src/AGENTS.md tenancy rule: `search` must not become a cross-tenant read.
     // Tenant B holds a row carrying A's token so a leak has somewhere to come
     // from, and B's own token search must return only B's row.
     [Fact]

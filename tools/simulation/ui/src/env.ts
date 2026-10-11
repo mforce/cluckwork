@@ -31,7 +31,7 @@ function isTruthy(v: string | undefined): boolean {
 /**
  * The API path prefix. Every SPA call is same-origin `/api/v1/...` — there is no
  * separate API host to configure, because the container serves the built SPA and
- * the API together (AGENTS.md: "single container").
+ * the API together (README.md: "single container").
  */
 export const API_PREFIX = "/api/v1";
 
