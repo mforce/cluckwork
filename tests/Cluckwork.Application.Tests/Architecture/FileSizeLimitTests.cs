@@ -40,7 +40,6 @@ public sealed partial class FileSizeLimitTests
         ["web/src/routes/HelpPage.tsx"] = 1012,
         ["web/src/routes/HistoryPage.tsx"] = 1033,
         ["web/src/routes/InventoryPage.tsx"] = 1022,
-        ["web/src/routes/ProductsPage.tsx"] = 700,
         ["web/src/routes/SettingsPage.tsx"] = 1080,
         ["web/src/routes/StockPage.tsx"] = 843,
         ["web/src/routes/UsersPage.tsx"] = 1361,
