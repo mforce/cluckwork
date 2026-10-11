@@ -335,6 +335,17 @@ CASES += [  # round 2: branch listing options take values (finding 3)
     ("git branch --format '%(refname)' -m feat/renamed", "shared", "block"),
 ]
 
+CASES += [  # round 2: global flags that do not change the target (finding 5)
+    *[(command, where, "allow") for where in ("shared", "linked", "feature") for command in (
+        "git --no-advice status --short",
+        "git --no-lazy-fetch log -1 --oneline",
+        "git --glob-pathspecs ls-files",
+        "git --icase-pathspecs ls-files",
+    )],
+    ("git --no-advice sparse-checkout set src", "shared", "block"),
+    ("git --exec-path=/tmp status", "linked", "block"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),

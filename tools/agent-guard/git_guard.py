@@ -75,7 +75,8 @@ INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf
 DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "less", "more", "nl", "rg", "sort",
                                   "tee", "tr", "uniq"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
-                    "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path"}
+                    "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path",
+                    "--no-advice", "--no-lazy-fetch", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"}
 GIT_GLOBAL_VALUES = {"-C", "-c", "--git-dir", "--work-tree"}
 PUSH_LONG_OPTIONS = [
     "all", "atomic", "branches", "delete", "dry-run", "exec", "follow-tags", "force", "force-if-includes",
