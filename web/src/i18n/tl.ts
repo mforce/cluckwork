@@ -2532,6 +2532,11 @@ export const tl = {
       + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-assign ng manggagawa sa "
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
+    signingInAppAddress:
+      "<strong>Pagkonekta ng AI app.</strong> Kumokonekta sa address na ito ang AI app na sumusuporta sa MCP: "
+      + "<code>{{address}}</code>. Ipapadala ka nito sa Cluckwork para payagan "
+      + "ito. Payagan ang <strong>Basahin ang datos ng bukid</strong>, <strong>Itala ang araw-araw na "
+      + "tala</strong> o pareho.",
     signingInConnectApp:
       "<strong>Pagkonekta ng app.</strong> Puwedeng humiling ang isang panlabas na app, gaya ng AI assistant, na "
       + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito, <strong>Basahin ang datos ng bukid</strong>, "
@@ -2551,6 +2556,37 @@ export const tl = {
       + "nagagawa kaysa sa pag-disable sa tao. Kapag in-off ang <strong>Payagan ang mga nakakonektang app</strong> "
       + "sa itaas ng pahinang iyon, hihinto ang bawat app at bawat bagong koneksyon hanggang buksan itong muli ng "
       + "Owner; walang naididiskonekta.",
+    signingInAppTools:
+      "<strong>Ang kaya ng nakakonektang AI app.</strong> Ang kaya lang nito ay ang pinapayagan ng role mo at ng mga "
+      + "pahintulot mo, nang sabay. Sa <strong>Basahin ang datos ng bukid</strong>, kayang basahin ng bawat role ang mga kawan, "
+      + "stock, lote ng itlog at galaw nito, at araw-araw na tala (<code>cluckwork_list_flocks</code>, "
+      + "<code>cluckwork_read_stock</code>, <code>cluckwork_list_egg_lots</code>, "
+      + "<code>cluckwork_list_egg_lot_movements</code>, <code>cluckwork_list_daily_entries</code>). Kayang basahin "
+      + "ng bawat role maliban sa <strong>Read-only</strong> ang mga customer at sales order "
+      + "(<code>cluckwork_list_customers</code>, <code>cluckwork_list_sales_orders</code>). Ang "
+      + "<strong>Admin</strong>, <strong>Manager</strong> at <strong>Benta</strong> lang ang nakakakita ng utang at "
+      + "bayad (<code>cluckwork_list_order_payments</code>, <code>cluckwork_list_customer_balances</code>). Sa "
+      + "<strong>Itala ang araw-araw na tala</strong>, kayang itala ng <strong>Admin</strong>, "
+      + "<strong>Manager</strong> at <strong>Manggagawa</strong> ang isang araw ng kawan "
+      + "(<code>cluckwork_record_daily_entry</code>). Ang manggagawang may naka-assign na kawan ay nakakakuha lang "
+      + "ng mga kawang iyon.",
+    signingInAppLimits:
+      "<strong>Ang itinatala at nakikita ng AI app.</strong> Laging <strong>Draft</strong> ang tala mula sa app. "
+      + "Papasok lang sa stock ang mga itlog nito kapag binuksan ito ng isang tao sa <strong>Araw-araw na "
+      + "Tala</strong> at pinindot ang <strong>Isumite ang araw</strong>. Kapag itinala ulit ang parehong kawan at "
+      + "araw, nagbabago ang draft. May idempotency key ang bawat pagtatala, isang label na pinipili ng app, kaya "
+      + "walang nase-save nang dalawang beses kapag ipinadala ito ulit sa loob ng 48 oras matapos magtagumpay. "
+      + "Tatakbo ulit ang mas lumang pagpapadala, kaya tingnan muna ang draft. Hanggang 100 hilera lang ang "
+      + "nababasa ng app bawat beses. Hindi nito kailanman nakikita ang free-text na note, reference ng bayad, "
+      + "nakasulat na dahilan o contact details, dahil puwedeng mag-type ang kahit sino "
+      + "ng utos para sa AI doon.",
+    signingInAppRefused:
+      "<strong>Kapag tinanggihan ang AI app.</strong> Habang naka-off ang <strong>Payagan ang mga nakakonektang "
+      + "app</strong>, natatanggap ng mga app ang <strong>Naka-off ang mga nakakonektang app</strong> at gagana ulit "
+      + "kapag binuksan ito. Pagkatapos ng <strong>Idiskonekta</strong> o ma-reset ang password mo, kailangang "
+      + "kumonekta ulit ang app gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
+      + "pahintulot na hindi mo ibinigay, gaya ng <strong>Itala ang araw-araw na tala</strong>, ikonekta ulit at "
+      + "payagan ito; may marka itong <strong>Bago</strong>.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -3652,7 +3688,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, at hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

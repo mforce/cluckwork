@@ -3178,6 +3178,10 @@ export const en = {
       + "changing a login email, disabling a user, re-enabling a user, assigning a worker to a flock, and "
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
+    signingInAppAddress:
+      "<strong>Connecting an AI app.</strong> An AI app that supports MCP connects at this address: "
+      + "<code>{{address}}</code>. It then sends you to Cluckwork to allow it. Allow <strong>Read farm "
+      + "data</strong>, <strong>Record daily entries</strong> or both.",
     signingInConnectApp:
       "<strong>Connecting an app.</strong> An outside app, such as an AI assistant, can ask to act as you. "
       + "Cluckwork shows what it asks for, <strong>Read farm data</strong>, <strong>Record daily entries</strong> or both, "
@@ -3194,6 +3198,31 @@ export const en = {
       + "filter by <strong>Person</strong>, and can disconnect any of them, which does less than disabling the person. "
       + "Turning off <strong>Allow connected apps</strong> at the top of that page stops every app and any new "
       + "connection until the Owner turns it back on; nothing is disconnected.",
+    signingInAppTools:
+      "<strong>What a connected AI app can do.</strong> It can do only what your role and your permissions both allow. With "
+      + "<strong>Read farm data</strong>, every role can read flocks, stock, egg lots and their movements, and daily "
+      + "entries (<code>cluckwork_list_flocks</code>, <code>cluckwork_read_stock</code>, <code>cluckwork_list_egg_lots</code>, "
+      + "<code>cluckwork_list_egg_lot_movements</code>, <code>cluckwork_list_daily_entries</code>). Every role but "
+      + "<strong>Read-only</strong> can read customers and sales orders (<code>cluckwork_list_customers</code>, "
+      + "<code>cluckwork_list_sales_orders</code>). Only <strong>Admin</strong>, <strong>Manager</strong> and "
+      + "<strong>Sales</strong> see what is owed and paid (<code>cluckwork_list_order_payments</code>, "
+      + "<code>cluckwork_list_customer_balances</code>). With <strong>Record daily entries</strong>, "
+      + "<strong>Admin</strong>, <strong>Manager</strong> and <strong>Worker</strong> can record a flock's day "
+      + "(<code>cluckwork_record_daily_entry</code>). A worker with assigned flocks gets only those flocks.",
+    signingInAppLimits:
+      "<strong>What an AI app records and sees.</strong> An entry from an app is always a <strong>Draft</strong>. "
+      + "Its eggs reach stock only when a person opens it in <strong>Daily entry</strong> and presses "
+      + "<strong>Submit day</strong>. Recording the same flock and day again changes the draft. Each recording "
+      + "carries an idempotency key, a label the app picks, so resending it within 48 hours of success saves "
+      + "nothing twice. An older resend runs again, so check the draft first. The app reads at most 100 rows at a "
+      + "time. It never sees free-text notes, payment references, written reasons or contact details, because "
+      + "anyone could type instructions for an AI there.",
+    signingInAppRefused:
+      "<strong>When an AI app is refused.</strong> While <strong>Allow connected apps</strong> is off, apps get "
+      + "<strong>Connected apps are off</strong> and work again once it is back on. After <strong>Disconnect</strong> "
+      + "or a password reset, the app must connect again with your password. A tool your role does not allow stays "
+      + "hidden. For a permission you did not allow, such as <strong>Record daily entries</strong>, connect again "
+      + "and allow it; it is marked <strong>New</strong>.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -4189,7 +4218,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, and it never sees free-text notes or written reasons.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "
