@@ -74,6 +74,11 @@ the SDK runs a tool with no `[Authorize]`, or with `[AllowAnonymous]`, for any c
 
 #806 implements rows 17 and 18 as `McpEndpointTests.IdempotencyExemption_IsCarriedByTheMcpPostAlone`
 and `McpMessages_WithoutAnIdempotencyKey_AreServed`.
+#809 implements rows 19 and 21 to 23 as `RecordDailyEntryToolTests.SameKey_OnTheRestRouteAndTheTool_DoNotAlias`,
+`McpToolSurfaceTests.RealTree_EveryWriteToolTakesAnIdempotencyKey`,
+`SameKey_DifferentArguments_IsRefused_AndChangesNothing` and
+`SameKeyAndArguments_Replays_WithoutASecondAuditRow`. Row 24 holds: the extraction moved the
+protocol into `IdempotentUnit` and no #307 test changed. Row 20 waits for a second write tool.
 
 ## Domain surface
 
@@ -114,6 +119,13 @@ reply shape it cannot see into, fails.
 and `OversizedBody_IsRefused`. `/mcp` takes its budget from `AcceptOAuthTokens`, the
 `oauth-api` policy, which `OAuthFailClosedTests.OAuthLimits_AreDecidedByTheSharedCounter`
 proves is decided by the shared counter.
+
+#809 implements rows 25 to 27 and 32 in `RecordDailyEntryToolTests`: `InvalidValues_AreRefusedByTheContract`,
+`AnotherFarmsFlock_IsNotFound_AndNothingIsWritten`,
+`Worker_RecordsForTheirFlock_AndIsRefusedForAnother_ByNameAndById` and
+`SharedFlockName_IsAmbiguous_AndAnIdRecords`. Row 27's refusal comes from the flock-scoped read
+before the handler runs; `FlockScopeGuard` is behind it, so bypassing the handler alone leaves
+that test green.
 
 ## Where these guards stop, stated plainly
 

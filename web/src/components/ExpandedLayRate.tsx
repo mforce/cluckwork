@@ -19,21 +19,18 @@
 // Give the box its own index state and that loop comes back.
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, LinearProgress, Modal, TextField, useMediaQuery } from "@mui/material";
+import { Alert, Button, LinearProgress, Modal, useMediaQuery } from "@mui/material";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCountedAsOpenDialog } from "./Dialog";
 import { DayLegend, DayReadout } from "./DayStrip";
 import { DaySlots } from "./DaySlots";
 import { useDayStrip } from "./useDayStrip";
-import { FilterDateField } from "./FilterBar";
+import { ExpandedRangePicker } from "./ExpandedRangePicker";
 import { useFormat } from "../farm/useFormat";
 import { MD_UP_QUERY } from "../lib/breakpoints";
 import { DAY_GAP_PX, DAY_SLOT_PX, dayWindow, stripWidth } from "../lib/dayWindow";
 import type { DayWindow, StripMetrics } from "../lib/dayWindow";
-import {
-  EXPANDED_RANGE_PRESETS, MAX_EXPANDED_RANGE_DAYS, customRangeError,
-} from "../lib/layRateRange";
-import type { CustomRangeError, LayRateRange } from "../lib/layRateRange";
+import type { LayRateRange } from "../lib/layRateRange";
 import type { DayStripData, DayStripSlot } from "../lib/dashboard";
 
 // Every seventh day carries a date on the rule, counted back from the newest
@@ -136,12 +133,17 @@ export function ExpandedLayRate({
   const { placeReadout } = strip;
   useLayoutEffect(() => placeReadout(), [view.stretch, placeReadout]);
 
-  useEffect(() => {
-    const region = scrollerRef.current;
-    if (region === null) return;
+  // A ref callback for the reason `takeOpeningFocus` gives below: `Modal`
+  // portals the region on a second commit, so a mount effect found the ref
+  // null and never observed it (#1203). The cleanup runs when the node goes.
+  const observeRegion = useCallback((node: HTMLDivElement) => {
+    scrollerRef.current = node;
     const observer = new ResizeObserver(() => sync());
-    observer.observe(region);
-    return () => observer.disconnect();
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      scrollerRef.current = null;
+    };
   }, [sync]);
 
   // #485 — this is a MUI `Modal`, so the page behind it cannot speak.
@@ -359,7 +361,7 @@ export function ExpandedLayRate({
                     </div>
                     <div className="lay-expand-window">
                       <div
-                        className={view.stretch ? "lay-expand-scroll is-fit" : "lay-expand-scroll"} ref={scrollerRef}
+                        className={view.stretch ? "lay-expand-scroll is-fit" : "lay-expand-scroll"} ref={observeRegion}
                         onScroll={() => { sync(); strip.placeReadout(); }}
                       >
                         <DaySlots variant="expanded" data={data} label={label} tip={tip} strip={strip} />
@@ -406,95 +408,5 @@ export function ExpandedLayRate({
       </div>
       </div>
     </Modal>
-  );
-}
-
-// The same native select and plain date fields the card uses (#914), held to
-// the expanded chart's own one-year ceiling.
-function ExpandedRangePicker({ range, from, to, latestDay, onRangeChange }: {
-  range: LayRateRange;
-  // The window on screen, which is what the custom form opens on: switching to
-  // Custom range offers the span being looked at, not a one-day stub.
-  from: string;
-  to: string;
-  latestDay: string;
-  onRangeChange: (next: LayRateRange) => void;
-}) {
-  const { t } = useTranslation("dashboard");
-  const fmt = useFormat();
-  const [custom, setCustom] = useState(range.kind === "custom");
-  const [draftFrom, setDraftFrom] = useState(from);
-  const [draftTo, setDraftTo] = useState(to);
-  const [error, setError] = useState<CustomRangeError | null>(null);
-
-  const select = (value: string) => {
-    setError(null);
-    const preset = EXPANDED_RANGE_PRESETS.find((days) => String(days) === value);
-    if (preset === undefined) {
-      setDraftFrom(from);
-      setDraftTo(to);
-      setCustom(true);
-      return;
-    }
-    setCustom(false);
-    onRangeChange({ kind: "preset", days: preset });
-  };
-  const apply = () => {
-    const next = customRangeError(draftFrom, draftTo, latestDay, MAX_EXPANDED_RANGE_DAYS);
-    setError(next);
-    if (next === null) onRangeChange({ kind: "custom", from: draftFrom, to: draftTo });
-  };
-  const errorText = (kind: CustomRangeError) => {
-    switch (kind) {
-      case "order": return t("rangeErrorOrder");
-      case "future": return t("rangeErrorFuture", { date: fmt.date(latestDay) });
-      case "tooLong": return t("rangeErrorTooLong", { count: MAX_EXPANDED_RANGE_DAYS, days: fmt.count(MAX_EXPANDED_RANGE_DAYS) });
-      case "incomplete": return t("rangeErrorIncomplete");
-      case "beforeCalendar": return t("rangeErrorBeforeCalendar");
-    }
-  };
-
-  return (
-    <div className="lay-expand-range">
-      <TextField
-        select size="small" label={t("rangeLabel")}
-        value={range.kind === "custom" || custom ? "custom" : String(range.days)}
-        slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
-        onChange={(e) => select(e.target.value)}
-        sx={{ minWidth: "11rem" }}
-      >
-        {EXPANDED_RANGE_PRESETS.map((days) => (
-          <option key={days} value={String(days)}>
-            {t("rangePresetOption", { count: days, total: fmt.count(days) })}
-          </option>
-        ))}
-        <option value="custom">{t("rangeCustomOption")}</option>
-      </TextField>
-      {custom && (
-        <div className="lay-expand-custom">
-          {/* Sized in styles.css, not here: the phone rule is a change of flex
-              DIRECTION, and a flex-basis written as an sx prop would then be a
-              height. */}
-          <FilterDateField
-            className="lay-expand-date"
-            label={t("rangeFromLabel")} value={draftFrom}
-            slotProps={{ htmlInput: { max: latestDay } }}
-            onChange={(e) => setDraftFrom(e.target.value)}
-            sx={{ maxWidth: "none" }}
-          />
-          <FilterDateField
-            className="lay-expand-date"
-            label={t("rangeToLabel")} value={draftTo}
-            slotProps={{ htmlInput: { max: latestDay } }}
-            onChange={(e) => setDraftTo(e.target.value)}
-            sx={{ maxWidth: "none" }}
-          />
-          <Button variant="outlined" color="inherit" onClick={apply} sx={{ "&&": { minHeight: 44 } }}>
-            {t("rangeApply")}
-          </Button>
-        </div>
-      )}
-      {error !== null && <Alert severity="error" className="error">{errorText(error)}</Alert>}
-    </div>
   );
 }

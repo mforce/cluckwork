@@ -20,7 +20,6 @@ public sealed partial class FileSizeLimitTests
 
     private static readonly HashSet<string> Legacy = new(StringComparer.Ordinal)
     {
-        "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
         "src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.cs",
         "src/Cluckwork.Api/Program.cs",
         "src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrder.cs",

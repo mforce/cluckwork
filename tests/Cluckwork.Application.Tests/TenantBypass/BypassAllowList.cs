@@ -264,24 +264,24 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Api.Middleware.IdempotencyMiddleware.InvokeAsync(HttpContext context, AppDbContext db, TenantContext tenant, CurrentUserContext user)",
-            File = "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
-            Hash = "4c659505",
-            Justification = "Raw-SQL UPDATE of idempotency_records on successful completion; the statement carries WHERE \"AccountId\" = {accountId} (the claim was scoped to this tenant on insert). Not a row lock, so the predicate walk does not flag it — allow-listed as a raw-SQL occurrence.",
+            Symbol = "Cluckwork.Api.Middleware.IdempotentUnit.RunAsync(IdempotencyScope scope, Func<Task<IdempotentResponse>> execute, CancellationToken ct)",
+            File = "src/Cluckwork.Api/Middleware/IdempotentUnit.cs",
+            Hash = "cc8bd5c3",
+            Justification = "Raw-SQL UPDATE of idempotency_records on successful completion, and calls to the claim and release helpers below; the statement carries WHERE \"AccountId\" = {scope.AccountId} (the claim was scoped to this tenant on insert). Not a row lock, so the predicate walk does not flag it — allow-listed as a raw-SQL occurrence.",
         },
         new()
         {
-            Symbol = "Cluckwork.Api.Middleware.IdempotencyMiddleware.TryClaimOrInspectAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, string requestHash, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
-            File = "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
-            Hash = "be5dac99",
-            Justification = "Raw-SQL UPDATE that steals an expired idempotency lease; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash) — scoped to this tenant's claim. Not a row lock.",
+            Symbol = "Cluckwork.Api.Middleware.IdempotentUnit.TryClaimOrInspectAsync(IdempotencyScope scope, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
+            File = "src/Cluckwork.Api/Middleware/IdempotentUnit.cs",
+            Hash = "f6fee6c6",
+            Justification = "Raw-SQL UPDATE that steals an expired idempotency lease; the statement carries WHERE \"AccountId\" = {scope.AccountId} AND (EndpointHash, IdempotencyKeyHash) — scoped to this tenant's claim. Not a row lock.",
         },
         new()
         {
-            Symbol = "Cluckwork.Api.Middleware.IdempotencyMiddleware.ReleaseClaimAsync(AppDbContext db, Guid accountId, string endpointHash, string keyHash, Guid ownerToken, CancellationToken ct)",
-            File = "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs",
-            Hash = "4a43d269",
-            Justification = "Raw-SQL DELETE of the tenant's own idempotency claim; the statement carries WHERE \"AccountId\" = {accountId} AND (EndpointHash, IdempotencyKeyHash, LeaseOwner) — scoped to this tenant. Not a row lock.",
+            Symbol = "Cluckwork.Api.Middleware.IdempotentUnit.ReleaseClaimAsync(IdempotencyScope scope, Guid ownerToken, CancellationToken ct)",
+            File = "src/Cluckwork.Api/Middleware/IdempotentUnit.cs",
+            Hash = "8607dc66",
+            Justification = "Raw-SQL DELETE of the tenant's own idempotency claim; the statement carries WHERE \"AccountId\" = {scope.AccountId} AND (EndpointHash, IdempotencyKeyHash, LeaseOwner) — scoped to this tenant. Not a row lock.",
         },
         new()
         {
