@@ -343,14 +343,23 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         }));
         const int cap = RateLimitingOptions.OAuthApiBearersInFlightPerAddress;
 
+        HttpResponseMessage refused;
+        Task<HttpResponseMessage> other;
         var held = Enumerable.Range(0, cap).Select(i => Client(host, $"forged-{i}").GetAsync(Probe.Read)).ToList();
-        await UntilAsync(() => Volatile.Read(ref entered) == cap);
-        using var refused = await Client(host, "forged-over").GetAsync(Probe.Read);
-        var otherClient = Client(host, "forged-elsewhere");
-        otherClient.DefaultRequestHeaders.Add("X-Test-Remote", "203.0.113.9");
-        var other = otherClient.GetAsync(Probe.Read);
-        await UntilAsync(() => Volatile.Read(ref entered) == cap + 1);
-        gate.SetResult();
+        try
+        {
+            await UntilAsync(() => Volatile.Read(ref entered) == cap);
+            // Without the cap this request would wait on the gate too.
+            refused = await Client(host, "forged-over").GetAsync(Probe.Read).WaitAsync(TimeSpan.FromSeconds(30));
+            var otherClient = Client(host, "forged-elsewhere");
+            otherClient.DefaultRequestHeaders.Add("X-Test-Remote", "203.0.113.9");
+            other = otherClient.GetAsync(Probe.Read);
+            await UntilAsync(() => Volatile.Read(ref entered) == cap + 1);
+        }
+        finally
+        {
+            gate.TrySetResult();
+        }
         var finished = await Task.WhenAll(held.Append(other));
         using var afterwards = await Client(host, "forged-after").GetAsync(Probe.Read);
 
