@@ -95,8 +95,9 @@ INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf
 # arguments name git may run it (xargs, env, sh -c, python -c, make, ...), so its target is unresolved.
 DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "nl", "rg", "sort", "tee", "tr", "uniq"}
 DATA_PROGRAM_RUNNERS = ("--pre", "--hostname-bin", "--compress-program")  # rg and sort options that run a program
-# Filters a chain of `gh api` GETs may pipe through: each only reads its input and runs no program.
-READ_FILTERS = {"cat", "grep", "head", "jq", "sort", "tail", "wc"}
+# Filters a chain of `gh api` GETs may pipe through: each only reads its input, writes no file and runs no
+# program under any option. sort is out: -o writes and --compress[-program] runs one on a spill.
+READ_FILTERS = {"cat", "grep", "head", "jq", "tail", "wc"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
                     "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path",
                     "--no-advice", "--no-lazy-fetch", "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs"}
@@ -112,11 +113,10 @@ GH_API_FLAGS = {"--paginate", "-i", "--include", "--silent", "--verbose", "--slu
 GH_API_BODY = {"-f", "--raw-field", "-F", "--field", "--input"}
 # REST paths whose non-GET methods merge, commit, move a ref or change main's protection outside a PR.
 GH_API_PROTECTED = re.compile(r"(^|/)(merges|contents|git/refs|rulesets|branches/[^/]+/protection)(/|$)")
-# `git config` forms that read; the subcommands count only in the operation position (git config list).
-CONFIG_READ_FLAGS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l"}
-CONFIG_WRITES = {"--add", "--replace-all", "--unset", "--unset-all"}
-CONFIG_EDIT = {"-e", "--edit", "edit"}
-CONFIG_VALUES = {"-f", "--file", "--blob", "--comment", "--default", "--type", "--url", "--value"}
+# `git config` long options by role; the get/list subcommands count only in the operation position.
+CONFIG_READS = {"get", "get-all", "get-regexp", "get-urlmatch", "list"}
+CONFIG_WRITES = {"add", "replace-all", "unset", "unset-all"}
+CONFIG_VALUES = {"file", "blob", "comment", "default", "type", "url", "value"}  # each consumes the next token
 CONFIG_LONG_OPTIONS = [
     "add", "all", "blob", "bool", "bool-or-int", "bool-or-str", "comment", "default", "edit", "expiry-date", "file",
     "fixed-value", "get", "get-all", "get-color", "get-colorbool", "get-regexp", "get-urlmatch", "global", "includes",
@@ -490,20 +490,46 @@ def writes_anyway(command, args):
 
 def config_writes(args, shown):
     """`git config` in edit mode (an editor, possibly `-c core.editor=sed`, can change any key unseen), or one that
-    sets, adds or unsets an alias.* or core.hooksPath key in any scope. A read (--get*, --list, the get/list
-    subcommands, or a lone key) is not a write. Long options are resolved from their prefixes; an unknown one
-    blocks."""
-    args = [f"--{long_option(arg, shown, CONFIG_LONG_OPTIONS)}" + ("=" + arg.split("=", 1)[1] if "=" in arg else "")
-            if arg.startswith("--") else arg for arg in args]
-    args = [arg for n, arg in enumerate(args) if not (n and args[n - 1] in CONFIG_VALUES)]
-    positional = [arg for arg in args if not arg.startswith("-")]
-    if any(arg in CONFIG_EDIT for arg in args if arg.startswith("-")) or positional[:1] == ["edit"]:
+    sets, adds or unsets an alias.* or core.hooksPath key in any scope. A read (--get*, --list, --help, the
+    get/list subcommands, or a lone key) is not a write. One walk over argv: a long option resolves from its
+    prefix (an unknown one blocks), an option that takes a value consumes the next token whatever it looks
+    like, and nothing after `--` is an option."""
+    edit = read = write = False
+    positional = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        i += 1
+        if arg == "--":
+            positional += args[i:]
+            break
+        if arg in ("-h", "--help"):
+            return False
+        if arg.startswith("--"):
+            name = long_option(arg, shown, CONFIG_LONG_OPTIONS)
+            if name in CONFIG_VALUES and "=" not in arg:
+                i += 1
+            edit |= name == "edit"
+            read |= name in CONFIG_READS
+            write |= name in CONFIG_WRITES
+        elif arg.startswith("-") and len(arg) > 1:
+            for flag in arg[1:]:
+                if flag not in "elfz":
+                    block("option", shown)
+                edit |= flag == "e"
+                read |= flag == "l"
+                if flag == "f":
+                    i += 1
+                    break
+        else:
+            positional.append(arg)
+    if edit or positional[:1] == ["edit"]:
         return True
-    if not any(CONFIG_GUARDED_KEY.match(arg) for arg in args):
+    if not any(CONFIG_GUARDED_KEY.match(arg) for arg in positional):
         return False
-    if any(arg in CONFIG_READ_FLAGS for arg in args) or positional[:1] in (["get"], ["list"]):
+    if read or positional[:1] in (["get"], ["list"]):
         return False
-    return len(positional) > 1 or any(arg in CONFIG_WRITES for arg in args)
+    return len(positional) > 1 or write
 
 
 INIT_VALUES = {"-b", "--initial-branch", "--separate-git-dir", "--template", "--object-format", "--ref-format"}
@@ -699,7 +725,7 @@ def is_read_chain(steps):
     write route and still runs without the simple-command rule. Any other step, or an unparsed chain, is not."""
     return bool(steps) and all(
         (program == "gh" and is_gh_api_read(argv[1:]))
-        or (program in READ_FILTERS and not any(arg.startswith(DATA_PROGRAM_RUNNERS) for arg in argv[1:]))
+        or program in READ_FILTERS
         for program, argv, _ in steps)
 
 
