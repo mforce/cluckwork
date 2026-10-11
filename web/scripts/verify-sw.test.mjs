@@ -33,7 +33,8 @@ const RUNTIME_ROUTE_FN =
 // #1149 — copied from an actual `vite build` output, like the route above.
 const LANGUAGE_ROUTE =
   'registerRoute(function({url:s,request:e,sameOrigin:l}){return l&&"script"===e.destination' +
-  '&&/^\\/assets\\/(?:es|tl)-[\\w-]+\\.js$/.test(s.pathname)},new s.CacheFirst({cacheName:"language-packs"}),"GET");';
+  '&&/^\\/assets\\/(?:es|tl)-[\\w-]+\\.js$/.test(s.pathname)},new s.CacheFirst({cacheName:"language-packs",' +
+  'plugins:[new s.ExpirationPlugin({maxEntries:4}),new s.CacheableResponsePlugin({statuses:[200]})]}),"GET");';
 const LANGUAGE_PACKS = ["es-deadbeef.js", "tl-deadbeef.js"];
 
 // #948 round 1's shape, kept only as the negative fixture below: a RegExp is
@@ -138,6 +139,14 @@ for (const [name, options, message] of [
   ["a language pack that is precached", { precachePacks: true }, /language-pack chunks found in the precache/],
   ["a missing es chunk (statically imported)", { packs: ["tl-deadbeef.js"] }, /exactly one emitted es catalog chunk/],
   ["a missing language-packs route", { languageRoute: "" }, /expected exactly the runtime caching routes/],
+  // #1149 review R5 — the route's wiring, not only its matcher.
+  ["a language-packs route for POST", { languageRoute: LANGUAGE_ROUTE.replace('"GET")', '"POST")') },
+    /runtime caching route language-packs is not registered for GET/],
+  ["a language-packs route caching 404s", { languageRoute: LANGUAGE_ROUTE.replace("statuses:[200]", "statuses:[404]") },
+    /language-pack route does not cache exactly status 200/],
+  ["a language-packs route without expiration",
+    { languageRoute: LANGUAGE_ROUTE.replace("new s.ExpirationPlugin({maxEntries:4}),", "") },
+    /language-pack route has no ExpirationPlugin maxEntries/],
   ["a static import of a pack", { appImports: 'import{t as e}from"./es-deadbeef.js";' },
     /assets\/app\.js imports assets\/es-deadbeef\.js statically/],
 ]) {

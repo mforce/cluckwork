@@ -115,6 +115,13 @@ function readBalancedAt(source, i, open, close) {
  */
 const STRATEGY_RE = /^\s*,\s*new\s+[$\w]+\.(\w+)\(\s*\{\s*cacheName:\s*"([^"]+)"/;
 
+// #1149 review R5 — everything after the matcher up to registerRoute's closing
+// paren: the strategy with its plugins, then the HTTP method.
+function handlerAt(source, registerAt, afterMatcher) {
+  const end = readBalancedAt(source, registerAt + "registerRoute".length, "(", ")");
+  return end === null ? "" : source.slice(afterMatcher, end);
+}
+
 function extractRuntimeCacheRoutes(source) {
   const routes = [];
   const marker = "registerRoute(";
@@ -128,7 +135,10 @@ function extractRuntimeCacheRoutes(source) {
       const read = readRegexAt(source, j);
       if (!read) continue;
       const strategy = STRATEGY_RE.exec(source.slice(read.next, read.next + 200));
-      routes.push({ kind: "regex", regex: read.regex, strategy: strategy?.[1] ?? null, cacheName: strategy?.[2] ?? null });
+      routes.push({
+        kind: "regex", regex: read.regex, strategy: strategy?.[1] ?? null, cacheName: strategy?.[2] ?? null,
+        handler: handlerAt(source, at, read.next),
+      });
       continue;
     }
     if (source.startsWith("function", j)) {
@@ -146,6 +156,7 @@ function extractRuntimeCacheRoutes(source) {
       routes.push({
         kind: "function", source: source.slice(j, afterBody),
         strategy: strategy?.[1] ?? null, cacheName: strategy?.[2] ?? null,
+        handler: handlerAt(source, at, afterBody),
       });
       continue;
     }
@@ -259,7 +270,13 @@ for (const route of runtimeRoutes) {
     "match-callback does not destructure `sameOrigin` — it could match a cross-origin request");
   check(!fn.includes("||"),
     "match-callback combines a check with || — every guard must be required (&&), none may be optional");
+  check(/,\s*"GET"\s*\)$/.test(route.handler),
+    `runtime caching route ${route.cacheName} is not registered for GET — a page's ordinary requests would bypass it`);
   if (route.cacheName === "language-packs") {
+    check(/new [$\w]+\.CacheableResponsePlugin\(\{statuses:\[200\]\}\)/.test(route.handler),
+      "language-pack route does not cache exactly status 200 — it would skip real packs or keep error pages");
+    check(/new [$\w]+\.ExpirationPlugin\(\{maxEntries:\d+\}\)/.test(route.handler),
+      "language-pack route has no ExpirationPlugin maxEntries — every release's packs would stay cached forever");
     check(fn.includes(String.raw`/^\/assets\/(?:es|tl)-[\w-]+\.js$/.test(`),
       "language-pack match-callback does not anchor the pathname to /assets/{es,tl}-<hash>.js");
     check(/\.destination\b/.test(fn) && /["']script["']/.test(fn),
