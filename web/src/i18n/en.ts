@@ -2436,7 +2436,7 @@ export const en = {
   // fresh.status.toLowerCase() — lowercasing a raw wire enum value is
   // locale-fragile (only ever reads correctly in English); tracked as a
   // native-pass deferral (#182), not solved by this task (see the code
-  // comment at the call site, HistoryPage.tsx rebindAfterConflict).
+  // comment at the call site, history/useHistoryAdjust.ts rebindAfterConflict).
   // DATA left raw, never routed through this catalog: entry dates
   // (e.date/adjusting.date), flock/grade names (flockName/gradeName, with
   // their id.slice(0,8) fallback), the "—" placeholder for an entry with no
@@ -2795,7 +2795,7 @@ export const en = {
   //      show a ManagerAdjusted entry RAW; statusLabel (wired in Task 12) now
   //      makes it read "Adjusted" — the text HistoryPage already shows for
   //      that state via its own bespoke `<span className="badge
-  //      badge-warn">Adjusted</span>` (HistoryPage.tsx 249-250), NOT a
+  //      badge-warn">Adjusted</span>` (history/HistoryLedgers.tsx statusCell), NOT a
   //      StatusBadge label.
   //   2. UsersPage.tsx role table cell renders raw `{u.role}` = "ReadOnly";
   //      roleLabel makes it read "Read-only" (matching the picker option).
