@@ -131,6 +131,9 @@ public sealed class CommerceModule(
     public Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(CancellationToken ct) =>
         payments.ListCustomerBalancesAsync(ct);
 
+    public Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(int limit, int offset, CancellationToken ct) =>
+        payments.ListCustomerBalancesAsync(limit, offset, ct);
+
     private static CustomerDetails ToDetails(Customer c) =>
         new(c.Id, c.Name, c.Phone, c.Email, c.Address, c.Note, c.Version);
 

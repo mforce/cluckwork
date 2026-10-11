@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -27,6 +28,11 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         "cluckwork_list_daily_entries", "cluckwork_list_egg_lot_movements", "cluckwork_list_egg_lots",
         "cluckwork_list_flocks", "cluckwork_read_stock",
     ];
+
+    // The commerce read tools (#808): customers and orders admit every role but ReadOnly,
+    // payments and balances only the Sales tier.
+    private static readonly string[] SalesFlowTools = ["cluckwork_list_customers", "cluckwork_list_sales_orders"];
+    private static readonly string[] SalesAccessTools = ["cluckwork_list_customer_balances", "cluckwork_list_order_payments"];
 
     [Theory]
     [InlineData("2026-07-28")]
@@ -60,9 +66,13 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
 
-        // The real read tools (#807) admit every role and need farm:read.
-        string[] reads = scopes.Contains(OAuthScopes.ReadFarm) ? ReadTools : [];
-        Assert.Equal(expected.Concat(reads).Order(), tools.Select(t => t.Name).Order());
+        // The real read tools need farm:read; #807's admit every role. The real write tool
+        // (#809) has the probe write's gates, ProductionWrite and daily-entries:write.
+        string[] reads = !scopes.Contains(OAuthScopes.ReadFarm) ? []
+            : role == Roles.ReadOnly ? ReadTools
+            : [.. ReadTools, .. SalesFlowTools, .. SalesAccessTools];
+        string[] writes = expected.Contains(ProbeTools.Write) ? [DailyEntryTools.RecordDailyEntry] : [];
+        Assert.Equal(expected.Concat(reads).Concat(writes).Order(), tools.Select(t => t.Name).Order());
     }
 
     [Fact]
@@ -73,8 +83,10 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
 
         await using var client = await ConnectAsync(host, token);
         var refused = await Assert.ThrowsAsync<McpProtocolException>(() => client.CallToolAsync(ProbeTools.Write).AsTask());
+        var realWrite = await Assert.ThrowsAsync<McpProtocolException>(() => client.CallToolAsync(DailyEntryTools.RecordDailyEntry).AsTask());
 
         Assert.Equal(McpErrorCode.InvalidRequest, refused.ErrorCode);
+        Assert.Equal(McpErrorCode.InvalidRequest, realWrite.ErrorCode);
     }
 
     // RFC 9728 §5.1: a client with no token learns where to authenticate from the challenge.

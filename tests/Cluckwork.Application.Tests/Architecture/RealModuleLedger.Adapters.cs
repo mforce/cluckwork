@@ -35,6 +35,12 @@ internal static partial class RealModuleLedger
             "Access",
             "Farm",
         ]),
+        new("Cluckwork.Api.Mcp.CommerceTools.ToRow", ["Commerce"]),
+        new("Cluckwork.Api.Mcp.CommerceTools.ctor", [
+            "Commerce",
+            "EggOperations",
+            "Farm",
+        ]),
         new("Cluckwork.Api.Mcp.DailyEntryTools.ctor", [
             "EggOperations",
             "FlockManagement",

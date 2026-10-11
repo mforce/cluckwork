@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Data.Common;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Mcp;
@@ -8,14 +6,6 @@ using Cluckwork.Domain.Modules.EggOperations.Eggs;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.FlockManagement.Flocks;
-using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Client;
-using ModelContextProtocol.Protocol;
 using static Cluckwork.Api.IntegrationTests.Mcp.McpConnection;
 
 namespace Cluckwork.Api.IntegrationTests.Mcp;
@@ -27,7 +17,6 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     [Fact]
     public async Task CrossFarmBearer_ReadsNothingOfTheOtherFarm()
@@ -261,10 +250,6 @@ public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal([max + 1 + 1], reads.From("\"Flocks\""));
     }
 
-    private static WebApplicationFactory<Program> WithReaderRowCounts(WebApplicationFactory<Program> host, ReaderRowCounts reads) =>
-        host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(reads))));
-
     private async Task<Guid> SeedLotAsync(Guid accountId, Guid flockId, Guid gradeId, int quantity)
     {
         var lot = EggLot.Create(Guid.NewGuid(), accountId, flockId, Today, gradeId, quantity);
@@ -300,48 +285,4 @@ public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
             db.DailyEntries.Add(DailyEntry.Create(Guid.NewGuid(), accountId, flock!.FarmId, flock.HouseId, flockId, date));
             await db.SaveChangesAsync();
         });
-
-    private static async Task<Page<T>> PageAsync<T>(McpClient client, string tool, Dictionary<string, object?>? arguments = null)
-    {
-        var result = await client.CallToolAsync(tool, arguments);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.True(result.IsError != true, text);
-        return JsonSerializer.Deserialize<Page<T>>(text, Json)!;
-    }
-
-    private static async Task<string> ErrorAsync(McpClient client, string tool, Dictionary<string, object?> arguments)
-    {
-        var result = await client.CallToolAsync(tool, arguments);
-        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
-        Assert.True(result.IsError == true, text);
-        return text;
-    }
-
-    // McpPage<T> as a client reads it.
-    private sealed record Page<T>(List<T> Items, bool Complete, int? NextOffset);
-
-    // Rows each data reader returned, by the table its query selects from.
-    private sealed class ReaderRowCounts : DbCommandInterceptor
-    {
-        private readonly ConcurrentQueue<(string Sql, int Rows)> seen = new();
-
-        public void Clear() => seen.Clear();
-
-        public IReadOnlyList<int> From(string table) =>
-            [.. seen.Where(r => r.Sql.Contains($"FROM {table}", StringComparison.Ordinal)).Select(r => r.Rows)];
-
-        public override InterceptionResult DataReaderClosing(
-            DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
-        {
-            seen.Enqueue((command.CommandText, eventData.ReadCount));
-            return result;
-        }
-
-        public override ValueTask<InterceptionResult> DataReaderClosingAsync(
-            DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
-        {
-            seen.Enqueue((command.CommandText, eventData.ReadCount));
-            return ValueTask.FromResult(result);
-        }
-    }
 }

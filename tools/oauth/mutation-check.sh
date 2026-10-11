@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799, #806, #807 and #1148 OAuth and MCP claim has a
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 to #808, #810 and #1148 OAuth and MCP claim has a
 # test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -64,6 +64,10 @@ FLOCK_REPO=src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/Flo
 FLOCK_LOOKUP=src/Cluckwork.Application/Modules/FlockManagement/Flocks/FlockLookup.cs
 DB_CONTEXT=src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs
 TEXT_WALK=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurfaceTests.cs
+COMMERCE_TOOLS=src/Cluckwork.Api/Mcp/CommerceTools.cs
+PAYMENT_REPO=src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/PaymentRepository.cs
+PARITY=tests/Cluckwork.Api.IntegrationTests/Mcp/McpRouteParityTests.cs
+DAILY_TOOLS=src/Cluckwork.Api/Mcp/DailyEntryTools.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
@@ -282,6 +286,20 @@ text-walk-namespace-bound#kill#TEXT_WALK#        if (!seen.Add(type))#        if
 text-walk-skips-elements#kill#TEXT_WALK#if (ElementType(type) is { } element)#if (ElementType(type) is { } element && type.IsArray)#Mcp.McpToolSurfaceTests.TextWalk_ReachesNestedCollectionAndOpaqueText#Assert.Contains() Failure
 text-walk-ignores-conditional#kill#TEXT_WALK#&& p.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition != JsonIgnoreCondition.Always)#&& p.GetCustomAttribute<JsonIgnoreAttribute>() is null)#Mcp.McpToolSurfaceTests.TextWalk_FollowsTheSerializer_OnIgnoredProperties#Collections differ
 egg-lot-scope-ignored#kill#DB_CONTEXT#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId\n            && (flockScope.IsUnrestricted || flockScope.AssignedFlockIds.Contains(e.FlockId)));#builder.Entity<EggLot>().HasQueryFilter(e =>\n            e.AccountId == tenant.AccountId);#Mcp.McpReadToolsTests.AssignedWorker_ReadsOnlyTheirFlocksEggs#Values differ
+reply-minor-units#kill#COMMERCE_TOOLS#string? DiscountReason, IReadOnlyList<SalesOrderLine> Lines);#string? DiscountReason, IReadOnlyList<SalesOrderLine> Lines, long? OutstandingMinorUnits = null);#Mcp.McpToolSurfaceTests.RealTree_ToolRepliesCarryNoMinorUnits#SalesOrderRow.OutstandingMinorUnits
+balances-paged-in-memory#kill#PAYMENT_REPO#await Balances().Skip(offset).Take(limit).ToListAsync(ct);#(await Balances().ToListAsync(ct)).Skip(offset).Take(limit).ToList();#Mcp.McpCommerceToolsTests.BalancePage_ReadsOnlyThePageFromTheDatabase#Collections differ
+balances-no-tie-break#kill#PAYMENT_REPO#orderby b.Total - b.Paid descending, b.CustomerId#orderby b.Total - b.Paid descending#Mcp.McpCommerceToolsTests.BalancePages_OrderByOutstanding_ThenCustomerId#Collections differ
+money-tier-ignored#kill#COMMERCE_TOOLS#var settlement = !maySeeMoney ? SettlementScope.Hidden#var settlement = false ? SettlementScope.Hidden#Mcp.McpCommerceToolsTests.Worker_ListsOrdersWithoutWhatTheyOwe_AndCannotFilterByIt#Assert.Null() Failure
+payments-wider-than-route#kill#COMMERCE_TOOLS#    [Authorize(Policy = AuthPolicies.SalesAccess)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#    [Authorize(Policy = AuthPolicies.SalesFlow)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#admits Worker, which ListOrderPayments denies
+customer-note-returned#kill#COMMERCE_TOOLS#public sealed record CustomerRow(Guid CustomerId, string Name);#public sealed record CustomerRow(Guid CustomerId, string Name, string? Note = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText#Collections differ
+balance-currency-assumed#kill#COMMERCE_TOOLS#McpMoney.From(minorUnits, settings.CurrencyCode, settings.CurrencyMinorUnit)#McpMoney.From(minorUnits, settings.CurrencyCode, 2)#Mcp.McpCommerceToolsTests.Amounts_AreDecimalsInTheirCurrencysPrecision#Values differ
+customers-route-admin-only#kill#PROGRAM#app.MapGroup("/api/v1/customers")\n    .WithTags("Customers")\n    .RequireAuthorization()\n#app.MapGroup("/api/v1/customers")\n    .WithTags("Customers")\n    .RequireAuthorization(AuthPolicies.AdminOnly)\n#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#CommerceTools.ListCustomersAsync admits Worker, which ListCustomers denies
+parity-first-route-only#kill#PARITY#foreach (var routeName in mirrored)#foreach (var routeName in mirrored.Take(1))#Mcp.McpRouteParityTests.ToolBreakingParity_IsAFinding#Assert.Contains() Failure
+scope-unmatched-to-readonly#kill#TOOL_SURFACE#if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))#if (scopes.Count > 1)#Mcp.McpToolSurfaceTests.ToolMissingAGate_IsAGateFinding#Assert.Contains() Failure
+write-tool-on-read-scope#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy#a write tool requires exactly scope:daily-entries:write
+write-scope-unused#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool#Collections differ
+write-reply-minor-units#kill#DAILY_TOOLS#public sealed record RecordedDailyEntry(Guid DailyEntryId, Guid FlockId, string FlockName, DateOnly Date, bool Replayed);#public sealed record RecordedDailyEntry(Guid DailyEntryId, Guid FlockId, string FlockName, DateOnly Date, bool Replayed, long TotalMinorUnits = 0);#Mcp.McpToolSurfaceTests.RealTree_ToolRepliesCarryNoMinorUnits#RecordedDailyEntry.TotalMinorUnits
+scope-use-method-only#kill#PARITY#m.GetCustomAttributes(inherit: true).Concat(m.DeclaringType!.GetCustomAttributes(inherit: true)).OfType<IAuthorizeData>()#m.GetCustomAttributes(inherit: true).OfType<IAuthorizeData>()#Mcp.McpRouteParityTests.ScopeDeclaredOnTheToolClass_CountsAsRequired#Collections differ
 EOF
 )
 
@@ -376,7 +394,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO" "$PARITY" "$DAILY_TOOLS")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

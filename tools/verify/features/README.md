@@ -12,6 +12,7 @@ others. Keep this map honest with `/maintain-verification-skill` when the app ch
 | [Sales](sales.md) | `/sales`, `/customers` | Sales, Manager, Owner | `sales.spec.ts`, `worker-sale-allocation.spec.ts` |
 | [Stock](stock.md) | `/stock`, `/inventory` | every role reads; Manager, Owner write | `manager.spec.ts`, `readonly.spec.ts`, `pagination.spec.ts` |
 | [Flocks](flocks.md) | `/flocks` | Manager, Owner | `manager.spec.ts`, `named-entity-picker.spec.ts` |
+| [MCP server](mcp.md) | `/mcp`, `/connect` | every role, through a connected app | none; real clients in `tools/verify/mcp/` |
 
 Not yet mapped (routes exist, add a file when you first verify one): `/feed`, `/water`,
 `/history`, `/reports` (`reports-range.spec.ts`), `/expenses`, `/settings` (Owner only,

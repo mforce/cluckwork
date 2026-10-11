@@ -83,14 +83,31 @@ internal static class McpToolSurface
                 if (attributes.OfType<IAllowAnonymous>().Any())
                     findings.Add($"{site} allows anonymous callers, so the SDK skips every policy on it");
                 var gates = attributes.OfType<IAuthorizeData>().ToList();
-                if (!gates.Any(g => ScopePolicies.Contains(g.Policy)))
+                var scopes = gates.Select(g => g.Policy).Where(ScopePolicies.Contains).Distinct().ToList();
+                if (scopes.Count == 0)
                     findings.Add($"{site} has no scope policy; add [Authorize(Policy = AuthPolicies.<Scope>Scope)]");
+                // #810: a read needs farm:read and a write daily-entries:write, never both, so a
+                // farm:read token cannot reach a write and a write-only token cannot read.
+                var expected = IsReadOnly(method) ? AuthPolicies.FarmReadScope : AuthPolicies.DailyEntriesWriteScope;
+                if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))
+                    findings.Add($"{site} requires {string.Join(" and ", scopes)}; a {(IsReadOnly(method) ? "read" : "write")} tool requires exactly {expected}");
                 if (!gates.Any(g => !ScopePolicies.Contains(g.Policy)))
                     findings.Add($"{site} has no role policy; add [Authorize] or [Authorize(Policy = AuthPolicies.<Tier>)]");
             }
 
         return findings;
     }
+
+    // #809 guard 21: a write tool takes a required idempotencyKey. A default would let calls
+    // that omit it share one key. Keyed on ReadOnly, which the SDK defaults to false, so a
+    // read that forgets the annotation is held to the stricter rule.
+    public static IReadOnlyList<string> WriteToolFindings(IEnumerable<Type> types) =>
+        ToolTypes(types).SelectMany(tool => ToolMethods(tool)
+                .Where(m => !IsReadOnly(m)
+                    && !m.GetParameters().Any(p => p.Name == "idempotencyKey" && p.ParameterType == typeof(string)
+                        && !p.IsOptional && !p.HasDefaultValue))
+                .Select(m => $"{tool.FullName}.{m.Name} writes without a required string idempotencyKey parameter"))
+            .ToList();
 
     // #805 row 7b, the namespace half: no type under the MCP namespace declares a scope
     // opener, as a constructor or method parameter, return type, field or property. A
@@ -115,6 +132,10 @@ internal static class McpToolSurface
         Banned.Any(banned => banned.IsAssignableFrom(type) || (type != typeof(object) && type.IsAssignableFrom(banned)))
         || type.GetGenericArguments().Any(IsBanned)
         || (type.HasElementType && IsBanned(type.GetElementType()!));
+
+    private static bool IsReadOnly(MethodInfo method) =>
+        method.GetCustomAttributes(inherit: true).Where(a => a.GetType().Name == "McpServerToolAttribute")
+            .Any(a => a.GetType().GetProperty("ReadOnly")?.GetValue(a) is true);
 
     private static bool HasAttribute(MemberInfo member, string name) =>
         member.GetCustomAttributes(inherit: true).Any(a => a.GetType().Name == name);

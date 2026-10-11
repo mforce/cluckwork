@@ -21,7 +21,12 @@ public interface IPaymentRepository
 
     // Per-customer money summary across CONFIRMED orders (server-side sums —
     // clients never aggregate pages): confirmed order total and settled
-    // payments; outstanding is the difference.
+    // payments; outstanding is the difference. Largest outstanding first,
+    // ties by customer id.
     Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(CancellationToken ct = default);
+
+    // One page of the same ordering, bounded in the query (#808).
+    Task<IReadOnlyList<CustomerBalance>> ListCustomerBalancesAsync(
+        int limit, int offset, CancellationToken ct = default);
 }
 

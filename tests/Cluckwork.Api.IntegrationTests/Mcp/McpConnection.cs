@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Data.Common;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -6,13 +8,16 @@ using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Mcp;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using OpenIddict.Server;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -124,6 +129,56 @@ internal static class McpConnection
             new HttpClientTransportOptions { Endpoint = new Uri(McpUrl), TransportMode = HttpTransportMode.StreamableHttp },
             http, ownsHttpClient: true);
         return McpClient.CreateAsync(transport, new McpClientOptions { ProtocolVersion = protocolVersion });
+    }
+
+    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public static WebApplicationFactory<Program> WithReaderRowCounts(WebApplicationFactory<Program> host, ReaderRowCounts reads) =>
+        host.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(reads))));
+
+    public static async Task<Page<T>> PageAsync<T>(McpClient client, string tool, Dictionary<string, object?>? arguments = null)
+    {
+        var result = await client.CallToolAsync(tool, arguments);
+        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        Assert.True(result.IsError != true, text);
+        return JsonSerializer.Deserialize<Page<T>>(text, Json)!;
+    }
+
+    public static async Task<string> ErrorAsync(McpClient client, string tool, Dictionary<string, object?> arguments)
+    {
+        var result = await client.CallToolAsync(tool, arguments);
+        var text = Assert.IsType<TextContentBlock>(Assert.Single(result.Content)).Text;
+        Assert.True(result.IsError == true, text);
+        return text;
+    }
+
+    // McpPage<T> as a client reads it.
+    public sealed record Page<T>(List<T> Items, bool Complete, int? NextOffset);
+
+    // Rows each data reader returned, by the table its query selects from.
+    public sealed class ReaderRowCounts : DbCommandInterceptor
+    {
+        private readonly ConcurrentQueue<(string Sql, int Rows)> seen = new();
+
+        public void Clear() => seen.Clear();
+
+        public IReadOnlyList<int> From(string table) =>
+            [.. seen.Where(r => r.Sql.Contains($"FROM {table}", StringComparison.Ordinal)).Select(r => r.Rows)];
+
+        public override InterceptionResult DataReaderClosing(
+            DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
+        {
+            seen.Enqueue((command.CommandText, eventData.ReadCount));
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult> DataReaderClosingAsync(
+            DbCommand command, DataReaderClosingEventData eventData, InterceptionResult result)
+        {
+            seen.Enqueue((command.CommandText, eventData.ReadCount));
+            return ValueTask.FromResult(result);
+        }
     }
 
     // One raw JSON-RPC message, as a client sends it, so a refusal before the SDK is visible.
