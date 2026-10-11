@@ -1,3 +1,4 @@
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,7 +10,9 @@ namespace Cluckwork.Api.IntegrationTests;
 // FAULTED acquisition (could not reach the lock) does no work AND does not stamp the
 // heartbeat, so a sustained fault degrades /health. No database: the only thing
 // ProcessPendingJobsAsync does first is ask the scope factory for a scope, so a
-// counting scope factory observes whether the poll ran without any real work.
+// counting scope factory observes whether the poll ran without any real work. Each
+// test waits for the lease's second acquisition, which the worker only reaches once
+// its first iteration has finished (#1202).
 public sealed class DurableJobWorkerLeaderGateTests
 {
     // Counts scope creations (proof the poll ran) and throws — the worker's guarded
@@ -26,19 +29,6 @@ public sealed class DurableJobWorkerLeaderGateTests
         }
     }
 
-    private sealed class StubLease(LeaseStatus status) : ILeaderLease
-    {
-        public Task<LeaseStatus> TryAcquireAsync(CancellationToken ct) => Task.FromResult(status);
-    }
-
-    // Breaks the ILeaderLease "never throw" contract on purpose — the worker's own
-    // catch must treat it as a fault, never let it reach StopHost.
-    private sealed class ThrowingLease : ILeaderLease
-    {
-        public Task<LeaseStatus> TryAcquireAsync(CancellationToken ct) =>
-            throw new InvalidOperationException("lease boom");
-    }
-
     private static DurableJobWorker Worker(
         IServiceScopeFactory scopeFactory, DurableJobWorkerHeartbeat heartbeat, ILeaderLease lease) =>
         new(scopeFactory,
@@ -48,20 +38,16 @@ public sealed class DurableJobWorkerLeaderGateTests
             pollInterval: TimeSpan.FromMilliseconds(5),
             initialBackoff: TimeSpan.FromMilliseconds(5));
 
-    private static async Task RunBrieflyAsync(DurableJobWorker worker)
-    {
-        await worker.StartAsync(CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(120));
-        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await worker.StopAsync(stopTimeout.Token);
-    }
+    private static Task RunOnceAsync(
+        IServiceScopeFactory scopeFactory, DurableJobWorkerHeartbeat heartbeat, SignallingLease lease) =>
+        lease.RunWorkerThroughOneIterationAsync(Worker(scopeFactory, heartbeat, lease));
 
     [Fact]
     public async Task Follower_NeverPolls_ButStampsHeartbeat()
     {
         var scopeFactory = new CountingScopeFactory();
         var heartbeat = new DurableJobWorkerHeartbeat(TimeProvider.System);
-        await RunBrieflyAsync(Worker(scopeFactory, heartbeat, new StubLease(LeaseStatus.Follower)));
+        await RunOnceAsync(scopeFactory, heartbeat, new SignallingLease(LeaseStatus.Follower));
 
         Assert.Equal(0, scopeFactory.Creates);
         Assert.NotNull(heartbeat.LastSuccessfulPoll);
@@ -72,7 +58,7 @@ public sealed class DurableJobWorkerLeaderGateTests
     {
         var scopeFactory = new CountingScopeFactory();
         var heartbeat = new DurableJobWorkerHeartbeat(TimeProvider.System);
-        await RunBrieflyAsync(Worker(scopeFactory, heartbeat, new StubLease(LeaseStatus.Leader)));
+        await RunOnceAsync(scopeFactory, heartbeat, new SignallingLease(LeaseStatus.Leader));
 
         Assert.True(scopeFactory.Creates > 0);
     }
@@ -83,7 +69,7 @@ public sealed class DurableJobWorkerLeaderGateTests
     {
         var scopeFactory = new CountingScopeFactory();
         var heartbeat = new DurableJobWorkerHeartbeat(TimeProvider.System);
-        await RunBrieflyAsync(Worker(scopeFactory, heartbeat, new StubLease(LeaseStatus.Faulted)));
+        await RunOnceAsync(scopeFactory, heartbeat, new SignallingLease(LeaseStatus.Faulted));
 
         Assert.Equal(0, scopeFactory.Creates);
         Assert.Null(heartbeat.LastSuccessfulPoll);
@@ -96,14 +82,12 @@ public sealed class DurableJobWorkerLeaderGateTests
     {
         var scopeFactory = new CountingScopeFactory();
         var heartbeat = new DurableJobWorkerHeartbeat(TimeProvider.System);
-        var worker = Worker(scopeFactory, heartbeat, new ThrowingLease());
+        var lease = new SignallingLease(() => throw new InvalidOperationException("lease boom"));
+        var worker = Worker(scopeFactory, heartbeat, lease);
 
-        await worker.StartAsync(CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(120));
+        await lease.RunWorkerThroughOneIterationAsync(worker);
+
         Assert.False(worker.ExecuteTask!.IsFaulted);
-        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await worker.StopAsync(stopTimeout.Token);
-
         Assert.Equal(0, scopeFactory.Creates);
         Assert.Null(heartbeat.LastSuccessfulPoll);
     }
