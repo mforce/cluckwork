@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.1.0](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.1.0) (2026-10-11)
+
+
+### Features
+
+* add the connected-app consent screen with step-up, and run the OAuth server in Production ([#1144](https://github.com/mforce/cluckwork/issues/1144)) ([e40924b](https://github.com/mforce/cluckwork/commit/e40924b8978c00dc9a409c4918acc4c5d618fa60))
+* **api:** let OAuth clients register themselves, and sweep expired OAuth rows ([#1137](https://github.com/mforce/cluckwork/issues/1137)) ([bd454b3](https://github.com/mforce/cluckwork/commit/bd454b335b41cf9a99dd9a41004fbbf8133d733c))
+* **api:** persist the Data Protection key ring in Postgres ([#1125](https://github.com/mforce/cluckwork/issues/1125)) ([e033d26](https://github.com/mforce/cluckwork/commit/e033d26aa8c9a2017eeff0fb265c4d4474b84f0c))
+* **api:** run every fail-closed check on OAuth-authenticated requests ([#1136](https://github.com/mforce/cluckwork/issues/1136)) ([4521319](https://github.com/mforce/cluckwork/commit/45213192c24d31bb6d11e714e3fce495660e63c9))
+* **api:** stand up OpenIddict as an OAuth 2.1 authorization server ([#1135](https://github.com/mforce/cluckwork/issues/1135)) ([4961d00](https://github.com/mforce/cluckwork/commit/4961d0038e40f39a722a288899170f26e58d988c))
+* let an Owner turn connected apps off for the farm ([#1147](https://github.com/mforce/cluckwork/issues/1147)) ([077f27e](https://github.com/mforce/cluckwork/commit/077f27e76a35e2ab64eede203679b0e042aa007b))
+* let users and Owners see and disconnect connected apps ([#1145](https://github.com/mforce/cluckwork/issues/1145)) ([a6729e4](https://github.com/mforce/cluckwork/commit/a6729e48922a9e4b6822a6496172ddb0015a0e25))
+* **mcp:** add McpCallContext, the identity bridge for MCP tools ([#1181](https://github.com/mforce/cluckwork/issues/1181)) ([3134800](https://github.com/mforce/cluckwork/commit/31348001d12898017757e0b6fa055eff946ce94a))
+* **mcp:** map /mcp for connected apps, with role and scope gates on tools ([#1195](https://github.com/mforce/cluckwork/issues/1195)) ([6502603](https://github.com/mforce/cluckwork/commit/6502603eb8070a480af9c4c119dc07e11cc866c7))
+* **oauth:** accept client ID metadata documents beside registration ([#1152](https://github.com/mforce/cluckwork/issues/1152)) ([bd4e5ec](https://github.com/mforce/cluckwork/commit/bd4e5eca22e5ebdf8953e64bd75d0706a704ad73))
+* **oauth:** log rate-limit rejections on the OAuth endpoints as security events ([#1174](https://github.com/mforce/cluckwork/issues/1174)) ([9f7efd4](https://github.com/mforce/cluckwork/commit/9f7efd4002d41277f7c886e8b8fb973d457baeb4))
+* record and show which connected app acted in the audit log ([#1138](https://github.com/mforce/cluckwork/issues/1138)) ([9934ef7](https://github.com/mforce/cluckwork/commit/9934ef77c32c8398abaab2e6fa0347ed804db531))
+
+
+### Bug fixes
+
+* **apphost:** pass the real API address as the OAuth issuer, and add the OAuth runbook ([#1163](https://github.com/mforce/cluckwork/issues/1163)) ([a06f7ff](https://github.com/mforce/cluckwork/commit/a06f7ff6d17165804cad367c9ba5a9d6f9981da3))
+* **sales:** refresh the order's list row after a line changes ([#1191](https://github.com/mforce/cluckwork/issues/1191)) ([91b8324](https://github.com/mforce/cluckwork/commit/91b8324e78cf6472b31f5f4cd4b7692dd3675497))
+* **sales:** scale a line's default and list price to its unit ([#1166](https://github.com/mforce/cluckwork/issues/1166)) ([5c2b0c0](https://github.com/mforce/cluckwork/commit/5c2b0c0c5e56ea6a6bae33acf022346d0c07fc25))
+* **test:** remove unused usings that break main's build ([#1206](https://github.com/mforce/cluckwork/issues/1206)) ([9272270](https://github.com/mforce/cluckwork/commit/92722706909358496db25476b0802d5737b6a809))
+* **web:** bump brace-expansion override to ^5.0.12 ([#1151](https://github.com/mforce/cluckwork/issues/1151)) ([e4ec534](https://github.com/mforce/cluckwork/commit/e4ec53479236d86fa37e98ef743bdf0b41ede81d))
+* **web:** fill the expanded Lay rate chart and allow ranges up to a year ([#1162](https://github.com/mforce/cluckwork/issues/1162)) ([3e879b0](https://github.com/mforce/cluckwork/commit/3e879b0c6a4062a511a859279e2c670733c766c6))
+
+
+### Refactoring
+
+* **web:** split SalesPage into a sales feature folder ([#1159](https://github.com/mforce/cluckwork/issues/1159)) ([25d4a58](https://github.com/mforce/cluckwork/commit/25d4a58806145a1b0e256cc46f972bfa21fc87e2))
+
+
+### Documentation
+
+* **plans:** mark each planning record with its shipped status ([#1198](https://github.com/mforce/cluckwork/issues/1198)) ([b6e5103](https://github.com/mforce/cluckwork/commit/b6e5103475e8ed97da00764482423d4b0187fdd1))
+
 ## [1.0.0](https://github.com/mforce/cluckwork/compare/v0.1.5...v1.0.0) (2026-10-08)
 
 
