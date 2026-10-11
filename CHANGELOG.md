@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/mforce/cluckwork/compare/v1.0.1...v1.0.2) (2026-10-10)
+
+
+### Bug fixes
+
+* **sales:** refresh the order's list row after a line changes ([#1196](https://github.com/mforce/cluckwork/issues/1196)) ([3e1dea6](https://github.com/mforce/cluckwork/commit/3e1dea6997eac021c0baccec16f9fbb04eb9eaf5))
+
 ## [1.0.1](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.0.1) (2026-10-10)
 
 
