@@ -308,6 +308,14 @@ CASES += [  # round 2: decide by the executable, not argument text (finding 4) .
     ("(cd ../shared && git status)", "linked", "block"),
     ("(git status)", "linked", "allow"),
     ("(git status)", "plain", "allow"),
+    # an unknown program naming git may run it; a cd that may not run is not followed
+    ("python3 -c \"import os; os.system('git sparse-checkout set src')\"", "shared", "block"),
+    ("make git-cleanup", "shared", "block"),
+    ("python3 -c \"print('git')\"", "linked", "allow"),
+    ("false && cd ../linked; git sparse-checkout set src", "shared", "block"),
+    ("git status && cd ../linked && git sparse-checkout set src", "shared", "block"),
+    ("cd ../linked; git sparse-checkout set src", "shared", "allow"),
+    ("echo git | sort | uniq -c", "shared", "allow"),
 ]
 
 CASES += [  # round 2: git init creates its target (finding 2)

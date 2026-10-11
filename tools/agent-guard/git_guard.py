@@ -65,15 +65,15 @@ SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "di
                         "shortlog", "show", "status", "version", "worktree"}
 GIT_WORD = re.compile(r"\bgit\b")
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
-# Programs that run another command from their arguments.
-RUNNERS = {"bash", "builtin", "chronic", "command", "dash", "doas", "env", "eval", "exec", "find", "flock", "ionice",
-           "nice", "nohup", "parallel", "runuser", "script", "sg", "sh", "ssh", "stdbuf", "su", "sudo", "time",
-           "timeout", "unbuffer", "watch", "xargs", "zsh"}
 # Text that can move a git command's target to another checkout.
 DIRECTORY_CHANGE = re.compile(r"(?:^|[\s;&|(){}])(?:cd|pushd|popd)\b|\s-C\b|--git-dir|--work-tree|\bGIT_(?:DIR|WORK_TREE)\b")
 EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
+# Programs whose arguments are only data: a `git` among them is text, not a command. Any other program whose
+# arguments name git may run it (xargs, env, sh -c, python -c, make, ...), so its target is unresolved.
+DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "less", "more", "nl", "rg", "sort",
+                                  "tee", "tr", "uniq"}
 GIT_GLOBAL_FLAGS = {"--no-pager", "-P", "-p", "--paginate", "--no-optional-locks", "--literal-pathspecs", "--no-replace-objects",
                     "--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path"}
 GIT_GLOBAL_VALUES = {"-C", "-c", "--git-dir", "--work-tree"}
@@ -202,9 +202,9 @@ def semicolons_for_newlines(command):
 
 def git_steps(command, cwd):
     """[(program, argv, cwd)] for the git and gh steps of simple steps joined by &&, ||, ;, | or newlines. A
-    `cd <dir>` step moves the steps after it; beside a pipe or || it runs in a subshell or may not run, so it
-    cannot be followed. None for any other shape, a variable assignment, or a runner (xargs, env, sh -c, ...)
-    whose arguments name git: those steps' target cannot be resolved."""
+    `cd <dir>` step moves the steps after it only when it always runs and its result is used: first or after
+    `;`, and followed by && or `;`. None for any other shape, another cd, a variable assignment, or a program
+    outside DATA_PROGRAMS whose arguments name git: those steps' target cannot be resolved."""
     command = semicolons_for_newlines(ALLOWED_SUFFIX.sub("", command))
     if not has_simple_shape(command, operators=";|"):
         return None
@@ -228,12 +228,12 @@ def git_steps(command, cwd):
             if operators[n] != ";" or operators[n + 1] != ";":
                 return None  # only `;` and newlines may leave an empty step
         elif argv[0] == "cd":
-            if len(argv) != 2 or "|" in (operators[n], operators[n + 1]) or operators[n + 1] == "||":
+            if len(argv) != 2 or operators[n] != ";" or operators[n + 1] not in ("&&", ";"):
                 return None
             cwd = cd_dir(cwd, argv[1], command)
         elif program in ("git", "gh"):
             found.append((program, argv, cwd))
-        elif ASSIGNMENT.match(argv[0]) or (program in RUNNERS and any(GIT_WORD.search(arg) for arg in argv[1:])):
+        elif ASSIGNMENT.match(argv[0]) or (program not in DATA_PROGRAMS and any(GIT_WORD.search(arg) for arg in argv[1:])):
             return None
     return found
 
