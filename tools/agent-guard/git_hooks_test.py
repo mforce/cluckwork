@@ -245,7 +245,12 @@ class PreCommitTest(unittest.TestCase):
             on_main = os.path.join(root, "wt-main")
             run(repo.work, "worktree", "add", "-q", on_main, "main", check=True)
             self.check("linked worktree on main", repo.commit("wt main", cwd=on_main), "refuse")
-            self.check("main checkout on feat/x beside it", repo.commit("checkout feature"), "allow")
+            self.check("main checkout on feat/x beside it: the shared checkout", repo.commit("checkout feature"), "refuse")
+            ENV["GIT_GUARD_ALLOW_SHARED"] = "1"
+            try:
+                self.check("shared checkout, GIT_GUARD_ALLOW_SHARED=1", repo.commit("maintainer"), "allow")
+            finally:
+                del ENV["GIT_GUARD_ALLOW_SHARED"]
             run(on_main, "switch", "-q", "-c", "feat/wt", check=True)
             run(repo.work, "switch", "-q", "main", check=True)
             self.check("linked worktree on feat/wt, main checkout on main", repo.commit("wt feature", cwd=on_main), "allow")

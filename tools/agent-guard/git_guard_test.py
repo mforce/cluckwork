@@ -24,6 +24,8 @@ HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plu
 #   matching  repo on feat/m with push.default=matching
 #   plain     a directory outside any repo
 #   solo      repo on feat/x whose only remote, `backup`, has push = HEAD:refs/heads/main
+#   shared    a main worktree on feat/s with a linked worktree beside it: the shared checkout (#1205)
+#   linked    that linked worktree, on feat/l
 #   tagged    repo on main that also has a tag named main
 #   feature also has remotes `matchall` (push = :), `mirror2` (mirror = 2), `nomirror` (mirror = false)
 CASES = [
@@ -197,6 +199,39 @@ CASES = [
     ("git -C \"$WT\" status", "feature", "block"),
 ]
 
+# The shared checkout (#1205): only reads, fetch, worktree and branch management run there; stash and shallow
+# fetches are refused in every worktree.
+CASES += [
+    ("git commit -m x", "shared", "block"),
+    ("git checkout -b feat/new", "shared", "block"),
+    ("git stash", "shared", "block"),
+    ("git fetch --depth=1 origin", "shared", "block"),
+    ("git reset --hard", "shared", "block"),
+    ("git add -A", "shared", "block"),
+    ("git tag v9", "shared", "block"),
+    ("git -C ../shared checkout feat/s", "linked", "block"),
+    ("cd ../shared && git commit -m x", "linked", "block"),
+    ("git status --short", "shared", "allow"),
+    ("git fetch origin main:main", "shared", "allow"),
+    ("git worktree add -b feat/n ../n origin/main", "shared", "allow"),
+    ("git worktree remove ../n", "shared", "allow"),
+    ("git branch -D feat/old", "shared", "allow"),
+    ("git merge-tree --write-tree main feat/s", "shared", "allow"),
+    ("git log --grep commit --oneline", "shared", "allow"),
+    ("git config --get user.name", "shared", "allow"),
+    ("git checkout -b feat/new", "linked", "allow"),
+    ("git commit -m x", "linked", "allow"),
+    ("cd ../linked && git commit -m x", "shared", "allow"),
+    ("git fetch origin", "linked", "allow"),
+    ("git stash", "linked", "block"),
+    ("git stash list", "linked", "block"),
+    ("cd ../linked && git stash", "shared", "block"),
+    ("git fetch --depth=1 origin", "linked", "block"),
+    ("git pull --depth 1", "linked", "block"),
+    ("git fetch --unshallow", "linked", "block"),
+    ("git checkout -b feat/new", "feature", "allow"),  # a lone clone has no linked worktrees: not shared
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
@@ -248,7 +283,8 @@ class GitGuardTest(unittest.TestCase):
         main = os.path.join(root, "repo")
         cls.dirs = {"main": main, "feature": os.path.join(main, "feature"),
                     "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root,
-                    "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged")}
+                    "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged"),
+                    "shared": os.path.join(root, "shared"), "linked": os.path.join(root, "linked")}
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
@@ -271,6 +307,9 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "main", cls.dirs["tagged"])
         git("-C", cls.dirs["tagged"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["tagged"], "tag", "main")
+        git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
+        git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
+        git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
         git("init", "-q", "-b", "feat/m", cls.dirs["matching"])
         git("-C", cls.dirs["matching"], "config", "push.default", "matching")
         git("init", "-q", "--bare", "-b", "main", remote)
@@ -305,6 +344,13 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(body=body[:60]):
                 self.assertEqual(code, 2, stderr)
                 self.assertIn("unreadable Bash hook payload", stderr)
+
+    def test_the_maintainer_can_lift_the_shared_checkout_rules(self):
+        env = {**os.environ, "GIT_GUARD_ALLOW_SHARED": "1"}
+        for command in ("git commit -m x", "git stash", "git fetch --depth=1 origin"):
+            body = json.dumps(payload("claude", command, self.dirs["shared"]))
+            result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0, f"{command}: {result.stderr}")
 
     def test_other_tools_pass(self):
         for name in ("Read", "read_file"):

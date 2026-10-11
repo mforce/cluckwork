@@ -13,9 +13,17 @@ refused. Hermes's `process_manage` write/submit input is shell input to a runnin
 process: it gets the same check with no known directory. Tools whose text this
 guard cannot parse (Hermes `execute_code`, Pi `powershell`) are refused outright.
 
-A command that mentions a git write (`git push`, `git commit`) or a PR merge must
-be one simple command, optionally after `cd <dir> &&`. Anything else is refused
-rather than parsed, so the agent re-runs the write on its own.
+A command that mentions a git write (`git push`, `git commit`, a subcommand that
+changes a checkout, a shallow fetch) or a PR merge must be one simple command,
+optionally after `cd <dir> &&`. Anything else is refused rather than parsed, so
+the agent re-runs the write on its own.
+
+The shared checkout is a main worktree that has linked worktrees: agents work in
+the linked ones, and all of them share its `.git` (#1205). There, only the
+SHARED_CHECKOUT_SAFE subcommands run. In every worktree, `git stash` and shallow
+fetches are refused, because the stash list and the shallow state are shared too.
+The maintainer, never an agent, can lift those three rules by starting the
+harness with GIT_GUARD_ALLOW_SHARED=1 in its environment.
 
 Not covered: gh aliases defined earlier, a GraphQL merge whose query comes from a
 file, git aliases from config, other commands that create commits (merge, rebase,
@@ -43,6 +51,14 @@ MAIN_REFS = {MAIN, f"heads/{MAIN}", f"refs/heads/{MAIN}"}
 GIT_FALSE = {"false", "no", "off", "0", ""}
 MENTIONS_WRITE = re.compile(r"\bgit\b.*\b(push|commit)\b|\bgh\b.*\b(merge|alias)\b|mergePullRequest|AutoMerge", re.S)
 MENTIONS_TOOL_OR_VERB = re.compile(r"\b(git|gh|push|commit|merge|alias)\b|mergePullRequest|AutoMerge")
+# A git subcommand that changes HEAD, the index, the files or a ref, right after `git` and its options.
+CHANGES_CHECKOUT = re.compile(r"\bgit(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:add|am|apply|checkout|cherry-pick|clean|merge|"
+                              r"mv|notes|pull|rebase|reset|restore|revert|rm|stash|switch|tag|update-ref)(?![\w-])")
+SHALLOW = re.compile(r"--(?:depth|shallow-since|shallow-exclude|deepen|unshallow)\b")
+# What coordinators run in the shared checkout: reads, plain fetch, worktree and branch management.
+SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
+                        "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
+                        "shortlog", "show", "status", "version", "worktree"}
 EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text check cannot read
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
@@ -80,6 +96,13 @@ MESSAGES = {
                    "wildcard or main remote.<name>.push) can update main or force. Push to a remote without it.",
     "upstream-main": "with push.default=upstream this branch would push to its upstream, main. "
                      "Run `git branch --unset-upstream`, then `git push -u origin <that-branch>`.",
+    "shared": "this is the shared checkout, the main worktree other agents' worktrees hang off; git commands that "
+              "change its HEAD, index, files or refs are refused here. Run it in your own worktree: "
+              "`cd <your worktree> && git ...`.",
+    "stash": "every worktree shares one .git, so the stash list is shared with other agents. Commit "
+             "work in progress on your own branch instead.",
+    "shallow": "every worktree shares one .git, so a shallow fetch makes every worktree shallow. Fetch "
+               "without --depth, --shallow-*, --deepen or --unshallow.",
     "commit-main": "main is protected. Run `git switch -c <type>/<topic>` first, then commit there.",
     "option": "git-guard does not know this option, so it cannot tell what the write does. Drop it or spell it out.",
 }
@@ -175,6 +198,16 @@ class Repo:
         if result.returncode not in (0, 1):
             raise self.lookup_failed("the current branch", result)
         return result.stdout.strip().removeprefix("refs/heads/") or None
+
+    def is_shared_checkout(self):
+        """True in a main worktree that has linked worktrees, the checkout other agents' worktrees share."""
+        dirs = self.git("rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
+        listing = self.git("worktree", "list", "--porcelain")
+        for result in (dirs, listing):
+            if result.returncode != 0:
+                raise self.lookup_failed("the worktree layout", result)
+        git_dir, common = dirs.stdout.splitlines()
+        return git_dir == common and sum(line.startswith("worktree ") for line in listing.stdout.splitlines()) > 1
 
     def config(self):
         """Effective config, `-c` overrides included: key -> values (None for a bare boolean)."""
@@ -279,11 +312,23 @@ def check_git(args, cwd, shown):
             i += 1
         else:
             block("option", shown)
-    if i >= len(args) or args[i] not in ("commit", "push"):
+    if i >= len(args):
         return
-    repo = Repo(cwd, options, shown)
-    if args[i] == "push":
-        check_push(args[i + 1 :], repo)
+    command, rest, repo = args[i], args[i + 1 :], None
+    if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
+        if command == "stash":
+            block("stash", shown)
+        if command in ("fetch", "pull") and any(SHALLOW.match(arg) for arg in rest):
+            block("shallow", shown)
+        if command not in SHARED_CHECKOUT_SAFE:
+            repo = Repo(cwd, options, shown)
+            if repo.is_shared_checkout():
+                block("shared", shown)
+    if command not in ("commit", "push"):
+        return
+    repo = repo or Repo(cwd, options, shown)
+    if command == "push":
+        check_push(rest, repo)
     elif repo.branch() == MAIN:
         block("commit-main", shown)
 
@@ -347,7 +392,9 @@ def mentions_write(command):
     """Text check before parsing: quotes, backslashes and %-escapes undone, as `pu""sh` and `merg%65` would be.
     An expansion beside git, gh or a write verb counts too, since it can spell the rest (`/usr/bin/gi? push`)."""
     plain = urllib.parse.unquote(re.sub(r"[\"'\\]", "", command.replace("\\\n", "")))
-    return MENTIONS_WRITE.search(plain) or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain))
+    return (MENTIONS_WRITE.search(plain) or CHANGES_CHECKOUT.search(plain)
+            or (SHALLOW.search(plain) and re.search(r"\bgit\b", plain))
+            or (EXPANSIONS.search(command) and MENTIONS_TOOL_OR_VERB.search(plain)))
 
 
 def check(command, cwd, unchecked=None):
