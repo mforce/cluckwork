@@ -1,21 +1,33 @@
 // #1186 — the coverage contract between specs/product/GLOSSARY.md and the
 // in-app glossary in helpGlossary.ts. helpGlossary.test.ts enforces it, and
 // the Docs impact CI check (.github/scripts/docs-impact.mjs) reads this file
-// at a PR's base and head to refuse a newly deferred term. It has no imports,
-// so Node can load any revision of it as it stands.
+// at a PR's base and head to refuse a newly deferred term, and takes its term
+// rule from here. It has no imports, so Node can load any revision of it as it
+// stands.
 
 // A term is a bold run that opens a paragraph (after a blank line or a
 // heading) or an h3. A parenthetical is commentary — "(#531)", "(spec §4.5)" —
-// and not part of the term.
+// and not part of the term. A term's text runs to the next term or heading,
+// so a paragraph added under it counts.
 export const normalise = (term: string) => term.replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
-export function glossaryTerms(markdown: string): string[] {
+export function termSections(markdown: string): Map<string, string> {
+  const heading = /^#{1,6}(?:\s|$)/;
+  const sections = new Map<string, string>();
+  let current: string | null = null;
   const lines = markdown.split("\n");
-  return lines.flatMap((line, i) => {
+  lines.forEach((line, i) => {
     const m = /^\*\*([^*]+)\*\*|^### (.+)/.exec(line);
-    const opensParagraph = i === 0 || lines[i - 1].trim() === "" || /^#{1,6}(?:\s|$)/.test(lines[i - 1]);
-    return m && (m[2] !== undefined || opensParagraph) ? [normalise(m[1] ?? m[2])] : [];
+    if (m && (m[2] !== undefined || i === 0 || lines[i - 1].trim() === "" || heading.test(lines[i - 1]))) {
+      current = normalise(m[1] ?? m[2]);
+      sections.set(current, "");
+    } else if (heading.test(line)) {
+      current = null;
+    }
+    if (current !== null) sections.set(current, sections.get(current) + line + "\n");
   });
+  return sections;
 }
+export const glossaryTerms = (markdown: string) => [...termSections(markdown).keys()];
 
 // Every term either has an in-app entry or a row here saying why it does not.
 // NOT_YET rows are the user-facing terms that had no entry when this check
