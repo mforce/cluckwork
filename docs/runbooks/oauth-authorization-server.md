@@ -2,8 +2,8 @@
 
 **When to use this:** setting up a deployment so third-party apps can connect; an app
 reports that discovery names the wrong address, or that every protocol request is
-refused; the Data Protection key ring was replaced or lost and apps stopped working; or
-someone needs an app's access removed.
+refused; an AI app cannot reach the MCP endpoint at `/mcp`; the Data Protection key ring
+was replaced or lost and apps stopped working; or someone needs an app's access removed.
 
 **Not this runbook:** a boot that fails on the Data Protection certificate, or a key-ring
 replacement itself, is
@@ -129,6 +129,47 @@ The approvals and the app registrations live in the database, not in the ring, s
 survive. A person whose approval still covers what the app asks for sees the consent
 screen ask only for their password. Tell the farms before a planned replacement.
 
+## E. The MCP endpoint
+
+AI apps connect to `<OAuth:Issuer>mcp`, for example `https://farm.example/mcp` (#806). It
+exists only where the authorization server does: a process with no `OAuth:Issuer` maps
+neither. It accepts only access tokens this server issued for that address; a sign-in
+session token is refused.
+
+An app finds everything else from the endpoint. Its first request has no token, gets 401,
+and the challenge names the protected-resource metadata (RFC 9728). That document names the
+authorization server, and the app continues with discovery as in B. Both documents build
+their URLs from `OAuth:Issuer`, never from the request's `Host`. Section A covers `/mcp` too.
+`AllowedHosts` must name the issuer's host, or every request gets the `Invalid Hostname`
+400, and the TLS proxy must be trusted, or the authorization flow the app needs answers
+`This server only accepts HTTPS requests.`
+
+```bash
+curl -sS -i -X POST https://farm.example/mcp -H 'content-type: application/json' -d '{}'
+curl -sS https://farm.example/.well-known/oauth-protected-resource/mcp
+```
+
+Expected: the first answers 401 with
+
+```
+WWW-Authenticate: Bearer resource_metadata="https://farm.example/.well-known/oauth-protected-resource/mcp"
+```
+
+The second answers 200 with JSON whose `resource` is `https://farm.example/mcp`,
+whose `authorization_servers` is `["https://farm.example/"]`, and whose
+`scopes_supported` is `farm:read` and `daily-entries:write`. The metadata path is the
+well-known prefix followed by the resource's own path, `/mcp`. A `GET /mcp` answers 405
+with `Allow: POST`, because the endpoint serves no event stream. A request body over 32 KB
+is refused.
+
+A token refused at `/mcp` answers 401 with the same challenge plus
+`error="invalid_token"`. That tells the app to authorize again. The body's `title` names
+the cause: `Auth.ConnectedAppsOff` while the farm's switch is off (C), or
+`Auth.CredentialsSuperseded` after the person's password was reset. A disconnected app's
+revoked token gets the 401 as well. A tool the person's role or the token's scopes do not
+cover is missing from `tools/list`, and calling it returns a JSON-RPC error inside a 200,
+not an HTTP error.
+
 ## If it fails
 
 - **Discovery names the wrong host or port.** `OAuth:Issuer` is wrong. Fix it and restart
@@ -136,13 +177,18 @@ screen ask only for their password. Tell the farms before a planned replacement.
 - **Discovery, authorize or token requests are refused as not https.** The proxy is not
   in `RateLimiting:TrustedProxies` (A.3).
 - **Apps get 401 `Auth.ConnectedAppsOff`.** The farm's switch is off (C).
+- **An AI app cannot find the authorization server.** Run the two requests in E. A
+  `resource_metadata` or `resource` naming the wrong host means `OAuth:Issuer` is wrong.
+  A `POST /mcp` answered 405 with `Allow: GET, HEAD` means the process has no
+  `OAuth:Issuer`, so `/mcp` is not mapped and the request fell through to the SPA.
 
 ## Drill
 
 Against a scratch deployment running Production config behind a TLS proxy:
 
 1. Set `OAuth__Issuer`, `AllowedHosts` and `RateLimiting__TrustedProxies__0` as in A.
-2. Run B. Expected: the issuer and all three endpoints under the public URL.
+2. Run B and E. Expected: the issuer and all three endpoints under the public URL, and
+   the `/mcp` challenge and protected-resource metadata under it too.
 3. Note the current `RateLimiting__TrustedProxies__*` values. Replace them with one
    network that does not contain the proxy, for example `192.0.2.0/24`, and restart. An
    empty list would fail the boot instead (#260). Run B again. Expected: 400 with

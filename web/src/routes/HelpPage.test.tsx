@@ -42,6 +42,11 @@ describe("HelpPage", () => {
     expect(screen.getByText("FIFO", { selector: "summary" })).toBeInTheDocument();
   });
 
+  it("gives the farm's own MCP address for connecting an AI app", () => {
+    render(<HelpPage />);
+    expect(screen.getByText(`${window.location.origin}/mcp`, { selector: "code" })).toBeInTheDocument();
+  });
+
   it("keeps the contents rail and the sections in step, in document order", () => {
     // The rail is hand-maintained beside the sections it points at ("must
     // mirror the <h3 id=...> sections below, in document order"). A section

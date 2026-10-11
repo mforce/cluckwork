@@ -361,10 +361,27 @@ export function HelpPage() {
           <Trans ns="help" i18nKey="signingInStepUp" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans
+            ns="help"
+            i18nKey="signingInAppAddress"
+            values={{ address: `${window.location.origin}/mcp` }}
+            components={{ strong: <strong />, code: <code /> }}
+          />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="signingInConnectApp" components={{ strong: <strong /> }} />
         </li>
         <li>
           <Trans ns="help" i18nKey="signingInConnectedApps" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="signingInAppTools" components={{ strong: <strong />, code: <code /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="signingInAppLimits" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans ns="help" i18nKey="signingInAppRefused" components={{ strong: <strong /> }} />
         </li>
         <li>
           <Trans ns="help" i18nKey="signingInCredentialEpoch" components={{ strong: <strong /> }} />

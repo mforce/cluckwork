@@ -754,6 +754,47 @@ name when an app acted, offers an **Only actions through connected apps**
 checkbox, and puts a **Show only** button for that app inside the event. See
 **Disconnecting an app** for where people and the Owner see and end connections.
 
+An AI app connects to the farm's MCP address, which is Cluckwork's own address
+followed by `/mcp` (#806). From there it finds the sign-in and the consent
+screen. A tool is open to it only when both the person's role and the
+permissions they allowed cover it (#807, #808, #809). **Read farm data**
+(`farm:read`) covers the reads. `cluckwork_list_flocks`, `cluckwork_read_stock`,
+`cluckwork_list_egg_lots`, `cluckwork_list_egg_lot_movements` and
+`cluckwork_list_daily_entries` read flocks, stock per grade, egg lots, one lot's
+movements and daily entries, for every role. `cluckwork_list_customers` and
+`cluckwork_list_sales_orders` read customers and orders with their lines, for
+every role but Read-only; only Owner, Manager and Sales see what a confirmed
+order still owes. `cluckwork_list_order_payments` and
+`cluckwork_list_customer_balances` read one order's payments and what each
+customer owes, for Owner, Manager and Sales. Amounts carry their currency code.
+**Record daily entries** (`daily-entries:write`) covers one tool,
+`cluckwork_record_daily_entry`, for Owner, Manager and Worker. It records one
+flock's day as a **Draft**. Recording the same flock and day again replaces the
+draft's numbers, and a submitted entry cannot be changed. The eggs reach stock
+only when a person submits the draft in Cluckwork. The app sends an idempotency
+key with each recording, a label it picks for that one recording. Sending the
+recording again with the same label within 48 hours of a successful recording
+returns the first answer and records nothing new; the same label with different
+numbers is refused. After 48 hours Cluckwork forgets the key, so an older resend
+records again; the app should check the current draft first. Keys belong to
+the person, so two people's apps never collide. A Worker with assigned flocks
+reads and records only those flocks, as in the app, and any other flock reads
+as not found. A shared flock name is refused with each flock's id, and the app
+then uses the id.
+
+Every read returns 50 rows unless the app asks for more, at most 100, and says
+whether more remain and where to continue. No tool returns text a farm user
+typed beyond names (#792). Flock, grade and customer names come through. Breed,
+notes, payment references, discount notes, void, adjust and movement reasons, and a
+customer's phone, email and address do not. A tool that the role or the
+permissions do not cover is not listed, and calling it is refused. While the
+Owner's **Allow connected apps** switch is off, every call is refused with
+**Connected apps are off**; nothing is disconnected, so the app works again once
+the switch is back on. After **Disconnect** or a password reset, the app is
+refused and must send the person through the consent screen again. A tool
+missing because of the role stays missing after reconnecting. A tool missing
+because of a permission appears once the person reconnects and allows it.
+
 **Hen-day % (#91, #780)** — eggs collected ÷ **recorded** hen-days × 100
 (spec §19.3, amended by #780). A hen-day is one bird alive for one day; the
 day's bird count comes from the bird ledger (placements + movements); every
