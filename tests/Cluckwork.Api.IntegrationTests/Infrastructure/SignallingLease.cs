@@ -26,13 +26,21 @@ internal sealed class SignallingLease(Func<LeaseStatus> acquire) : ILeaderLease
     }
 
     // Starts the worker, waits for its first iteration to complete, then stops it.
-    // The timeout bounds a hung worker; it never paces the test.
+    // The timeout bounds a hung worker; it never paces the test. A timed-out worker is
+    // still stopped and disposed, or it would keep polling into later tests.
     public async Task RunWorkerThroughOneIterationAsync(DurableJobWorker worker)
     {
         await worker.StartAsync(CancellationToken.None);
-        await secondAcquisition.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await worker.StopAsync(stopTimeout.Token);
+        try
+        {
+            await secondAcquisition.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await worker.StopAsync(stopTimeout.Token);
+            worker.Dispose();
+        }
     }
 }
 
