@@ -29,7 +29,8 @@ public sealed class DailyEntryTools(
 
     [McpServerTool(Name = RecordDailyEntry, Idempotent = true, OpenWorld = false)]
     [Description("Record a flock's egg production for one day as a draft daily entry. Recording again for the "
-        + "same flock and date replaces the draft's numbers. A person reviews and submits the draft in Cluckwork; "
+        + "same flock and date replaces the draft's numbers; leave grades out to keep its grade lines. A submitted "
+        + "entry cannot be changed here. A person reviews and submits the draft in Cluckwork; "
         + "until then its eggs are not in stock.")]
     [Authorize(Policy = AuthPolicies.ProductionWrite)]
     [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]

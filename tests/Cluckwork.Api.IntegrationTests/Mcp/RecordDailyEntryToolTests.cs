@@ -171,10 +171,10 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         await RecordAsync(client, With(arguments, "idempotencyKey", Guid.NewGuid().ToString()));
         var afterNewKey = (await AuditAsync(farm.User.AccountId, entryId)).Select(a => a.Action);
 
-        Assert.Equal(entryId, replay.GetProperty("dailyEntryId").GetGuid());
-        Assert.True(replay.GetProperty("replayed").GetBoolean());
         Assert.Equal([AuditActions.DailyEntryCreate], afterReplay);
         Assert.Equal([AuditActions.DailyEntryCreate, AuditActions.DailyEntryUpdate], afterNewKey);
+        Assert.Equal(entryId, replay.GetProperty("dailyEntryId").GetGuid());
+        Assert.True(replay.GetProperty("replayed").GetBoolean());
     }
 
     // Guard 22.
