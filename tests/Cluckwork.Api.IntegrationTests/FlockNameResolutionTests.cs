@@ -1,3 +1,4 @@
+using System.Globalization;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
@@ -84,6 +85,44 @@ public sealed class FlockNameResolutionTests(CluckworkWebApplicationFactory fact
 
         var ambiguous = Assert.IsType<FlockNameResolution.Ambiguous>(await ResolveAsync(farm, $"BARN A {suffix}"));
         Assert.Equal(new[] { upper, lower }.Order(), ambiguous.Candidates.Select(c => c.Id).Order());
+    }
+
+    // #1237 review R1: the database folds both sides. Lower-casing the input in .NET
+    // under the invariant culture keeps 'İ' while PostgreSQL folds the stored 'İ' to
+    // 'i', so the exact name stopped resolving.
+    [Fact]
+    public async Task UnicodeName_TypedExactly_ResolvesUnderAnInvariantCultureCaller()
+    {
+        var farm = await factory.SeedAccountWithUserAsync($"u-{Guid.NewGuid():N}@test.local");
+        var name = $"İpek {Guid.NewGuid():N}";
+        var id = await SeedFlockAsync(farm, name);
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            var found = Assert.IsType<FlockNameResolution.Found>(await ResolveAsync(farm, name));
+            Assert.Equal(id, found.Flock.Id);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
+    }
+
+    // The name is data, never a LIKE pattern: '_' and '%' match only themselves.
+    [Fact]
+    public async Task WildcardCharacters_MatchOnlyThemselves()
+    {
+        var farm = await factory.SeedAccountWithUserAsync($"w-{Guid.NewGuid():N}@test.local");
+        var suffix = Guid.NewGuid().ToString("N");
+        var underscore = await SeedFlockAsync(farm, $"Barn_1 {suffix}");
+        await SeedFlockAsync(farm, $"BarnX1 {suffix}");
+        var percent = await SeedFlockAsync(farm, $"Pen% {suffix}");
+        await SeedFlockAsync(farm, $"Pen 12 {suffix}");
+
+        Assert.Equal(underscore, Assert.IsType<FlockNameResolution.Found>(await ResolveAsync(farm, $"barn_1 {suffix}")).Flock.Id);
+        Assert.Equal(percent, Assert.IsType<FlockNameResolution.Found>(await ResolveAsync(farm, $"pen% {suffix}")).Flock.Id);
+        Assert.IsType<FlockNameResolution.NotFound>(await ResolveAsync(farm, $"pen% 12 {suffix}"));
     }
 
     [Fact]

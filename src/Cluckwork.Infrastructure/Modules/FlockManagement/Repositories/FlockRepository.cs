@@ -126,10 +126,10 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
     public async Task<IReadOnlyList<FlockReference>> ListByNameAsync(
         string name, int limit, CancellationToken ct = default)
     {
-        var normalized = name.ToLower();
+        var pattern = LiteralSearch.ExactPattern(name);
         return await db.Flocks
             .AsNoTracking()
-            .Where(f => f.Name.ToLower() == normalized)
+            .Where(f => EF.Functions.ILike(f.Name, pattern, LiteralSearch.EscapeChar))
             .OrderBy(f => f.Id)
             .Take(limit)
             .Select(f => new FlockReference(f.Id, f.Name, f.Status))
