@@ -6,6 +6,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import {
   LANGUAGE_PACK_CACHE,
+  LANGUAGE_PACK_MAX_ENTRIES,
   matchesInterExtendedSubsetFont,
   matchesLanguagePack,
 } from "./scripts/runtime-cache-match.mjs";
@@ -170,7 +171,7 @@ export default defineConfig(({ mode }) => {
               handler: "CacheFirst",
               options: {
                 cacheName: LANGUAGE_PACK_CACHE,
-                expiration: { maxEntries: 4 },
+                expiration: { maxEntries: LANGUAGE_PACK_MAX_ENTRIES },
                 cacheableResponse: { statuses: [200] },
               },
             },

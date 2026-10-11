@@ -1,9 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { CacheExpiration } from "workbox-expiration";
 import {
   activateUpdate,
   registerServiceWorker,
   serviceWorkerSupported,
 } from "./registerServiceWorker";
+
+vi.mock("workbox-expiration", () => ({
+  CacheExpiration: vi.fn(class {
+    updateTimestamp = vi.fn(() => Promise.resolve());
+    expireEntries = vi.fn(() => Promise.resolve());
+  }),
+}));
 
 // The guard that matters most here is the secure-context one. Barn phones reach
 // this app over plain http today, where `navigator.serviceWorker` simply does
@@ -421,6 +429,12 @@ describe("language packs on an uncontrolled page", () => {
     await vi.waitFor(() => expect(cache.addAll).toHaveBeenCalledTimes(1));
     expect(globalThis.caches.open).toHaveBeenCalledWith("language-packs");
     expect(cache.addAll).toHaveBeenCalledWith(["https://farm.example/assets/es-abc123.js"]);
+
+    // The copy joins the route's four-entry expiration, then expiry runs.
+    const expiration = vi.mocked(CacheExpiration).mock.instances.at(-1)!;
+    await vi.waitFor(() => expect(expiration.expireEntries).toHaveBeenCalledTimes(1));
+    expect(CacheExpiration).toHaveBeenLastCalledWith("language-packs", { maxEntries: 4 });
+    expect(expiration.updateTimestamp).toHaveBeenCalledWith("https://farm.example/assets/es-abc123.js");
   });
 
   // The browser reports the copy's own fetch as a resource entry too. This

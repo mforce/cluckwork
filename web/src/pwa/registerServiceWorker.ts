@@ -14,7 +14,12 @@
 // The contract: calling this never throws and never rejects. The worst outcome
 // is "no service worker", which is exactly today's behaviour.
 
-import { LANGUAGE_PACK_CACHE, matchesLanguagePack } from "../../scripts/runtime-cache-match.mjs";
+import { CacheExpiration } from "workbox-expiration";
+import {
+  LANGUAGE_PACK_CACHE,
+  LANGUAGE_PACK_MAX_ENTRIES,
+  matchesLanguagePack,
+} from "../../scripts/runtime-cache-match.mjs";
 
 export type UpdateHandler = (activate: () => Promise<void>) => void;
 
@@ -117,6 +122,13 @@ function copyLanguagePacksIntoCache(signal?: AbortSignal) {
     void navigator.serviceWorker.ready
       .then(() => caches.open(LANGUAGE_PACK_CACHE))
       .then((cache) => cache.addAll(packs))
+      .then(async () => {
+        // A direct write skips the route's ExpirationPlugin. Record it in the
+        // same Workbox bookkeeping so the four-entry limit covers it too.
+        const expiration = new CacheExpiration(LANGUAGE_PACK_CACHE, { maxEntries: LANGUAGE_PACK_MAX_ENTRIES });
+        for (const pack of packs) await expiration.updateTimestamp(pack);
+        await expiration.expireEntries();
+      })
       .catch(() => {
         // Offline or out of quota: the pack loads again on the next online visit.
       });
