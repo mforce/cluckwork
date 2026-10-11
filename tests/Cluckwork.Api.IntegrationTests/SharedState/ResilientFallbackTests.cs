@@ -210,6 +210,39 @@ public sealed class ResilientFallbackTests
         Assert.Empty(logger.Warnings);
     }
 
+    // Redis answers the read but refuses the increments, which land in the fallback and alarm.
+    // The read must add them, or a budget kept in this counter never runs out.
+    [Fact]
+    public async Task CountAsync_WhenRedisReadsButRefusesIncrements_AddsTheFallbackCount()
+    {
+        var logger = new RecordingLogger<ResilientFixedWindowCounter>();
+        var counter = new ResilientFixedWindowCounter(
+            new ReadOnlyFixedWindowCounter(), new InProcessFixedWindowCounter(new FakeTimeProvider()), logger);
+
+        await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
+        await counter.IncrementAsync("k", TimeSpan.FromMinutes(5));
+        var read = await counter.CountAsync("k", TimeSpan.FromMinutes(5));
+
+        Assert.Equal(ReadOnlyFixedWindowCounter.SharedCount + 2, read.Count);
+        Assert.Equal(2, logger.Warnings.Count);
+        Assert.All(logger.Warnings, w => Assert.Contains(SecurityEvents.SharedStateRedisUnavailable, w));
+    }
+
+    private sealed class ReadOnlyFixedWindowCounter : IFixedWindowCounter
+    {
+        public const long SharedCount = 5;
+
+        public long Increment(string key, TimeSpan window) => throw new RedisException("NOPERM");
+
+        public ValueTask<FixedWindowResult> IncrementAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            throw new RedisException("NOPERM");
+
+        public ValueTask<FixedWindowResult> CountAsync(
+            string key, TimeSpan window, System.Threading.CancellationToken cancellationToken = default) =>
+            new(new FixedWindowResult(SharedCount, TimeSpan.FromMinutes(5)));
+    }
+
     // ── Timeouts take the SAME path as other Redis failures ───────────────
     // RedisTimeoutException derives from TimeoutException, not RedisException —
     // these die if the catch clause is narrowed back to `catch (RedisException)`.

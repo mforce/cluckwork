@@ -43,17 +43,21 @@ internal sealed class ResilientFixedWindowCounter(
         }
     }
 
+    // Adds what the fallback counted for the same key and window: Redis can answer a read
+    // while refusing increments, and the increments it refused landed here.
     public async ValueTask<FixedWindowResult> CountAsync(
         string key, TimeSpan window, CancellationToken cancellationToken = default)
     {
+        var local = await fallback.CountAsync(key, window, cancellationToken);
         try
         {
-            return await redis.CountAsync(key, window, cancellationToken);
+            var shared = await redis.CountAsync(key, window, cancellationToken);
+            return shared with { Count = shared.Count + local.Count };
         }
         catch (Exception ex) when (ex is RedisException or RedisTimeoutException)
         {
             Alarm();
-            return await fallback.CountAsync(key, window, cancellationToken);
+            return local;
         }
     }
 
