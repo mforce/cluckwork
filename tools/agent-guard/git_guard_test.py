@@ -356,6 +356,8 @@ CASES += [  # round 3: a newline after an operator continues the command; blank 
         "\ngit status\n",
     )],
     ("cd ../shared &&\ngit sparse-checkout set src", "linked", "block"),
+    ("echo x \\;\ngit -C ../shared sparse-checkout set src", "linked", "block"),
+    ("echo ';'\ngit -C ../shared sparse-checkout set src", "linked", "block"),
 ]
 CASES += [  # round 3: pushd and popd move the target too
     ("pushd ../shared && git sparse-checkout set src", "linked", "block"),
