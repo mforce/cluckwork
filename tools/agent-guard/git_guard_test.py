@@ -550,6 +550,16 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("git config --default --foo --get core.hooksPath", "linked", "allow"),
     ("git config --comment why --get alias.p", "linked", "allow"),
     ("git config -lz", "linked", "allow"),
+    # Codex round 4 on #1224: an attached short-option value (`-f/path`) is the value, not the next token
+    ("git config -f/tmp/settings core.hooksPath disabled", "linked", "block"),
+    ("git config -f/tmp/settings alias.review status", "linked", "block"),
+    ("git config -f/tmp/settings --unset core.hooksPath", "linked", "block"),
+    ("git config -f /tmp/settings core.hooksPath disabled", "linked", "block"),
+    ("git config --file=/tmp/settings core.hooksPath disabled", "linked", "block"),
+    ("git config -ef /tmp/settings", "linked", "block"),
+    ("git config -ef/tmp/settings", "linked", "block"),
+    ("git config -f/tmp/settings --get alias.review", "linked", "allow"),
+    ("git config -f/tmp/settings alias.review", "linked", "allow"),
     ("git push -f origin HEAD:main", "linked", "block"),  # the audit's controls
     ("gh pr merge 1221 --squash", "linked", "block"),
 ]

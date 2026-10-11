@@ -513,13 +513,13 @@ def config_writes(args, shown):
             read |= name in CONFIG_READS
             write |= name in CONFIG_WRITES
         elif arg.startswith("-") and len(arg) > 1:
-            for flag in arg[1:]:
+            for j, flag in enumerate(arg[1:], start=1):
                 if flag not in "elfz":
                     block("option", shown)
                 edit |= flag == "e"
                 read |= flag == "l"
-                if flag == "f":
-                    i += 1
+                if flag == "f":  # its file is the rest of the token, or else the next one
+                    i += 0 if arg[j + 1 :] else 1
                     break
         else:
             positional.append(arg)
