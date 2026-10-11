@@ -75,11 +75,14 @@ const lazyPackBackend: BackendModule = {
 // the bootstrap's resolved-language switch and every later LanguageSelector change,
 // with no risk of a call site forgetting to set it.
 i18n.on("languageChanged", (lng) => {
-  document.documentElement.lang = lng;
+  // #1149 — the language the text is actually in: a pack that failed to load
+  // leaves English on screen under the requested language.
+  document.documentElement.lang = i18n.resolvedLanguage ?? lng;
   // Persist the device hint on EVERY switch — init's seed, the bootstrap's
   // resolved-language self-heal, and every LanguageSelector change — so the next
   // load (the login screen OR a signed-in refresh) opens in this language instead
-  // of flashing back to English.
+  // of flashing back to English. It keeps the REQUESTED language, so a pack that
+  // failed to load is tried again on the next load.
   writeLanguageHint(lng);
 });
 

@@ -45,4 +45,11 @@ describe("LanguageSelector when a pack cannot load (#1149)", () => {
     expect(changeSpy).not.toHaveBeenCalled();
     online.mockRestore();
   });
+
+  it("shows the language on screen after the bootstrap's switch fails to load", async () => {
+    vi.spyOn(LAZY_PACKS, "tl").mockRejectedValue(new Error("Failed to fetch dynamically imported module"));
+    await i18n.changeLanguage("tl");
+    expect(i18n.language).toBe("tl");
+    expect(renderSelector()).toHaveValue("en");
+  });
 });

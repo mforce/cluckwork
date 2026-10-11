@@ -24,11 +24,12 @@ export function LanguageSelector() {
   if (SUPPORTED_LANGUAGES.length <= 1) return null;
 
   // useTranslation() re-renders this component on i18next's languageChanged
-  // event, so i18n.language is always current — both at bootstrap (seeded from
-  // the resolved user/farm language) and after a switch. Reading me?.language
-  // instead would go stale the moment changeLanguage runs, since MeContext is
-  // never updated to match.
-  const current = i18n.language;
+  // event, so i18n.resolvedLanguage is always current — both at bootstrap
+  // (seeded from the resolved user/farm language) and after a switch. Reading
+  // me?.language instead would go stale the moment changeLanguage runs, since
+  // MeContext is never updated to match. Resolved, not requested (#1149): after
+  // a pack fails to load, the screen is in English and the picker says so.
+  const current = i18n.resolvedLanguage ?? i18n.language;
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const lang = e.target.value;
     void run("language", async () => {

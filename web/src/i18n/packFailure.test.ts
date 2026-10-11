@@ -18,6 +18,15 @@ describe("a language pack that cannot load (#1149)", () => {
     expect(i18n.t("auth:signIn")).toBe("Sign in");
   });
 
+  // The hinted boot and the /me-resolved bootstrap both reach i18next through
+  // changeLanguage, and both land on this listener.
+  it("labels the document with the language on screen and keeps the requested one for the next load", async () => {
+    vi.spyOn(LAZY_PACKS, "es").mockRejectedValue(new Error("Failed to fetch dynamically imported module"));
+    await i18n.changeLanguage("es");
+    expect(document.documentElement.lang).toBe("en");
+    expect(localStorage.getItem("cluckwork.lang")).toBe("es");
+  });
+
   it("settles on English once the deadline passes on a request that never answers", async () => {
     vi.useFakeTimers();
     vi.spyOn(LAZY_PACKS, "tl").mockReturnValue(new Promise(() => {}));
