@@ -310,6 +310,15 @@ CASES += [  # round 2: decide by the executable, not argument text (finding 4) .
     ("(git status)", "plain", "allow"),
 ]
 
+CASES += [  # round 2: git init creates its target (finding 2)
+    ("git init child", "plain", "allow"),
+    ("git init -b main child", "plain", "allow"),
+    ("git init child", "linked", "allow"),
+    ("git init", "shared", "block"),
+    ("git init -b main", "shared", "block"),
+    ("git -C ../shared init", "linked", "block"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),

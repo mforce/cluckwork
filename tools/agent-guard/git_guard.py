@@ -247,7 +247,7 @@ def refuse_unresolved(command, cwd):
 
 def in_shared_checkout(cwd):
     """True when cwd is the shared checkout; False outside any repository; any other lookup failure blocks."""
-    if cwd is None:
+    if cwd is None or not os.path.isdir(cwd):
         return False
     try:
         return Repo(cwd, [], cwd).is_shared_checkout()
@@ -409,6 +409,25 @@ def writes_anyway(command, args):
     return False
 
 
+INIT_VALUES = {"-b", "--initial-branch", "--separate-git-dir", "--template", "--object-format", "--ref-format"}
+
+
+def init_target(args, cwd, options):
+    """The directory `git init` writes: cwd, moved by -C, then by its directory operand."""
+    for flag, value in zip(options, options[1:]):
+        if flag == "-C":
+            cwd = os.path.join(cwd or "/", value)
+    directory, skip = None, False
+    for arg in args:
+        if skip:
+            skip = False
+        elif arg in INIT_VALUES:
+            skip = True
+        elif not arg.startswith("-"):
+            directory = arg
+    return os.path.normpath(os.path.join(cwd, directory)) if cwd and directory else cwd
+
+
 def changes_shallow_state(arg):
     name = arg[2:].split("=", 1)[0] if arg.startswith("--") else ""
     return len(name) >= 2 and any(option.startswith(name) for option in SHALLOW_OPTIONS)
@@ -436,6 +455,10 @@ def check_git(args, cwd, shown):
     command, rest, repo = args[i], args[i + 1 :], None
     if command == "clone":
         return  # a clone has its own .git, shallow or not; the current checkout plays no part
+    if command == "init":  # creates its target, so a missing repository there is not the shared checkout
+        if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1" and in_shared_checkout(init_target(rest, cwd, options)):
+            block("shared", shown)
+        return
     if os.environ.get("GIT_GUARD_ALLOW_SHARED") != "1":
         if command == "stash":
             block("stash", shown)
