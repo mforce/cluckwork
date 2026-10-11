@@ -140,19 +140,22 @@ public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
 
     // Grade names are unique per farm, not per account, so two farms' "Large" at one sort
     // order tie. The id breaks the tie, so each page holds the row it held last time. The
-    // larger id is inserted first, so the table's own order disagrees with the id's.
+    // larger grade id is inserted first and sits in the smaller farm, so neither the table's
+    // order nor the (account, farm, name) index's order is the id's.
     [Fact]
     public async Task ReadStock_PagesTiedGradesOfTwoFarms_InIdOrder()
     {
         using var host = Host(factory);
         var user = await SeedAsync(factory, Roles.Manager);
         Guid[] ids = [Guid.NewGuid(), Guid.NewGuid()];
+        Guid[] farms = [Guid.NewGuid(), Guid.NewGuid()];
         Array.Sort(ids);
-        foreach (var (id, quantity) in new[] { (ids[1], 20), (ids[0], 10) })
+        Array.Sort(farms);
+        foreach (var (id, farm, quantity) in new[] { (ids[1], farms[0], 20), (ids[0], farms[1], 10) })
         {
             await factory.WithTenantScopeAsync(user.AccountId, async db =>
             {
-                db.EggGrades.Add(EggGrade.Create(id, user.AccountId, Guid.NewGuid(), "Large", Domain.Modules.EggOperations.Contracts.EggGradeType.Size, 0, isSaleable: true));
+                db.EggGrades.Add(EggGrade.Create(id, user.AccountId, farm, "Large", Domain.Modules.EggOperations.Contracts.EggGradeType.Size, 0, isSaleable: true));
                 await db.SaveChangesAsync();
             });
             await factory.SeedEggLotAsync(user.AccountId, id, quantity);
