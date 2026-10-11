@@ -22,8 +22,9 @@ The shared checkout is a main worktree that has linked worktrees: agents work in
 the linked ones, and all of them share its `.git` (#1205). There, only the
 SHARED_CHECKOUT_SAFE subcommands run. In every worktree, `git stash` and shallow
 fetches are refused, because the stash list and the shallow state are shared too.
-The maintainer, never an agent, can lift those three rules by starting the
-harness with GIT_GUARD_ALLOW_SHARED=1 in its environment.
+GIT_GUARD_ALLOW_SHARED=1 lifts those three rules wherever it is set. It is for the
+maintainer, on one command in their own shell (CONTRIBUTING.md); set for a harness,
+every agent started from it would inherit it.
 
 Not covered: gh aliases defined earlier, a GraphQL merge whose query comes from a
 file, git aliases from config, other commands that create commits (merge, rebase,
