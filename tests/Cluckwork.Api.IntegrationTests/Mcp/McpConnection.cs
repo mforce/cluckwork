@@ -121,10 +121,13 @@ internal static class McpConnection
         return OAuthServerTests.HttpsClient(host, bearer: null).PostAsync("/api/v1/oauth/token", new FormUrlEncodedContent(form));
     }
 
-    public static Task<McpClient> ConnectAsync(WebApplicationFactory<Program> host, string token, string? protocolVersion = null)
+    public static Task<McpClient> ConnectAsync(
+        WebApplicationFactory<Program> host, string token, string? protocolVersion = null, string? origin = null)
     {
         var http = host.CreateDefaultClient(new Uri("https://localhost"));
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        if (origin is not null)
+            http.DefaultRequestHeaders.Add("Origin", origin);
         var transport = new HttpClientTransport(
             new HttpClientTransportOptions { Endpoint = new Uri(McpUrl), TransportMode = HttpTransportMode.StreamableHttp },
             http, ownsHttpClient: true);

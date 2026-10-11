@@ -197,7 +197,7 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             services.AddCluckworkMcp(authentication, oauthIssuer);
         }
 
-        return new(OAuthServer: oauthIssuer is not null);
+        return new(oauthIssuer);
     }
 
     // #798 — a Production serving process always runs the authorization server, so it
@@ -335,4 +335,4 @@ internal static class CluckworkIdentityServiceCollectionExtensions
     }
 }
 
-internal sealed record CluckworkIdentityRegistration(bool OAuthServer);
+internal sealed record CluckworkIdentityRegistration(Uri? OAuthIssuer);

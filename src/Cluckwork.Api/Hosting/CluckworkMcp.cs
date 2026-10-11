@@ -65,13 +65,28 @@ internal static class CluckworkMcp
     }
 
     // Either scope admits the request; each tool then requires its own (AuthPolicies).
-    public static void MapCluckworkMcp(this IEndpointRouteBuilder app)
+    public static void MapCluckworkMcp(this IEndpointRouteBuilder app, Uri issuer)
     {
+        var origin = issuer.GetLeftPart(UriPartial.Authority);
         app.MapMcp(Path)
             .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute())
             .WithMaxRequestBodyBytes(MaxRequestBodyBytes)
             .AcceptOAuthTokens(OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries)
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .Add(endpoint =>
+            {
+                // MCP transports require Origin validation against DNS rebinding. A native
+                // client sends none; a browser sends its page's origin, which must be ours.
+                var dispatch = endpoint.RequestDelegate!;
+                endpoint.RequestDelegate = context =>
+                {
+                    var sent = context.Request.Headers.Origin;
+                    if (sent.Count == 0 || string.Equals(sent, origin, StringComparison.OrdinalIgnoreCase))
+                        return dispatch(context);
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                };
+            });
 
         // Stateless serves no GET stream, and the MCP spec then wants 405. Without this the
         // SPA fallback, which takes every GET and HEAD, would answer with the app's HTML.

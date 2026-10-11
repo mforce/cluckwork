@@ -34,6 +34,25 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
     private static readonly string[] SalesFlowTools = ["cluckwork_list_customers", "cluckwork_list_sales_orders"];
     private static readonly string[] SalesAccessTools = ["cluckwork_list_customer_balances", "cluckwork_list_order_payments"];
 
+    // Both revisions require Origin validation against DNS rebinding. The issuer's origin is
+    // the only one accepted, whatever Host the request names; no Origin is the test above.
+    [Theory]
+    [InlineData("2026-07-28")]
+    [InlineData("2025-11-25")]
+    public async Task ForeignOrMalformedOrigin_Gets403_AndTheIssuersOriginConnects(string protocolVersion)
+    {
+        using var host = Host(factory);
+        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Manager), [OAuthScopes.ReadFarm]);
+
+        var foreign = await Assert.ThrowsAsync<HttpRequestException>(() => ConnectAsync(host, token, protocolVersion, "https://untrusted.example"));
+        var malformed = await Assert.ThrowsAsync<HttpRequestException>(() => ConnectAsync(host, token, protocolVersion, "null"));
+        await using var client = await ConnectAsync(host, token, protocolVersion, "https://localhost");
+
+        Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, malformed.StatusCode);
+        Assert.Equal(protocolVersion, client.NegotiatedProtocolVersion);
+    }
+
     [Theory]
     [InlineData("2026-07-28")]
     [InlineData("2025-11-25")]
