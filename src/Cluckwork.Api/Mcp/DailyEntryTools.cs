@@ -37,14 +37,19 @@ public sealed class DailyEntryTools
         CancellationToken ct = default)
     {
         var flockId = flock is null ? (Guid?)null : (await FlockTools.ResolveAsync(flocks, flock, ct)).Id;
-        var (take, skip) = McpPage.Window(limit, offset);
-        var rows = await eggs.ListDailyEntriesAsync(flockId, from, to, take + 1, skip, ct);
-        var names = await flocks.GetDisplayNamesAsync([.. rows.Select(e => e.FlockId).Distinct()], ct);
         var grades = (await eggs.ListAllGradesAsync(ct)).ToDictionary(g => g.Id, g => g.Name);
-        return McpPage.From(rows, take, skip, e => new DailyEntryRow(
-            e.Id, e.FlockId, names.GetValueOrDefault(e.FlockId)?.Name, e.Date, e.Status.ToString(),
-            e.TotalEggs, e.CrackedEggs, e.DirtyEggs, e.DiscardedEggs, e.MortalityCount,
-            [.. e.Grades.Select(g => new GradeCount(grades.GetValueOrDefault(g.EggGradeId), g.Quantity))]));
+        return await McpPage<DailyEntryRow>.ReadAsync(limit, offset, async (take, skip, ct) =>
+            {
+                var rows = await eggs.ListDailyEntriesAsync(flockId, from, to, take, skip, ct);
+                var names = await flocks.GetDisplayNamesAsync([.. rows.Select(e => e.FlockId).Distinct()], ct);
+                return (IReadOnlyList<(DailyEntryDetails Entry, string? FlockName)>)
+                    [.. rows.Select(e => (e, names.GetValueOrDefault(e.FlockId)?.Name))];
+            },
+            r => new DailyEntryRow(
+                r.Entry.Id, r.Entry.FlockId, r.FlockName, r.Entry.Date, r.Entry.Status.ToString(),
+                r.Entry.TotalEggs, r.Entry.CrackedEggs, r.Entry.DirtyEggs, r.Entry.DiscardedEggs, r.Entry.MortalityCount,
+                [.. r.Entry.Grades.Select(g => new GradeCount(grades.GetValueOrDefault(g.EggGradeId), g.Quantity))]),
+            ct);
     }
 }
 

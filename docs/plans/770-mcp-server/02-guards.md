@@ -91,16 +91,23 @@ and `McpMessages_WithoutAnIdempotencyKey_AreServed`.
 | 32 | `NameResolution_IsExactlyOneAccessibleMatch` | a name-addressed write cannot hit the wrong row | make resolution take the first match. **Duplicate flock names are legal** (`FlockRepository.cs` says so, and its `ThenBy(f => f.Id)` tie-break exists because of it), so first-match records production against an arbitrary flock and `Single` throws on valid farm data. Zero matches → not-found; two or more → an ambiguity error listing candidate ids and distinguishing fields, and the follow-up write must pass an id. Test two same-name flocks in one accessible scope. (#770 adversarial review, finding 3.) |
 
 #807 implements row 26 as `McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm`, and
-row 31 twice: `McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage` walks every read tool for an
-`McpPage<T>` reply, and `McpReadToolsTests.EveryReadTool_PagesWithCompletenessAndContinuation` and
-`OversizedLimit_IsCappedAndSaysSo` drive each tool through its page. Each paged query fetches one row
-past the page, so the query is bounded too. Two contracts return a whole set that the tool pages in
-memory: the grade catalogue (`cluckwork_read_stock`) and one lot's ledger
-(`cluckwork_list_egg_lot_movements`). A code comment on each names its ceiling. Row 32's
-ambiguity contract applies to the read filter too: `SharedFlockName_IsRefusedWithTheCandidates_AndAnIdResolvesIt`.
-#792 decided that phase 1 tools return no farm-entered free text.
-`McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText` lists every text field a read
-tool returns, so a new note or reason field fails.
+row 31 for both the reply and the query. `McpPage<T>.ReadAsync` is the only way to build a reply.
+It clamps the window and asks the query for one row past the page, so no tool chooses the row
+count; `McpPageTests` pins it without a host. `McpToolSurfaceTests.RealTree_EveryReadToolReturnsAPage`
+walks every read tool for an `McpPage<T>` reply, and `McpReadToolsTests` drives each tool through its
+page. `LotMovementPage_ReadsOnlyThePageFromTheDatabase` and
+`SharedFlockName_ListsBoundedCandidates_AndReadsBoundedRows` count the rows each data reader
+returned, so a query that loads everything and pages in memory fails. Flock name resolution
+reads at most `FlockNameResolution.MaxCandidates + 1` rows and says when more flocks share the
+name. One tool still pages in memory: `cluckwork_read_stock` gets one SQL-summed row per grade,
+bounded by the grade catalogue, and a code comment names that ceiling. Row 32's ambiguity
+contract applies to the read filter too. #388's flock scope is tested for the flock, entry and
+egg reads (`AssignedWorker_ReadsOnlyTheirFlocks`, `AssignedWorker_ReadsOnlyTheirFlocksEggs`).
+#792 decided that phase 1 tools return no farm-entered free text, and its 2026-10-11
+clarification allows flock and grade names. `McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText`
+follows each reply as the serializer does, through nested types from any namespace and through
+collections and arrays, and lists every text field it reaches. A new note or reason field, or a
+reply shape it cannot see into, fails.
 
 #806 implements rows 29 and 30 as `McpEndpointTests.McpPost_CarriesTheBodyCap_TheBudget_AndTheOAuthGate`
 and `OversizedBody_IsRefused`. `/mcp` takes its budget from `AcceptOAuthTokens`, the

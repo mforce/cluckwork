@@ -757,7 +757,7 @@ public sealed class SimulationDataSeeder(
                 return found.Flock.Id;
             case FlockNameResolution.Ambiguous ambiguous:
                 throw new InvalidOperationException(
-                    $"Simulation seed: {ambiguous.Candidates.Count} flocks are named {name} " +
+                    $"Simulation seed: {(ambiguous.MoreExist ? "more than " : "")}{ambiguous.Candidates.Count} flocks are named {name} " +
                     $"({string.Join(", ", ambiguous.Candidates.Select(c => c.Id))}). " +
                     "Rename the duplicates or reset the fixture.");
         }

@@ -22,8 +22,10 @@ public sealed class StockTools
         this.farmClock = farmClock;
     }
 
-    // ponytail: the contract returns the whole grade catalogue and this pages it in memory.
-    // A catalogue is a handful of grades; page it in the query if farms ever hold hundreds.
+    // ponytail: the contract sums lots in SQL and returns one row per grade, which this pages
+    // in memory. Rows are bounded by the grade catalogue, which Owners and Managers curate and
+    // which the lot and entry tools, and the SPA's capture form, already load whole. Page it in
+    // the query if farms ever hold hundreds of grades.
     [McpServerTool(Name = "cluckwork_read_stock", ReadOnly = true)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
@@ -36,10 +38,11 @@ public sealed class StockTools
         int offset = 0,
         CancellationToken ct = default)
     {
-        var (take, skip) = McpPage.Window(limit, offset);
-        var rows = await eggs.GetStockByGradeAsync(await farmClock.TodayAsync(ct), ct);
-        return McpPage.From([.. rows.Skip(skip).Take(take + 1)], take, skip, r => new StockRow(
-            r.GradeName, r.Available, r.Restricted, r.LowStockFloor, r.BelowFloor));
+        var today = await farmClock.TodayAsync(ct);
+        return await McpPage<StockRow>.ReadAsync(limit, offset,
+            async (take, skip, ct) => (IReadOnlyList<StockByGrade>)[.. (await eggs.GetStockByGradeAsync(today, ct)).Skip(skip).Take(take)],
+            r => new StockRow(r.GradeName, r.Available, r.Restricted, r.LowStockFloor, r.BelowFloor),
+            ct);
     }
 
     [McpServerTool(Name = "cluckwork_list_egg_lots", ReadOnly = true)]
@@ -59,16 +62,14 @@ public sealed class StockTools
         var grades = await eggs.ListAllGradesAsync(ct);
         var gradeId = grade is null ? (Guid?)null : ResolveGrade(grades, grade);
         var names = grades.ToDictionary(g => g.Id, g => g.Name);
-        var (take, skip) = McpPage.Window(limit, offset);
-        var rows = await eggs.ListLotsAsync(gradeId, from, to, take + 1, skip, ct);
-        return McpPage.From(rows, take, skip, l => new EggLotRow(
-            l.Id, names.GetValueOrDefault(l.EggGradeId), l.ProductionDate, l.QuantityProduced,
-            l.QuantityAvailable, l.RestrictedUntil, l.DailyEntryId));
+        return await McpPage<EggLotRow>.ReadAsync(limit, offset,
+            (take, skip, ct) => eggs.ListLotsAsync(gradeId, from, to, take, skip, ct),
+            l => new EggLotRow(
+                l.Id, names.GetValueOrDefault(l.EggGradeId), l.ProductionDate, l.QuantityProduced,
+                l.QuantityAvailable, l.RestrictedUntil, l.DailyEntryId),
+            ct);
     }
 
-    // ponytail: the contract returns one lot's whole ledger and this pages it in memory. A
-    // lot's ledger is its production plus each draw against it; add paging to
-    // ListLotMovementsAsync if lots ever carry thousands of movements.
     [McpServerTool(Name = "cluckwork_list_egg_lot_movements", ReadOnly = true)]
     [Authorize]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
@@ -81,11 +82,12 @@ public sealed class StockTools
         int offset = 0,
         CancellationToken ct = default)
     {
-        var (take, skip) = McpPage.Window(limit, offset);
-        var rows = await eggs.ListLotMovementsAsync(lotId, ct)
-            ?? throw new McpException($"No egg lot {lotId} exists on this farm.");
-        return McpPage.From([.. rows.Skip(skip).Take(take + 1)], take, skip, m => new EggLotMovementRow(
-            m.MovementType.ToString(), m.QuantityDelta, m.ReferenceType, m.ReferenceId, m.CreatedAtUtc));
+        return await McpPage<EggLotMovementRow>.ReadAsync(limit, offset,
+            async (take, skip, ct) => await eggs.ListLotMovementsAsync(lotId, take, skip, ct)
+                ?? throw new McpException($"No egg lot {lotId} exists on this farm."),
+            m => new EggLotMovementRow(
+                m.MovementType.ToString(), m.QuantityDelta, m.ReferenceType, m.ReferenceId, m.CreatedAtUtc),
+            ct);
     }
 
     // Grade names are unique per farm, ignoring case, but an account's catalogue spans its farms.

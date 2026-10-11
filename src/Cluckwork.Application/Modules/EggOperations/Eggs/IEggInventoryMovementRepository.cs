@@ -8,4 +8,6 @@ public interface IEggInventoryMovementRepository
     Task AddRangeAsync(IEnumerable<EggInventoryMovement> movements, CancellationToken ct = default);
     /// <summary>A lot's movements, newest first (CreatedAtUtc, then Sequence).</summary>
     Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(Guid eggLotId, CancellationToken ct = default);
+    Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(
+        Guid eggLotId, int limit, int offset, CancellationToken ct = default);
 }

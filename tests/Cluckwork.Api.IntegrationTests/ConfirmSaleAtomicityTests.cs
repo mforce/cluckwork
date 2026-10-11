@@ -114,6 +114,10 @@ public sealed class ConfirmSaleAtomicityTests(CluckworkWebApplicationFactory fac
 
         public Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(Guid eggLotId, CancellationToken ct = default) =>
             inner.ListByLotAsync(eggLotId, ct);
+
+        public Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(
+            Guid eggLotId, int limit, int offset, CancellationToken ct = default) =>
+            inner.ListByLotAsync(eggLotId, limit, offset, ct);
     }
 
     private sealed class FaultingAllocations(ISalesOrderAllocationRepository inner, FaultPoint fault, AppDbContext db)

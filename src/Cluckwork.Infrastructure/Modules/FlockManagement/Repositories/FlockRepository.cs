@@ -124,11 +124,12 @@ public sealed class FlockRepository(AppDbContext db) : IFlockRepository
     }
 
     public async Task<IReadOnlyList<FlockReference>> ListByNameAsync(
-        string name, CancellationToken ct = default) =>
+        string name, int limit, CancellationToken ct = default) =>
         await db.Flocks
             .AsNoTracking()
             .Where(f => f.Name == name)
             .OrderBy(f => f.Id)
+            .Take(limit)
             .Select(f => new FlockReference(f.Id, f.Name, f.Status))
             .ToListAsync(ct);
 

@@ -45,18 +45,23 @@ public sealed class FlockTools
             "all" => FlockEligibility.All,
             _ => throw new McpException("status must be 'active', 'active-and-depleted' or 'all'."),
         };
-        var (take, skip) = McpPage.Window(limit, offset);
-        var rows = await flocks.SearchAsync(nameContains, eligibility, take + 1, skip, ct);
-        var removed = await flocks.GetBirdsRemovedAsync([.. rows.Select(f => f.Id)], ct);
         var today = await farmClock.TodayAsync(ct);
-        return McpPage.From(rows, take, skip, f => new FlockRow(
-            f.Id, f.Name, f.Status.ToString(), f.PlacementDate, f.InitialCount,
-            f.InitialCount - removed.GetValueOrDefault(f.Id), f.DepletedOn, f.ArchivedOn,
-            f.CanRecordProductionOn(today)));
+        return await McpPage<FlockRow>.ReadAsync(limit, offset, async (take, skip, ct) =>
+            {
+                var rows = await flocks.SearchAsync(nameContains, eligibility, take, skip, ct);
+                var removed = await flocks.GetBirdsRemovedAsync([.. rows.Select(f => f.Id)], ct);
+                return (IReadOnlyList<(FlockDetails Flock, long Removed)>)[.. rows.Select(f => (f, removed.GetValueOrDefault(f.Id)))];
+            },
+            r => new FlockRow(
+                r.Flock.Id, r.Flock.Name, r.Flock.Status.ToString(), r.Flock.PlacementDate, r.Flock.InitialCount,
+                r.Flock.InitialCount - r.Removed, r.Flock.DepletedOn, r.Flock.ArchivedOn,
+                r.Flock.CanRecordProductionOn(today)),
+            ct);
     }
 
     // A model holds names, and duplicate flock names are legal, so a name resolves only
-    // to exactly one visible flock. Text that parses as an id is read as one.
+    // to exactly one visible flock. Text that parses as an id is read as one. The refusal
+    // lists at most FlockNameResolution.MaxCandidates ids.
     internal static async Task<FlockReference> ResolveAsync(IFlockLookup lookup, string flock, CancellationToken ct)
     {
         if (Guid.TryParse(flock, out var id))
@@ -67,7 +72,10 @@ public sealed class FlockTools
             FlockNameResolution.Found found => found.Flock,
             FlockNameResolution.Ambiguous ambiguous => throw new McpException(
                 $"More than one flock is named '{flock.Trim()}'. Call again with flock set to one of these ids: "
-                + string.Join(", ", ambiguous.Candidates.Select(c => $"{c.Id} ({c.Status})")) + "."),
+                + string.Join(", ", ambiguous.Candidates.Select(c => $"{c.Id} ({c.Status})"))
+                + (ambiguous.MoreExist
+                    ? ". More flocks share this name than are listed; find the one you mean with cluckwork_list_flocks, status 'all' and nameContains."
+                    : ".")),
             _ => throw NotFound(flock),
         };
     }

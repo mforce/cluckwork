@@ -1,6 +1,10 @@
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -62,23 +66,61 @@ public sealed class McpToolSurfaceTests
 
     [Fact]
     public void RealTree_ReadToolRepliesReturnOnlyReviewedText() =>
-        Assert.Equal(ReplyText.Order(), ReadTools().SelectMany(m => TextFields(m.ReturnType, [])).Distinct().Order());
+        Assert.Equal(ReplyText.Order(), ReadTools().SelectMany(m => TextFields(m.ReturnType, m.Name, [])).Distinct().Order());
+
+    // The walk reaches text a serializer would emit from any namespace, inside a collection
+    // or array, and refuses a reply shape it cannot see into.
+    [Theory]
+    [InlineData(typeof(NestedContractRow), "DailyEntryDetails.AdjustReason")]
+    [InlineData(typeof(NestedContractRow), "DailyEntryDetails.VoidReason")]
+    [InlineData(typeof(TextCollectionRow), "TextCollectionRow.Notes")]
+    [InlineData(typeof(TextCollectionRow), "TextCollectionRow.Tags")]
+    [InlineData(typeof(OpaqueRow), "OpaqueRow.Extra is opaque")]
+    [InlineData(typeof(OpaqueRow), "OpaqueRow.Raw is opaque")]
+    public void TextWalk_ReachesNestedCollectionAndOpaqueText(Type row, string field) =>
+        Assert.Contains(field, TextFields(typeof(Task<>).MakeGenericType(typeof(McpPage<>).MakeGenericType(row)), "Fixture", []));
 
     private static IEnumerable<MethodInfo> ReadTools() =>
         McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
             .Where(m => m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
 
-    private static IEnumerable<string> TextFields(Type type, HashSet<Type> seen)
+    // Follows a reply the way System.Text.Json serializes it: Task<T> to T, a nullable to its
+    // value, a collection or array to its element, any other type to its public properties.
+    // A text field is keyed by the property holding it.
+    private static IReadOnlyList<string> TextFields(Type type, string holder, HashSet<Type> seen)
     {
+        if (type == typeof(string) || type == typeof(char))
+            return [holder];
+        if (Nullable.GetUnderlyingType(type) is { } value)
+            return TextFields(value, holder, seen);
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Task<>))
+            return TextFields(type.GetGenericArguments()[0], holder, seen);
+        if (ElementType(type) is { } element)
+            return TextFields(element, holder, seen);
+        if (type == typeof(object) || type == typeof(JsonElement) || typeof(JsonNode).IsAssignableFrom(type) || type.IsInterface)
+            return [$"{holder} is opaque"];
+        if (type.IsPrimitive || type.IsEnum || type == typeof(decimal) || type == typeof(Guid) || type == typeof(DateOnly)
+            || type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeOnly) || type == typeof(TimeSpan))
+            return [];
         if (!seen.Add(type))
             return [];
-        var fromArguments = type.IsGenericType ? type.GetGenericArguments().SelectMany(t => TextFields(t, seen)).ToList() : [];
-        if (type.Namespace != "Cluckwork.Api.Mcp")
-            return fromArguments;
-        return fromArguments.Concat(type.GetProperties().SelectMany(p => p.PropertyType == typeof(string)
-            ? [$"{type.Name}.{p.Name}"]
-            : TextFields(p.PropertyType, seen)));
+        return [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0 && p.GetCustomAttribute<JsonIgnoreAttribute>() is null)
+            .SelectMany(p => TextFields(p.PropertyType, $"{type.Name}.{p.Name}", seen))];
     }
+
+    private static Type? ElementType(Type type) =>
+        type.IsArray ? type.GetElementType()
+        : type == typeof(string) ? null
+        : new[] { type }.Concat(type.GetInterfaces())
+            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            ?.GetGenericArguments()[0];
+
+    private sealed record NestedContractRow(Guid Id, DailyEntryDetails Entry);
+
+    private sealed record TextCollectionRow(Guid Id, IReadOnlyList<string> Notes, string[] Tags);
+
+    private sealed record OpaqueRow(Guid Id, object Extra, JsonElement Raw);
 
     [Fact]
     public void ToolsTakingTheContext_HaveNoFindings() =>

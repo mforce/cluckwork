@@ -298,6 +298,9 @@ public sealed class EggOperationsModuleTests
             return Task.FromResult<IReadOnlyList<EggInventoryMovement>>(Rows.Where(m => m.EggLotId == eggLotId).ToList());
         }
 
+        public Task<IReadOnlyList<EggInventoryMovement>> ListByLotAsync(
+            Guid eggLotId, int limit, int offset, CancellationToken ct = default) => throw new NotSupportedException();
+
         public Task AddAsync(EggInventoryMovement movement, CancellationToken ct = default) => throw new NotSupportedException();
         public Task AddRangeAsync(IEnumerable<EggInventoryMovement> movements, CancellationToken ct = default) =>
             throw new NotSupportedException();
