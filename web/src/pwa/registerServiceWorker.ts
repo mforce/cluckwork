@@ -14,6 +14,13 @@
 // The contract: calling this never throws and never rejects. The worst outcome
 // is "no service worker", which is exactly today's behaviour.
 
+import { CacheExpiration } from "workbox-expiration";
+import {
+  LANGUAGE_PACK_CACHE,
+  LANGUAGE_PACK_MAX_ENTRIES,
+  matchesLanguagePack,
+} from "../../scripts/runtime-cache-match.mjs";
+
 export type UpdateHandler = (activate: () => Promise<void>) => void;
 
 // Where vite-plugin-pwa emits the generated worker.
@@ -81,6 +88,7 @@ export async function registerServiceWorker(
     );
 
     scheduleUpdateChecks(registration, signal);
+    if (!navigator.serviceWorker.controller) copyLanguagePacksIntoCache(signal);
 
     return registration;
   } catch {
@@ -89,6 +97,48 @@ export async function registerServiceWorker(
     // rules. None of them should break the page that is already running.
     return null;
   }
+}
+
+// #1149 — the first worker never controls the page that installed it
+// (clientsClaim is off), so a language pack this page imports bypasses the
+// worker's runtime route and would be missing offline after the next load.
+// Copy each one in once the worker is ready. An observer, not
+// getEntriesByType: the resource-timing buffer stops recording at 250 entries,
+// and a switch can come late in a long first session. The copy's own fetch is
+// a resource entry too, so `scheduled` is filled before any async work, or the
+// copier would feed on itself.
+function copyLanguagePacksIntoCache(signal?: AbortSignal) {
+  if (typeof PerformanceObserver === "undefined" || signal?.aborted) return;
+  const scheduled = new Set<string>();
+  const observer = new PerformanceObserver((list) => {
+    const packs = list.getEntries().map((entry) => entry.name).filter((name) => {
+      const url = new URL(name);
+      return !scheduled.has(name) && matchesLanguagePack({
+        url, request: { destination: "script" }, sameOrigin: url.origin === globalThis.location.origin,
+      });
+    });
+    if (packs.length === 0) return;
+    for (const pack of packs) scheduled.add(pack);
+    void navigator.serviceWorker.ready
+      .then(() => caches.open(LANGUAGE_PACK_CACHE))
+      // One add per URL, not addAll: a batch can hold a pack that failed to
+      // load beside one that loaded, and addAll would drop both.
+      .then((cache) => Promise.allSettled(packs.map((pack) => cache.add(pack))))
+      .then(async (results) => {
+        const copied = packs.filter((_, i) => results[i]!.status === "fulfilled");
+        if (copied.length === 0) return;
+        // A direct write skips the route's ExpirationPlugin. Record it in the
+        // same Workbox bookkeeping so the four-entry limit covers it too.
+        const expiration = new CacheExpiration(LANGUAGE_PACK_CACHE, { maxEntries: LANGUAGE_PACK_MAX_ENTRIES });
+        for (const pack of copied) await expiration.updateTimestamp(pack);
+        await expiration.expireEntries();
+      })
+      .catch(() => {
+        // Offline or out of quota: the pack loads again on the next online visit.
+      });
+  });
+  observer.observe({ type: "resource", buffered: true });
+  signal?.addEventListener("abort", () => observer.disconnect(), { once: true });
 }
 
 // Long-lived standalone PWAs do not navigate, so the browser may never discover

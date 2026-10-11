@@ -26,7 +26,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.16",
-    "react-router": "^8.4.0"
+    "react-router": "^8.4.0",
+    "workbox-expiration": "^7.4.1"
   },
   "devDependencies": {
     "@babel/parser": "^8.0.6",

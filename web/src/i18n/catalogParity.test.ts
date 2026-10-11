@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { en } from "./en";
-import { RESOURCES, TRANSLATED_NAMESPACES } from "./index";
+import { TRANSLATED_NAMESPACES } from "./index";
+import { ALL_PACKS } from "../test/allPacks";
 
 // Completeness guard (#182, English-first model): a missing key in a
 // TRANSLATED namespace silently falls back to English (fallbackLng), which is
@@ -39,10 +40,10 @@ function extractTokens(value: string, re: RegExp): string[] {
   return [...value.matchAll(re)].map((m) => m[0]).sort();
 }
 
-// Iterate RESOURCES itself (not a hardcoded ["es", "tl"]) so a future pack
-// added to RESOURCES (src/i18n/index.ts) is automatically parity-checked here
+// Iterate every SUPPORTED_LANGUAGES pack (not a hardcoded ["es", "tl"]) so a
+// future pack added in src/i18n/index.ts is automatically parity-checked here
 // without editing this file.
-const otherPacks = Object.entries(RESOURCES).filter(([name]) => name !== "en") as [
+const otherPacks = Object.entries(ALL_PACKS).filter(([name]) => name !== "en") as [
   string,
   Record<string, unknown>,
 ][];
@@ -115,7 +116,7 @@ describe.each(otherPacks)("%s catalog parity with en (#182)", (_name, pack) => {
 // catalog (en included, and every namespace including ones outside
 // TRANSLATED_NAMESPACES) since the flat-shape invariant applies regardless of
 // translation status.
-describe.each(Object.entries(RESOURCES) as [string, Record<string, unknown>][])(
+describe.each(Object.entries(ALL_PACKS) as [string, Record<string, unknown>][])(
   "%s catalog shape (#182)",
   (_name, catalog) => {
     it("has only direct string leaves under every namespace", () => {

@@ -889,7 +889,7 @@ export function HelpPage() {
         const entries = GLOSSARY
           .filter((entry) => entry.group === group.key)
           .map((entry) => ({ ...entry, term: t(entry.termKey) }))
-          .sort((a, b) => a.term.localeCompare(b.term, i18n.language));
+          .sort((a, b) => a.term.localeCompare(b.term, i18n.resolvedLanguage));
         return (
           <div key={group.key} className="glossary-group">
             <h4 id={`glossary-group-${group.key}`}>{t(group.labelKey)}</h4>
