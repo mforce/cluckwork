@@ -14,8 +14,9 @@ namespace Cluckwork.Api.IntegrationTests;
 // #797 — the OAuth half of the housekeeping sweep: dead tokens and authorizations go
 // after the retention, unapproved registrations after their window, live connections
 // never. Rows are aged by rewriting their creation time, so nothing waits on a clock.
-[Collection(IntegrationCollection.Name)]
-public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
+// The host's own worker is removed (NoHostWorkerFactory): it would sweep these rows on
+// its own poll and race the leader-gate test below.
+public sealed class OAuthPurgeTests(NoHostWorkerFactory factory) : IClassFixture<NoHostWorkerFactory>
 {
     private readonly OAuthServerTests flows = new(factory);
 
@@ -82,10 +83,10 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
         var fresh = await OAuthServerTests.RegisterClientAsync(factory.Services);
         await AgeApplicationAsync(expired, OAuthPurgeSweep.UnapprovedWindow + TimeSpan.FromHours(1));
 
-        await RunWorkerBrieflyAsync(LeaseStatus.Follower);
+        await RunWorkerOnceAsync(LeaseStatus.Follower);
         Assert.True((await RowsAsync(expired)).Application, "a follower ran the OAuth sweep");
 
-        await RunWorkerBrieflyAsync(LeaseStatus.Leader);
+        await RunWorkerOnceAsync(LeaseStatus.Leader);
         Assert.False((await RowsAsync(expired)).Application, "the leader did not run the OAuth sweep");
         Assert.True((await RowsAsync(fresh)).Application, "the sweep deleted an application inside its window");
     }
@@ -97,23 +98,16 @@ public sealed class OAuthPurgeTests(CluckworkWebApplicationFactory factory)
             DateTimeOffset.UtcNow - OAuthPurgeSweep.PruneRetention, OAuthPurgeSweep.UnapprovedWindow, CancellationToken.None);
     }
 
-    private async Task RunWorkerBrieflyAsync(LeaseStatus lease)
+    private Task RunWorkerOnceAsync(LeaseStatus lease)
     {
+        var signallingLease = new SignallingLease(lease);
         var worker = new DurableJobWorker(
             factory.Services.GetRequiredService<IServiceScopeFactory>(),
             NullLogger<DurableJobWorker>.Instance,
-            new StubLease(lease),
+            signallingLease,
             oauthPurgeSweep: factory.Services.GetRequiredService<OAuthPurgeSweep>(),
             pollInterval: TimeSpan.FromMilliseconds(20));
-        await worker.StartAsync(CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(500));
-        using var stopTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await worker.StopAsync(stopTimeout.Token);
-    }
-
-    private sealed class StubLease(LeaseStatus status) : ILeaderLease
-    {
-        public Task<LeaseStatus> TryAcquireAsync(CancellationToken ct) => Task.FromResult(status);
+        return signallingLease.RunWorkerThroughOneIterationAsync(worker);
     }
 
     // What disconnecting an app will do (#799): revoke the approval and its tokens.
