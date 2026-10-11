@@ -394,7 +394,7 @@ describe("language packs on an uncontrolled page", () => {
     const { container } = stubEnv({ controller });
     Object.assign(container, { ready: Promise.resolve() });
     vi.stubGlobal("location", { reload: vi.fn(), origin: "https://farm.example" });
-    const cache = { addAll: vi.fn(() => Promise.resolve()) };
+    const cache = { addAll: vi.fn((_urls: string[]) => Promise.resolve()) };
     vi.stubGlobal("caches", { open: vi.fn(() => Promise.resolve(cache)) });
     let deliver: ((names: string[]) => void) | undefined;
     const observe = vi.fn();
@@ -421,6 +421,24 @@ describe("language packs on an uncontrolled page", () => {
     await vi.waitFor(() => expect(cache.addAll).toHaveBeenCalledTimes(1));
     expect(globalThis.caches.open).toHaveBeenCalledWith("language-packs");
     expect(cache.addAll).toHaveBeenCalledWith(["https://farm.example/assets/es-abc123.js"]);
+  });
+
+  // The browser reports the copy's own fetch as a resource entry too. This
+  // fake does the same, so a copier that reacts to its own fetches loops here
+  // as it did in Chromium (#1149 review round 2).
+  it("copies each pack once, though its own fetch shows up as a new resource entry", async () => {
+    const { cache, deliver } = stubPacksEnv(null);
+    cache.addAll.mockImplementation((urls: string[]) => {
+      setTimeout(() => deliver(urls), 0);
+      return Promise.resolve();
+    });
+    await registerWorker();
+
+    deliver(["https://farm.example/assets/es-abc123.js"]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    deliver(["https://farm.example/assets/es-abc123.js"]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(cache.addAll).toHaveBeenCalledTimes(1);
   });
 
   it("leaves a controlled page to the worker's own route", async () => {

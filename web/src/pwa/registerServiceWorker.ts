@@ -99,17 +99,21 @@ export async function registerServiceWorker(
 // worker's runtime route and would be missing offline after the next load.
 // Copy each one in once the worker is ready. An observer, not
 // getEntriesByType: the resource-timing buffer stops recording at 250 entries,
-// and a switch can come late in a long first session.
+// and a switch can come late in a long first session. The copy's own fetch is
+// a resource entry too, so `scheduled` is filled before any async work, or the
+// copier would feed on itself.
 function copyLanguagePacksIntoCache(signal?: AbortSignal) {
   if (typeof PerformanceObserver === "undefined" || signal?.aborted) return;
+  const scheduled = new Set<string>();
   const observer = new PerformanceObserver((list) => {
     const packs = list.getEntries().map((entry) => entry.name).filter((name) => {
       const url = new URL(name);
-      return matchesLanguagePack({
+      return !scheduled.has(name) && matchesLanguagePack({
         url, request: { destination: "script" }, sameOrigin: url.origin === globalThis.location.origin,
       });
     });
     if (packs.length === 0) return;
+    for (const pack of packs) scheduled.add(pack);
     void navigator.serviceWorker.ready
       .then(() => caches.open(LANGUAGE_PACK_CACHE))
       .then((cache) => cache.addAll(packs))
