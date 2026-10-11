@@ -9,6 +9,13 @@ import i18n, { SUPPORTED_LANGUAGES } from "../i18n";
 // script (not translated). Extend as packs ship.
 const LANGUAGE_NAMES: Record<string, string> = { en: "English", es: "Español", tl: "Tagalog" };
 
+// #1149 — why the last switch did not happen, keyed to its message.
+const NOTICE_TEXT = {
+  offline: "languageNeedsConnection",
+  reload: "languageSavedReload",
+  saveFailed: "languageSaveFailed",
+} as const;
+
 // Per-user UI language (#182). Hidden while only one language is installed — a
 // single-option picker is noise — so it renders only once more than one
 // language is installed, which is the case today (en/es/tl). The change path
@@ -20,9 +27,9 @@ export function LanguageSelector() {
   // spinner; a <select> cannot carry one). Called before the early return:
   // hooks are unconditional.
   const { busy, run } = usePendingAction();
-  // #1149 — why the last switch did not happen. `reload` is set only after the
-  // choice is saved; the page reloads only when the user presses the button.
-  const [notice, setNotice] = useState<{ kind: "offline" | "reload"; language: string } | null>(null);
+  // `reload` is set only after the choice is saved; the page reloads only when
+  // the user presses the button.
+  const [notice, setNotice] = useState<{ kind: keyof typeof NOTICE_TEXT; language: string } | null>(null);
 
   if (SUPPORTED_LANGUAGES.length <= 1) return null;
 
@@ -33,8 +40,7 @@ export function LanguageSelector() {
   // MeContext is never updated to match. Resolved, not requested (#1149): after
   // a pack fails to load, the screen is in English and the picker says so.
   const current = i18n.resolvedLanguage ?? i18n.language;
-  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const lang = e.target.value;
+  const switchTo = (lang: string) => {
     void run("language", async () => {
       // #1149 — load the pack before switching. i18next switches even when the
       // load fails, which would show English under a non-English selection, so
@@ -46,9 +52,14 @@ export function LanguageSelector() {
         // Online, save the choice and offer a reload; the next document fetches
         // the pack. Never reload unasked: the Account page may hold a draft.
         if (navigator.onLine) {
-          await putMeLanguage(lang).catch((err: unknown) => {
+          try {
+            await putMeLanguage(lang);
+          } catch (err) {
+            // Unsaved, a reload would bootstrap back into the old language.
             console.warn("Failed to persist language preference", err);
-          });
+            setNotice({ kind: "saveFailed", language: lang });
+            return;
+          }
           setNotice({ kind: "reload", language: lang });
           return;
         }
@@ -64,6 +75,7 @@ export function LanguageSelector() {
       });
     });
   };
+  const onChange = (e: React.ChangeEvent<HTMLSelectElement>) => switchTo(e.target.value);
 
   // The note sits outside the <label> so it never joins the select's name.
   return (
@@ -78,13 +90,17 @@ export function LanguageSelector() {
       </label>
       {notice !== null && (
         <p role="status" className="muted">
-          {t(notice.kind === "offline" ? "languageNeedsConnection" : "languageSavedReload",
-            { language: LANGUAGE_NAMES[notice.language] ?? notice.language })}
+          {t(NOTICE_TEXT[notice.kind], { language: LANGUAGE_NAMES[notice.language] ?? notice.language })}
         </p>
       )}
       {notice?.kind === "reload" && (
         <Button variant="outlined" size="small" onClick={() => globalThis.location.reload()}>
           {t("languageReload")}
+        </Button>
+      )}
+      {notice?.kind === "saveFailed" && (
+        <Button variant="outlined" size="small" disabled={busy} onClick={() => switchTo(notice.language)}>
+          {t("languageTryAgain")}
         </Button>
       )}
     </>

@@ -220,6 +220,8 @@ export const en = {
     languageNeedsConnection: "{{language}} is not on this device yet. Connect to the internet once to switch to it.",
     languageSavedReload: "{{language}} is saved for you, but this page could not load it. Select Reload to switch to it.",
     languageReload: "Reload",
+    languageSaveFailed: "{{language}} could not be saved. Check your connection, then select Try again.",
+    languageTryAgain: "Try again",
     // #444 — the pack unit YOUR Daily Entry steppers bump by. {{unit}} in the
     // farm-default option is the raw EggUnit code (DATA, e.g. "Tray"), matching
     // how the Products screen renders unit codes.

@@ -168,6 +168,8 @@ export const tl = {
     languageNeedsConnection: "Wala pa ang {{language}} sa device na ito. Kumonekta sa internet nang isang beses para lumipat dito.",
     languageSavedReload: "Naka-save na ang {{language}} para sa iyo, pero hindi ito na-load ng page na ito. Piliin ang I-reload para lumipat dito.",
     languageReload: "I-reload",
+    languageSaveFailed: "Hindi ma-save ang {{language}}. Tingnan ang iyong koneksyon, saka piliin ang Subukan Ulit.",
+    languageTryAgain: "Subukan Ulit",
     stepperUnit: "Yunit ng pagbilang sa Daily Entry",
     stepperUnitHint:
       "Kung magkano ang ibinibilang ng mga +/− na button ng Daily Entry, para lang sa iyo — "

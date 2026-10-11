@@ -52,6 +52,27 @@ describe("LanguageSelector when a pack cannot load (#1149)", () => {
     online.mockRestore();
   });
 
+  it("keeps the page and offers Try again when saving the choice fails", async () => {
+    vi.spyOn(LAZY_PACKS, "tl").mockRejectedValue(new Error("Failed to fetch dynamically imported module"));
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    vi.stubGlobal("location", { reload: vi.fn() });
+    vi.mocked(api.putMeLanguage).mockClear().mockRejectedValueOnce(new Error("500"));
+    const select = renderSelector();
+
+    fireEvent.change(select, { target: { value: "tl" } });
+    const tryAgain = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Tagalog could not be saved. Check your connection, then select Try again.");
+    expect(screen.queryByRole("button", { name: "Reload" })).toBeNull();
+    expect(globalThis.location.reload).not.toHaveBeenCalled();
+
+    fireEvent.click(tryAgain);
+    await screen.findByRole("button", { name: "Reload" });
+    expect(vi.mocked(api.putMeLanguage)).toHaveBeenCalledTimes(2);
+    expect(globalThis.location.reload).not.toHaveBeenCalled();
+    online.mockRestore();
+  });
+
   it("shows the language on screen after the bootstrap's switch fails to load", async () => {
     vi.spyOn(LAZY_PACKS, "tl").mockRejectedValue(new Error("Failed to fetch dynamically imported module"));
     await i18n.changeLanguage("tl");

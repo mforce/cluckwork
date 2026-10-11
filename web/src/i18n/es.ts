@@ -162,6 +162,8 @@ export const es = {
     languageNeedsConnection: "{{language}} todavía no está en este dispositivo. Conéctese a internet una vez para cambiar a este idioma.",
     languageSavedReload: "{{language}} quedó guardado para usted, pero esta página no pudo cargarlo. Seleccione Recargar para cambiar a este idioma.",
     languageReload: "Recargar",
+    languageSaveFailed: "No se pudo guardar {{language}}. Revise su conexión y seleccione Reintentar.",
+    languageTryAgain: "Reintentar",
     stepperUnit: "Unidad de conteo de la entrada diaria",
     stepperUnitHint:
       "Cuánto cuentan los botones +/− de la entrada diaria, solo para usted — elija una "
