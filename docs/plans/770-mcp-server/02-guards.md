@@ -53,11 +53,17 @@ only proves that each serving guard fails a boot, not that `/mcp` works.)
 over probe tools that exist only in its test host, for role and for scope. #807 implements rows
 13 to 15 as `McpRouteParityTests`. A tool method carries `[MirrorsRoute("<WithName>")]`, and the
 test combines the tool's role gates and the route's authorization metadata through the live
-`IAuthorizationService`, then checks Owner, Manager, Sales, ReadOnly and Worker callers. No tool
-needs `[MirrorsNoRoute]` yet, so that attribute does not exist; add it with the first tool that
-has no route. #806 adds a walk the
+`IAuthorizationService`, then checks Owner, Manager, Sales, ReadOnly and Worker callers. #810
+lets the attribute name several routes, and the tool's roles must sit inside their intersection;
+`cluckwork_list_sales_orders` mirrors `ListSalesOrders` and `GetSalesOrder`. Restricting
+`/api/v1/customers` to `AdminOnly` in `Program.cs` turns the test red and names the customer and
+balance tools. No tool needs `[MirrorsNoRoute]` yet, so that attribute does not exist; add it with
+the first tool that has no route. #806 adds a walk the
 table did not have, `McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy`:
-the SDK runs a tool with no `[Authorize]`, or with `[AllowAnonymous]`, for any caller.
+the SDK runs a tool with no `[Authorize]`, or with `[AllowAnonymous]`, for any caller. #810 holds
+the same walk to exactly one scope policy, `farm:read` for a `ReadOnly` tool and
+`daily-entries:write` for any other, and `McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool`
+fails a scope in `OAuthScopes.All` that no tool requires.
 
 ## Idempotency
 
@@ -94,6 +100,12 @@ protocol into `IdempotentUnit` and no #307 test changed. Row 20 waits for a seco
 | 31 | `ReadTools_ReturnBoundedResponses` | every read tool's **reply** is bounded and says so | remove the page cap from a read tool; the reply grows past it and carries no completeness field. |
 | 31b | `BalanceReads_AreBoundedInTheDATABASE` (row-consumption assertion) | the **query** is bounded, not just the reply | keep the reply's `Take(cap)` and remove the bound from the query. Row 31 stays GREEN — every response is correctly capped with correct continuation metadata — while `ListCustomerBalancesAsync` materializes the entire farm's balance book first. `PaymentRepository` takes no paging arguments and materializes both grouped queries before building its list, so **reusing it at all is the defect**; this needs a paged balance query, and the test must assert rows consumed from the database, not items returned. A signature walk cannot establish this. **Measure rows CONSUMED, not SQL shape.** `ReportQueryBoundingTests`' `SqlCaptureInterceptor` is the right harness shape and the right precedent (#311 was the identical "loaded the whole ledger, walked it in memory" defect), but it records `(Sql, Parameters)` only — so an implementation that fetches every page in a loop and accumulates the book emits perfectly paged SQL and passes. Keep SQL inspection as *supporting* evidence and count consumption across the whole operation: wrap the returned `DbDataReader` and count successful `Read`/`ReadAsync` calls, covering both aggregate queries and any page-fetch loop. (Round-3 finding 3 — the round-2 fix named a mechanism that cannot measure what the row requires.) (Round-2 finding 2 — row 31 alone claimed an invariant its mutation did not test.) |
 | 32 | `NameResolution_IsExactlyOneAccessibleMatch` | a name-addressed write cannot hit the wrong row | make resolution take the first match. **Duplicate flock names are legal** (`FlockRepository.cs` says so, and its `ThenBy(f => f.Id)` tie-break exists because of it), so first-match records production against an arbitrary flock and `Single` throws on valid farm data. Zero matches → not-found; two or more → an ambiguity error listing candidate ids and distinguishing fields, and the follow-up write must pass an id. Test two same-name flocks in one accessible scope. (#770 adversarial review, finding 3.) |
+
+#808 implements row 28 as `McpToolSurfaceTests.RealTree_ReadToolRepliesCarryNoMinorUnits`: an amount
+crosses as `McpMoney`, a decimal string in its currency's precision, and no reply field names minor
+units. #808 adds the commerce tools to rows 26, 31 and 31b in `McpCommerceToolsTests`; a balance
+page is read by `ICommerceModule.ListCustomerBalancesAsync(limit, offset)`, one SQL query bounded
+to the page.
 
 #807 implements row 26 as `McpReadToolsTests.CrossFarmBearer_ReadsNothingOfTheOtherFarm`, and
 row 31 for both the reply and the query. `McpPage<T>.ReadAsync` is the only way to build a reply.

@@ -83,8 +83,10 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
 
         await using var client = await ConnectAsync(host, token);
         var refused = await Assert.ThrowsAsync<McpProtocolException>(() => client.CallToolAsync(ProbeTools.Write).AsTask());
+        var realWrite = await Assert.ThrowsAsync<McpProtocolException>(() => client.CallToolAsync(DailyEntryTools.RecordDailyEntry).AsTask());
 
         Assert.Equal(McpErrorCode.InvalidRequest, refused.ErrorCode);
+        Assert.Equal(McpErrorCode.InvalidRequest, realWrite.ErrorCode);
     }
 
     // RFC 9728 §5.1: a client with no token learns where to authenticate from the challenge.

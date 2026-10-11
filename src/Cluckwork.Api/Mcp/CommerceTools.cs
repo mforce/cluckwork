@@ -55,7 +55,7 @@ public sealed class CommerceTools
     [McpServerTool(Name = "cluckwork_list_sales_orders", ReadOnly = true)]
     [Authorize(Policy = AuthPolicies.SalesFlow)]
     [Authorize(Policy = AuthPolicies.FarmReadScope)]
-    [MirrorsRoute("ListSalesOrders")]
+    [MirrorsRoute("ListSalesOrders", "GetSalesOrder")]
     [Description("Sales orders, newest first, each with its lines and total. Confirmed orders carry what they still "
         + "owe when you may see payments; outstanding is null otherwise. "
         + "Paged: when complete is false, call again with offset set to nextOffset.")]

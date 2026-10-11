@@ -83,8 +83,14 @@ internal static class McpToolSurface
                 if (attributes.OfType<IAllowAnonymous>().Any())
                     findings.Add($"{site} allows anonymous callers, so the SDK skips every policy on it");
                 var gates = attributes.OfType<IAuthorizeData>().ToList();
-                if (!gates.Any(g => ScopePolicies.Contains(g.Policy)))
+                var scopes = gates.Select(g => g.Policy).Where(ScopePolicies.Contains).Distinct().ToList();
+                if (scopes.Count == 0)
                     findings.Add($"{site} has no scope policy; add [Authorize(Policy = AuthPolicies.<Scope>Scope)]");
+                // #810: a read needs farm:read and a write daily-entries:write, never both, so a
+                // farm:read token cannot reach a write and a write-only token cannot read.
+                var expected = IsReadOnly(method) ? AuthPolicies.FarmReadScope : AuthPolicies.DailyEntriesWriteScope;
+                if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))
+                    findings.Add($"{site} requires {string.Join(" and ", scopes)}; a {(IsReadOnly(method) ? "read" : "write")} tool requires exactly {expected}");
                 if (!gates.Any(g => !ScopePolicies.Contains(g.Policy)))
                     findings.Add($"{site} has no role policy; add [Authorize] or [Authorize(Policy = AuthPolicies.<Tier>)]");
             }

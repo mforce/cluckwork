@@ -1,10 +1,10 @@
 namespace Cluckwork.Api.Mcp;
 
-// #807, guard rows 13 to 15 — the REST route a tool answers the same question as, by its
-// WithName. A tool may admit no role its route denies; McpRouteParityTests holds it there,
-// so tightening the route alone turns the test red.
+// #807 and #810, guard rows 13 to 15 — the REST routes a tool answers the same question as,
+// by their WithName. A tool may admit no role any of its routes denies; McpRouteParityTests
+// holds it there, so tightening one route alone turns the test red.
 [AttributeUsage(AttributeTargets.Method)]
-public sealed class MirrorsRouteAttribute(string routeName) : Attribute
+public sealed class MirrorsRouteAttribute(string routeName, params string[] moreRouteNames) : Attribute
 {
-    public string RouteName { get; } = routeName;
+    public IReadOnlyList<string> RouteNames { get; } = [routeName, .. moreRouteNames];
 }

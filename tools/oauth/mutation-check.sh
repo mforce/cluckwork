@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799, #806, #807, #808 and #1148 OAuth and MCP claim has a
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 to #808, #810 and #1148 OAuth and MCP claim has a
 # test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -66,6 +66,8 @@ DB_CONTEXT=src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs
 TEXT_WALK=tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurfaceTests.cs
 COMMERCE_TOOLS=src/Cluckwork.Api/Mcp/CommerceTools.cs
 PAYMENT_REPO=src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/PaymentRepository.cs
+PARITY=tests/Cluckwork.Api.IntegrationTests/Mcp/McpRouteParityTests.cs
+DAILY_TOOLS=src/Cluckwork.Api/Mcp/DailyEntryTools.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
@@ -291,6 +293,11 @@ money-tier-ignored#kill#COMMERCE_TOOLS#var settlement = !maySeeMoney ? Settlemen
 payments-wider-than-route#kill#COMMERCE_TOOLS#    [Authorize(Policy = AuthPolicies.SalesAccess)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#    [Authorize(Policy = AuthPolicies.SalesFlow)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#admits Worker, which ListOrderPayments denies
 customer-note-returned#kill#COMMERCE_TOOLS#public sealed record CustomerRow(Guid CustomerId, string Name);#public sealed record CustomerRow(Guid CustomerId, string Name, string? Note = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText#Collections differ
 balance-currency-assumed#kill#COMMERCE_TOOLS#McpMoney.From(minorUnits, settings.CurrencyCode, settings.CurrencyMinorUnit)#McpMoney.From(minorUnits, settings.CurrencyCode, 2)#Mcp.McpCommerceToolsTests.Amounts_AreDecimalsInTheirCurrencysPrecision#Values differ
+customers-route-admin-only#kill#PROGRAM#app.MapGroup("/api/v1/customers")\n    .WithTags("Customers")\n    .RequireAuthorization()\n#app.MapGroup("/api/v1/customers")\n    .WithTags("Customers")\n    .RequireAuthorization(AuthPolicies.AdminOnly)\n#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#CommerceTools.ListCustomersAsync admits Worker, which ListCustomers denies
+parity-first-route-only#kill#PARITY#foreach (var routeName in mirrored)#foreach (var routeName in mirrored.Take(1))#Mcp.McpRouteParityTests.ToolBreakingParity_IsAFinding#Assert.Contains() Failure
+scope-unmatched-to-readonly#kill#TOOL_SURFACE#if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))#if (scopes.Count > 1)#Mcp.McpToolSurfaceTests.ToolMissingAGate_IsAGateFinding#Assert.Contains() Failure
+write-tool-on-read-scope#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy#a write tool requires exactly scope:daily-entries:write
+write-scope-unused#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool#Collections differ
 EOF
 )
 
@@ -385,7 +392,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$LAST_USED" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO" "$PARITY" "$DAILY_TOOLS")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

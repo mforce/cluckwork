@@ -266,6 +266,9 @@ public sealed class McpToolSurfaceTests
     }
 
     [Theory]
+    [InlineData(typeof(ReadWithWriteScopeTool), "requires scope:daily-entries:write; a read tool requires exactly scope:farm:read")]
+    [InlineData(typeof(WriteWithReadScopeTool), "requires scope:farm:read; a write tool requires exactly scope:daily-entries:write")]
+    [InlineData(typeof(TwoScopesTool), "requires scope:farm:read and scope:daily-entries:write; a read tool requires exactly scope:farm:read")]
     [InlineData(typeof(RoleOnlyTool), "has no scope policy")]
     [InlineData(typeof(ScopeOnlyTool), "has no role policy")]
     [InlineData(typeof(AnonymousTool), "allows anonymous callers")]
@@ -347,7 +350,7 @@ public sealed class McpToolSurfaceTests
     [McpServerToolType]
     private sealed class GatedTool(McpCallContext call)
     {
-        [McpServerTool, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true), Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
         public string Read() => call.Email;
     }
 
@@ -388,7 +391,30 @@ public sealed class McpToolSurfaceTests
     [McpServerToolType, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
     private sealed class InheritingTool(McpCallContext call) : UngatedBase
     {
-        [McpServerTool]
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true)]
+        public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class ReadWithWriteScopeTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true), Authorize, Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]
+        public string Read() => call.Email;
+    }
+
+    // ReadOnly defaults to false, so a tool that forgets it is held to the write scope.
+    [McpServerToolType]
+    private sealed class WriteWithReadScopeTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool, Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
+        public string Write() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class TwoScopesTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool(ReadOnly = true), Authorize,
+         Authorize(Policy = AuthPolicies.FarmReadScope), Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]
         public string Read() => call.Email;
     }
 
