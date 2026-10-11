@@ -1,7 +1,6 @@
 using Cluckwork.Infrastructure.Jobs;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;

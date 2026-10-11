@@ -4,11 +4,8 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Cluckwork.Api.IntegrationTests;
 
