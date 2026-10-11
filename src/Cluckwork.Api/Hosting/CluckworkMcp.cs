@@ -99,12 +99,25 @@ internal static class CluckworkMcp
             return Task.CompletedTask;
         });
 
-    // The configured issuer's origin, never one derived from the request's Host.
+    // The configured issuer's origin, never one derived from the request's Host. An origin
+    // is a scheme, host and port (RFC 6454), and a browser sends it once, ASCII-serialized,
+    // so the host compares as punycode and an explicit default port equals an omitted one.
     internal sealed class RequiredOrigin(Uri issuer)
     {
-        private readonly string origin = issuer.GetLeftPart(UriPartial.Authority);
-
         public bool Allows(StringValues sent) =>
-            sent.Count == 0 || string.Equals(sent, origin, StringComparison.OrdinalIgnoreCase);
+            sent.Count == 0
+            || (sent.Count == 1 && Parse(sent[0]) is { } origin
+                && origin.Scheme == issuer.Scheme
+                && string.Equals(origin.IdnHost, issuer.IdnHost, StringComparison.OrdinalIgnoreCase)
+                && origin.Port == issuer.Port);
+
+        // scheme://host[:port] and nothing more: no path, query, fragment or credentials. The
+        // opaque origin "null" is not an absolute URI, so it fails here.
+        private static Uri? Parse(string? value) =>
+            Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && value.StartsWith(uri.Scheme + Uri.SchemeDelimiter, StringComparison.OrdinalIgnoreCase)
+            && value.AsSpan(uri.Scheme.Length + Uri.SchemeDelimiter.Length).IndexOfAny("/?#@\\") < 0
+                ? uri
+                : null;
     }
 }

@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
 using Cluckwork.Api.Mcp;
@@ -126,6 +127,28 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Unauthorized, plainPost.StatusCode);
         Assert.Equal(HttpStatusCode.MethodNotAllowed, plainGet.StatusCode);
     }
+
+    [Theory]
+    [InlineData("https://localhost/", new string[0], true)]
+    [InlineData("https://localhost/", new[] { "https://localhost" }, true)]
+    [InlineData("https://localhost/", new[] { "HTTPS://LOCALHOST" }, true)]
+    [InlineData("https://localhost/", new[] { "https://localhost:443" }, true)]
+    [InlineData("https://localhost:8496/", new[] { "https://localhost:8496" }, true)]
+    [InlineData("https://bücher.example/", new[] { "https://xn--bcher-kva.example" }, true)]
+    [InlineData("https://localhost/", new[] { "https://localhost", "" }, false)]
+    [InlineData("https://localhost/", new[] { "https://localhost", "https://localhost" }, false)]
+    [InlineData("https://localhost/", new[] { "" }, false)]
+    [InlineData("https://localhost/", new[] { "null" }, false)]
+    [InlineData("https://localhost/", new[] { "https://localhost/" }, false)]
+    [InlineData("https://localhost/", new[] { "https://localhost/mcp" }, false)]
+    [InlineData("https://localhost/", new[] { "https://localhost?x=1" }, false)]
+    [InlineData("https://localhost/", new[] { "https://localhost#x" }, false)]
+    [InlineData("https://localhost/", new[] { "https://user@localhost" }, false)]
+    [InlineData("https://localhost/", new[] { "http://localhost" }, false)]
+    [InlineData("https://localhost/", new[] { "https://localhost:8443" }, false)]
+    [InlineData("https://localhost/", new[] { "https://untrusted.example" }, false)]
+    public void RequiredOrigin_ComparesSchemeAsciiHostAndEffectivePort(string issuer, string[] sent, bool allowed) =>
+        Assert.Equal(allowed, new CluckworkMcp.RequiredOrigin(new Uri(issuer)).Allows(new StringValues(sent)));
 
     private Task<HttpResponseMessage> SendAsync(HttpMethod method, string protocolVersion, string? origin)
     {
