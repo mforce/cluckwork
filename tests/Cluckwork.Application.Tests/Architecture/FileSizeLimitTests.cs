@@ -26,7 +26,6 @@ public sealed partial class FileSizeLimitTests
     {
         ["src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.cs"] = 711,
         ["src/Cluckwork.Api/Program.cs"] = 685,
-        ["src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.cs"] = 741,
         ["src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs"] = 2156,
         ["src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs"] = 2785,
         ["web/src/api/client.ts"] = 1107,
@@ -40,7 +39,6 @@ public sealed partial class FileSizeLimitTests
         ["web/src/routes/HelpPage.tsx"] = 1012,
         ["web/src/routes/HistoryPage.tsx"] = 1033,
         ["web/src/routes/InventoryPage.tsx"] = 1022,
-        ["web/src/routes/ProductsPage.tsx"] = 700,
         ["web/src/routes/SettingsPage.tsx"] = 1080,
         ["web/src/routes/StockPage.tsx"] = 843,
         ["web/src/routes/UsersPage.tsx"] = 1361,
