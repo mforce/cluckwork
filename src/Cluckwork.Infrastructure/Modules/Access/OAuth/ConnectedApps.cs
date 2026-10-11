@@ -68,8 +68,8 @@ public sealed class ConnectedApps(
         return disconnected ? Result.Success() : Result.Failure(Error.NotFound("ConnectedApp", clientId));
     }
 
-    // Called by CredentialEpochMiddleware once the token's credentials are Current, so a
-    // refused request never counts as use (#1229). One conditional UPDATE, which writes at
+    // Called by CredentialEpochMiddleware once the account and credential checks pass, so a
+    // request they refuse never counts as use (#1229). One conditional UPDATE, which writes at
     // most once per LastUsedInterval per authorization: a busy app costs one row write every
     // 15 minutes, and "last used" reads in hours and days. The database's clock decides, so
     // replicas cannot disagree. A failed stamp is logged and the request goes on.
