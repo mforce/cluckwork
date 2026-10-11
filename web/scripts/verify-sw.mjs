@@ -302,11 +302,13 @@ const missingJs = emittedJs.filter((asset) => !normalizedPrecache.has(asset) && 
 // then need an un-precached chunk to boot at all. Every reference to a pack
 // file must be a dynamic `import(` instead.
 for (const pack of emittedJs.filter(isLanguagePack)) {
-  const file = pack.slice("assets/".length).replace(/[.$]/g, "\\$&");
+  const reference = `./${pack.slice("assets/".length)}`;
   for (const asset of emittedJs) {
-    const statics = [...readFileSync(join(dist, asset), "utf8").matchAll(new RegExp(`(.{0,8})["'\`]\\./${file}["'\`]`, "g"))]
-      .filter(([, before]) => !before.endsWith("import("));
-    check(statics.length === 0, `${asset} imports ${pack} statically; a language pack must load through import()`);
+    const source = readFileSync(join(dist, asset), "utf8");
+    let statics = 0;
+    for (let at = source.indexOf(reference); at >= 0; at = source.indexOf(reference, at + 1))
+      if (!source.slice(Math.max(0, at - 8), at - 1).endsWith("import(")) statics++;
+    check(statics === 0, `${asset} imports ${pack} statically; a language pack must load through import()`);
   }
 }
 

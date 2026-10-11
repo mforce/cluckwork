@@ -4295,7 +4295,8 @@ export const en = {
     glossaryUiLanguageDef:
       "The per-user language the interface is shown in — English, Español, or Tagalog — chosen from "
       + "Account → Preferences. English is the fallback for any screen not yet translated, whatever "
-      + "language you picked.",
+      + "language you picked. A device downloads a language the first time it switches to it, so that "
+      + "first switch needs a connection.",
 
     // #356 — appended last so it doesn't reshuffle the rows above.
     glossaryDisabledUserTerm: "Disabled user",

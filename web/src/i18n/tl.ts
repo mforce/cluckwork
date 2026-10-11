@@ -3774,7 +3774,8 @@ export const tl = {
     glossaryUiLanguageDef:
       "Ang wikang ipinapakita sa interface, kada user — English, Español, o Tagalog — pinipili mula sa "
       + "Account → Preferences. Ang English ang fallback para sa anumang screen na hindi pa naisasalin, "
-      + "kahit anong wika ang pinili mo.",
+      + "kahit anong wika ang pinili mo. Dina-download ng device ang isang wika sa unang pagpalit dito, "
+      + "kaya kailangan ng koneksyon sa unang pagpalit na iyon.",
 
     // #356 — appended last so it doesn't reshuffle the rows above.
     // (machine-drafted, pending native review)

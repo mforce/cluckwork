@@ -3637,7 +3637,8 @@ export const es = {
     glossaryUiLanguageDef:
       "El idioma por usuario en que se muestra la interfaz — inglés, español o tagalo — elegido desde "
       + "Cuenta → Preferencias. El inglés es el idioma de reserva para cualquier pantalla aún no "
-      + "traducida, sea cual sea el idioma que eligió.",
+      + "traducida, sea cual sea el idioma que eligió. Un dispositivo descarga un idioma la primera vez "
+      + "que cambia a él, así que ese primer cambio necesita conexión.",
 
     // #356 — appended last so it doesn't reshuffle the rows above.
     // (machine-drafted, pending native review)
