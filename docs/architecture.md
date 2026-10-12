@@ -128,7 +128,7 @@ flowchart TD
     CLI -->|yes| EXIT["run, then exit — the HTTP<br/>pipeline is never registered"]
     CLI -->|no| EDGE
 
-    EDGE["forwarded headers <i>(trusted proxies only)</i> · security headers · cache defaults<br/>HSTS <i>(not in Development)</i> · exception handler<br/>HTTPS redirect · SPA shell · static files · request logging"]
+    EDGE["forwarded headers <i>(trusted proxies only)</i> · security headers · cache defaults<br/>HSTS <i>(not in Development)</i> · exception handler<br/>HTTPS redirect · SPA shell · static files · request logging<br/>binding-error response <i>(directly inside request logging)</i>"]
     EDGE --> ORIGIN["UseMcpOriginCheck <i>(only with an OAuth issuer)</i><br/><i>foreign Origin on /mcp → 403</i>"]
     ORIGIN --> ADDRESS["UseOAuthApiAddressLimits<br/><i>/mcp: refused-bearer budget and in-flight cap per client address</i>"]
     ADDRESS --> LIMITS["rate limiter · per-endpoint body caps"]
@@ -144,14 +144,15 @@ flowchart TD
     IDEM --> ENDPOINT["endpoint · /health · SPA shell fallback"]
 ```
 
-The table explains eight of those positions:
+The table explains nine of those positions:
 
 | Placement | Why | Break it and |
 |---|---|---|
-| `UseMcpOriginCheck` **before** the rate limits and authentication | Both MCP revisions require Origin validation against DNS rebinding. It matches the `/mcp` path, not the endpoint, so it also covers methods that `/mcp` does not map, such as DELETE, PUT and OPTIONS (#806) | After authentication, a foreign page gets 401 or 405 instead of 403, and a foreign request with a bearer costs a token lookup |
+| `UseCluckworkBindingFailureResponse` **directly after** request logging | It answers a JSON-binding failure with a 400 inside the logger, so the logger records an ordinary 400 completion (#398) | Outside the logger, malformed JSON logs a 500 at Error while the client still gets a 400. `RequestLoggingTests` pins this |
+| `UseMcpOriginCheck` **before** the rate limits and authentication | Both MCP revisions require Origin validation against DNS rebinding. It matches the `/mcp` path, not the endpoint, so it also covers methods that `/mcp` does not map, such as DELETE, PUT and OPTIONS (#806) | After the rate limits, a foreign request can get 429 first. After `UseAuthorization`, a tokenless one gets 401, and after the endpoint runs, a GET gets 405. After authentication, a foreign request with a bearer also costs a token lookup |
 | `UseOAuthApiAddressLimits` **after** forwarded headers, **before** `UseRateLimiter` | It keys on the client address, so it must follow the forwarded headers. The rate limiter's per-token key is unverified text, so a caller who rotates forged bearers gets a fresh budget for each one. This step counts each address's refused bearers and caps its bearer authentications in flight, before any token lookup (#806) | After the rate limiter, a refused address still spends a per-token permit. After authentication, every forged bearer costs a token lookup before it is refused |
 | `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request. It skips resolution when `IExceptionHandlerFeature` is present, which marks a `/error` re-execution, so a database fault can render `/error` without another assignment query | Moving or removing it lets a restricted Worker read unassigned flock rows (#388); removing the re-execution skip makes error rendering itself fail whenever the original failure was the database, so the client gets no mapped `ProblemDetails` response |
-| `CredentialEpochMiddleware` **after** tenant resolution | It reads the user's current epoch from the tenant's database | A revoked credential keeps working (#364) |
+| `CredentialEpochMiddleware` **after** authentication, **before** `UseAuthorization` and `IdempotencyMiddleware` | It reads the user and account IDs from the token's claims, and its query does not depend on tenant resolution (`CredentialEpochVerifier`). It must refuse a revoked credential before authorization runs and before idempotency can replay a cached response | Removing or bypassing it lets a revoked credential keep working (#364) |
 | `UseOAuthApiInFlightRelease` **after** `CredentialEpochMiddleware`, **before** `UseAuthorization` | The in-flight permit covers authentication and the credential gates only. Once they have decided, the request gives the permit back, so a valid call's body and tool work hold none (#806). `CredentialEpochMiddlewareOrderTests` pins the position | Before the epoch gate, its database reads escape the cap. After the endpoint, 32 slow tool calls from one address refuse its next authentication |
 | `MustChangePasswordMiddleware` **before** `UseAuthorization` | The gate then applies uniformly, whatever policy tier an endpoint carries | An endpoint's own policy decides whether a forced reset is enforced (#283) |
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |
