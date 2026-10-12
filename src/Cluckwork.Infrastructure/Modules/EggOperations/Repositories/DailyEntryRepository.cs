@@ -10,17 +10,23 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
 {
     // Grades are always eager-loaded: RecordProduction does a full replace of the
     // lines, which requires the current lines to be tracked (orphan delete).
+    // They load in the egg-grade catalog's order (EggGradeRepository: SortOrder,
+    // then Name), never physical row order, which differs between databases.
+    private IQueryable<DailyEntry> WithGrades(IQueryable<DailyEntry> entries) =>
+        entries.Include(e => e.Grades
+            .OrderBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId).Select(x => x.SortOrder).FirstOrDefault())
+            .ThenBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId).Select(x => x.Name).FirstOrDefault())
+            .ThenBy(g => g.EggGradeId));
+
     public Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        db.DailyEntries
-            .Include(e => e.Grades)
+        WithGrades(db.DailyEntries)
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public Task<DailyEntry?> GetByIdForFlockScopedWriteAsync(
         Guid id, Guid accountId, CancellationToken ct = default) =>
-        db.DailyEntries
+        WithGrades(db.DailyEntries
             .IgnoreQueryFilters()
-            .Where(e => e.AccountId == accountId)
-            .Include(e => e.Grades)
+            .Where(e => e.AccountId == accountId))
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     // Write-side natural-key lookup (#388): same bypass as
@@ -31,9 +37,7 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
     public Task<DailyEntry?> FindByNaturalKeyForFlockScopedWriteAsync(
         Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
         CancellationToken ct = default) =>
-        db.DailyEntries
-            .IgnoreQueryFilters()
-            .Include(e => e.Grades)
+        WithGrades(db.DailyEntries.IgnoreQueryFilters())
             .FirstOrDefaultAsync(e =>
                 e.AccountId == accountId &&
                 e.FarmId == farmId &&
@@ -43,17 +47,13 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
                 e.Status != DailyEntryStatus.Voided, ct);
 
     public Task<DailyEntry?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
-        db.DailyEntries
-            .AsNoTracking()
-            .Include(e => e.Grades)
+        WithGrades(db.DailyEntries.AsNoTracking())
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public async Task<IReadOnlyList<DailyEntry>> ListAsync(
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset,
         CancellationToken ct = default) =>
-        await db.DailyEntries
-            .AsNoTracking()
-            .Include(e => e.Grades)
+        await WithGrades(db.DailyEntries.AsNoTracking())
             .Where(e => (flockId == null || e.FlockId == flockId)
                      && (from == null || e.Date >= from)
                      && (to == null || e.Date <= to))
