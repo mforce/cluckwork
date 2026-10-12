@@ -2792,7 +2792,7 @@ export const en = {
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
   // changes DELIBERATELY (its reviewer must eyeball them):
-  //   1. Dashboard's recent-orders row (routes/dashboard/SalesPanel.tsx:
+  //   1. Dashboard's collection row (routes/dashboard/TodayRow.tsx:
   //      `<StatusBadge status={e.status} />`, no label) used to
   //      show a ManagerAdjusted entry RAW; statusLabel (wired in Task 12) now
   //      makes it read "Adjusted" — the text HistoryPage already shows for
