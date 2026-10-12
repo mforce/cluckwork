@@ -45,6 +45,18 @@ internal sealed class HangingLoginValidator : AbstractValidator<LoginRequest>
         });
 }
 
+// A login validator whose own timeout fires while the client is still waiting.
+internal sealed class TimingOutLoginValidator : AbstractValidator<LoginRequest>
+{
+    public TimingOutLoginValidator() =>
+        RuleFor(r => r.Email).CustomAsync(async (_, _, _) =>
+        {
+            using var timeout = new CancellationTokenSource();
+            await timeout.CancelAsync();
+            await Task.Delay(Timeout.Infinite, timeout.Token);
+        });
+}
+
 // #214 — every request emits one structured completion log (method, path,
 // status, elapsed) carrying the request's TraceId, so a single id joins the
 // request line, handler logs, and exported spans. Health probes are demoted
@@ -235,6 +247,27 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         Assert.IsAssignableFrom<OperationCanceledException>(completion.Exception);
         Assert.Equal(LogEventLevel.Information, completion.Level);
         Assert.DoesNotContain(factory.Sink.Events, e => e.TraceId == traceId && e.Level >= LogEventLevel.Error);
+    }
+
+    // The negative control: a cancellation the server raised itself, with the
+    // client still connected, is a server fault and stays at Error.
+    [Fact]
+    public async Task Server_side_cancellation_is_still_logged_at_error()
+    {
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<IValidator<LoginRequest>>(new TimingOutLoginValidator())));
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+        {
+            Content = JsonContent.Create(new { farmCode = "x", email = "x@test.local", password = "x" })
+        };
+        var traceId = StampTrace(request);
+
+        var response = await host.CreateClient().SendAsync(request);
+
+        Assert.Equal(System.Net.HttpStatusCode.InternalServerError, response.StatusCode);
+        var completion = CompletionFor("/api/v1/auth/login", traceId);
+        Assert.IsAssignableFrom<OperationCanceledException>(completion.Exception);
+        Assert.Equal(LogEventLevel.Error, completion.Level);
     }
 
     // #398 review (Codex) — the regression this branch fixes, and the
