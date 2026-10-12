@@ -55,6 +55,39 @@ public sealed class AuditVocabularyCoverageTests
     }
 
     [Fact]
+    public void Audit_calls_in_every_part_of_IdentityProvider_are_walked()
+    {
+        // #1215: only the part holding the primary constructor declares
+        // `audit`, so these calls are walked only through partial-type pooling.
+        var srcRoot = Path.Combine(RepositoryRoot, "src");
+        var parts = Directory.GetFiles(
+                Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Modules", "Access", "Identity"), "IdentityProvider.*.cs")
+            .Where(file => StripComments(File.ReadAllText(file)).Contains("audit.WriteAsync("))
+            .Select(file => Path.GetRelativePath(srcRoot, file).Replace(Path.DirectorySeparatorChar, '/'))
+            .ToList();
+        Assert.True(parts.Count >= 5, $"expected at least 5 IdentityProvider parts calling audit.WriteAsync, found {parts.Count}");
+
+        var walked = FindCallSites().Select(c => c.File).ToHashSet();
+        Assert.All(parts, part => Assert.Contains(part, walked));
+    }
+
+    [Fact]
+    public void An_unrelated_receiver_spelled_audit_is_not_an_audit_writer()
+    {
+        var names = AuditWriterNamesByFile(
+        [
+            ("Provider.cs", "namespace N;\npublic sealed partial class P(IAuditWriter audit) : IP\n{\n}"),
+            ("Provider.Part.cs", "namespace N;\npublic sealed partial class P\n{\n    Task Write() => audit.WriteAsync(\"Raw\", \"User\", id);\n}"),
+            ("ReviewAuditOutput.cs", "namespace N;\ninternal static class ReviewAuditOutput\n{\n    internal static Task WriteReportAsync(System.IO.TextWriter audit) => audit.WriteAsync(\"Report complete\");\n}"),
+            ("Other.cs", "namespace M;\npublic sealed partial class P\n{\n    Task Write(System.IO.TextWriter audit) => audit.WriteAsync(\"x\");\n}"),
+        ]);
+
+        Assert.Equal(["audit"], names["Provider.Part.cs"]);
+        Assert.Empty(names["ReviewAuditOutput.cs"]);
+        Assert.Empty(names["Other.cs"]);
+    }
+
+    [Fact]
     public void AuditActions_registry_matches_the_SPA_AUDIT_ACTION_VALUES_list()
     {
         var serverActions = typeof(AuditActions)
@@ -100,11 +133,15 @@ public sealed class AuditVocabularyCoverageTests
         var srcRoot = Path.Combine(RepositoryRoot, "src");
         var separator = Path.DirectorySeparatorChar;
 
-        foreach (var file in Directory.EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories))
-        {
-            if (file.Contains($"{separator}obj{separator}") || file.Contains($"{separator}bin{separator}"))
-                continue;
+        var sourceFiles = Directory.EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{separator}obj{separator}") && !file.Contains($"{separator}bin{separator}"))
+            .ToList();
 
+        var auditWriterNames = AuditWriterNamesByFile(
+            [.. sourceFiles.Select(file => (file, StripComments(File.ReadAllText(file))))]);
+
+        foreach (var file in sourceFiles)
+        {
             // Relative to src/, with '/' normalized regardless of OS — so error
             // messages, and the known-exception key below, never bake in this
             // machine's absolute path.
@@ -118,17 +155,7 @@ public sealed class AuditVocabularyCoverageTests
             // a comment again is not a guard worth trusting.
             var searchable = StripComments(source);
 
-            // Every distinct identifier (parameter or field) declared with type
-            // IAuditWriter in this file — whatever name a handler injects it
-            // under (`audit`, `_audit`, `auditWriter`, ...). Matching the fixed
-            // literal name "audit" would silently miss a differently-named
-            // injection, which is exactly how a new call site could bypass every
-            // check below (codex review of #439).
-            var auditWriterNames = Regex.Matches(searchable, @"\bIAuditWriter\s+(\w+)")
-                .Select(m => m.Groups[1].Value)
-                .Distinct();
-
-            foreach (var receiver in auditWriterNames)
+            foreach (var receiver in auditWriterNames[file])
             {
                 foreach (Match call in Regex.Matches(searchable, $@"\b{Regex.Escape(receiver)}\.WriteAsync\s*\("))
                 {
@@ -265,6 +292,38 @@ public sealed class AuditVocabularyCoverageTests
         }
 
         return callSites;
+    }
+
+    // Every distinct identifier (parameter or field) declared with type
+    // IAuditWriter that each file can reach — whatever name a handler injects
+    // it under (`audit`, `_audit`, `auditWriter`, ...). Matching the fixed
+    // literal name "audit" would silently miss a differently-named injection,
+    // which is exactly how a new call site could bypass every check below
+    // (codex review of #439). A file reaches its own declarations plus those
+    // of every other part of a partial type it declares: a partial class
+    // declares `audit` in the part holding its primary constructor and calls
+    // it from the others (#1215). Pooling stops at that type, keyed by
+    // namespace and name, so an unrelated `TextWriter audit` is never policed.
+    private static Dictionary<string, HashSet<string>> AuditWriterNamesByFile(
+        IReadOnlyList<(string File, string Searchable)> files)
+    {
+        static IEnumerable<string> PartialTypes(string searchable)
+        {
+            var ns = Regex.Match(searchable, @"\bnamespace\s+([\w.]+)").Groups[1].Value;
+            return Regex.Matches(searchable, @"\bpartial\s+(?:class|record|struct)\s+(\w+)")
+                .Select(m => $"{ns}.{m.Groups[1].Value}");
+        }
+
+        var declared = files.ToDictionary(
+            f => f.File,
+            f => Regex.Matches(f.Searchable, @"\bIAuditWriter\s+(\w+)").Select(m => m.Groups[1].Value).ToHashSet());
+        var byPartialType = files
+            .SelectMany(f => PartialTypes(f.Searchable).Select(type => (Type: type, f.File)))
+            .GroupBy(part => part.Type, part => part.File)
+            .ToDictionary(g => g.Key, g => g.SelectMany(file => declared[file]).ToHashSet());
+        return files.ToDictionary(
+            f => f.File,
+            f => declared[f.File].Concat(PartialTypes(f.Searchable).SelectMany(type => byPartialType[type])).ToHashSet());
     }
 
     // The half-open span of `methodName`'s brace-delimited body in
@@ -448,7 +507,7 @@ public sealed class AuditVocabularyCoverageTests
     //   string parameter, and the forwarder's callers were actually checked.
     private static readonly HashSet<(string File, string Parameter)> KnownIndirectActionCallSites =
     [
-        ("Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs", "auditAction"),
+        ("Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Passwords.cs", "auditAction"),
     ];
 
     // Fails closed on anything but a direct AuditActions.X reference, a

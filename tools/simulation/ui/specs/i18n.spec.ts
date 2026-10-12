@@ -55,7 +55,7 @@ const WITNESS_KEYS = ["account:language", "nav:reports"] as const;
  * reset's response, and the assertion that the target language was persisted
  * passes without that request ever having been observed — which is how #486
  * reached a reload with nothing saved and an assertion that had already gone
- * green. `putMeLanguage` sends `{ language }` (`web/src/api/cluckwork.ts`), so
+ * green. `putMeLanguage` sends `{ language }` (`web/src/api/cluckwork/account.ts`), so
  * the payload is what tells the two apart.
  */
 function languagePersisted(page: Page, lang: string, timeout = 10_000) {
