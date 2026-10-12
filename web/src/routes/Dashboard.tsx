@@ -149,7 +149,7 @@ export function Dashboard() {
   const housesPerPage = isDesktop ? HOUSES_PER_PAGE_DESKTOP : HOUSES_PER_PAGE_PHONE;
   const [housesPage, setHousesPage] = useState(0);
 
-  const { orders, ordersPage, setOrdersPage, ordersExtending, ordersExtendFailed, orderRows, ordersFrom, orderSlice, ordersHasMore, showNextOrders } = useRecentOrders(canSeeSales);
+  const recentOrders = useRecentOrders(canSeeSales);
 
   // #916 — with one accessible flock there is no All-flocks concept (SELECTION.md);
   // its figures must come from the SAME code path as picking that flock from a
@@ -178,7 +178,7 @@ export function Dashboard() {
   // #915 — Recent orders left the parallel batch for the paged list hook, so
   // its verdict now comes from that hook. A role without the sales panel
   // contributes nothing either way, exactly as its skipped fetch did before.
-  const ordersFailed = !canSeeSales || orders.error !== null;
+  const ordersFailed = !canSeeSales || recentOrders.orders.error !== null;
   const errorMessage = panelsOutcome.state === "allFailed" && trendOutcome === "failure" && ordersFailed
     ? (panelsOutcome.reason instanceof ApiError ? panelsOutcome.reason.message : i18n.t("dashboard:loadFailed"))
     : null;
@@ -437,11 +437,8 @@ export function Dashboard() {
           t={t} fmt={fmt} belowFloorRows={belowFloorRows} belowFloorFact={belowFloorFact}
         />
 
-        {canSeeSales && <SalesPanel
-          orders={orders} ordersPage={ordersPage} setOrdersPage={setOrdersPage}
-          ordersExtending={ordersExtending} ordersExtendFailed={ordersExtendFailed}
-          orderRows={orderRows} ordersFrom={ordersFrom} orderSlice={orderSlice} ordersHasMore={ordersHasMore}
-          showNextOrders={showNextOrders} panelError={panelError} t={t} tp={tp} fmt={fmt}
+        {canSeeSales && <SalesPanel {...recentOrders}
+          panelError={panelError} t={t} tp={tp} fmt={fmt}
         />}
 
         <LayRateCard
