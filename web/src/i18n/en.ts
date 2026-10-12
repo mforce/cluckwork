@@ -779,7 +779,7 @@ export const en = {
   // themeToggle/useConfirm/pwa above: es/tl are machine-drafted (#182),
   // pending native review. The one closed-vocabulary display on this screen
   // (the entry-locked banner's status word) goes through the `enums`
-  // `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
+  // `statusLabel` helper, not a key here — see routes/dailyEntry/EntryBanners.tsx.
   dailyEntry: {
     title: "Count and grade today's eggs",
 
