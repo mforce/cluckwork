@@ -201,31 +201,27 @@ export function UsersPage() {
   // handlers. The flight guard, the message slots and the idempotency keys
   // stay here (#703), as do the proof passwords and the picker state the
   // effects above clear and seed (#308).
-  const {
-    creating, email, setEmail, password, setPassword, role, setRole, name, setName,
-    onCreate, openCreate, closeCreate,
-  } = useCreateUser({ dialog, setUsers, keyFor, clearKey, setMessage, createStepUpPassword, setCreateStepUpPassword });
-  const { editUser, editName, setEditName, openEdit, closeEdit, onUpdate } =
-    useEditUser({ dialog, setUsers, keyFor, clearKey, setMessage });
-  const {
-    pwUser, pwValue, setPwValue, pwConfirm, setPwConfirm, openPassword, closePassword, onSetPassword,
-  } = useSetPassword({ dialog, keyFor, clearKey, setMessage, pwStepUpPassword, setPwStepUpPassword });
-  const { roleUser, roleValue, setRoleValue, openRole, closeRole, onChangeRole } =
-    useChangeRole({ dialog, setUsers, keyFor, clearKey, setMessage, roleStepUpPassword, setRoleStepUpPassword });
-  const { openEmail, closeEmail, onChangeEmail } = useChangeEmail({
+  const create = useCreateUser({ dialog, setUsers, keyFor, clearKey, setMessage, createStepUpPassword, setCreateStepUpPassword });
+  const { openCreate } = create;
+  const edit = useEditUser({ dialog, setUsers, keyFor, clearKey, setMessage });
+  const { openEdit } = edit;
+  const password = useSetPassword({ dialog, keyFor, clearKey, setMessage, pwStepUpPassword, setPwStepUpPassword });
+  const { openPassword } = password;
+  const role = useChangeRole({ dialog, setUsers, keyFor, clearKey, setMessage, roleStepUpPassword, setRoleStepUpPassword });
+  const { openRole } = role;
+  const email = useChangeEmail({
     dialog, setUsers, keyFor, clearKey, setMessage, myId,
     emailUser, setEmailUser, emailValue, setEmailValue, emailStepUpPassword, setEmailStepUpPassword, setEmailFieldError,
   });
-  const {
-    stepUpUser, stepUpMode, disableReason, setDisableReason, openStepUp, closeStepUp, onSubmitStepUp,
-  } = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpPassword, setStepUpPassword });
-  const {
-    openUser, assignments, flockWriteInFlight, openAssignments, closeAssignments, onAssign, onUnassign,
-  } = useFlockAccess({
+  const { openEmail } = email;
+  const disable = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpPassword, setStepUpPassword });
+  const { openStepUp } = disable;
+  const flock = useFlockAccess({
     dialog, keyFor, clearKey,
     assignFlock, setAssignFlock, setAssignFlockGen, assignFlockSnapshot, setAssignPickerOpen,
     flockStepUpPassword, setFlockStepUpPassword,
   });
+  const { openAssignments } = flock;
 
   // The list read failed and there is nothing to show: a fatal page state,
   // never a dialog's (no dialog can be open before the screen renders).
@@ -284,11 +280,7 @@ export function UsersPage() {
 
 
 
-      <CreateUserDialog {...{
-        creating, closeCreate, onCreate, busy, isPending, errors,
-        email, setEmail, password, setPassword, name, setName, role, setRole,
-        createStepUpPassword, setCreateStepUpPassword,
-      }} />
+      <CreateUserDialog {...create} {...{ busy, isPending, errors, createStepUpPassword, setCreateStepUpPassword }} />
 
       {/* Unconditional since #479. The five-way guard this replaces existed
           because every dialog rendered the same string, so the page had to
@@ -365,36 +357,17 @@ export function UsersPage() {
 
 
 
-      <FlockAccessDialog {...{
-        openUser, users, assignments, closeAssignments, flockWriteInFlight,
-        onAssign, onUnassign, busy, isPending, errors,
-        assignFlock, setAssignFlock, assignFlockGen, setAssignFlockGen,
-        assignFlockSnapshot, setAssignFlockSnapshot, assignPickerOpen, setAssignPickerOpen,
-        flockStepUpPassword, setFlockStepUpPassword,
-      }} />
+      <FlockAccessDialog {...flock} {...{ users, busy, isPending, errors, assignFlock, setAssignFlock, assignFlockGen, setAssignFlockGen, assignFlockSnapshot, setAssignFlockSnapshot, assignPickerOpen, setAssignPickerOpen, flockStepUpPassword, setFlockStepUpPassword }} />
 
-      <EditUserDialog {...{ editUser, closeEdit, onUpdate, busy, isPending, errors, editName, setEditName }} />
+      <EditUserDialog {...edit} {...{ busy, isPending, errors }} />
 
-      <SetPasswordDialog {...{
-        pwUser, closePassword, onSetPassword, busy, isPending, errors,
-        pwValue, setPwValue, pwConfirm, setPwConfirm, pwStepUpPassword, setPwStepUpPassword,
-      }} />
+      <SetPasswordDialog {...password} {...{ busy, isPending, errors, pwStepUpPassword, setPwStepUpPassword }} />
 
-      <ChangeRoleDialog {...{
-        roleUser, closeRole, onChangeRole, busy, isPending, errors,
-        roleValue, setRoleValue, roleStepUpPassword, setRoleStepUpPassword,
-      }} />
+      <ChangeRoleDialog {...role} {...{ busy, isPending, errors, roleStepUpPassword, setRoleStepUpPassword }} />
 
-      <ChangeEmailDialog {...{
-        emailUser, closeEmail, onChangeEmail, busy, isPending, errors, clearKey,
-        emailValue, setEmailValue, emailFieldError, setEmailFieldError,
-        emailStepUpPassword, setEmailStepUpPassword,
-      }} />
+      <ChangeEmailDialog {...email} {...{ emailUser, busy, isPending, errors, clearKey, emailValue, setEmailValue, emailFieldError, setEmailFieldError, emailStepUpPassword, setEmailStepUpPassword }} />
 
-      <DisableEnableDialog {...{
-        stepUpUser, stepUpMode, closeStepUp, onSubmitStepUp, busy, isPending, errors,
-        disableReason, setDisableReason, stepUpPassword, setStepUpPassword,
-      }} />
+      <DisableEnableDialog {...disable} {...{ busy, isPending, errors, stepUpPassword, setStepUpPassword }} />
     </section>
   );
 }
