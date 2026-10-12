@@ -198,6 +198,20 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
         Assert.Empty(afterEmpty);
     }
 
+    // The read tools trim a grade name, so the write tool does too.
+    [Fact]
+    public async Task GradeName_WithSurroundingSpaces_Records()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(Roles.Manager);
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, WriteOnly));
+
+        var entryId = (await RecordAsync(client, Arguments(farm.FlockName, grades: [new { grade = " Large ", quantity = 90 }])))
+            .GetProperty("dailyEntryId").GetGuid();
+
+        Assert.Equal([(farm.LargeGradeId, 90)], await GradeLinesAsync(farm.User.AccountId, entryId));
+    }
+
     private Task<List<(Guid Grade, int Quantity)>> GradeLinesAsync(Guid accountId, Guid entryId) =>
         factory.WithTenantScopeAsync(accountId, async db => (await db.DailyEntries
             .Where(e => e.Id == entryId)

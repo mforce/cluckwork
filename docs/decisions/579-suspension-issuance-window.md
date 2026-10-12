@@ -44,7 +44,7 @@ one of them must reopen #579 rather than ship:**
    read that #364 made fail-closed — the round trip *is* the guarantee, so it is
    never cached). A window-minted access token is therefore refused on its very
    next request, with the epoch already bumped.
-2. **`RefreshAsync`'s own suspended-farm check** (`IdentityProvider.cs`, the
+2. **`RefreshAsync`'s own suspended-farm check** (`IdentityProvider.Refresh.cs`, the
    `#532 — a suspended farm cannot rotate a session` block) refuses the
    window-minted refresh token on its first rotation attempt.
 3. **`AccountSuspensionService` revokes every user's `CredentialEpoch` and

@@ -779,7 +779,7 @@ export const en = {
   // themeToggle/useConfirm/pwa above: es/tl are machine-drafted (#182),
   // pending native review. The one closed-vocabulary display on this screen
   // (the entry-locked banner's status word) goes through the `enums`
-  // `statusLabel` helper, not a key here — see DailyEntryPage.tsx.
+  // `statusLabel` helper, not a key here — see routes/dailyEntry/EntryBanners.tsx.
   dailyEntry: {
     title: "Count and grade today's eggs",
 
@@ -1617,6 +1617,13 @@ export const en = {
     enterPriceAsNumber: "Enter the price as a plain number.",
     noDecimalPlaces: "This currency has no decimal places.",
     atMostDecimals: "At most {{count}} decimal places for this currency.",
+    // A 409 on save: the dialog is rebound to the other admin's values.
+    conflictRebindMessage:
+      "This product was changed by someone else — the form now shows the "
+      + "latest values; re-apply your changes.",
+    packedUnitConflictRebindMessage:
+      "This packed unit was changed by someone else — the form now shows the "
+      + "latest values; re-apply your changes.",
 
     intro:
       "What the farm sells. Each egg product maps to an egg grade — sales "

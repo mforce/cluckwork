@@ -24,12 +24,14 @@ public sealed class McpIdempotencyFaultFactory : CluckworkWebApplicationFactory
 
     public LeaseThiefInterceptor Thief { get; } = new();
 
+    public ClaimCounter Claims { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         builder.UseSetting("Idempotency:MaxWaitSeconds", "1");
         builder.ConfigureTestServices(services =>
-            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(CommitFault, Thief)));
+            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(CommitFault, Thief, Claims)));
     }
 }
 
@@ -68,6 +70,25 @@ public sealed class RecordDailyEntryToolFaultTests(McpIdempotencyFaultFactory fa
         Assert.Equal(1, await EntryCountAsync(factory, farm));
     }
 
+    // An unknown flock is refused inside the claim; a missing one before it.
+    [Fact]
+    public async Task NullFlock_IsRefusedBeforeTheKeyIsClaimed()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(factory, Roles.Manager);
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, [OAuthScopes.WriteDailyEntries]));
+
+        factory.Claims.Reset();
+        var missing = await CallAsync(client, With(Arguments(farm.FlockName), "flock", null));
+        var claimsForMissing = factory.Claims.Count;
+        var unknown = await CallAsync(client, Arguments("No Such Flock"));
+
+        Assert.EndsWith(": flock is required.", ErrorText(missing));
+        Assert.Equal(0, claimsForMissing);
+        Assert.EndsWith("No flock you can see is named or numbered 'No Such Flock'.", ErrorText(unknown));
+        Assert.Equal(1, factory.Claims.Count);
+    }
+
     // Postgres committed the entry and the claim's publication together, and only the
     // acknowledgment was lost. The tool answers with what it published, once.
     [Fact]
@@ -84,6 +105,25 @@ public sealed class RecordDailyEntryToolFaultTests(McpIdempotencyFaultFactory fa
         Assert.False(reply.GetProperty("replayed").GetBoolean());
         Assert.Equal([AuditActions.DailyEntryCreate],
             (await AuditAsync(factory, farm.User.AccountId, reply.GetProperty("dailyEntryId").GetGuid())).Select(a => a.Action));
+    }
+}
+
+// Counts idempotency claim attempts.
+public sealed class ClaimCounter : DbCommandInterceptor
+{
+    private int _count;
+
+    public int Count => Volatile.Read(ref _count);
+
+    public void Reset() => Interlocked.Exchange(ref _count, 0);
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains("INSERT INTO idempotency_records", StringComparison.Ordinal))
+            Interlocked.Increment(ref _count);
+        return ValueTask.FromResult(result);
     }
 }
 

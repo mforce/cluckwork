@@ -1223,7 +1223,8 @@ describe("changePassword (#165)", () => {
   });
 });
 
-// #308 — step-up grant issuance. Consumed by UsersPage.tsx immediately before
+// #308 — step-up grant issuance. Consumed by the UsersPage dialog hooks
+// (web/src/routes/users/) immediately before
 // the one sensitive write it unlocks; this file only proves the transport
 // contract (posts the password, authenticated, returns the grant as-is).
 describe("stepUp (#308)", () => {

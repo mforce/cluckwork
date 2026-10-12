@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.IntegrationTests.SharedState;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
@@ -221,8 +222,7 @@ public sealed partial class OAuthFailClosedTests
         await using var metadata = await MetadataHostAsync();
         metadata.Server.Respond = metadata.Server.Serves("", status: 404);
         using var fetcher = metadata.Network.Fetcher();
-        var resolver = new ClientMetadataDocuments(new ClientMetadataOptions(), metadata.Host.Services.GetRequiredService<IServiceScopeFactory>(),
-            fetcher, new InProcessFixedWindowCounter(TimeProvider.System), TimeProvider.System, NullLogger<ClientMetadataDocuments>.Instance);
+        var resolver = BudgetResolver(metadata, fetcher);
 
         var outcomes = new List<string>();
         for (var i = 0; i <= ClientMetadataDocuments.GlobalBudget.Limit; i++)
@@ -252,8 +252,7 @@ public sealed partial class OAuthFailClosedTests
         await ExpireStoredCopyAsync(approved);
         await ExpireStoredCopyAsync(unapproved);
         using var fetcher = metadata.Network.Fetcher();
-        var resolver = new ClientMetadataDocuments(new ClientMetadataOptions(), metadata.Host.Services.GetRequiredService<IServiceScopeFactory>(),
-            fetcher, new InProcessFixedWindowCounter(TimeProvider.System), TimeProvider.System, NullLogger<ClientMetadataDocuments>.Instance);
+        var resolver = BudgetResolver(metadata, fetcher);
         for (var i = 0; i < ClientMetadataDocuments.GlobalBudget.Limit; i++)
             await resolver.EnsureFreshAsync(NewDocumentUrl(), CancellationToken.None);
         var fetchedBefore = metadata.Server.Requests.Count;
@@ -514,6 +513,13 @@ public sealed partial class OAuthFailClosedTests
     private static async Task<string?> AuthorizeErrorOf(HttpResponseMessage response) =>
         (await response.Content.ReadAsStringAsync()).Split('\n')
             .FirstOrDefault(line => line.StartsWith("error:", StringComparison.Ordinal))?["error:".Length..].Trim();
+
+    // The budgets are fixed minutes on the wall clock, so a drain that crosses a minute
+    // boundary starts them over. The counter's clock stands still instead; expiry still
+    // reads the real one.
+    private static ClientMetadataDocuments BudgetResolver(MetadataHost metadata, ClientMetadataFetcher fetcher) =>
+        new(new ClientMetadataOptions(), metadata.Host.Services.GetRequiredService<IServiceScopeFactory>(),
+            fetcher, new InProcessFixedWindowCounter(new FakeTimeProvider()), TimeProvider.System, NullLogger<ClientMetadataDocuments>.Instance);
 
     private static string NewDocumentUrl() => $"https://app.test/{Guid.NewGuid():N}/client.json";
 

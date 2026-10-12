@@ -1247,6 +1247,12 @@ export const tl = {
     enterPriceAsNumber: "Maglagay ng presyo bilang simpleng numero.",
     noDecimalPlaces: "Walang decimal ang currency na ito.",
     atMostDecimals: "Pinakamarami {{count}} decimal para sa currency na ito.",
+    conflictRebindMessage:
+      "Binago ng ibang tao ang produktong ito — ipinapakita na ngayon ng "
+      + "form ang pinakabagong mga value; i-apply ulit ang iyong mga pagbabago.",
+    packedUnitConflictRebindMessage:
+      "Binago ng ibang tao ang nakapaketeng yunit na ito — ipinapakita na ngayon ng "
+      + "form ang pinakabagong mga value; i-apply ulit ang iyong mga pagbabago.",
 
     intro:
       "Ang ibinebenta ng bukid. Bawat produktong itlog ay naka-map sa isang "

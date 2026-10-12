@@ -19,6 +19,9 @@ public sealed class UpdateProductHandler(
         var product = await products.GetByIdAsync(command.ProductId, ct);
         if (product is null)
             return Result.Failure(Error.NotFound("Product", command.ProductId));
+        if (product.Version != command.Version)
+            return Result.Failure(Error.Conflict(
+                "Product.VersionMismatch", "This product was changed since you loaded it — reload and retry."));
 
         if (await products.NameExistsAsync(command.Name, excludeId: product.Id, ct))
             return Result.Failure(Error.Conflict(

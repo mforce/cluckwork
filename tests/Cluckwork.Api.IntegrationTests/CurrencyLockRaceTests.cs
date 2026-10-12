@@ -345,7 +345,7 @@ public sealed class CurrencyLockRaceTests(CluckworkWebApplicationFactory factory
             case "product-update":
                 var update = await services.GetRequiredService<Cluckwork.Application.Modules.Commerce.Catalog.UpdateProduct.UpdateProductHandler>()
                     .HandleAsync(new Cluckwork.Application.Modules.Commerce.Contracts.UpdateProductCommand(
-                        seeded.ProductId, "Race Tray", "Tray", 700, seeded.GradeId, null), CancellationToken.None);
+                        seeded.ProductId, 0, "Race Tray", "Tray", 700, seeded.GradeId, null), CancellationToken.None);
                 return update.IsSuccess ? null : update.Error.Code;
             case "inventory-create":
                 var item = await services.GetRequiredService<Cluckwork.Application.Modules.GeneralInventory.Inventory.CreateInventoryItem.CreateInventoryItemHandler>()

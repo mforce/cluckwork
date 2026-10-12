@@ -62,14 +62,14 @@ internal static class BypassAllowList
         new()
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
-            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Refresh.cs",
             Hash = "8ac33f82",
             Justification = "Refresh-token rotation reads the account to verify it is active; scoped to the token's account id, IgnoreQueryFilters because TenantContext may be unresolved during the auth handshake.",
         },
         new()
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, DateTimeOffset now, string rotatedStamp, CancellationToken ct)",
-            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Logout.cs",
             Hash = "aec72489",
             Justification = "Low-level raw-SQL data-modifying CTE for logout lineage fencing. Both refresh-token UPDATE arms are explicitly constrained by UserId, AccountId, and IssuedEpoch; the dedicated atomic-logout CTE guard pins both arms and the builder-to-RelationalCommand execution seam.",
         },
