@@ -117,7 +117,7 @@ on `/products`.
   (`src/Cluckwork.Api/Modules/Commerce/Catalog/ProductEndpoints.cs:143-145`),
   and the EF concurrency token can 409 with the literal title
   "Concurrency conflict" racing the handler
-  (`src/Cluckwork.Api/Program.cs:556,574`). The dialogs treat ONLY those
+  (`src/Cluckwork.Api/Program.cs:404,422`). The dialogs treat ONLY those
   three titles as version conflicts (`VERSION_CONFLICT_TITLES`,
   `ProductsPage.tsx:40-44`) — any other 409 (duplicate name, say) keeps the
   form and its idempotency key. On a real conflict the loser rebinds: it

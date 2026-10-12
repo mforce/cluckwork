@@ -8,7 +8,7 @@ using Cluckwork.Infrastructure.Persistence;
 namespace Cluckwork.Api.Modules.Insights.Export;
 
 // #95 — manual backup (spec §17.5). Read-only, admin-only (group policy in
-// Program.cs): exports are a bulk copy of the account, money data included.
+// CluckworkEndpointGroups.cs): exports are a bulk copy of the account, money data included.
 // Responses stream — rows go database → CSV encoder → wire without ever
 // materializing an export in memory (codex review of #96).
 public static class ExportEndpoints
