@@ -31,9 +31,12 @@ internal static class LiteralSearch
 
     // '%'+escaped+'%': the wildcards are appended AFTER escaping, so they are
     // the only unescaped metacharacters in the pattern.
-    public static string ContainsPattern(string trimmed) =>
-        "%" + trimmed
-            .Replace("\\", "\\\\")
+    public static string ContainsPattern(string trimmed) => "%" + ExactPattern(trimmed) + "%";
+
+    // No wildcards: ILIKE then compares the whole name, case folded by
+    // PostgreSQL on both sides (#1237 review R1).
+    public static string ExactPattern(string raw) =>
+        raw.Replace("\\", "\\\\")
             .Replace("%", "\\%")
-            .Replace("_", "\\_") + "%";
+            .Replace("_", "\\_");
 }

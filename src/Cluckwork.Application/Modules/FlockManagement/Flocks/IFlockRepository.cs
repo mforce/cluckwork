@@ -47,7 +47,7 @@ public interface IFlockRepository
     Task<IReadOnlyDictionary<Guid, FlockReference>> GetDisplayNamesAsync(
         IReadOnlyCollection<Guid> flockIds, CancellationToken ct = default);
 
-    // #852 — up to limit visible flocks with exactly this name, ordered by id, through
+    // #852 — up to limit visible flocks with this name, ignoring case (#1228), ordered by id, through
     // the same filtered set as GetDisplayNamesAsync. Duplicate names are legal.
     Task<IReadOnlyList<FlockReference>> ListByNameAsync(string name, int limit, CancellationToken ct = default);
 

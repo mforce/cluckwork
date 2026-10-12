@@ -6,6 +6,8 @@ using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Abstractions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
@@ -83,6 +85,25 @@ public sealed partial class OAuthFailClosedTests
         Assert.True(tokens == 0, $"{tokens} token(s) of the app stayed valid");
     }
 
+    // #1229 — the held-row pattern from OAuthFailClosedTests.SupersededApps.cs, around the
+    // real Disconnect endpoint.
+    [Fact]
+    public async Task Disconnect_FailsAnInFlightTokenWrite()
+    {
+        using var host = Host();
+        var user = await SeedAsync(Roles.Manager);
+        var app = await ConnectAsync(host, user, ReadScope);
+        await using var writer = host.Services.CreateAsyncScope();
+        var (tokens, row) = await LoadValidTokenAsync(writer, user);
+
+        using var disconnected = await DisconnectAsync(host, user.Jwt, $"/api/v1/me/connected-apps?clientId={Uri.EscapeDataString(app.ClientId)}");
+
+        Assert.Equal(HttpStatusCode.NoContent, disconnected.StatusCode);
+        await Assert.ThrowsAsync<OpenIddictExceptions.ConcurrencyException>(async () => await tokens.UpdateAsync(row));
+        var (_, stillValid) = await StillValidAsync(user);
+        Assert.True(stillValid == 0, "an in-flight write put a disconnected app's token back to valid");
+    }
+
     [Fact]
     public async Task DisconnectedApp_IsRefused_OnItsNextRequest()
     {
@@ -149,7 +170,7 @@ public sealed partial class OAuthFailClosedTests
             .Where(a => a.Subject == user.Id.ToString())
             .ExecuteUpdateAsync(setters => setters.SetProperty(
                 a => EF.Property<DateTimeOffset?>(a, OAuthAuthorizationConfiguration.LastUsedAtUtc),
-                a => DateTimeOffset.UtcNow - OAuthLastUsedStamp.Interval - TimeSpan.FromMinutes(1))));
+                a => DateTimeOffset.UtcNow - ConnectedApps.LastUsedInterval - TimeSpan.FromMinutes(1))));
         var backdated = await LastUsedAsync(host, user);
         (await Client(host, app.Token).GetAsync(Probe.Read)).Dispose();
         var third = await LastUsedAsync(host, user);

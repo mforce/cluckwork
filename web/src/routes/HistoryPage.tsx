@@ -1,51 +1,32 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import { Trans, useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FilterX, Inbox } from "lucide-react";
+import { Typography } from "@mui/material";
 import {
-  Box, Button, DialogActions, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField,
-  Tooltip, Typography, useMediaQuery,
-} from "@mui/material";
-import {
-  adjustDailyEntry, getDailyEntry, listDailyEntries, listEggGrades, listEggUnitConversions,
+  listDailyEntries, listEggGrades, listEggUnitConversions,
   listFlocks, voidDailyEntry,
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, EggUnitConversion, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
-import { FarmDate } from "../components/FarmDate";
 import { useAuth } from "../auth/useAuth";
-import { BusyButton } from "../components/BusyButton";
-import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
-import { FieldConsole, CONSOLE_LINK_SX, LedgerTableContainer, ConsoleSummary } from "../components/FieldConsole";
-import { EntryRow } from "../components/EntryRow";
-import { FilterBar, FilterDateField, FILTER_PICKER_SX } from "../components/FilterBar";
-import { FlockPicker } from "../components/FlockPicker";
-import { DialogError } from "../components/DialogError";
-import { GradingChip, TakeRemainderButton, remainderDropProps } from "../components/GradingChip";
-import { NumberField } from "../components/NumberField";
-import { ProvenanceCell, ProvenanceSummary } from "../components/ProvenanceCell";
+import { FieldConsole, ConsoleSummary } from "../components/FieldConsole";
 import { useConfirm } from "../components/useConfirm";
 import { useDialogAction } from "../components/useDialogAction";
 import { usePagedList } from "../components/usePagedList";
-import { GlossaryLink } from "../components/GlossaryLink";
-import { PhoneDetailsField, PhoneLedgerList, PhoneLedgerRow } from "../components/PhoneLedger";
 import { useFarm } from "../farm/useFarm";
-import { MD_UP_QUERY } from "../lib/breakpoints";
-import { armedState, gradingState } from "../lib/grading";
 import { newId } from "../lib/ids";
 import { resolveStepperUnit } from "../lib/stepperUnit";
 import { useMe } from "../session/SessionContext";
 import i18n from "../i18n";
+import { HistoryAdjustDialog } from "./history/HistoryAdjustDialog";
+import { HistoryDetailsDialog } from "./history/HistoryDetailsDialog";
+import { HistoryFilters } from "./history/HistoryFilters";
+import { HistoryLedgers } from "./history/HistoryLedgers";
+import { useHistoryAdjust } from "./history/useHistoryAdjust";
 
 const PAGE = 50;
-const NOWRAP = { whiteSpace: "nowrap" as const };
-
-// #980 — below the 900px switch the ten-column ledger becomes one two-line
-// button per entry, so twelve rows fit a 390x844 screen instead of five and
-// the actions stop living off the right edge. The desktop table is untouched.
 
 // The scope that owns a dialog (#703). `run` routes a failure by this and gates
 // a success by it; `void:<id>` from the row button reports to the page and is
@@ -70,10 +51,6 @@ export function HistoryPage() {
   const { t } = useTranslation("history");
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
-  // The adjust dialog IS the Daily entry form (same two steps, same
-  // reconciliation), so it speaks that screen's copy rather than a second
-  // near-duplicate set of count labels and chip wording in this namespace.
-  const { t: te } = useTranslation("dailyEntry");
   const { isAdmin } = useAuth();
   const { askReason, confirmDialog } = useConfirm();
   const [flocks, setFlocks] = useState<Flock[]>([]);
@@ -102,42 +79,15 @@ export function HistoryPage() {
   // The adjust dialog runs under its own fixed scope and `void:<id>` per row:
   // exactly one control spins while `busy` keeps every other mutating control
   // on the screen inert.
-  const { busy, isPending, errors, run, openDialog, dismissDialog } = useDialogAction(DIALOG_SCOPES);
+  const dialog = useDialogAction(DIALOG_SCOPES);
+  const { busy, isPending, errors, run, dismissDialog } = dialog;
   const setPageError = errors.setPage;
   const [message, setMessage] = useState<string | null>(null);
 
-  // adjust panel: one entry at a time; the version it was loaded with rides
-  // along so a concurrent correction surfaces as a 409, not an overwrite.
-  const [adjusting, setAdjusting] = useState<DailyEntry | null>(null);
   // #980 — the phone details dialog, held the same way `adjusting` is: one
   // entry at a time, closed before either correction opens, so the two are
   // never on screen together.
   const [details, setDetails] = useState<DailyEntry | null>(null);
-  const isDesktop = useMediaQuery(MD_UP_QUERY);
-  const [total, setTotal] = useState(0);
-  // NumberField owns its own input, so the labels point at it by id (#250,
-  // same F134 idiom as the daily-entry screen this form mirrors).
-  const fieldId = useId();
-  const idFor = (name: string) => `${fieldId}-${name}`;
-  const [cracked, setCracked] = useState(0);
-  const [dirty, setDirty] = useState(0);
-  const [discarded, setDiscarded] = useState(0);
-  const [mortality, setMortality] = useState(0);
-  const [reason, setReason] = useState("");
-  const [lineQty, setLineQty] = useState<Record<string, number>>({});
-  // #443 — see DailyEntryPage's identical `gradeQtyRef` comment: setLine reads
-  // this instead of the `lineQty` closure so a hold-to-repeat burst (each
-  // tick against the SAME setLine closure captured at press-time) sees every
-  // earlier tick's write.
-  const lineQtyRef = useRef(lineQty);
-  lineQtyRef.current = lineQty;
-  // F134's remainder gesture, mirrored here: hand everything still unaccounted
-  // for to one grade. A recount is lopsided the same way a capture is.
-  const [assigning, setAssigning] = useState(false);
-
-  // F131: the correction form is a dialog — it takes focus itself, so the
-  // scroll-and-focus dance the old above-the-table panel needed is gone
-  // (codex, PR #81).
 
   // Stable idempotency keys per logical mutation; see settleKey for the
   // rotation rules on this screen.
@@ -183,16 +133,7 @@ export function HistoryPage() {
     errorText: () => i18n.t("history:loadEntriesFailed"),
   });
 
-  const flockName = (id: string) => {
-    // #512 (T038) — the filter's committed identity is a genuine user pick
-    // (onCommit), always a full entity; there is no external/deep-link
-    // source that could name an id the picker's exact GET might fail to
-    // resolve (Opus review). Used ONLY for the filter trigger — never for a
-    // row (see rowFlockName below).
-    if (id === flockFilter && flockFilterEntity)
-      return flockFilterEntity.name;
-    return flocks.find((f) => f.id === id)?.name ?? id.slice(0, 8);
-  };
+
   // #512 US4 (T051) — a row's own name, independent of the picker/catalog
   // entirely: the row-owned `flockName` the endpoint's scoped bulk read
   // already resolved, or the translated unavailable label. Never the capped
@@ -203,6 +144,33 @@ export function HistoryPage() {
       return e.flockName ?? t("rowFlockUnavailable");
     return flocks.find((f) => f.id === e.flockId)?.name ?? t("rowFlockUnavailable");
   };
+  const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
+  const correctable = (e: DailyEntry) =>
+    e.status === "Submitted" || e.status === "Locked" || e.status === "ManagerAdjusted";
+  // #396 — how many of this day's cracked/dirty eggs became stock. Read from
+  // the ENTRY's snapshot, never from the current grade catalog: a farm that
+  // switched Cracked off after recording a day must still see that day as it
+  // was recorded, and one that switched it on must not see past losses
+  // retroactively turn into stock.
+  //
+  // A draft has resolved nothing yet, so it shows an em dash rather than 0 —
+  // "not decided" and "decided to be a loss" are different facts, and 0 would
+  // state the second while the first is true.
+  const conditionStock = (e: DailyEntry) => {
+    if (e.status === "Draft") return "—";
+    return fmt.count((e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0));
+  };
+  const gradeList = (e: DailyEntry) =>
+    e.grades.length === 0
+      ? "—"
+      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ");
+
+  const {
+    adjusting, setAdjusting, closeAdjust, startAdjust, onAdjustSubmit, panelGrades,
+    setLine, assignRest, lineQty, total, setTotal, cracked, setCracked, dirty, setDirty,
+    discarded, setDiscarded, mortality, setMortality, reason, setReason, armed, canAssign,
+    remaining, grading, gradesSum, gradesReconciled, lossesExceedTotal, sellable, setAssigning,
+  } = useHistoryAdjust({ grades, entries, keyFor, settleKey, setMessage, setPageError, dialog, correctable });
   // The Daily entry screen can't target archived flocks (capture excludes
   // them), so an edit link for one would silently fall back to a different
   // flock — worse than no link (codex review of #86).
@@ -220,30 +188,6 @@ export function HistoryPage() {
     const f = flocks.find((x) => x.id === e.flockId);
     return f !== undefined && f.status !== "Archived";
   };
-  const gradeName = (id: string) => grades.find((g) => g.id === id)?.name ?? id.slice(0, 8);
-  const correctable = (e: DailyEntry) =>
-    e.status === "Submitted" || e.status === "Locked" || e.status === "ManagerAdjusted";
-
-  // #396 — how many of this day's cracked/dirty eggs became stock. Read from
-  // the ENTRY's snapshot, never from the current grade catalog: a farm that
-  // switched Cracked off after recording a day must still see that day as it
-  // was recorded, and one that switched it on must not see past losses
-  // retroactively turn into stock.
-  //
-  // A draft has resolved nothing yet, so it shows an em dash rather than 0 —
-  // "not decided" and "decided to be a loss" are different facts, and 0 would
-  // state the second while the first is true.
-  const conditionStock = (e: DailyEntry) => {
-    if (e.status === "Draft") return "—";
-    return fmt.count((e.crackedGradeId ? e.crackedEggs : 0) + (e.dirtyGradeId ? e.dirtyEggs : 0));
-  };
-
-  const lossList = (e: DailyEntry) =>
-    `${fmt.count(e.crackedEggs)}/${fmt.count(e.dirtyEggs)}/${fmt.count(e.discardedEggs)}`;
-  const gradeList = (e: DailyEntry) =>
-    e.grades.length === 0
-      ? "—"
-      : e.grades.map((g) => `${gradeName(g.eggGradeId)} ${fmt.count(g.quantity)}`).join(", ");
 
   // #980 — who may do what to a row, resolved once. The desktop Actions cell
   // and the phone details dialog render different layouts from this same
@@ -254,102 +198,6 @@ export function HistoryPage() {
     correct: isAdmin && correctable(e),
   });
 
-  // Dismissal is one of the two session edges (#703): it mutes the attempt
-  // still out, so a late failure is not reported against a session the user
-  // reopened, and ends the session, so a late success cannot act on it.
-  const closeAdjust = () => { setAdjusting(null); dismissDialog("adjust"); };
-
-  function startAdjust(e: DailyEntry) {
-    // Opening is the other edge. A fresh open, or a different entry's adjust
-    // DISPLACING this session without onClose — reachable behind the backdrop
-    // via a screen reader's virtual cursor (#480; pi review of #491) — ends
-    // whatever session was on screen. Same-id re-entry is deliberately spared:
-    // the session is still about this entry, so its failed save's verdict must
-    // survive the reseed (pinned by "keeps a save failure visible after
-    // re-entering the same entry's adjust"). The 409 rebind also re-enters
-    // same-id, on purpose: it reopens the SAME session with the winner's
-    // values and re-arms its slot itself before reporting.
-    if (adjusting === null || adjusting.id !== e.id) openDialog("adjust");
-    setAdjusting(e);
-    setTotal(e.totalEggs);
-    setCracked(e.crackedEggs);
-    setDirty(e.dirtyEggs);
-    setDiscarded(e.discardedEggs);
-    setMortality(e.mortalityCount);
-    setReason("");
-    setLineQty(Object.fromEntries(e.grades.map((g) => [g.eggGradeId, g.quantity])));
-    // A different entry (or the server's newer copy after a 409) is a different
-    // day: staying armed over it would be a gesture the user never aimed there.
-    setAssigning(false);
-  }
-
-  // The entry's own lines (possibly deactivated grades — still correctable)
-  // plus the active saleable catalog for adding a missed grade.
-  //
-  // #396 — a counter-fed grade is never offered for adding. It is excluded from
-  // the CATALOG half only, not from the entry's own lines: an existing line must
-  // stay correctable whatever it names, and a condition grade cannot legitimately
-  // be on an entry anyway (ConditionGradeGuard refuses it server-side). Adding
-  // one here would ask the server for a second lot on a grade its counter
-  // already produced, and be rejected.
-  function panelGrades(e: DailyEntry): EggGrade[] {
-    const onEntry = new Set(e.grades.map((g) => g.eggGradeId));
-    return grades.filter((g) =>
-      onEntry.has(g.id) || (g.active && g.isSaleable && g.dailyEntryKind === "Manual"));
-  }
-
-  // #394: an adjustment has no draft state of its own — it replaces the
-  // entry's official numbers outright, so it is held to the same exact
-  // reconciliation Daily Entry's submit uses. Both screens read that rule out
-  // of lib/grading, so the Save button's disabled state, the readouts in the
-  // dialog and the submit-time guard below can never disagree.
-  const gradesSum = Object.values(lineQty).reduce((sum, q) => sum + (q || 0), 0);
-  const grading = gradingState({ totalEggs: total, cracked, dirty, discarded, gradesSum });
-  const { losses, sellable, remaining, lossesExceedTotal } = grading;
-  const gradesReconciled = grading.reconciled;
-  const canAssign = remaining > 0;
-  // DERIVED, not the raw flag: there is nothing left to hand out the instant
-  // the day reconciles, and that can happen by typing a grade rather than by
-  // using the gesture — which self-disarms. Reading `assigning` directly left
-  // the rows armed (and Save enabled) for the render between that keystroke
-  // and the effect below, so "armed" and "saveable" overlapped by one frame
-  // instead of being mutually exclusive. Derived, they cannot (codex round 2).
-  // The derivation itself lives in lib/grading, where it is asserted directly.
-  const armed = armedState(assigning, canAssign);
-  // The effect still clears the stale flag, so typing back DOWN to a remainder
-  // does not silently re-arm rows the user disarmed by walking away from it.
-  useEffect(() => {
-    if (!canAssign && assigning) setAssigning(false);
-  }, [canAssign, assigning]);
-
-  // #443 — mirrors DailyEntryPage's setGrade: a grade edit that would push
-  // the graded sum past what the total currently allows raises the total to
-  // fit instead of being capped (the removed `max=` did that).
-  //
-  // Gated on `newSum > prevSum` (codex review of #449) — not just "still over
-  // the total" — so that correcting a grade back DOWN with − after the total
-  // was trimmed on step 1 doesn't ratchet the total back up on every
-  // decrement; only an edit that itself increases the graded sum bumps it.
-  const setLine = (gradeId: string) => (next: number | ((prev: number) => number)) => {
-    const current = lineQtyRef.current;
-    const prevSum = Object.values(current).reduce((a, b) => a + (b || 0), 0);
-    const updated = {
-      ...current,
-      [gradeId]: typeof next === "function" ? next(current[gradeId] ?? 0) : next,
-    };
-    lineQtyRef.current = updated;
-    setLineQty(updated);
-    const newSum = Object.values(updated).reduce((a, b) => a + (b || 0), 0);
-    if (newSum > prevSum) setTotal((t) => Math.max(t, newSum + losses));
-  };
-
-  // Hand the whole remainder to one grade line.
-  function assignRest(gradeId: string) {
-    if (remaining <= 0) return;
-    setLine(gradeId)((prev) => prev + remaining);
-    setAssigning(false);
-  }
-
   // Key lifecycle differs from the create screens (codex review of PR #81):
   // a SERVER response — success or rejection — is a definite outcome, so the
   // key rotates immediately and an edited retry is a fresh request (the
@@ -357,125 +205,6 @@ export function HistoryPage() {
   // failure (no response) keeps the key for an exact replay.
   function settleKey(scope: string, err?: unknown) {
     if (err === undefined || err instanceof ApiError) clearKey(scope);
-  }
-
-  // On a 409 the correction lost a race. Reload, then re-bind the panel to
-  // the fresh entry with the OTHER admin's values in every field — keeping
-  // this admin's typed numbers could silently clobber a grade line the
-  // winner just added (pi review of PR #81). Only the reason survives; if
-  // the entry is no longer correctable (voided meanwhile), close the panel.
-  async function rebindAfterConflict(entryId: string) {
-    // This path can REOPEN a panel the user dismissed while the 409's re-read
-    // was still out, and that dismissal muted the scope — so both messages
-    // below would be dropped and the panel would spring back open showing
-    // another admin's numbers with no word of why. Found independently by two
-    // reviewers of #491.
-    //
-    // Un-muting is not a hole in #474. That rule drops the verdict of an
-    // attempt the USER walked away from. This is the app reopening the dialog
-    // uninvited and saying something new — that the entry was rebound — which
-    // is the one thing that makes the reappearance intelligible.
-    //
-    // It has to happen AFTER the re-read, not before: the dismissal that mutes
-    // the scope arrives while that request is out, so un-muting up here would
-    // simply be undone. Each un-mute therefore sits with the report it enables.
-    try {
-      // No reload here either: this runs from the adjust submit's 409 catch,
-      // by which point runWrite has already re-read. A duplicate replacement
-      // read that failed would clear the rows that one just loaded (#469).
-      const fresh = await getDailyEntry(entryId);
-      if (correctable(fresh)) {
-        const keptReason = reason;
-        startAdjust(fresh);
-        setReason(keptReason);
-        // The dialog is open — either still, or because startAdjust just put it
-        // back — and rebound to the winner's numbers, so this is its message.
-        errors.beginAttempt("adjust");
-        errors.report("adjust", i18n.t("history:conflictRebindMessage"));
-      } else {
-        // The panel closes here, not through Cancel — nothing left to abandon,
-        // and the message belongs to the page it lands on.
-        setAdjusting(null);
-        // .toLowerCase() on the raw wire status is locale-fragile (it only ever
-        // reads correctly in English) — tracked as a native-pass deferral
-        // (#182); interpolating the lowered value keeps this task
-        // text-preserving without solving the shared-component lowercase
-        // problem here.
-        setPageError(i18n.t("history:nothingToAdjustMessage", { status: fresh.status.toLowerCase() }));
-      }
-    } catch {
-      // The re-read itself failed. Unlike the success path this does NOT
-      // reopen the panel, so there is no un-mute here: if the user kept the
-      // panel open no mute exists (the submit cleared it) and this report
-      // lands on the stale numbers it explains; if they dismissed, the mute
-      // is exactly what drops a message that would otherwise park in the
-      // closed slot and replay in the next adjust dialog (pi review of #491).
-      // A displacing open of a DIFFERENT entry's adjust is not a live
-      // alternative here — every adjust trigger is `disabled={busy}`, and
-      // `busy` covers this whole call (it runs inside the submit's own
-      // `run()`), so the only action reachable while this is out is a
-      // dismissal (adversarial review of #491).
-      errors.report("adjust", i18n.t("history:conflictRebindFailedMessage"));
-    }
-  }
-
-  async function onAdjustSubmit(ev: FormEvent) {
-    ev.preventDefault();
-    if (!adjusting || busy) return;
-    errors.beginAttempt("adjust");
-    setMessage(null);
-    const scope = `adjust:${adjusting.id}`;
-    const lines = Object.entries(lineQty)
-      .filter(([, q]) => q > 0)
-      .map(([eggGradeId, quantity]) => ({ eggGradeId, quantity }));
-    // Mirror the server's exact-reconciliation rule (#394) for an instant
-    // message; the API remains the authority. The Save button is already
-    // disabled while this is false (see gradesReconciled above), so this is
-    // defense in depth rather than the primary gate. Validated before the
-    // flight opens: a rejected form never reads as busy.
-    if (!gradesReconciled) {
-      errors.report("adjust", i18n.t("history:gradesMustReconcileMessage"));
-      return;
-    }
-    // The run scope is the dialog's; the idempotency key stays per entry.
-    await run("adjust", async (current) => {
-      try {
-        // The list ticket is claimed before the PUT, so a filter change made
-        // while it is in flight keeps the view and this refresh stands down
-        // rather than repainting the old filter's rows (#469).
-        await entries.runWrite(async () => {
-          await adjustDailyEntry(adjusting.id, {
-            version: adjusting.version,
-            totalEggs: total,
-            crackedEggs: cracked,
-            dirtyEggs: dirty,
-            discardedEggs: discarded,
-            mortalityCount: mortality,
-            reason: reason.trim(),
-            grades: lines, // [] explicitly clears all lines
-          }, keyFor(scope));
-          settleKey(scope);
-          // The adjust's superseded case is unreachable through the UI (the
-          // row's adjust button is `disabled={busy}`); the gate stays for
-          // INV-1 and against a future change that enables the button — pinned
-          // by the wiring test "a successful adjust closes its dialog and
-          // refreshes the list". The write, the key settle above and the
-          // refresh runWrite does next are facts about the world (#703).
-          if (!current()) return;
-          setAdjusting(null);
-          setMessage(i18n.t("history:entryAdjustedMessage"));
-        });
-      } catch (err) {
-        settleKey(scope, err);
-        if (err instanceof ApiError && err.status === 409) {
-          await rebindAfterConflict(adjusting.id);
-        } else {
-          // Rethrown for the hook to report into the "adjust" slot — it owns
-          // the "was this attempt abandoned?" decision (#474/#479).
-          throw err;
-        }
-      }
-    });
   }
 
   async function onVoid(e: DailyEntry) {
@@ -532,27 +261,6 @@ export function HistoryPage() {
     });
   }
 
-  function statusCell(e: DailyEntry) {
-    const states: Record<string, { label: string; color: string; title?: string }> = {
-      Voided: { label: t("statusVoided"), color: "var(--error)", title: e.voidReason ?? undefined },
-      ManagerAdjusted: { label: t("statusAdjusted"), color: "var(--warn)", title: e.adjustReason ?? undefined },
-      Locked: { label: t("statusLocked"), color: "var(--link)", title: e.lockedAtUtc ? t("lockedAt", { time: e.lockedAtUtc }) : undefined },
-      Submitted: { label: t("statusSubmitted"), color: "var(--success)" },
-    };
-    const state = states[e.status] ?? { label: t("statusDraft"), color: "var(--muted)" };
-    return (
-      // describeChild: the reason/timestamp DESCRIBES the pill, it is not the
-      // pill's accessible NAME — without it Tooltip's default replaces the
-      // pill's name (the label text below) with the title text instead.
-      <Tooltip title={state.title} describeChild>
-        <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: "5px", fontWeight: 700, whiteSpace: "nowrap" }}>
-          <Box component="span" aria-hidden="true" sx={{ width: "6px", height: "6px", borderRadius: "50%", bgcolor: state.color, flexShrink: 0 }} />
-          {state.label}
-        </Box>
-      </Tooltip>
-    );
-  }
-
   // The setup read (flocks + grades) failing with nothing to show is the one
   // fatal case: without those, every row renders unresolvable ids. `entries`
   // is the hook's handle, so the emptiness test is on its rows.
@@ -583,243 +291,29 @@ export function HistoryPage() {
         ]} />
       )}
 
-      <FilterBar>
-        <Box sx={FILTER_PICKER_SX}>
-          {/* #512 (T038) — the read-only filter became an optional
-              eligibility=all FlockPicker: the filter keeps its exact id
-              ownership (the list fetches by `flockFilter`), and a row-owned
-              identity outside the capped discovery window resolves through
-              the exact GET with an explicit unavailable state. */}
-          <FlockPicker
-            label={t("flockLabel")}
-            eligibility="all"
-            required={false}
-            open={filterPickerOpen}
-            requestedId={flockFilter || null}
-            onSnapshot={(snap) => {
-              if (snap.committed) setFlockFilterEntity(snap.committed);
-            }}
-            onCommit={(f) => {
-              setFlockFilter(f.id);
-              setFlockFilterEntity(f);
-              setFilterPickerOpen(false);
-            }}
-            onClear={() => {
-              setFlockFilter("");
-              setFlockFilterEntity(null);
-            }}
-            onEscape={() => setFilterPickerOpen(false)}
-            onOutsideClick={() => setFilterPickerOpen(false)}
-            trigger={
-              <button type="button" className="named-picker-trigger"
-                onClick={() => setFilterPickerOpen(true)}>
-                {flockFilter === "" ? t("allFlocksOption") : flockName(flockFilter)}
-              </button>
-            }
-          />
-        </Box>
-        <FilterDateField label={t("fromLabel")} value={from} onChange={(e) => setFrom(e.target.value)} />
-        <FilterDateField label={t("toLabel")} value={to} onChange={(e) => setTo(e.target.value)} />
-        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFlockFilter(""); setFlockFilterEntity(null); setFilterPickerOpen(false); setFrom(""); setTo(""); }}>{tc("clearFiltersButton")}</Button>
-      </FilterBar>
+      <HistoryFilters
+        flockFilter={flockFilter} setFlockFilter={setFlockFilter}
+        flockFilterEntity={flockFilterEntity} setFlockFilterEntity={setFlockFilterEntity}
+        filterPickerOpen={filterPickerOpen} setFilterPickerOpen={setFilterPickerOpen}
+        from={from} setFrom={setFrom} to={to} setTo={setTo} flocks={flocks}
+      />
 
-      {/* #980 — everything the two phone lines leave out, plus the row's own
-          actions. Rendered at every width but only reachable below 900px: the
-          desktop table shows all of it in its own columns. */}
-      <Dialog
-        open={details !== null}
-        compactTitle
-        // The screen's own heading is the fallback, so the dialog is never
-        // nameless during its exit transition (same shape as the adjust
-        // dialog's `adjustDialogTitle`).
-        title={details
-          ? t("detailsDialogTitle", { date: fmt.date(details.date), flock: rowFlockName(details) })
-          : t("title")}
-        onClose={() => setDetails(null)}
-        actions={details && (
-          <Box sx={{
-            display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: .75,
-            borderTop: "1px solid var(--rule)",
-            "& .MuiButtonBase-root": { minHeight: 44 },
-          }}>
-            {rowActions(details).viewHistory && (
-              <Button component={Link} size="small" sx={CONSOLE_LINK_SX}
-                to={`/audit?entityId=${details.id}`}>
-                {tc("recordHistory.viewHistoryLink")}
-              </Button>
-            )}
-            {rowActions(details).edit && (
-              <Button component={Link} size="small" sx={CONSOLE_LINK_SX}
-                to={`/daily-entry?flockId=${details.flockId}&date=${details.date}`}>
-                {t("editButton")}
-              </Button>
-            )}
-            {rowActions(details).correct && (
-              <Box sx={{ display: "flex", alignItems: "center", columnGap: .75, borderLeft: "1px solid var(--rule)", pl: .75 }}>
-                {/* Each correction replaces this dialog rather than stacking on
-                    it: the reason prompt and the adjust form are both about the
-                    same entry, and two dialogs deep is a phone trap. */}
-                <Button size="small" sx={CONSOLE_LINK_SX} disabled={busy}
-                  onClick={() => { setDetails(null); startAdjust(details); }}>{t("adjustButton")}</Button>
-                <Button size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)" }} disabled={busy}
-                  onClick={() => { setDetails(null); void onVoid(details); }}>{t("voidButton")}</Button>
-              </Box>
-            )}
-          </Box>
-        )}
-      >
-        {details && (
-          <Box component="dl" sx={{ m: 0 }}>
-            {([
-              [te("crackedLabel"), fmt.count(details.crackedEggs)],
-              [te("dirtyLabel"), fmt.count(details.dirtyEggs)],
-              [te("discardedLabel"), fmt.count(details.discardedEggs)],
-              [t("conditionHeader"), conditionStock(details)],
-              [t("gradedHeader"), gradeList(details)],
-              [tc("recordHistoryHeader"), <ProvenanceSummary history={details} official="submitted" />],
-            ] as const).map(([label, value]) => (
-              <PhoneDetailsField key={label} label={label}>{value}</PhoneDetailsField>
-            ))}
-          </Box>
-        )}
-      </Dialog>
+      <HistoryDetailsDialog details={details} setDetails={setDetails}
+        rowActions={rowActions} rowFlockName={rowFlockName} conditionStock={conditionStock} gradeList={gradeList}
+        busy={busy} startAdjust={startAdjust} onVoid={onVoid} />
 
-      <Dialog
-        open={adjusting !== null}
-        title={adjusting
-          ? t("adjustDialogTitleWithEntry", { date: fmt.date(adjusting.date), flock: rowFlockName(adjusting) })
-          : t("adjustDialogTitle")}
-        onClose={closeAdjust}
-        // Two panes side by side need the room; on a phone the dialog is a
-        // full-width sheet and they stack, exactly as the capture screen does.
-        wide
-        // A 409 swaps the server's newer entry into the open dialog; the record
-        // identity changing pulls focus back to the first field, so the form is
-        // not silently replaced under the user's cursor.
-        focusKey={adjusting}
-        actions={adjusting && (
-          <DialogActions sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, p: 0, "& > :not(style) ~ :not(style)": { ml: 0 }, "& button": { width: "100%", height: 44, minHeight: 44, px: 1, fontSize: ".75rem", whiteSpace: "nowrap" } }}>
-            <Button variant="outlined" color="inherit" type="button" onClick={closeAdjust}>{tc("cancel")}</Button>
-            {/* #394: an adjustment has no draft state — Save stays disabled
-                until grading reconciles exactly, the same rule Daily
-                Entry's submit uses. */}
-            <BusyButton variant="contained" type="submit" busy={isPending("adjust")}
-              disabled={busy || !reason.trim() || !gradesReconciled}>{t("saveAdjustmentButton")}</BusyButton>
-          </DialogActions>
-        )}
-        formProps={{ onSubmit: onAdjustSubmit }}
-      >
-        {adjusting && (
-          <>
-            {adjusting.adjustedFrom && (
-              <p className="muted">
-                {t("previouslyAdjusted", {
-                  total: adjusting.adjustedFrom.totalEggs,
-                  mortality: adjusting.adjustedFrom.mortalityCount,
-                  // adjustReason is typed string | null; a set adjustedFrom
-                  // always carries a reason in practice, but the fallback
-                  // keeps this a plain string for the interpolation type.
-                  reason: adjusting.adjustReason ?? "",
-                })}
-              </p>
-            )}
-            <Stack spacing={2}>
-            {!lossesExceedTotal && <Box role="group" aria-label={t("reconciliation")} sx={{ p: 1.5, bgcolor: gradesReconciled ? "var(--tint-ok)" : "var(--tint-warn)", color: gradesReconciled ? "var(--success)" : "var(--warn)", fontWeight: 700, fontVariantNumeric: "tabular-nums", borderRadius: "var(--r-input)" }}>
-              {t("reconciliationLine", {
-                total: fmt.count(total), cracked: fmt.count(cracked), dirty: fmt.count(dirty), discarded: fmt.count(discarded),
-                sellable: fmt.count(sellable), graded: fmt.count(gradesSum), comparison: gradesReconciled ? "=" : "≠",
-              })}
-            </Box>}
-            {/* #444 — same caption as the capture screen; the dialog IS that
-                form, so the taps count the same way and say so the same way. */}
-            {stepSize > 1 && (
-              <p className="hint">
-                {te("stepperUnitCaption", { unit: stepperUnit.unitCode, count: stepSize })}
-              </p>
-            )}
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: { xs: 3.5, md: 4 } }}>
-              <Box component="section">
-                {/* Accessible-name computation trims nested spans; keep word spaces in the heading. */}
-                <Typography variant="h3" component="h3">
-                  <span className="step-n">{te("stepLabel", { n: 1 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("eggCountsHeading")}
-                </Typography>
-                <EntryRow htmlFor={idFor("total")} label={te("totalEggsLabel")}>
-                  <NumberField id={idFor("total")} label={te("totalEggsLabel").toLowerCase()}
-                    value={total} onChange={setTotal} step={stepSize} />
-                </EntryRow>
-                <EntryRow htmlFor={idFor("cracked")} label={te("crackedLabel")}>
-                  <NumberField id={idFor("cracked")} label={te("crackedLabel").toLowerCase()}
-                    value={cracked} onChange={setCracked} step={stepSize} />
-                </EntryRow>
-                <EntryRow htmlFor={idFor("dirty")} label={te("dirtyLabel")}>
-                  <NumberField id={idFor("dirty")} label={te("dirtyLabel").toLowerCase()}
-                    value={dirty} onChange={setDirty} step={stepSize} />
-                </EntryRow>
-                <EntryRow htmlFor={idFor("discarded")} label={te("discardedLabel")}>
-                  <NumberField id={idFor("discarded")} label={te("discardedLabel").toLowerCase()}
-                    value={discarded} onChange={setDiscarded} step={stepSize} />
-                </EntryRow>
-                {/* Mortality counts individual birds, regardless of the egg step size. */}
-                <EntryRow htmlFor={idFor("mortality")} label={te("mortalityLabel")}>
-                  <NumberField id={idFor("mortality")} label={te("mortalityLabel").toLowerCase()}
-                    value={mortality} onChange={setMortality} />
-                </EntryRow>
-
-                {lossesExceedTotal ? (
-                  <Typography role="alert" sx={{ mt: 2, color: "var(--error)" }}>
-                    {te("countsExceedTotalMessage", { losses: grading.losses, total })}
-                  </Typography>
-                ) : (
-                  <Typography component="p" role="status" sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, mt: 2, pt: 1.5, borderTop: "1px dashed var(--hairline)" }}>
-                    <span className="muted">{te("sellableLabel")}<br />{te("sellableFormula", { total, cracked, dirty, discarded })}</span>
-                    <Box component="span" sx={{
-                      fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums",
-                      // #835/#948 — one of the stat figures; clears the root's text-cut pin.
-                      fontVariationSettings: "normal",
-                    }}>{sellable}</Box>
-                  </Typography>
-                )}
-              </Box>
-
-              <Box component="section">
-                <Typography variant="h3" component="h3">
-                  <span className="step-n">{te("stepLabel", { n: 2 })}</span> <span className="sr-only">{te("stepOfTotal")}</span> {te("gradingHeading")}
-                </Typography>
-                {panelGrades(adjusting).map((g) => (
-                  <EntryRow key={g.id} htmlFor={idFor(`grade-${g.id}`)}
-                    label={g.name} caption={g.active ? undefined : t("inactiveGradeSuffix")}
-                    groupLabel={te("gradeRowLabel", { grade: g.name })} armed={armed}
-                    dropProps={remainderDropProps(armed, () => assignRest(g.id))}
-                  >
-                    {/* Allow a grade to exceed the current total; setLine raises the total to fit. */}
-                    <NumberField id={idFor(`grade-${g.id}`)} label={g.name.toLowerCase()}
-                      value={lineQty[g.id] ?? 0} onChange={setLine(g.id)} step={stepSize} />
-                    {armed && (
-                      <TakeRemainderButton remaining={remaining} grade={g.name}
-                        onTake={() => assignRest(g.id)} />
-                    )}
-                  </EntryRow>
-                ))}
-
-                <GradingChip tone={grading.tone} count={grading.count}
-                  says={te(grading.saysKey)}
-                  canAssign={canAssign} remaining={remaining}
-                  assigning={armed} onAssigningChange={setAssigning} />
-              </Box>
-            </Box>
-
-            <TextField fullWidth
-              label={t("reasonLabel")}
-              value={reason}
-              slotProps={{ htmlInput: { maxLength: 500, required: true } }}
-              onChange={(e) => setReason(e.target.value)}
-            />
-            {/* The 409 rebind reports here, beside the form it asks you to re-apply. */}
-            <DialogError errors={errors} scope="adjust" />
-            </Stack>
-          </>
-        )}
-      </Dialog>
+      <HistoryAdjustDialog
+        adjusting={adjusting} rowFlockName={rowFlockName} closeAdjust={closeAdjust}
+        busy={busy} isPending={isPending} errors={errors} onAdjustSubmit={onAdjustSubmit}
+        gradesReconciled={gradesReconciled} lossesExceedTotal={lossesExceedTotal}
+        sellable={sellable} gradesSum={gradesSum} grading={grading}
+        total={total} setTotal={setTotal} cracked={cracked} setCracked={setCracked}
+        dirty={dirty} setDirty={setDirty} discarded={discarded} setDiscarded={setDiscarded}
+        mortality={mortality} setMortality={setMortality} stepSize={stepSize} stepperUnit={stepperUnit}
+        panelGrades={panelGrades} lineQty={lineQty} setLine={setLine} armed={armed}
+        canAssign={canAssign} remaining={remaining} assignRest={assignRest}
+        reason={reason} setReason={setReason} setAssigning={setAssigning}
+      />
 
       {/* #479 — unconditional: the adjust dialog's own failures live in their
           own slot now (see DialogError above), so there is nothing here for a
@@ -845,92 +339,8 @@ export function HistoryPage() {
           ? <EmptyState icon={FilterX} message={t("noEntriesMatch")} />
           : <EmptyState icon={Inbox} message={t("noEntriesMessage")} />
       ) : (
-        <>
-          {isDesktop ? (
-            <LedgerTableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>{t("dateHeader")}</TableCell>
-                    <TableCell>{t("flockHeader")}</TableCell>
-                    <TableCell>{t("statusHeader")}<GlossaryLink term="LockedEntry" /></TableCell>
-                    <TableCell align="right">{t("totalHeader")}</TableCell>
-                    <TableCell align="right">{t("lossesHeader")}</TableCell>
-                    {/* Condition counts only losses added to stock; Losses includes all recorded losses. */}
-                    <TableCell align="right">{t("conditionHeader")}</TableCell>
-                    <TableCell align="right">{t("mortalityHeader")}</TableCell>
-                    <TableCell>{t("gradedHeader")}</TableCell>
-                    <TableCell>{tc("recordHistoryHeader")}</TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {entries.rows.map((e) => (
-                    <TableRow key={e.id}
-                      // MUI cell colours override inherited row colours.
-                      sx={e.status === "Voided" ? { "& .MuiTableCell-root": { color: "var(--muted)" } } : undefined}>
-                      <TableCell sx={NOWRAP}><FarmDate iso={e.date} /></TableCell>
-                      <TableCell>{rowFlockName(e)}</TableCell>
-                      <TableCell>{statusCell(e)}</TableCell>
-                      <TableCell align="right">{fmt.count(e.totalEggs)}</TableCell>
-                      <TableCell align="right">{lossList(e)}</TableCell>
-                      <TableCell align="right">{conditionStock(e)}</TableCell>
-                      <TableCell align="right">{fmt.count(e.mortalityCount)}</TableCell>
-                      <TableCell>{gradeList(e)}</TableCell>
-                      <ProvenanceCell history={e} official="submitted" />
-                      <TableCell sx={NOWRAP}>
-                        {/* The audit endpoint is AdminOnly, even when this ledger is readable by workers. */}
-                        {rowActions(e).viewHistory && (
-                          <Link className="link" to={`/audit?entityId=${e.id}`}>
-                            {tc("recordHistory.viewHistoryLink")}
-                          </Link>
-                        )}
-                        {rowActions(e).edit && (
-                          <Button component={Link} size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }}
-                            to={`/daily-entry?flockId=${e.flockId}&date=${e.date}`}>
-                            {t("editButton")}
-                          </Button>
-                        )}
-                        {rowActions(e).correct && (
-                          <>
-                            <Button size="small" sx={{ ...CONSOLE_LINK_SX, ml: 1 }} disabled={busy}
-                              onClick={() => startAdjust(e)}>{t("adjustButton")}</Button>
-                            <BusyButton variant="text" size="small" sx={{ ...CONSOLE_LINK_SX, color: "var(--error)", ml: 1 }} busy={isPending(`void:${e.id}`)}
-                              disabled={busy}
-                              onClick={() => void onVoid(e)}>{t("voidButton")}</BusyButton>
-                          </>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </LedgerTableContainer>
-          ) : (
-            // #980 — one two-line button per entry. The whole row is the tap
-            // target and opens Details; the mockups' ⋯ menu was dropped by the
-            // owner, so there is no second control competing for the thumb.
-            <PhoneLedgerList label={t("title")}>
-              {entries.rows.map((e) => (
-                <li key={e.id}>
-                  <PhoneLedgerRow onClick={() => setDetails(e)} muted={e.status === "Voided"}
-                    date={<FarmDate iso={e.date} />} primary={rowFlockName(e)} trailing={statusCell(e)}
-                    summary={
-                      <Trans ns="history" i18nKey="rowSummary" components={{ strong: <strong /> }}
-                        count={e.mortalityCount}
-                        values={{ total: fmt.count(e.totalEggs), losses: lossList(e), deaths: fmt.count(e.mortalityCount) }} />
-                    } />
-                </li>
-              ))}
-            </PhoneLedgerList>
-          )}
-          {entries.canLoadMore && (
-            <button className="link" disabled={busy}
-              onClick={() => void entries.loadMore()}>
-              {t("loadMoreButton")}
-            </button>
-          )}
-        </>
+          <HistoryLedgers entries={entries} rowFlockName={rowFlockName} conditionStock={conditionStock} gradeList={gradeList} rowActions={rowActions} busy={busy}
+            isPending={isPending} startAdjust={startAdjust} onVoid={onVoid} setDetails={setDetails} />
       )}
 
       {confirmDialog}
