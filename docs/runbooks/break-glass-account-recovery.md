@@ -142,7 +142,7 @@ A clear message is written to **stderr**, e.g.:
 
   -- 2. Re-enable that row AND revoke everything a normal disable would have.
   --    This is a manual stand-in for BOTH DisableUserAsync's revocation and
-  --    EnableUserAsync's flag-clear (IdentityProvider.cs) — never just the
+  --    EnableUserAsync's flag-clear (IdentityProvider.DisableEnable.cs) — never just the
   --    latter. You cannot assume DisabledAt on this row came from the app's
   --    own disable path: a hand-edited or restored database may have set it
   --    directly, without ever bumping CredentialEpoch, rotating the stamps,

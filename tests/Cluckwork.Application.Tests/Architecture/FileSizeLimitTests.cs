@@ -25,7 +25,6 @@ public sealed partial class FileSizeLimitTests
     private static readonly Dictionary<string, int> Legacy = new(StringComparer.Ordinal)
     {
         ["src/Cluckwork.Api/Program.cs"] = 685,
-        ["src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs"] = 2156,
         ["src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs"] = 2785,
         ["web/src/api/cluckwork.ts"] = 1472,
         ["web/src/components/NamedEntityPicker.tsx"] = 1531,

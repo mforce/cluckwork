@@ -100,11 +100,26 @@ public sealed class AuditVocabularyCoverageTests
         var srcRoot = Path.Combine(RepositoryRoot, "src");
         var separator = Path.DirectorySeparatorChar;
 
-        foreach (var file in Directory.EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories))
-        {
-            if (file.Contains($"{separator}obj{separator}") || file.Contains($"{separator}bin{separator}"))
-                continue;
+        var sourceFiles = Directory.EnumerateFiles(srcRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{separator}obj{separator}") && !file.Contains($"{separator}bin{separator}"))
+            .ToList();
 
+        // Every distinct identifier (parameter or field) declared with type
+        // IAuditWriter anywhere under src/ — whatever name a handler injects it
+        // under (`audit`, `_audit`, `auditWriter`, ...). Matching the fixed
+        // literal name "audit" would silently miss a differently-named
+        // injection, which is exactly how a new call site could bypass every
+        // check below (codex review of #439). Collected across the whole tree,
+        // not per file: a partial class declares `audit` in the file holding its
+        // primary constructor and calls it from every other part (#1215), and a
+        // per-file collection saw none of those calls.
+        var auditWriterNames = sourceFiles
+            .SelectMany(file => Regex.Matches(StripComments(File.ReadAllText(file)), @"\bIAuditWriter\s+(\w+)"))
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet();
+
+        foreach (var file in sourceFiles)
+        {
             // Relative to src/, with '/' normalized regardless of OS — so error
             // messages, and the known-exception key below, never bake in this
             // machine's absolute path.
@@ -117,16 +132,6 @@ public sealed class AuditVocabularyCoverageTests
             // guard that only works as long as nobody ever writes that phrase in
             // a comment again is not a guard worth trusting.
             var searchable = StripComments(source);
-
-            // Every distinct identifier (parameter or field) declared with type
-            // IAuditWriter in this file — whatever name a handler injects it
-            // under (`audit`, `_audit`, `auditWriter`, ...). Matching the fixed
-            // literal name "audit" would silently miss a differently-named
-            // injection, which is exactly how a new call site could bypass every
-            // check below (codex review of #439).
-            var auditWriterNames = Regex.Matches(searchable, @"\bIAuditWriter\s+(\w+)")
-                .Select(m => m.Groups[1].Value)
-                .Distinct();
 
             foreach (var receiver in auditWriterNames)
             {
@@ -448,7 +453,7 @@ public sealed class AuditVocabularyCoverageTests
     //   string parameter, and the forwarder's callers were actually checked.
     private static readonly HashSet<(string File, string Parameter)> KnownIndirectActionCallSites =
     [
-        ("Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs", "auditAction"),
+        ("Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Passwords.cs", "auditAction"),
     ];
 
     // Fails closed on anything but a direct AuditActions.X reference, a
