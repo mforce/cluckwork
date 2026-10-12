@@ -18,6 +18,7 @@ import {
   STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { EmptyState } from "../components/EmptyState";
+import { PackedUnitsPanel } from "./PackedUnitsPanel";
 import { ProductDialogs } from "./ProductDialogs";
 import { StatusBadge } from "../components/StatusBadge";
 import { useDialogAction } from "../components/useDialogAction";
@@ -32,6 +33,15 @@ const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
 // MUI's auto table layout shrinks any wrappable cell below its content width,
 // so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
+
+// The 409s that mean "the row changed since it was loaded": the handlers' stale
+// base Version, and the EF token's race (Program.cs). Every other 409 is a
+// different failure and keeps the form and its idempotency key.
+const VERSION_CONFLICT_TITLES = new Set([
+  "Product.VersionMismatch", "EggUnitConversion.VersionMismatch", "Concurrency conflict",
+]);
+const isVersionConflict = (err: unknown) =>
+  err instanceof ApiError && err.status === 409 && VERSION_CONFLICT_TITLES.has(err.title);
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -76,6 +86,7 @@ export function ProductsPage() {
 
   // edit (products) — dialog seeded from the row
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editVersion, setEditVersion] = useState(0);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("Dozen");
   const [editGradeId, setEditGradeId] = useState("");
@@ -84,6 +95,7 @@ export function ProductsPage() {
 
   // edit (conversions) — dialog seeded from the row
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editConvVersion, setEditConvVersion] = useState(0);
   const [editEggs, setEditEggs] = useState(1);
   const [editConvActive, setEditConvActive] = useState(true);
 
@@ -109,6 +121,7 @@ export function ProductsPage() {
     ]);
     setProducts(p);
     setConversions(c);
+    return { products: p, conversions: c };
   };
 
   useEffect(() => {
@@ -211,6 +224,7 @@ export function ProductsPage() {
     closeEditConversion();
     openDialog("edit");
     setEditingId(p.id);
+    setEditVersion(p.version);
     setEditName(p.name);
     setEditUnit(p.defaultUnit);
     setEditGradeId(p.eggGradeId ?? "");
@@ -226,6 +240,7 @@ export function ProductsPage() {
     closeEdit();
     openDialog("edit-conversion");
     setEditingConvId(c.id);
+    setEditConvVersion(c.version);
     setEditEggs(c.eggsPerUnit);
     setEditConvActive(c.active);
   }
@@ -252,14 +267,28 @@ export function ProductsPage() {
     // superseded gate is UNREACHABLE here (the row edit button is disabled while
     // the write is in flight) but kept for INV-1 consistency and defence.
     await run("edit", async (current) => {
-      await commit(`update:${id}`, (key) =>
-        updateProduct(id, {
-          name: editName,
-          defaultUnit: editUnit,
-          defaultPriceMinorUnits: priceMinor,
-          eggGradeId: editGradeId,
-          notes: editNotes.trim() || null,
-        }, key));
+      try {
+        await commit(`update:${id}`, (key) =>
+          updateProduct(id, {
+            version: editVersion,
+            name: editName,
+            defaultUnit: editUnit,
+            defaultPriceMinorUnits: priceMinor,
+            eggGradeId: editGradeId,
+            notes: editNotes.trim() || null,
+          }, key));
+      } catch (err) {
+        if (!isVersionConflict(err)) throw err;
+        // Another admin saved first: rebind the dialog to their values, as
+        // Expenses and History do. The key goes too — the next save is a new
+        // request with a new base version.
+        clearKey(`update:${id}`);
+        const fresh = (await refresh()).products.find((p) => p.id === id);
+        if (fresh) startEdit(fresh);
+        // startEdit re-opened the dialog's session, which mutes its slot.
+        errors.beginAttempt("edit");
+        throw new Error(i18n.t("products:conflictRebindMessage"));
+      }
       if (!current()) return;
       setEditingId(null);
     });
@@ -272,8 +301,20 @@ export function ProductsPage() {
     // Superseded gate is unreachable here too (row edit button disabled while
     // busy); kept for consistency. Key stays per conversion.
     await run("edit-conversion", async (current) => {
-      await commit(`conv:${id}`, (key) =>
-        updateEggUnitConversion(id, { eggsPerUnit: editEggs, active: editConvActive }, key));
+      try {
+        await commit(`conv:${id}`, (key) =>
+          updateEggUnitConversion(id, {
+            version: editConvVersion, eggsPerUnit: editEggs, active: editConvActive,
+          }, key));
+      } catch (err) {
+        if (!isVersionConflict(err)) throw err;
+        // Same rebind as the product dialog above.
+        clearKey(`conv:${id}`);
+        const fresh = (await refresh()).conversions.find((c) => c.id === id);
+        if (fresh) startEditConversion(fresh);
+        errors.beginAttempt("edit-conversion");
+        throw new Error(i18n.t("products:packedUnitConflictRebindMessage"));
+      }
       if (!current()) return;
       setEditingConvId(null);
     });
@@ -292,7 +333,6 @@ export function ProductsPage() {
   const editingProduct = products.find((p) => p.id === editingId) ?? null;
   const editingConv = conversions.find((c) => c.id === editingConvId) ?? null;
   const selectedProduct = products.find((p) => p.id === selectedProductId) ?? null;
-  const selectedConv = conversions.find((c) => c.id === selectedConvId) ?? null;
 
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
@@ -443,49 +483,8 @@ export function ProductsPage() {
         )}
       </Box>
 
-      <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
-        <ListInspectorPane
-          tableLabel={t("packedUnitsHeading")}
-          onClearSelection={() => setSelectedConvId(null)}
-          table={(
-            <LedgerTableContainer scrollHint="columnsAndRows">
-              <Table size="small" sx={isAdmin ? { "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } } } : undefined}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("unitHeader")}</TableCell>
-                    <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("eggsPerUnitHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
-                    {isAdmin && <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("actions")}</TableCell>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {conversions.map((c) => (
-                    <TableRow key={c.id} className={c.active ? undefined : "muted"}
-                      {...selectableRowProps(c.id === selectedConvId, () => setSelectedConvId(c.id))}>
-                      <TableCell sx={NOWRAP}>{c.unitCode}</TableCell>
-                      <TableCell align="right" sx={NOWRAP}>{fmt.count(c.eggsPerUnit)}</TableCell>
-                      <TableCell sx={NOWRAP}>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
-                      {isAdmin && <TableCell sx={NOWRAP}>{renderConversionActions(c)}</TableCell>}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </LedgerTableContainer>
-          )}
-          inspector={(
-            <RecordInspector
-              ariaLabel={tc("inspectorLabel", { entity: t("packedUnitEntitySingular") })}
-              title={selectedConv?.unitCode}
-              emptyMessage={tc("inspectorEmptyPrompt")}
-              fields={selectedConv ? [
-                { label: t("eggsPerUnitHeader"), value: fmt.count(selectedConv.eggsPerUnit) },
-                { label: t("statusHeader"), value: statusLabel(selectedConv.active ? "Active" : "Inactive") },
-              ] : undefined}
-              actions={isAdmin && selectedConv ? { primary: renderConversionActions(selectedConv) } : undefined}
-            />
-          )}
-        />
-      </Box>
+      <PackedUnitsPanel hidden={tab !== "packedUnits"} conversions={conversions} isAdmin={isAdmin}
+        selectedId={selectedConvId} onSelect={setSelectedConvId} renderActions={renderConversionActions} />
     </section>
   );
 }

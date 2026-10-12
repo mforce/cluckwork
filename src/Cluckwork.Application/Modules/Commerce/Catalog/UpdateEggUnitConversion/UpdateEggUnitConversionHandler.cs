@@ -14,6 +14,9 @@ public sealed class UpdateEggUnitConversionHandler(
         var conversion = await conversions.GetByIdAsync(command.ConversionId, ct);
         if (conversion is null)
             return Result.Failure(Error.NotFound("EggUnitConversion", command.ConversionId));
+        if (conversion.Version != command.Version)
+            return Result.Failure(Error.Conflict(
+                "EggUnitConversion.VersionMismatch", "This packed unit was changed since you loaded it — reload and retry."));
 
         var previous = conversion.EggsPerUnit;
         var result = conversion.Update(command.EggsPerUnit, command.Active);

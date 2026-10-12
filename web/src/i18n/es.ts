@@ -1206,6 +1206,12 @@ export const es = {
     enterPriceAsNumber: "Ingrese el precio como un número simple.",
     noDecimalPlaces: "Esta moneda no tiene decimales.",
     atMostDecimals: "Como máximo {{count}} decimales para esta moneda.",
+    conflictRebindMessage:
+      "Este producto fue cambiado por otra persona — el formulario ahora "
+      + "muestra los valores más recientes; vuelva a aplicar sus cambios.",
+    packedUnitConflictRebindMessage:
+      "Esta unidad empacada fue cambiada por otra persona — el formulario ahora "
+      + "muestra los valores más recientes; vuelva a aplicar sus cambios.",
 
     intro:
       "Lo que vende la granja. Cada producto de huevo se asocia a un grado "

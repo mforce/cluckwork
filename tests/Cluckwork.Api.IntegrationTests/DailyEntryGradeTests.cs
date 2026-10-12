@@ -52,6 +52,54 @@ public sealed class DailyEntryGradeTests(CluckworkWebApplicationFactory factory)
         Assert.All(lines, g => Assert.Equal(accountId, g.AccountId));
     }
 
+    private sealed record GradeLine(Guid EggGradeId, int Quantity);
+    private sealed record EntryWithGrades(Guid Id, List<GradeLine> Grades);
+
+    // Grade lines read back in the egg-grade catalog's order (SortOrder), not
+    // physical row order, which differs between databases and reordered the
+    // History "Graded" column.
+    [Fact]
+    public async Task Reads_ReturnGradeLinesInCatalogOrder_NotPhysicalOrder()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var (farmId, houseId) = (Guid.NewGuid(), Guid.NewGuid());
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
+        // SortOrder 0, 1, 2.
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large", "Medium", "Small");
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var created = await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(),
+            Body(farmId, houseId, flockId,
+            [
+                new { eggGradeId = grades["Small"], quantity = 100 },
+                new { eggGradeId = grades["Medium"], quantity = 300 },
+                new { eggGradeId = grades["Large"], quantity = 500 },
+            ]));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var entryId = (await created.Content.ReadFromJsonAsync<EntryWithGrades>())!.Id;
+
+        // Rewrite Medium then Large: each UPDATE writes a new tuple at the end
+        // of the heap, so physical order becomes the reverse of catalog order.
+        var physical = await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            foreach (var name in new[] { "Medium", "Large" })
+                await db.Database.ExecuteSqlAsync(
+                    $"UPDATE \"DailyEntryGrades\" SET \"Quantity\" = \"Quantity\" WHERE \"EggGradeId\" = {grades[name]}");
+            return await db.Database.SqlQuery<Guid>(
+                $"SELECT \"EggGradeId\" AS \"Value\" FROM \"DailyEntryGrades\" WHERE \"DailyEntryId\" = {entryId} ORDER BY ctid")
+                .ToListAsync();
+        });
+        Guid[] canonical = [grades["Large"], grades["Medium"], grades["Small"]];
+        Assert.Equal(canonical.Reverse(), physical);
+
+        var detail = await client.GetFromJsonAsync<EntryWithGrades>($"/api/v1/daily-entries/{entryId}");
+        Assert.Equal(canonical, detail!.Grades.Select(g => g.EggGradeId));
+        var list = await client.GetFromJsonAsync<List<EntryWithGrades>>($"/api/v1/daily-entries?flockId={flockId}");
+        Assert.Equal(canonical, Assert.Single(list!).Grades.Select(g => g.EggGradeId));
+    }
+
     [Fact]
     public async Task ReRecord_ReplacesGradeLines()
     {

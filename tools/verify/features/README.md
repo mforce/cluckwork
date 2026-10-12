@@ -13,10 +13,12 @@ others. Keep this map honest with `/maintain-verification-skill` when the app ch
 | [Stock](stock.md) | `/stock`, `/inventory` | every role reads; Manager, Owner write | `manager.spec.ts`, `readonly.spec.ts`, `pagination.spec.ts` |
 | [Flocks](flocks.md) | `/flocks` | Manager, Owner | `manager.spec.ts`, `named-entity-picker.spec.ts` |
 | [MCP server](mcp.md) | `/mcp`, `/connect` | every role, through a connected app | none; real clients in `tools/verify/mcp/` |
+| [Products](products.md) | `/products` | Admin, Manager (nav); others can deep-link read-only | `inspector-layout.spec.ts`, `phone.spec.ts` |
+| [Audit](audit.md) | `/audit` | Admin, Manager; others refused by the API | `owner.spec.ts`, `readonly.spec.ts` |
 
 Not yet mapped (routes exist, add a file when you first verify one): `/feed`, `/water`,
 `/history`, `/reports` (`reports-range.spec.ts`), `/expenses`, `/settings` (Owner only,
-#729), `/grades`, `/products`, `/users`, `/audit`, `/export`, `/account`, `/help`.
+#729), `/grades`, `/users`, `/export`, `/account`, `/help`.
 
 Cross-cutting guarantees with their own specs, not features: session refresh and races
 (`session-*.spec.ts`), i18n across es and tl (`i18n.spec.ts`), the PWA shell offline

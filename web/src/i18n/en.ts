@@ -1617,6 +1617,13 @@ export const en = {
     enterPriceAsNumber: "Enter the price as a plain number.",
     noDecimalPlaces: "This currency has no decimal places.",
     atMostDecimals: "At most {{count}} decimal places for this currency.",
+    // A 409 on save: the dialog is rebound to the other admin's values.
+    conflictRebindMessage:
+      "This product was changed by someone else — the form now shows the "
+      + "latest values; re-apply your changes.",
+    packedUnitConflictRebindMessage:
+      "This packed unit was changed by someone else — the form now shows the "
+      + "latest values; re-apply your changes.",
 
     intro:
       "What the farm sells. Each egg product maps to an egg grade — sales "
