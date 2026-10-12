@@ -23,6 +23,9 @@ keyed on the proxy's own address still *works*, it just puts every client in one
 bucket — so a login-attempt flood from one IP is indistinguishable from normal
 traffic, and the protection reads as present. A warning in a log nobody reads at
 deploy time does not close that.
+The guard checks only that the list is non-empty. A list that misses the proxy
+is caught at the first forwarded request instead: `RateLimiting.ForwardedHeadersIgnored`
+logs at Warning, once per process, naming the peer whose `X-Forwarded-For` was ignored (#806).
 
 ## The opt-out, and its one legitimate use
 

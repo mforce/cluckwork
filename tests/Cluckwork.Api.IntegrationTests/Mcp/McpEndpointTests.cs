@@ -64,12 +64,13 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
 
         var tools = await client.ListToolsAsync();
 
-        var declared = typeof(McpCallContext).Assembly.GetTypes()
+        // The test host also serves ProbeTools.
+        var declared = typeof(McpCallContext).Assembly.GetTypes().Append(typeof(ProbeTools))
             .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance))
             .Select(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name)
             .OfType<string>().ToHashSet();
-        Assert.True(declared.Count >= 9, $"the walk found {declared.Count} tools");
-        Assert.Subset(tools.Select(t => t.Name).ToHashSet(), declared);
+        Assert.True(declared.Count >= 11, $"the walk found {declared.Count} tools");
+        Assert.Equal(declared.Order(), tools.Select(t => t.Name).Order());
         Assert.Empty(tools.SelectMany(t => NullKeywords(t.Name, t.ProtocolTool.InputSchema)));
     }
 
