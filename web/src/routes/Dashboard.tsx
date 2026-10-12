@@ -17,7 +17,7 @@ import { MD_UP_QUERY } from "../lib/breakpoints";
 import { captureTiles, dayStrip } from "../lib/dashboard";
 import {
   DEFAULT_EXPANDED_RANGE, DEFAULT_RANGE, EXPANDED_RANGE_PRESETS, EXPANDED_RANGE_STORAGE_KEY,
-  RANGE_STORAGE_KEY, formatStoredRange, parseStoredRange, trendWindow,
+  MAX_EXPANDED_RANGE_DAYS, RANGE_STORAGE_KEY, formatStoredRange, parseStoredRange, trendWindow,
 } from "../lib/layRateRange";
 import type { CustomRangeError, LayRateRange } from "../lib/layRateRange";
 import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
@@ -42,10 +42,6 @@ const HOUSES_PER_PAGE_PHONE = 6;
 export type FlockScope = { kind: "all" } | { kind: "flock"; flock: Flock };
 
 export const DASHBOARD_DELTA_CLASSES = ["trend-delta", "trend-delta is-down", "trend-delta is-up"] as const;
-
-// #941 — the expanded chart's presets and cap live on the page rather than
-// in the card: the card plots at most a fortnight and cannot express them.
-const MAX_EXPANDED_RANGE_DAYS = 370;
 
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
