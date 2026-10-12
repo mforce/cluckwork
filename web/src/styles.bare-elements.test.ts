@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import postcss from "postcss";
 import type { AtRule, Container, Document, Rule } from "postcss";
 import selectorParser from "postcss-selector-parser";
 import type { Node as SelectorNode, Selector } from "postcss-selector-parser";
+import { readStylesheet } from "./test/stylesheet";
 
 // #823 §2.3 — the rules in `styles.css` that style an element by NAME.
 //
@@ -63,7 +62,7 @@ import type { Node as SelectorNode, Selector } from "postcss-selector-parser";
 // regardless of `:where()`'s zero specificity, defeating the whole technique
 // silently. Every rule this walk finds is now also checked for it.
 
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 
 // MUI's and Emotion's own naming: `MuiButton-root` (component-slot, capital
 // after `Mui`) and `Mui-disabled` (global state, hyphen after `Mui`) — never

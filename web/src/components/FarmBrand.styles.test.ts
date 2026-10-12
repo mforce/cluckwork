@@ -1,7 +1,5 @@
-/// <reference types="node" />
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readStylesheet } from "../test/stylesheet";
 
 // #179 piece 1 — the sidebar branding slot's GEOMETRY.
 //
@@ -20,12 +18,6 @@ import { fileURLToPath } from "node:url";
 // cascade and would have rendered the square again with this file still green.
 // A guard that reads as safety while missing the thing it guards is worse than
 // no guard, so the width assertion below is quantified over ALL of them.
-//
-// The relative path is held in a variable, not an inline literal, for the same
-// reason cssTokens.ts does it — see the comment there (Vite rewrites a literal
-// `new URL("...", import.meta.url)` into a dev-server asset URL under jsdom).
-const CSS_REL = "../styles.css";
-const CSS_PATH = fileURLToPath(new URL(CSS_REL, import.meta.url));
 
 interface Rule {
   prelude: string;
@@ -92,7 +84,7 @@ function allRules(css: string): Rule[] {
 // `.brand-logo` as a whole class token — not `.brand-logo-foo`.
 const BRAND_LOGO = /\.brand-logo(?![\w-])/;
 
-const css = readFileSync(CSS_PATH, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const css = readStylesheet().replace(/\/\*[\s\S]*?\*\//g, "");
 const brandLogoRules = allRules(css).filter((r) => BRAND_LOGO.test(r.prelude));
 
 describe(".brand-logo geometry (#179)", () => {

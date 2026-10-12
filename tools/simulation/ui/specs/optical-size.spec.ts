@@ -35,7 +35,7 @@ test("display text renders at a display optical size", async ({ page, signIn }) 
     const probe = (px: number, mode: string) => {
       const span = document.createElement("span");
       // #948 — the app now pins `font-variation-settings: "opsz" 14` at
-      // :root (styles.css) so body/table text stays off the display cut;
+      // :root (styles/tokens.css) so body/table text stays off the display cut;
       // that value is INHERITED, so a detached probe testing raw
       // `font-optical-sizing` behavior must clear it explicitly or it would
       // always measure the inherited pin instead of `mode`.

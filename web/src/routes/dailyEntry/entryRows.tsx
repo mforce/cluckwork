@@ -5,7 +5,7 @@ import type { remainderDropProps } from "../../components/GradingChip";
 // #830 (owner's screenshot review of #888) — the stepper row's 48px squares
 // (mockup: docs/designs/864-visual-language/daily-entry.html) are an sx
 // override on NumberField's OWN classes (`.numfield-step`), never an edit to
-// NumberField.tsx or its base CSS block (styles.css L1030-1093, #828's):
+// NumberField.tsx or its base CSS block (#828's, now NumberField's own `sx`):
 // those stay exactly as #828 will find them, and this override reaches only
 // rows rendered by THIS page. Every part NumberField renders is a FIXED size
 // at a given breakpoint — the two step buttons, and the input's own ch-width

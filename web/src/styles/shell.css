@@ -1,0 +1,183 @@
+/* --------------------------------------------------- Shell branding (#829)
+   The sidebar and bottom-nav rule families that used to live here (`.shell`,
+   `.sidebar`, `.tabbar`, `.tab`) are gone: the sidebar is a permanent MUI
+   `Drawer` and the tab bar a `BottomNavigation`, both themed in
+   FarmThemeProvider.tsx (MuiDrawer/MuiListItemButton/MuiBottomNavigation*).
+   What survives is `FarmBrand` (kept as a component, D2 pair 21-adjacent —
+   it is not one of the 21 rows but the same "no MUI equivalent, stays as
+   is" reasoning applies) and the two group-label classes the caps guard
+   (`styles.caps.test.ts`) keys on. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--stat-accent);
+  padding: 0 1.5rem;
+}
+
+/* The farm's own logo in the branding slot (#123). On a white plate so a
+   dark logo stays legible on any farm palette, light or lavender-tinted.
+   `contain` stops a non-square logo being CROPPED — but on the fixed 26x26
+   square this used to be, contain is what collapsed a wide wordmark into a
+   sliver: it kept the aspect ratio and gave up the height (#179).
+   So the height drives the size and the width follows the image's own aspect.
+   max-width only binds for a WIDE logo — a square mark stays ~24px and leaves
+   .brand-name its full slot; a wordmark takes the space instead, which is the
+   right trade because a wordmark already carries the farm's name. */
+.brand-logo {
+  flex: 0 0 auto;
+  height: 24px;
+  width: auto;
+  max-width: 140px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+/* Farm names are user text and can be long — the slot ellipsises rather than
+   pushing the sidebar wider or wrapping onto the nav. */
+.brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-group-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 1.5rem;
+  margin: 0.6rem 0 0.3rem;
+}
+
+/* The More sheet reuses the Dialog shell, so these only style its contents. */
+.more-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.more-group-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0.9rem 0 0.15rem;
+}
+
+.more-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.5rem;
+  border-radius: var(--r-input);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.more-nav a svg { color: var(--muted); flex: none; }
+
+.more-nav a.active {
+  background: var(--tint-accent);
+  color: var(--stat-accent);
+}
+
+.more-nav a.active svg { color: var(--stat-accent); }
+
+.more-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.content {
+  padding: 2.5rem 2.75rem 4rem;
+  max-width: 1120px;
+  width: 100%;
+}
+
+.content > section > h2 {
+  font-size: 1.9rem;
+  margin: 0 0 1.25rem;
+}
+
+/* Page header (F131): title left, the screen's primary "New …" action right. */
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0 0 1.25rem;
+}
+
+.content .page-head h2 {
+  font-size: 1.9rem;
+  margin: 0;
+}
+
+.page-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Actions that open a drill-down panel's dialogs, in one row above its ledger. */
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.9rem 0 1.1rem;
+}
+
+.panel-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.content h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* #883 round 4, finding B — wrapped in `:where()` so this contributes ZERO
+   specificity, the same device the #823 bare-element sweep uses in controls.css, extended to a scoped-but-still-outranking selector that sweep did
+   not catch (it only walked selectors with no class of their own). At its
+   un-where'd specificity (0,1,1), `.content a` beat MUI's own single
+   generated class (0,1,0) regardless of Emotion's `prepend: true` injection
+   order — so a contained `Button` rendered as `component={Link}` (an `<a>`
+   under `.content`, e.g. Dashboard's Record button) had its `contrastText`
+   label repainted `--link` blue instead of `--on-brand` white. Zeroing this
+   selector leaves it applying only where nothing else sets `color` on the
+   element — every plain `Typography`-as-link and hand-rolled `<a>` in the
+   app, none of which carry an explicit MUI `color` — while any MUI component
+   that does set one (a contained, outlined or text Button; a Chip) wins on
+   its own single class. */
+:where(.content a) {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-color: var(--link-rule);
+  text-underline-offset: 2px;
+}
+
+:where(.content a):hover,
+:where(.content a):focus-visible {
+  text-decoration: underline;
+  text-decoration-color: var(--ink);
+  text-underline-offset: 2px;
+}
+

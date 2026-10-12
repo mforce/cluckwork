@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { resolveTokens, type Mode } from "../test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "../lib/brand";
 import { THEME_TOKENS, pixelsFrom, type ThemeToken, type TokenValues } from "./farmTokens";
 import { createFarmTheme } from "./FarmThemeProvider";
+import { readStylesheet } from "../test/stylesheet";
 
 const MODES: Mode[] = ["light", "dark"];
 // The default palette carries no data-brand attribute; the others do. Same
@@ -74,7 +73,7 @@ describe("MUI theme bridge (#674)", () => {
   // stylesheet actually declares, so a rename in styles.css surfaces here
   // instead of leaving a stale literal quietly serving tests.
   it("names only tokens the stylesheet declares", () => {
-    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+    const css = readStylesheet();
     for (const token of THEME_TOKENS) {
       expect(css, `${token} is not declared in styles.css`).toContain(`${token}:`);
     }

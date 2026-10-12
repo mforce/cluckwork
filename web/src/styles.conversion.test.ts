@@ -8,6 +8,7 @@ import { DAY_SLOT_KINDS, GRADE_COLOURS } from "./lib/dashboard";
 import { GRADING_TONES } from "./lib/grading";
 import { STATUS_BADGE_CLASSES } from "./components/StatusBadge";
 import { DASHBOARD_DELTA_CLASSES } from "./routes/Dashboard";
+import { readStylesheet } from "./test/stylesheet";
 
 type AstNode = { type: string; start?: number | null; end?: number | null; [key: string]: unknown };
 
@@ -37,7 +38,7 @@ function productionFiles(extensions: readonly string[]): string[] {
 
 function declaredClasses(): Set<string> {
   const found = new Set<string>();
-  const css = postcss.parse(readFileSync(resolve(sourceRoot, "styles.css"), "utf8"));
+  const css = postcss.parse(readStylesheet());
   css.walkRules((rule) => {
     selectorParser((selectors) => selectors.walkClasses((node) => { found.add(node.value); })).processSync(rule.selector);
   });

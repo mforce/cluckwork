@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import postcss from "postcss";
 import type { Rule } from "postcss";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 import { contrast, resolveTokens, type Mode } from "./test/cssTokens";
+import { readStylesheet } from "./test/stylesheet";
 
 // Resolve token contrast per brand and mode because jsdom does not resolve custom properties.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 
 function declarationsFor(selector: string): Map<string, string> {

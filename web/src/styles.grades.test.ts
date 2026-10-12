@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import postcss from "postcss";
 import type { Rule } from "postcss";
 import { contrast, declaredKeys, deltaE, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 import { GRADE_COLOURS } from "./lib/dashboard";
+import { readStylesheet } from "./test/stylesheet";
 
 // #777 — the Dashboard's stock bar encodes egg grade as a HUE, and the hues are
 // deliberately outside the farm-palette system. A farm's palette identifies the
@@ -16,8 +15,7 @@ import { GRADE_COLOURS } from "./lib/dashboard";
 // presence of a rule's TEXT, and both were vacuous: `--grade-8: #2076a1` beside
 // `--grade-1: #2076a0` passed, and so did appending a rule that repainted every
 // band one colour. It measures perceptual distance and cascade now.
-const CSS_REL = "./styles.css";
-const css = readFileSync(fileURLToPath(new URL(CSS_REL, import.meta.url)), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 const MODES: Mode[] = ["light", "dark"];
 const TOKENS = Array.from({ length: GRADE_COLOURS }, (_, i) => `--grade-${i + 1}`);

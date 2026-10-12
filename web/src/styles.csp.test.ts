@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { extname, relative, resolve } from "node:path";
 import postcss from "postcss";
 import { parse } from "@babel/parser";
+import { readStylesheet } from "./test/stylesheet";
 
 // #735 (codex review of #736) — the API serves this stylesheet under
 // `img-src 'self' blob:` (SecurityHeaders.cs, pinned by SecurityHeadersTests),
@@ -10,10 +11,10 @@ import { parse } from "@babel/parser";
 // renders on the Vite dev server (no CSP) and vanishes in production, and no
 // DOM test can see it: jsdom loads no CSS and enforces no policy. So this
 // walks EVERY url() token in every declaration of the one stylesheet under
-// web/src (find web/src -name '*.css' → styles.css alone) and admits only
+// web/src (styles.css and the files it imports) and admits only
 // same-origin references. Anything with a scheme (data:, https:, blob:) or a
 // protocol-relative host fails here rather than shipping.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 
 // CSS escapes are decoded by the browser (and re-emitted decoded by the

@@ -86,7 +86,7 @@ export function BottomNav({
           zIndex: 20, // over the page + the entry footer (10), under the dialog (50)
         }}
       >
-        {/* --tabbar-h (styles.css) is the bar's whole box — 3.6rem of content
+        {/* --tabbar-h (styles/responsive.css) is the bar's whole box — 3.6rem of content
             plus the safe-area inset — and every OTHER sticky footer reads it
             as that combined offset unchanged. The bar itself must not take
             that whole value as its content height, or the actions centre

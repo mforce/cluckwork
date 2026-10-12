@@ -1,0 +1,360 @@
+/* ------------------------------------- Last 14 days (#654, #777) */
+/* A strip of days, not a line. The line it replaces drew a zero day on the
+   floor of its viewBox, so a zero was a drop rather than a plateau — but it
+   never drew that floor or the top of the scale, so nothing said the bottom
+   meant zero rather than the window's own minimum, and it interpolated between
+   days that a daily count has no values between. The strip names both ends of
+   the scale and draws a slot per day. Since #780 it also distinguishes a day
+   that produced nothing from a day nobody recorded: the first keeps a stub at
+   the baseline, the second draws no bar. */
+.trend {
+  margin: 0;
+}
+
+/* The caption wraps rather than splitting the title: `tl` runs roughly 30%
+   longer than `en` (#688) and on a 331px panel "Itlog bawat araw" beside two
+   figures does not fit on one line. Keeping the figures together and letting
+   the row wrap degrades better than hyphen-free mid-title wrapping. */
+.trend-scale {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.trend-figures {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.trend-peak,
+.trend-avg {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Avg is the quieter of the two: the peak sets the scale the bars are drawn
+   against, the average is a reference on it. */
+.trend-avg {
+  color: var(--muted);
+}
+
+/* The readout's reserved row. Always present, so the box appearing reflows
+   nothing — the first attempt let it size the row and every hover shoved the
+   Avg/Peak group sideways. 2.2rem is the permanent cost. */
+.tipdock {
+  position: relative;
+  height: 2.2rem;
+}
+
+/* Positioned by a measured clamp from the component, not by index arithmetic.
+   The component writes `transform`; everything that does not depend on the
+   text's own width lives here.
+
+   `left: 0` is load-bearing, and it is not cosmetic. An absolutely positioned
+   box with `left` written to it shrinks to fit the space remaining to its
+   RIGHT, so a box the Dashboard card lets wrap (`white-space: normal` there)
+   got narrower the further right it was placed — its width then depended on
+   its own position, and the measurement that chose that position read the
+   width left over from the previous one (#962). Pinned at 0 the box always
+   sizes against the whole dock, and a transform moves it without touching
+   layout. */
+.tip {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  max-width: 100%;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.daystrip {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 5rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* The mean of the RECORDED days, which is a figure that only exists since #780
+   — averaging over a window that could not tell an unrecorded day from a zero
+   would have divided by the calendar rather than by the evidence. */
+.avgline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed color-mix(in oklab, var(--ink) 55%, transparent);
+  pointer-events: none;
+}
+
+/* The slot, drawn whether or not the day has a figure. A button, because the
+   day's own figure appears nowhere else and a keyboard user has to reach it. */
+.day {
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 3px 3px 0 0;
+  background: color-mix(in oklab, var(--stat-accent) 7%, transparent);
+  cursor: pointer;
+  font: inherit;
+}
+
+/* The bar. Anchored at zero and sized as a share of the peak — not a cropped
+   axis: the panel answers "did production hold", and shortening the axis to
+   dramatise a small swing would misstate the ratios between days. A recorded
+   day floors at 2%, so a day that produced nothing still shows a stub. */
+.day > i {
+  display: block;
+  width: 100%;
+  max-width: 18px;
+  /* The 2% floor is 1.58px on a 5rem strip, and that sliver is the entire
+     visible difference between "recorded zero" and "nobody looked". A pixel
+     floor makes it a mark a reader can actually see. */
+  min-height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--stat-accent);
+}
+
+/* The selected day. The SLOT is marked, not just the bar: many days in a
+   typical window have no bar to recolour, and on a 2px stub a ring round the
+   bar reads as a rendering fault rather than a selection.
+
+   Outlined and NOT filled. A fill was the approved mockup and it was wrong on
+   the running app: tinting the slot to 14% ink drew a full-height block, so a
+   day with a 2% stub and a day with no bar at all both read as a bar carrying
+   a real figure — the exact misreading this issue exists to remove. Caught by
+   looking at the render, not at the diff.
+
+   The ring sits OUTSIDE the slot. Inset, it was invisible on a tall day: a bar
+   is 18px in a ~20px slot, so an inset band lands on the bar, and `.day.on > i`
+   has just painted that bar the ring's own colour — the peak day showed no ring
+   at all. 1px out sits inside the 4px gap between slots, so it cannot touch a
+   neighbour, and it reads on every day whatever the bar's height. */
+.day.on {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.day.on > i {
+  background: var(--ink);
+}
+
+/* A day only some houses reported. The bar is a FLOOR, not the day's output, so
+   it is drawn hollow: a solid bar here asserts a drop in production that the
+   farm's own records never claimed — the same mistake as drawing an unrecorded
+   day as a zero, one step in. */
+.day-partial > i {
+  background: linear-gradient(
+    135deg,
+    var(--stat-accent) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--stat-accent) 50%,
+    var(--stat-accent) 75%,
+    transparent 75%
+  );
+  background-size: 6px 6px;
+  border: 1px solid var(--stat-accent);
+  box-sizing: border-box;
+}
+
+.day.on.day-partial > i {
+  background: linear-gradient(
+    135deg,
+    var(--ink) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--ink) 50%,
+    var(--ink) 75%,
+    transparent 75%
+  );
+  background-size: 6px 6px;
+  border: 1px solid var(--ink);
+  box-sizing: border-box;
+}
+
+/* Keyboard focus on a SELECTED day (#941). `.day.on` is (0,2,0) and the global
+   `:focus-visible` (0,1,0) loses to it, so a focused day used to draw exactly
+   the ink ring a HOVERED one draws — no focus indicator at all. Focusing a
+   slot also selects it, so this pair is the only state that needs answering.
+
+   The ring is two-toned because no single tone clears 3:1 against both of its
+   neighbours. Measured 2026-09, recorded here rather than asserted anywhere:
+   `--focus` is 1.20-1.55 against `--ink` in all four brands and both themes.
+   The inner tone is `--surface`, `--ink`'s own opposite by construction, so
+   the accent ring is never read against the bar it rings, and
+   DayStrip.focus.test.ts holds every adjacency of that chain to 3:1. */
+.day.on:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.day.on:focus-visible > i {
+  outline: 2px solid var(--surface);
+}
+
+/* The arrow, anchored to the slot element. Never positioned by index
+   arithmetic: the slots carry a 4px gap plus the 9px week break, so
+   (i + 0.5) / n is not where a slot actually is. 5px of arrow in the dock's
+   8px gap, so the box cannot swallow it. */
+.day.on::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  /* The CSS triangle, written as longhands: the guard below requires every
+     colour-valued declaration to resolve through a token or to BE a colour
+     keyword, and `border: 5px solid transparent` is a shorthand carrying one
+     rather than either. Splitting it says the same thing and stays checkable.
+
+     `border-width: 5px 5px 0` — NO bottom border, and this is the whole fix.
+     The visible triangle is the TOP border, so a uniform 5px box carries 5px of
+     empty bottom border BELOW it; with `bottom: 100%` pinning the box's bottom
+     edge to the slot, that empty half pushed the triangle 5px higher, up behind
+     the readout, leaving about 1px of a 5px arrow showing in the same colour as
+     the box it was hiding under. Measured, not guessed — and the comment that
+     used to sit here asserted the opposite. With no bottom border the element
+     IS the triangle: it spans the 5px directly above the slot, inside the 8px
+     the dock reserves. */
+  border-width: 5px 5px 0;
+  border-style: solid;
+  border-color: transparent;
+  border-top-color: var(--ink);
+  pointer-events: none;
+}
+
+/* The week boundary the hen-day figure below compares across. One hairline,
+   not a second fill: tinting the two weeks differently faded whichever week
+   happened to hold fewer recorded days. */
+.day-week {
+  margin-left: 9px;
+}
+
+.day-week::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--hairline);
+}
+
+.trend-rule {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+/* The strip's key — what solid, hatched and outlined mean. Matches the
+   approved mockup (production-flock-selector-v2.html): under the date rule,
+   above the hen-day KPI (#918 fidelity round). */
+.trend-legend {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.875rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.trend-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.trend-legend-swatch {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+  background: var(--stat-accent);
+}
+
+.trend-legend-swatch.partial {
+  background: linear-gradient(
+    135deg,
+    var(--stat-accent) 25%,
+    transparent 25%,
+    transparent 50%,
+    var(--stat-accent) 50%,
+    var(--stat-accent) 75%,
+    transparent 75%
+  );
+  background-size: 6px 6px;
+  border: 1px solid var(--stat-accent);
+  box-sizing: border-box;
+}
+
+.trend-legend-swatch.missing {
+  background: transparent;
+  border: 1px dashed var(--muted);
+  box-sizing: border-box;
+}
+
+/* The Lay rate card's scope context — "{scope} · {date range}", under the
+   scope selector and above the scale caption (#918 fidelity round). */
+.trend-context {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0 0 1.375rem;
+}
+
+/* Hen-day: the panel's measure, so a figure. It was the smallest text here. */
+.trend-kpi {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin: 0.9rem 0 0;
+}
+
+.trend-fig {
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-delta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lay rate falling is the bad direction. An unknown delta keeps the neutral
+   colour above rather than reading as good. */
+.trend-delta.is-down { color: var(--error); }
+.trend-delta.is-up { color: var(--success); }
+
+.trend-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+

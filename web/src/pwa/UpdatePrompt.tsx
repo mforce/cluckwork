@@ -71,7 +71,7 @@ export function UpdatePrompt() {
       {waiting && (
         // Plain HTML, not a real MUI Dialog: nothing sets the rest of the
         // page `inert` while this is open (that would need a caller inside
-        // SessionProvider — the very gap styles.css documents above
+        // SessionProvider — the very gap styles/splash.css documents above
         // `.brand-splash-backdrop`), so claiming `role="dialog"`/
         // `aria-modal` here would assert a guarantee this component cannot
         // back. `role="status"` + `aria-live="polite"` is the same honest

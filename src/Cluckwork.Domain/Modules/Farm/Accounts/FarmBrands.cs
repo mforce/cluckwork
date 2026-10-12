@@ -8,7 +8,7 @@ namespace Cluckwork.Domain.Modules.Farm.Accounts;
 // `data-brand="<id>"` and matched by exact-match CSS selectors.
 //
 // MIRRORED by web/src/lib/brand.ts (BRANDS) and by the palette blocks in
-// web/src/styles.css. All three are the same curated set expressed three ways;
+// web/src/styles/tokens.css. All three are the same curated set expressed three ways;
 // adding a palette means touching all three. A palette present here but missing
 // from the CSS renders as the default rather than failing, and one present in
 // the SPA but missing here is refused on save with Account.UnknownBrand — both

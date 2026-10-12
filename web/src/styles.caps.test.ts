@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import postcss from "postcss";
 import type { AtRule, Node, Rule } from "postcss";
 import { contrast, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
+import { readStylesheet } from "./test/stylesheet";
 
 // #652 — caps mark structure, they do not decorate every label. The walk is
 // over the WHOLE stylesheet: an equality, not a subset, so both re-adding caps
 // somewhere new and dropping them from a divider are failures.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 const clean = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").trim();
 

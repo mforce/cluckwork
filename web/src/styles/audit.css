@@ -1,0 +1,117 @@
+.audit-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.audit-scope small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.audit-scope-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.audit-scope .audit-scope-control {
+  margin: 0;
+  flex-direction: row;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin-top: 0.875rem;
+  margin-bottom: 14px;
+}
+
+.audit-filters .MuiFormControl-root {
+  min-width: 0;
+}
+
+.audit-clear-filters {
+  margin: 0.5rem 0 1.5rem;
+}
+
+.audit-app-pivot {
+  margin: -1rem 0 1rem;
+  overflow-wrap: anywhere;
+}
+
+/* The status region stays mounted so screen readers hear its first message. */
+.audit-app-pivot:empty {
+  margin: 0;
+}
+
+.audit-events {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 760px;
+}
+
+.audit-event {
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-input);
+}
+
+.audit-event > summary {
+  padding: 1rem;
+  cursor: pointer;
+  font-weight: 700;
+  background: var(--soft);
+}
+
+/* #800 — who acted, on the summary's second line; long app names wrap. */
+.audit-event-actor {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.audit-event-actor strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The icon and "via <app>" wrap as one unit; a name too long for a line still breaks. */
+.audit-event-app {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.audit-event-app-icon {
+  margin-right: 0.25rem;
+  vertical-align: -2px;
+}
+
+.audit-event > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.audit-event-body {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.125rem;
+}
+
+.audit-event-body > * {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+

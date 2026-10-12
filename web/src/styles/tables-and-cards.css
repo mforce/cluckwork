@@ -1,0 +1,81 @@
+/* ---------------------------------------------------------------- Tables */
+table.data {
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  min-width: 24rem;
+  width: 100%;
+}
+
+table.data th,
+table.data td {
+  text-align: left;
+  padding: 0.6rem 1rem 0.6rem 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+table.data th {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0;
+}
+
+table.data tbody tr:hover {
+  background: var(--row-hover);
+}
+
+/* Numeric cells (#650): a column of figures reads as a column only when the
+   digits line up — right-aligned under a right-aligned header, tabular
+   figures, and never a wrap inside a number or a money string. Screens mark
+   both the th and its td; a header left over its right-aligned column reads
+   as a different column. */
+table.data th.num,
+table.data td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A calendar date is one token: "2026-08-" / "14" across two lines is not a
+   date (docs/images/sales.png before #650). Left-aligned like text, unwrapped
+   like a number. */
+table.data td.nowrap {
+  white-space: nowrap;
+}
+
+/* One-line provenance summary (#653): relative time + actor. Capped so this
+   column can never again be the widest thing in the table
+   (docs/images/sales.png, before #653) — the full three-fact stamp survives
+   in the cell's `title`, unchanged. */
+table.data td.provenance-cell {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+table.data th[scope="row"] {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  vertical-align: top;
+}
+
+tr.inactive td {
+  color: var(--muted);
+}
+
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ------------------------------------------------------ Cards & panels */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-panel);
+}
+

@@ -355,7 +355,7 @@ Routing:        TanStack Router  (or React Router)
 Server state:   TanStack Query   (cache, retries, offline mutation persistence)
 Forms:          React Hook Form + Zod
 Local store:    IndexedDB via Dexie (offline cache + mutation queue)
-UI:             MUI (@mui/material), themed from the farm palette tokens in styles.css
+UI:             MUI (@mui/material), themed from the farm palette tokens in styles/tokens.css
                 (Tailwind CSS + shadcn/ui declined 2026-09-13; docs/decisions/674-ui-component-library.md)
 Charts:         Recharts (or visx for custom dashboard viz)
 API client:     generated from OpenAPI (Kiota or NSwag) → typed client + types

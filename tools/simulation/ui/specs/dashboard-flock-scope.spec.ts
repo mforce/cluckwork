@@ -342,7 +342,7 @@ test.describe("Dashboard Lay rate flock scope", () => {
   // Popper's `flip` modifier reads as available space and can flip the
   // popover above the search field, over the title — checked directly via
   // placement/position, not inferred from the absence of clipping). The
-  // listbox itself is capped at ~6 rows (styles.css), well under MUI's 40vh
+  // listbox itself is capped at ~6 rows (styles/named-picker.css), well under MUI's 40vh
   // default, so the modal stays compact and only the listbox scrolls. Left
   // unfiltered on open, against the fixture's ~100-flock catalog, so there
   // are enough rows to force that internal scroll.

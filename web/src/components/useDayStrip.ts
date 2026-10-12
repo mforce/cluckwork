@@ -61,7 +61,7 @@ export function useDayStrip(
   // Written as a TRANSFORM, against a box the stylesheet pins at `left: 0`.
   // Writing `left` here resized the box it was about to measure, so the
   // placement and the width defined each other and one of them was always a
-  // step behind (#962 — the reasoning is on `.tip` in styles.css).
+  // step behind (#962 — the reasoning is on `.tip` in styles/day-strip.css).
   const gutterRef = scroll?.gutterRef;
   const scrollerRef = scroll?.scrollerRef;
   // Stable per selected day, so a caller can key an effect on it.

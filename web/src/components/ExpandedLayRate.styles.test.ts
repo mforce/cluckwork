@@ -7,12 +7,10 @@
 // the box would simply sit a few percent off the window it claims to mark.
 // This file is what notices.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { DAY_GAP_PX, DAY_SLOT_PX } from "../lib/dayWindow";
+import { readStylesheet } from "../test/stylesheet";
 
-const CSS_REL = "../styles.css";
-const css = readFileSync(fileURLToPath(new URL(CSS_REL, import.meta.url)), "utf8")
+const css = readStylesheet()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 const flat = (text: string) => text.trim().replace(/\s+/g, " ");
 // The phone block is `@media (max-width: 900px)`, which declares its own copy

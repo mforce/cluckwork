@@ -93,13 +93,13 @@ describe("#835 nothing flattens display and body onto one cut", () => {
   // an element's real font-size, so leaving it untouched everywhere (as #835
   // originally shipped) let MUI body/input/table text at 16px on phones drift
   // off Inter's opsz 14 text cut along with the intended stat figures. The
-  // fix pins the text cut once, globally, in styles.css's `:root`, and clears
+  // fix pins the text cut once, globally, in styles/tokens.css's `:root`, and clears
   // that pin back to automatic sizing only on the named stat figures — so a
   // single root pin is expected, and it must stay a fixed value; anything
   // pinning opsz elsewhere, or clearing it to anything other than automatic,
   // is the shape of defect this test exists to catch.
-  it("pins opsz to a single text-cut value, only at styles.css's root", () => {
-    const rootFile = resolve(webRoot, "src/styles.css");
+  it("pins opsz to a single text-cut value, only at the stylesheet's root", () => {
+    const rootFile = resolve(webRoot, "src/styles/tokens.css");
     const offenders = files
       .filter((path) => path !== rootFile)
       .filter((path) => /font-?[vV]ariation-?[sS]ettings[^;\n]*opsz/.test(readFileSync(path, "utf8")));
@@ -107,7 +107,7 @@ describe("#835 nothing flattens display and body onto one cut", () => {
 
     const pins = [...readFileSync(rootFile, "utf8").matchAll(/font-variation-settings:\s*"opsz"\s*(\d+)/g)]
       .map(([, value]) => value);
-    expect(pins, "styles.css must pin opsz to exactly one numeric text-cut value, once").toEqual(["14"]);
+    expect(pins, "styles/tokens.css must pin opsz to exactly one numeric text-cut value, once").toEqual(["14"]);
   });
 });
 

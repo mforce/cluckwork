@@ -1,30 +1,11 @@
-/// <reference types="node" />
 // Test-only CSS reader for the design tokens (#149). Lives under src/test/ so
 // it is excluded from the coverage gate.
-//
-// The node reference above is explicit on purpose: this file reads the
-// stylesheet from disk (node:fs / node:url), but it sits under the browser
-// tsconfig.app, whose lib is DOM-only. TypeScript 7 no longer auto-resolves the
-// `node:` builtins here without it (TS2591), so name the dependency rather than
-// lean on @types auto-inclusion.
 //
 // Why this exists rather than getComputedStyle: jsdom does not resolve custom
 // property chains, so `--focus: var(--stat-accent)` comes back as the literal
 // string "var(--stat-accent)" and never as a colour. The palette guard tests
 // need real resolved colours, so the cascade is rebuilt here.
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
-// The relative path is held in a variable rather than passed as an inline
-// string literal: Vite's import-analysis plugin statically pattern-matches
-// `new URL("literal", import.meta.url)` and rewrites it into a dev-server
-// asset URL (e.g. "http://localhost:3000/src/styles.css") under the jsdom
-// test environment, which fileURLToPath() then rejects as "not scheme file".
-// A variable first-argument isn't literal text, so the transform doesn't
-// match and the real WHATWG URL resolution (against the real file:// module
-// URL) runs instead.
-const CSS_REL = "../styles.css";
-const CSS_PATH = fileURLToPath(new URL(CSS_REL, import.meta.url));
+import { readStylesheet } from "./stylesheet";
 
 export type Mode = "light" | "dark";
 
@@ -48,7 +29,7 @@ function stripComments(css: string): string {
 }
 
 function stripAtBlocks(css: string): string {
-  // Drop @media/@supports bodies entirely. styles.css has a CONDITIONAL
+  // Drop @media/@supports bodies entirely. styles/responsive.css has a CONDITIONAL
   // `:root { --tabbar-h: ... }` nested in `@media (max-width: 900px)`, and a
   // naive scan treats it as part of the unconditional root cascade — this
   // function resolves what applies with no media condition in force, so a
@@ -106,7 +87,7 @@ function parseBlocks(css: string): Block[] {
 
 let cache: Block[] | null = null;
 function allBlocks(): Block[] {
-  cache ??= parseBlocks(stripAtBlocks(stripComments(readFileSync(CSS_PATH, "utf8"))));
+  cache ??= parseBlocks(stripAtBlocks(stripComments(readStylesheet())));
   return cache;
 }
 

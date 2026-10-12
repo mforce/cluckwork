@@ -438,7 +438,7 @@ describe("farm theme policy (#823 G2)", () => {
   // raw content width, which is what actually pushed `/flocks` to a
   // 941px `document.documentElement.scrollWidth` at a 390px frame
   // (`phone.spec.ts`'s overflow walk, run against a real build). `contain:
-  // layout` is the fix `styles.css`'s own `table.data` phone rule already
+  // layout` is the fix `styles/responsive.css`'s own `table.data` phone rule already
   // carries; this pins the same property on `MuiTableContainer`.
   it("stops a phone-width table's own layout from inflating the viewport (#441)", () => {
     for (const { label, theme } of themes) {

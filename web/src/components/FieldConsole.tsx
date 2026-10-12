@@ -20,7 +20,7 @@ export const CONSOLE_LINK_SX = {
   // only ~2.6:1 against --surface/--surface-2, under the 3:1 floor. --muted
   // reads as inert without borrowing the idle link's own colour. `opacity: 1`
   // overrides the global `:where(button:disabled) { opacity: .5 }`
-  // (styles.css) the same way the existing busy-button exception does
+  // (styles/controls.css) the same way the existing busy-button exception does
   // (`:where(button:disabled[aria-busy="true"])`) — left unset, --muted at
   // half opacity measures 2.84:1/2.68:1, still under 3:1.
   "&.Mui-disabled": { color: "var(--muted)", opacity: 1 },

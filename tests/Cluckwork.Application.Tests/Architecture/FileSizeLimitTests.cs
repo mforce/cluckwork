@@ -24,7 +24,6 @@ public sealed partial class FileSizeLimitTests
 
     private static readonly Dictionary<string, int> Legacy = new(StringComparer.Ordinal)
     {
-        ["web/src/styles.css"] = 3581,
     };
 
     private static readonly Dictionary<string, int> LegacyTests = new(StringComparer.Ordinal)

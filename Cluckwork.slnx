@@ -393,6 +393,26 @@
     <File Path="web/src/session/StepperUnitSelector.test.tsx" />
     <File Path="web/src/session/StepperUnitSelector.tsx" />
   </Folder>
+  <Folder Name="/web/src/styles/">
+    <File Path="web/src/styles/audit.css" />
+    <File Path="web/src/styles/base.css" />
+    <File Path="web/src/styles/controls.css" />
+    <File Path="web/src/styles/daily-entry.css" />
+    <File Path="web/src/styles/day-strip.css" />
+    <File Path="web/src/styles/dialogs.css" />
+    <File Path="web/src/styles/expanded-lay-rate.css" />
+    <File Path="web/src/styles/help.css" />
+    <File Path="web/src/styles/named-picker.css" />
+    <File Path="web/src/styles/notices.css" />
+    <File Path="web/src/styles/responsive.css" />
+    <File Path="web/src/styles/shell.css" />
+    <File Path="web/src/styles/splash.css" />
+    <File Path="web/src/styles/stock-bar.css" />
+    <File Path="web/src/styles/tables-and-cards.css" />
+    <File Path="web/src/styles/text-and-badges.css" />
+    <File Path="web/src/styles/tokens.css" />
+    <File Path="web/src/styles/toolbar.css" />
+  </Folder>
   <Folder Name="/web/src/test/">
     <File Path="web/src/test/cssTokens.ts" />
     <File Path="web/src/test/fakeIndexedDb.test.ts" />
@@ -410,6 +430,8 @@
     <File Path="web/src/test/rows.test.tsx" />
     <File Path="web/src/test/rows.ts" />
     <File Path="web/src/test/setup.ts" />
+    <File Path="web/src/test/stylesheet.test.ts" />
+    <File Path="web/src/test/stylesheet.ts" />
     <File Path="web/src/test/viteConfig.test.ts" />
   </Folder>
   <Folder Name="/web/src/theme/">

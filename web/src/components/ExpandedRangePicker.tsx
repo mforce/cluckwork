@@ -75,7 +75,7 @@ export function ExpandedRangePicker({ range, from, to, latestDay, onRangeChange 
       </TextField>
       {custom && (
         <div className="lay-expand-custom">
-          {/* Sized in styles.css, not here: the phone rule is a change of flex
+          {/* Sized in styles/expanded-lay-rate.css, not here: the phone rule is a change of flex
               DIRECTION, and a flex-basis written as an sx prop would then be a
               height. */}
           <FilterDateField
