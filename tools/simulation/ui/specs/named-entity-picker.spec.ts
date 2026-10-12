@@ -109,7 +109,7 @@ test.describe("Searchable named-entity picker (#512)", () => {
     }
     await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
 
-    // Pins `NamedEntityPicker.tsx`'s `disableListWrap`: ArrowDown at the
+    // Pins `namedEntityPicker/PickerOpenState.tsx`'s `disableListWrap`: ArrowDown at the
     // true final option (hasMore exhausted) must not wrap to the first row.
     // The sentinel is not necessarily that row (other specs may add flocks
     // that sort after it), so keep arrowing until the highlight stops

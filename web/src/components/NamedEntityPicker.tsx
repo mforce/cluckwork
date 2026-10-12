@@ -1,15 +1,16 @@
-// #512 — the shared named-entity picker: the one async discovery+commit
-// engine behind the typed `FlockPicker` / `CustomerPicker` adapters. Pages
-// never import the engine directly (FR-053: no generic catalog/entity-link
-// API beyond the two typed adapters), and nothing outside this feature
-// imports this module.
+// #512 — the shared named-entity picker engine behind the typed
+// `FlockPicker` / `CustomerPicker` adapters (FR-053: pages never import it).
 //
-// THIS FILE IS THE COMPOSITION ROOT: it owns the engine's refs and setters
-// and every effect, in base declaration order. The two hooks hold callbacks
-// only (plus the suppressed eligibility effect in usePickerDiscovery).
-// Internals live in ./namedEntityPicker/ (types, engineTypes,
-// usePickerDiscovery, usePickerSelection, PickerPaper, PickerClosedState,
-// PickerOpenState).
+// The shapes below mirror `specs/001-searchable-entity-picker/data-model.md`
+// (Picker Transport Models, State Transitions) and `contracts/picker-ui.md`
+// (Shared Snapshot). US1 lands discovery, paging, commit and retention;
+// the US2/US3 selection-transition machinery (exact/default/lifecycle
+// generations, unavailable states, Escape/clear, Retry) arrives in T026–T034
+// on top of the same state.
+//
+// COMPOSITION ROOT: owns the engine's refs/setters and every effect in base
+// order; the hooks hold callbacks (plus the suppressed eligibility effect in
+// usePickerDiscovery). Internals: ./namedEntityPicker/.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -28,18 +29,11 @@ export { FLOCK_ELIGIBILITIES };
 export type { FlockEligibilityKey, NamedEntityPage, DiscoveryPhase, DiscoveryState, SelectionPhase, PickerSelection, PickerSnapshot };
 
 /**
- * The one async picker engine. US1: discovery (debounce, replacement,
- * extension, dedupe, raw-count cursor, final-empty termination), commit by
- * pointer/Enter, Arrow activation, committed-label retention (FR-018),
- * eligibility-change rediscovery, disabled non-interactivity; US2/US3
- * (T026–T034): selection-transition generations, unavailable states,
- * Escape/clear, Retry and the ARIA write-safety surface.
- *
- * State discipline: a single `EngineState` object, updated ONLY through
- * functional `setState((prev) => …)` updaters that build on `prev` — never on
- * a ref snapshot of the painted state. The generation token (genRef) is the
- * only cross-await authority: every continuation re-checks it after every
- * await (success AND failure) before touching state.
+ * The one async picker engine: US1 discovery/commit/retention; US2/US3
+ * (T026–T034) selection-transition generations, unavailable states, Escape/
+ * clear, Retry. State discipline: a single `EngineState`, updated ONLY via
+ * functional `setState((prev) => …)` — never a ref snapshot — with genRef as
+ * the only cross-await authority (re-checked after every await).
  */
 // --- The engine (T014) -------------------------------------------------------
 
@@ -75,9 +69,13 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // Only a commit writes it; typing never does.
   const [committedText, setCommittedText] = useState<string | null>(null);
 
-  // #826 — `Autocomplete` owns arrow/Enter navigation and highlight tracking;
-  // FR-032 paging and the Escape cancellation contract stay hand-wired (see
-  // `handleRootKeyDown` below).
+  // #826 — `Autocomplete` now owns arrow/Enter navigation and highlight
+  // tracking (the engine no longer hand-rolls a `role=combobox`/`listbox`
+  // pair). `handleHomeEndKeys={false}` on the element below keeps Home/End
+  // native (FR-031). Two things `Autocomplete` does NOT know about stay here:
+  // FR-032 (Down Arrow at the loaded end with `hasMore` requests the next
+  // page) and the Escape cancellation contract (US2: restore committed/blank
+  // text, retain the discovery window, call the page's `onEscape`).
   const highlightedIdRef = useRef<string | null>(null);
 
   // US3 (T035): exact-identity resolution. The controlled sync may hand the
@@ -183,8 +181,10 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     || ((state.selection.phase === "blank" || state.selection.phase === "uninitialized") && !required && !requestedId));
 
   // Snapshot emission: only when committed/selectionPhase/exploring/canSubmit
-  // actually change — the engine holds the latest callback in a ref and
-  // compares the four snapshot fields against the last emitted values.
+  // actually change. A parent that calls setSnapshot with the received object
+  // must not loop merely because the callback identity is fresh on every
+  // render — the engine holds the latest callback in a ref and compares the
+  // four snapshot fields against the last emitted values.
   const onSnapshotRef = useRef(onSnapshot);
   onSnapshotRef.current = onSnapshot;
   const lastSnapshotRef = useRef<{ committed: T | null; selectionPhase: SelectionPhase; exploring: boolean; canSubmit: boolean } | null>(null);
