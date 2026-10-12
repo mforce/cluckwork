@@ -421,7 +421,10 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // split adds wiring only (the picker facade plus its extracted
 // namedEntityPicker/ modules); local measure 1,660.51 KiB against the base's
 // 1,658.83 KiB.
-const PRECACHE_CEILING_KIB = 1661;
+//
+// 2026-10-12, raised to 1,662 KiB for #1256 (the product and packed-unit
+// conflict rebind); the merged branch measures 1,661.68 KiB locally.
+const PRECACHE_CEILING_KIB = 1662;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
