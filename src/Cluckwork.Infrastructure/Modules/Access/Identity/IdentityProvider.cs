@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using OpenIddict.Abstractions;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 
@@ -1679,9 +1680,32 @@ public sealed class IdentityProvider(
         return (replacement, false);
     }
 
+    // Every caller bumps CredentialEpoch in the same transaction. The bump already refuses
+    // the user's connected apps; revoking their authorizations and tokens too is what takes
+    // them off Connected apps and lets OAuthPurge prune them (#1229). A new ConcurrencyToken
+    // fails any in-flight OpenIddict write of a row, which would otherwise put `valid` back.
     private async Task RevokeAllActiveForUserAsync(
-        Guid userId, DateTimeOffset now, CancellationToken ct) =>
+        Guid userId, DateTimeOffset now, CancellationToken ct)
+    {
         await RevokeAllActiveForUserAsync(userId, issuedEpoch: null, now, ct);
+        var subject = userId.ToString();
+        var concurrencyToken = Guid.NewGuid().ToString();
+        await RunRevocationAsync(userId, async () =>
+        {
+            await db.OAuthAuthorizations
+                .Where(authorization => authorization.Subject == subject
+                    && authorization.Status == OpenIddictConstants.Statuses.Valid)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(authorization => authorization.Status, OpenIddictConstants.Statuses.Revoked)
+                    .SetProperty(authorization => authorization.ConcurrencyToken, concurrencyToken), ct);
+            await db.OAuthTokens
+                .Where(row => row.Subject == subject && (row.Status == OpenIddictConstants.Statuses.Valid
+                    || row.Status == OpenIddictConstants.Statuses.Inactive))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(row => row.Status, OpenIddictConstants.Statuses.Revoked)
+                    .SetProperty(row => row.ConcurrencyToken, concurrencyToken), ct);
+        });
+    }
 
     private async Task RevokeAllActiveForUserAsync(
         Guid userId, int? issuedEpoch, DateTimeOffset now, CancellationToken ct)

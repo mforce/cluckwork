@@ -1,4 +1,6 @@
 using System.Net;
+using System.Reflection;
+using System.Text.Json;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
@@ -49,6 +51,44 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         var exempt = Assert.Single(endpoints, e => e.Metadata.GetMetadata<HandlesOwnIdempotencyAttribute>() is not null);
         Assert.Same(McpPost(factory), exempt);
     }
+
+    // #1230: every [McpServerTool] method is served, and an optional parameter is
+    // advertised as its plain type: omitted, never null.
+    [Fact]
+    public async Task ToolSchemas_AreServedForEveryTool_WithoutNull()
+    {
+        using var host = Host(factory);
+        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Owner),
+            [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries]);
+        await using var client = await ConnectAsync(host, token);
+
+        var tools = await client.ListToolsAsync();
+
+        var declared = typeof(McpCallContext).Assembly.GetTypes()
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance))
+            .Select(m => m.GetCustomAttribute<McpServerToolAttribute>()?.Name)
+            .OfType<string>().ToHashSet();
+        Assert.True(declared.Count >= 9, $"the walk found {declared.Count} tools");
+        Assert.Subset(tools.Select(t => t.Name).ToHashSet(), declared);
+        Assert.Empty(tools.SelectMany(t => NullKeywords(t.Name, t.ProtocolTool.InputSchema)));
+    }
+
+    private static IEnumerable<string> NullKeywords(string path, JsonElement node) => node.ValueKind switch
+    {
+        JsonValueKind.Object => node.EnumerateObject().SelectMany(p => OffersNull(p)
+            ? [$"{path}.{p.Name}"]
+            : NullKeywords($"{path}.{p.Name}", p.Value)),
+        JsonValueKind.Array => node.EnumerateArray().SelectMany((e, i) => NullKeywords($"{path}[{i}]", e)),
+        _ => [],
+    };
+
+    private static bool OffersNull(JsonProperty p) => (p.Name, p.Value.ValueKind) switch
+    {
+        ("type", JsonValueKind.String) => p.Value.GetString() == "null",
+        ("type", JsonValueKind.Array) => p.Value.EnumerateArray().Any(t => t.GetString() == "null"),
+        ("default", JsonValueKind.Null) => true,
+        _ => false,
+    };
 
     // Row 18: no MCP client sends an Idempotency-Key, and every MCP message is a POST.
     [Fact]

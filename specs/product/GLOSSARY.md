@@ -791,8 +791,9 @@ customer's phone, email and address do not. A tool that the role or the
 permissions do not cover is not listed, and calling it is refused. While the
 Owner's **Allow connected apps** switch is off, every call is refused with
 **Connected apps are off**; nothing is disconnected, so the app works again once
-the switch is back on. After **Disconnect** or a password reset, the app is
-refused and must send the person through the consent screen again. A tool
+the switch is back on. After **Disconnect**, a password change or reset, or a
+change to the person's email or role, the app is refused, leaves **Connected
+apps**, and must send the person through the consent screen again (#1229). A tool
 missing because of the role stays missing after reconnecting. A tool missing
 because of a permission appears once the person reconnects and allows it.
 
@@ -1496,7 +1497,8 @@ Connecting, disconnecting, auditing and the farm switch work the same either way
 **Disconnecting an app (#799)** — ending a connected app's access. **Account** ›
 **Connected apps** lists the apps you allowed, each with what it **Can** do (the
 consent screen's words), when it was **Connected**, and when it was **Last used**,
-which the server records at most once every 15 minutes per approval. An app
+which the server records at most once every 15 minutes per approval, and only
+for a request that passed the account and credential checks (#1229). An app
 unused for 30 days is marked, and the panel suggests disconnecting it. The Owner's
 **Setup** › **Connected apps** page lists every app on the farm, with a **Person**
 filter. **Disconnect**, after a confirmation, revokes every approval the person

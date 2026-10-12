@@ -74,7 +74,7 @@ public sealed class CommerceTools
         {
             // IsDefined too: TryParse accepts any number.
             if (!Enum.TryParse<SalesOrderStatus>(status, ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
-                throw new McpException($"Unknown status '{status}'. Use Draft, Confirmed, Shipped, Invoiced, Cancelled or Voided.");
+                throw new McpException("status must be Draft, Confirmed, Shipped, Invoiced, Cancelled or Voided.");
             statusFilter = parsed;
         }
 

@@ -61,8 +61,10 @@ included under **Only actions through connected apps**. The code is issued after
 the endpoint returns, so a failure during issuance leaves a committed approval with no
 code. The client then has to ask again, and that request is recorded as a reconnect.
 
-**Last used, at most once every 15 minutes per authorization.** A validation handler
-runs one conditional `UPDATE` per OAuth request, and it writes only when
+**Last used, at most once every 15 minutes per authorization.** `CredentialEpochMiddleware`
+calls `ConnectedApps.RecordUseAsync` once the account and credential checks pass (#1229;
+until then an OpenIddict validation handler did it during authentication). It runs one
+conditional `UPDATE` per OAuth request, and it writes only when
 `LastUsedAtUtc` is null or older than 15 minutes. The database's `now()` decides, so
 replicas cannot disagree. A failure is logged and the request continues, because the
 token was already valid. The screens show last use in days, so up to 15 minutes of
@@ -70,8 +72,10 @@ staleness does not show.
 
 ## What this does NOT cover
 
-- **A request refused after validation still counts as a use.** The stamp runs during
-  authentication, before `CredentialEpochMiddleware` refuses a disabled person.
+- **Last used is not proof that the app did anything.** Since #1229 a request refused
+  for a disabled person, a suspended farm, the farm switch or a superseded credential
+  does not count. A request that passes those checks and is then refused for a missing
+  scope or role, or whose MCP tool fails, still counts.
 - **One round trip per OAuth request.** The conditional update reads one row by key
   even when it writes nothing. An in-process gate could skip it. It is not built.
 - **A forced audit-write failure.** No test makes the audit write fail to show that

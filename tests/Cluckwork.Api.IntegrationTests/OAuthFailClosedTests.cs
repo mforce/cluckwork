@@ -83,6 +83,7 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
 
     // Role freshness is #364's epoch: a demotion bumps it, so the assistant's token stops
     // and the assistant must reconnect, rather than keeping Manager authority (#796 option 1).
+    // The bump revokes the connection, so the token is refused before the epoch check (#1229).
     [Fact]
     public async Task RoleChange_RevokesTheToken()
     {
@@ -104,9 +105,11 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
         demote.Headers.Add(Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.StepUpHeaderName, stepUpToken);
         (await owner.SendAsync(demote)).EnsureSuccessStatusCode();
 
+        var (authorizations, tokens) = await StillValidAsync(user);
         using var after = await Client(host, token).GetAsync(Probe.AdminWrite);
+        Assert.True(authorizations == 0, $"{authorizations} authorization(s) stayed valid after a role change");
+        Assert.True(tokens == 0, $"{tokens} token(s) stayed valid after a role change");
         Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
-        Assert.Equal("Auth.CredentialsSuperseded", await TitleOf(after));
     }
 
     // A user who must change their password cannot approve an assistant, so no token ever

@@ -2588,8 +2588,9 @@ export const tl = {
     signingInAppRefused:
       "<strong>Kapag tinanggihan ang AI app.</strong> Habang naka-off ang <strong>Payagan ang mga nakakonektang "
       + "app</strong>, natatanggap ng mga app ang <strong>Naka-off ang mga nakakonektang app</strong> at gagana ulit "
-      + "kapag binuksan ito. Pagkatapos ng <strong>Idiskonekta</strong> o ma-reset ang password mo, kailangang "
-      + "kumonekta ulit ang app gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
+      + "kapag binuksan ito. Pagkatapos ng <strong>Idiskonekta</strong>, ng pagpapalit o pag-reset "
+      + "ng password mo, o ng pagbabago ng email o role mo, mawawala ang app sa <strong>Mga nakakonektang "
+      + "app</strong> at kailangan itong kumonekta ulit gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
       + "pahintulot na hindi mo ibinigay, gaya ng <strong>Itala ang araw-araw na tala</strong>, ikonekta ulit at "
       + "payagan ito; may marka itong <strong>Bago</strong>.",
     signingInCredentialEpoch:
@@ -3694,7 +3695,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, at hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Nadidiskonekta ang lahat ng app ng isang tao kapag pinalitan o na-reset ang password niya, o binago ang email o role niya. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, at hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

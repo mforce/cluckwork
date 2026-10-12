@@ -5,7 +5,7 @@ using OpenIddict.EntityFrameworkCore.Models;
 namespace Cluckwork.Infrastructure.Modules.Access.OAuth;
 
 // #799 — OpenIddict records no use of an authorization, and Connected apps shows when
-// each app last acted. Null until the first request; OAuthLastUsedStamp keeps it.
+// each app last acted. Null until the first request; ConnectedApps.RecordUseAsync keeps it.
 internal sealed class OAuthAuthorizationConfiguration
     : IEntityTypeConfiguration<OpenIddictEntityFrameworkCoreAuthorization<Guid>>
 {

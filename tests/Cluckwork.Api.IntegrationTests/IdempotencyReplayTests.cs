@@ -1,6 +1,11 @@
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Middleware;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -48,6 +53,39 @@ public sealed class IdempotencyReplayTests(CluckworkWebApplicationFactory factor
                 e.FarmId == farmId && e.HouseId == houseId && e.FlockId == flockId));
         Assert.Equal(1, count);
     }
+
+    // #1230: a replay finding the first call's claim is an expected outcome. It logged a
+    // unique violation twice at Error; it now logs once, at Debug.
+    [Fact]
+    public async Task Replay_LogsTheClaimConflictOnce_AtDebug()
+    {
+        var sink = new AuthRateLimitLoggingFactory.CollectingSink();
+        using var host = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Serilog:MinimumLevel:Default", "Verbose");
+            b.UseSetting("Serilog:MinimumLevel:Override:Microsoft", "Verbose");
+            b.UseSetting("Serilog:MinimumLevel:Override:Microsoft.EntityFrameworkCore.Database.Command", "Verbose");
+            b.ConfigureTestServices(s => s.AddSingleton<ILogEventSink>(sink));
+        });
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", await factory.LoginForAccessTokenAsync(email));
+        var farmId = Guid.NewGuid();
+        var houseId = Guid.NewGuid();
+        var body = DailyEntryBody(farmId, houseId, await factory.SeedFlockAsync(accountId, farmId, houseId));
+        var key = Guid.NewGuid().ToString();
+
+        Assert.Equal(HttpStatusCode.Created, (await client.PostWithKeyAsync("/api/v1/daily-entries", key, body)).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await client.PostWithKeyAsync("/api/v1/daily-entries", key, body)).StatusCode);
+
+        Assert.DoesNotContain(sink.Events, e => e.Level >= LogEventLevel.Warning && Source(e).StartsWith("Microsoft.EntityFrameworkCore"));
+        var claimed = Assert.Single(sink.Events, e => Source(e) == typeof(IdempotentUnit).FullName);
+        Assert.Equal(LogEventLevel.Debug, claimed.Level);
+    }
+
+    private static string Source(LogEvent e) =>
+        (e.Properties.GetValueOrDefault("SourceContext") as ScalarValue)?.Value as string ?? "";
 
     [Fact]
     public async Task SameKey_ConcurrentRequests_OnlyOneSideEffect()
