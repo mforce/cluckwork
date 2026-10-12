@@ -406,9 +406,10 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // 2026-10-12, raised to 1,649 KiB for the #1215 FarmThemeProvider split; the
 // split adds wiring only; CI measured 1,648.17 KiB.
 //
-// 2026-10-12, raised to 1,650 KiB for fix/catalog-version-grade-order (the
-// product and packed-unit conflict rebind); measured 1,649.25 KiB locally.
-const PRECACHE_CEILING_KIB = 1650;
+// 2026-10-12, raised to 1,651 KiB for the #1215 Dashboard split: the split
+// adds wiring only (the page plus its extracted dashboard/ modules), and the
+// branch measures 1,650.32 KiB locally against the base's 1,647.66 KiB.
+const PRECACHE_CEILING_KIB = 1651;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

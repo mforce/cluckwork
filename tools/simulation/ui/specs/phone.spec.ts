@@ -576,7 +576,8 @@ test.describe("Phone shell", { tag: "@phone" }, () => {
     // #829 replaced that container-query grid with an `sx`-laid-out flex row
     // (`ul.dash-list` is gone), so this walk now measures the row's own
     // flex-wrapped content instead — still against `ul.dash-sales-list`, the
-    // stable, unstyled locator hook Dashboard.tsx carries for exactly this.
+    // stable, unstyled locator hook routes/dashboard/SalesPanel.tsx carries
+    // for exactly this.
     //
     // AGENTS.md says this in as many words — a long-running sim stack serves
     // the bytes it was built from, not the branch under review — and it is the
