@@ -36,6 +36,9 @@ function stubMatchMediaPerQuery(initial: Record<string, boolean>) {
       state[query] = matches;
       listeners.get(query)?.forEach((cb) => cb({ matches }));
     },
+    // For cleanup assertions: a real MediaQueryList drops a removed listener,
+    // so after a correct unmount nothing is registered under the query.
+    listenerCount: (query: string) => listeners.get(query)?.size ?? 0,
   };
 }
 
@@ -115,6 +118,20 @@ describe("FarmThemeProvider (#674)", () => {
 
     media.triggerChange(MD_UP_QUERY, false); // crossed from desktop to phone width
     await waitFor(() => expect(spy.mock.calls.length).toBeGreaterThan(callsOnMount));
+  });
+
+  // The layout listener is the provider's ONLY matchMedia registration, and
+  // the per-query stub above is what makes the count meaningful: the shared
+  // stubMatchMedia would also count watchDeviceTheme's prefers-color-scheme
+  // listener. Without the cleanup the listener survives unmount and every
+  // later breakpoint crossing re-reads a dead component's state.
+  it("removes its MD_UP_QUERY change listener on unmount", () => {
+    const media = stubMatchMediaPerQuery({ [MD_UP_QUERY]: false });
+    const { unmount } = render(<FarmThemeProvider><Probe /></FarmThemeProvider>);
+    expect(media.listenerCount(MD_UP_QUERY), "the layout listener is registered").toBe(1);
+
+    unmount();
+    expect(media.listenerCount(MD_UP_QUERY), "the layout listener is gone").toBe(0);
   });
 
   // #873 — this file carries NO csp-nonce meta, which is the Vite dev server's
