@@ -33,9 +33,10 @@ logs at Warning, once per process, naming the peer whose `X-Forwarded-For` was i
 fronting proxy, where there are no `X-Forwarded-*` headers to trust in the first
 place. It is not a way to get a misconfigured proxy deployment to start.
 Under the opt-out, forwarded headers are ignored entirely: with an empty list the
-app does not run the forwarding middleware, because ASP.NET's own middleware
-trusts every peer when its trust lists are empty, so any client could otherwise
-choose its rate-limit address and its scheme.
+app switches forwarding off (`ForwardedHeaders.None`) and does not add the
+middleware. ASP.NET's own middleware trusts every peer when its trust lists are
+empty, and `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` adds it without the app, so
+any client could otherwise choose its rate-limit address and its scheme.
 
 ## Scope
 

@@ -106,7 +106,7 @@ public sealed class TrustedTwoHopKestrelFactory : CluckworkWebApplicationFactory
 // No trusted proxy: the direct-TLS opt-out (#260). The base factory sets
 // AllowNoTrustedProxies and no TrustedProxies. The framework middleware trusts every
 // peer when its lists are empty, so this pins that no peer's headers are honoured.
-public sealed class NoTrustedProxiesKestrelFactory : CluckworkWebApplicationFactory
+public class NoTrustedProxiesKestrelFactory : CluckworkWebApplicationFactory
 {
     public const string PeerPath = "/test/forwarded/peer";
 
@@ -133,6 +133,17 @@ public sealed class NoTrustedProxiesKestrelFactory : CluckworkWebApplicationFact
             endpoints.MapGet(PeerPath, (HttpContext c) => $"{c.Connection.RemoteIpAddress}|{c.Request.Scheme}")
                 .AllowAnonymous();
         };
+    }
+}
+
+// ASPNETCORE_FORWARDEDHEADERS_ENABLED=true: the default host adds its own forwarding
+// middleware and options setup, ahead of the app's.
+public sealed class NoTrustedProxiesForwardingEnabledKestrelFactory : NoTrustedProxiesKestrelFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("ForwardedHeaders_Enabled", "true");
     }
 }
 
@@ -260,7 +271,21 @@ public sealed class NoTrustedProxiesForwardedHeaderTests(NoTrustedProxiesKestrel
     : IClassFixture<NoTrustedProxiesKestrelFactory>
 {
     [Fact]
-    public async Task Forwarded_headers_from_any_peer_are_ignored_when_no_proxy_is_trusted()
+    public Task Forwarded_headers_from_any_peer_are_ignored_when_no_proxy_is_trusted() =>
+        NoTrustedProxies.AssertForwardedHeadersIgnoredAsync(factory);
+}
+
+public sealed class NoTrustedProxiesForwardingEnabledTests(NoTrustedProxiesForwardingEnabledKestrelFactory factory)
+    : IClassFixture<NoTrustedProxiesForwardingEnabledKestrelFactory>
+{
+    [Fact]
+    public Task Forwarded_headers_are_ignored_even_when_the_host_enables_forwarding() =>
+        NoTrustedProxies.AssertForwardedHeadersIgnoredAsync(factory);
+}
+
+file static class NoTrustedProxies
+{
+    public static async Task AssertForwardedHeadersIgnoredAsync(NoTrustedProxiesKestrelFactory factory)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, NoTrustedProxiesKestrelFactory.PeerPath);
         request.Headers.Add("X-Forwarded-For", "203.0.113.10");

@@ -12,10 +12,14 @@ internal static class CluckworkEdgeSecurityServiceCollectionExtensions
         this IServiceCollection services,
         IReadOnlyCollection<System.Net.IPNetwork> trustedProxies)
     {
+        // #260: an empty list trusts no proxy. The framework middleware trusts every peer when
+        // its trust lists are empty, and ForwardedHeaders_Enabled=true adds that middleware
+        // without us, so forwarding is switched off rather than only not added.
         services.Configure<ForwardedHeadersOptions>(options =>
         {
-            options.ForwardedHeaders =
-                ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.ForwardedHeaders = trustedProxies.Count == 0
+                ? ForwardedHeaders.None
+                : ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
             options.ForwardLimit = null;
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
@@ -47,8 +51,8 @@ internal static class CluckworkEdgeSecurityServiceCollectionExtensions
 
 internal static class ForwardedHeadersTrust
 {
-    // #260: forwarded headers are honoured only from RateLimiting:TrustedProxies. The framework
-    // trusts every peer when its trust lists are empty, so with no trusted proxy it is not added.
+    // With forwarding off (no trusted proxy), neither middleware is added: the warning would
+    // otherwise report every forwarded request.
     //
     // A peer outside a non-empty list has its X-Forwarded-For ignored, so every client behind
     // it shares one address in each per-address limit: login (#143) and the /mcp failure budget
@@ -57,7 +61,7 @@ internal static class ForwardedHeadersTrust
     public static void UseTrustedForwardedHeaders(this IApplicationBuilder app)
     {
         var options = app.ApplicationServices.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
-        if (options.KnownIPNetworks.Count == 0 && options.KnownProxies.Count == 0)
+        if (options.ForwardedHeaders == ForwardedHeaders.None)
             return;
 
         var warned = 0;
