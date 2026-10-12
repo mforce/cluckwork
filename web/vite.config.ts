@@ -295,7 +295,16 @@ export default defineConfig(({ mode }) => {
           // now reads its timezone through it, so a hole here is a hole in all
           // of them at once.
           "src/farm/**": { statements: 100, lines: 100, functions: 100, branches: 100 },
-          "src/api/client.ts": { statements: 94, lines: 95, functions: 100, branches: 85 },
+          // The #1215 split moved the API client's per-file lock from the
+          // client.ts barrel to its implementation modules, at their measured
+          // actuals (2026-10-12).
+          "src/api/errors.ts": { statements: 100, lines: 100, functions: 100, branches: 92.8 },
+          "src/api/trace.ts": { statements: 100, lines: 100, functions: 100, branches: 100 },
+          "src/api/request.ts": { statements: 100, lines: 100, functions: 100, branches: 92.8 },
+          "src/api/sessionState.ts": { statements: 100, lines: 100, functions: 100, branches: 100 },
+          "src/api/authCookieLock.ts": { statements: 100, lines: 100, functions: 100, branches: 87.5 },
+          "src/api/session.ts": { statements: 98.3, lines: 100, functions: 100, branches: 95.8 },
+          "src/api/refresh.ts": { statements: 91.7, lines: 95.6, functions: 100, branches: 85.5 },
         },
       },
     },

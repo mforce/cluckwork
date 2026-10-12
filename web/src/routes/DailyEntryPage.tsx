@@ -835,8 +835,8 @@ export function DailyEntryPage() {
 
       {/* #830 — the attention line (mockup: daily-entry.html `.attn`), the
           same ruled-separator/fold-to-"+N more" treatment Dashboard's #829/
-          #864 attention line already carries — see Dashboard.tsx for the
-          precedent this mirrors. */}
+          #864 attention line already carries — see routes/dashboard/
+          MorningBrief.tsx for the precedent this mirrors. */}
       {attentionShown.length > 0 && (
         <Box sx={{
           display: "flex", alignItems: "center", gap: 1.5, mt: 1.5, px: 1.5, py: 1,

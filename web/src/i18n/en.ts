@@ -935,7 +935,8 @@ export const en = {
   // pwa/dailyEntry above: es/tl are machine-drafted (#182), pending native
   // review. The two status pills on this screen (today's per-flock entry
   // status, and each recent order's status) go through the `enums`
-  // `statusLabel` helper, not a key here — see Dashboard.tsx. Wiring the
+  // `statusLabel` helper, not a key here — see dashboard/TodayRow.tsx and
+  // dashboard/SalesPanel.tsx. Wiring the
   // per-flock entry pill is an INTENTIONAL harmonization, not
   // text-preserving: a ManagerAdjusted entry
   // used to render raw ("ManagerAdjusted") and now reads "Adjusted", matching
@@ -2791,7 +2792,8 @@ export const en = {
   // Labels are chosen to be TEXT-PRESERVING on retrofit (Task 5+) — a screen
   // wired to a helper keeps its current text — EXCEPT at two sites the retrofit
   // changes DELIBERATELY (its reviewer must eyeball them):
-  //   1. Dashboard.tsx (`<StatusBadge status={e.status} />`, no label) used to
+  //   1. Dashboard's collection row (routes/dashboard/TodayRow.tsx:
+  //      `<StatusBadge status={e.status} />`, no label) used to
   //      show a ManagerAdjusted entry RAW; statusLabel (wired in Task 12) now
   //      makes it read "Adjusted" — the text HistoryPage already shows for
   //      that state via its own bespoke `<span className="badge
