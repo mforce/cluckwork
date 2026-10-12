@@ -410,9 +410,18 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // adds wiring only (the page plus its extracted dashboard/ modules), and the
 // branch measures 1,650.32 KiB locally against the base's 1,647.66 KiB.
 //
-// 2026-10-12, raised to 1,652 KiB for fix/catalog-version-grade-order (the
-// product and packed-unit conflict rebind); measured 1,651.49 KiB locally.
-const PRECACHE_CEILING_KIB = 1652;
+// 2026-10-12, raised to 1,654 KiB for the #1215 DailyEntryPage split: the
+// split adds wiring only (the page plus its extracted dailyEntry/ modules);
+// local measure 1,653.74 KiB against the base's 1,650.32 KiB.
+// 2026-10-12, raised to 1,659 KiB for the #1215 UsersPage split: the split
+// adds wiring only (the page plus its extracted users/ hooks and dialogs),
+// and the branch measures 1,658.83 KiB against the base's 1,654 KiB ceiling.
+//
+// 2026-10-12, raised to 1,661 KiB for the #1215 NamedEntityPicker split: the
+// split adds wiring only (the picker facade plus its extracted
+// namedEntityPicker/ modules); local measure 1,660.51 KiB against the base's
+// 1,658.83 KiB.
+const PRECACHE_CEILING_KIB = 1661;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

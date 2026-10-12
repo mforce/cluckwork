@@ -16,7 +16,7 @@
 //
 // 1. Unfiltered PAGING reaches the flock sentinel: with eligibility
 //    active-and-depleted the picker sees 101 non-archived flocks (comment at
-//    SimulationDataSeeder.cs ~L824), and its 50-row pages put the
+//    SimulationDataSeeder.Flocks.cs ~L97), and its 50-row pages put the
 //    lexically-last sentinel on the THIRD page (50 + 50 + 1) — two Load more
 //    clicks, not one. This is also the test the paging mutant
 //    (named-entity-picker-paging-broken, mutants.ts) must turn red.
@@ -109,7 +109,7 @@ test.describe("Searchable named-entity picker (#512)", () => {
     }
     await expect(combobox).toHaveAttribute("aria-activedescendant", sentinelId!);
 
-    // Pins `NamedEntityPicker.tsx`'s `disableListWrap`: ArrowDown at the
+    // Pins `namedEntityPicker/PickerOpenState.tsx`'s `disableListWrap`: ArrowDown at the
     // true final option (hasMore exhausted) must not wrap to the first row.
     // The sentinel is not necessarily that row (other specs may add flocks
     // that sort after it), so keep arrowing until the highlight stops
