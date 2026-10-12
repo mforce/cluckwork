@@ -1,34 +1,19 @@
-// #512 — the shared named-entity picker: transport/selection/snapshot
-// contracts plus the one async discovery+commit engine they describe.
+// #512 — the shared named-entity picker: the one async discovery+commit
+// engine behind the typed `FlockPicker` / `CustomerPicker` adapters. Pages
+// never import the engine directly (FR-053: no generic catalog/entity-link
+// API beyond the two typed adapters), and nothing outside this feature
+// imports this module.
 //
-// THIS FILE IS THE ENGINE'S COMPOSITION ROOT. Pages never import the engine
-// directly: they consume the typed `FlockPicker` / `CustomerPicker` adapters
-// (FlockPicker.tsx / CustomerPicker.tsx), and the engine itself is
-// feature-local. Nothing outside this feature should import from this module,
-// and it must never grow a generic catalog/entity-link API — the spec
-// (FR-053) forbids a shared framework beyond the two typed adapters.
-//
-// The engine's internals live in ./namedEntityPicker/: the public contract
-// types (types.ts), the internal state shape and props (engineTypes.ts), the
-// discovery pipeline (usePickerDiscovery.ts), the selection lifecycle
-// (usePickerSelection.ts), the popup footer (PickerPaper.tsx) and the
-// closed-state trigger (PickerClosedState.tsx). This file composes them and
-// keeps the module's public surface unchanged.
-//
-// The shapes below mirror `specs/001-searchable-entity-picker/data-model.md`
-// (Picker Transport Models, State Transitions) and `contracts/picker-ui.md`
-// (Shared Snapshot). US1 lands discovery, paging, commit and retention;
-// the US2/US3 selection-transition machinery (exact/default/lifecycle
-// generations, unavailable states, Escape/clear, Retry) arrives in T026–T034
-// on top of the same state.
+// THIS FILE IS THE COMPOSITION ROOT: it owns the engine's refs and setters
+// and every effect, in base declaration order. The two hooks hold callbacks
+// only (plus the suppressed eligibility effect in usePickerDiscovery).
+// Internals live in ./namedEntityPicker/ (types, engineTypes,
+// usePickerDiscovery, usePickerSelection, PickerPaper, PickerClosedState,
+// PickerOpenState).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import Autocomplete from "@mui/material/Autocomplete";
-import TextField from "@mui/material/TextField";
-import Box from "@mui/material/Box";
-import type { AutocompleteRenderInputParams } from "@mui/material/Autocomplete";
 import { FLOCK_ELIGIBILITIES } from "./namedEntityPicker/types";
 import type { FlockEligibilityKey, NamedEntityPage, DiscoveryPhase, DiscoveryState, SelectionPhase, PickerSelection, PickerSnapshot } from "./namedEntityPicker/types";
 import { initialState } from "./namedEntityPicker/engineTypes";
@@ -37,17 +22,18 @@ import { usePickerDiscovery } from "./namedEntityPicker/usePickerDiscovery";
 import { usePickerSelection } from "./namedEntityPicker/usePickerSelection";
 import { usePickerPaper } from "./namedEntityPicker/PickerPaper";
 import { PickerClosedState } from "./namedEntityPicker/PickerClosedState";
+import { PickerOpenState } from "./namedEntityPicker/PickerOpenState";
 
 export { FLOCK_ELIGIBILITIES };
 export type { FlockEligibilityKey, NamedEntityPage, DiscoveryPhase, DiscoveryState, SelectionPhase, PickerSelection, PickerSnapshot };
 
 /**
- * The one async picker engine. US1 scope: discovery (debounce, replacement,
+ * The one async picker engine. US1: discovery (debounce, replacement,
  * extension, dedupe, raw-count cursor, final-empty termination), commit by
  * pointer/Enter, Arrow activation, committed-label retention (FR-018),
- * eligibility-change rediscovery, and disabled non-interactivity.
- * Selection-transition generations, unavailable states, Escape/clear, Retry,
- * and the full ARIA write-safety surface are US2/US3 (T026–T034).
+ * eligibility-change rediscovery, disabled non-interactivity; US2/US3
+ * (T026–T034): selection-transition generations, unavailable states,
+ * Escape/clear, Retry and the ARIA write-safety surface.
  *
  * State discipline: a single `EngineState` object, updated ONLY through
  * functional `setState((prev) => …)` updaters that build on `prev` — never on
@@ -62,6 +48,15 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   const [state, setState] = useState<EngineState<T>>(() => initialState(eligibilityKey));
   const stateRef = useRef(state);
   stateRef.current = state;
+  // DISCOVERY generation: owns replacement/extension requests and every
+  // phase/rows/cursor they commit. Only discovery intents (typing, eligibility
+  // change, open/close, Load more, discovery Retry) increment it. A superseded
+  // discovery's continuation (success AND failure) re-checks it after the
+  // await — but a SELECTION transition never touches it, so committing an
+  // option, clearing, Escape, an outside click, a controlled sync or a
+  // requestedId/exact-Retry transition can never drop or wedge a discovery
+  // that is still the newest discovery intent.
+  const discoveryGenRef = useRef(0);
   // SELECTION-transition generation: owns the committed-selection lifecycle
   // (transitionGeneration, controlled sync, requestedId resolution, exact
   // Retry). It never gates discovery requests: discovery completions are
@@ -80,13 +75,9 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // Only a commit writes it; typing never does.
   const [committedText, setCommittedText] = useState<string | null>(null);
 
-  // #826 — `Autocomplete` now owns arrow/Enter navigation and highlight
-  // tracking (the engine no longer hand-rolls a `role=combobox`/`listbox`
-  // pair). `handleHomeEndKeys={false}` on the element below keeps Home/End
-  // native (FR-031). Two things `Autocomplete` does NOT know about stay here:
-  // FR-032 (Down Arrow at the loaded end with `hasMore` requests the next
-  // page) and the Escape cancellation contract (US2: restore committed/blank
-  // text, retain the discovery window, call the page's `onEscape`).
+  // #826 — `Autocomplete` owns arrow/Enter navigation and highlight tracking;
+  // FR-032 paging and the Escape cancellation contract stay hand-wired (see
+  // `handleRootKeyDown` below).
   const highlightedIdRef = useRef<string | null>(null);
 
   // US3 (T035): exact-identity resolution. The controlled sync may hand the
@@ -100,12 +91,84 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   fetchExactRef.current = fetchExact;
 
   // The picker's container: the open popup is a DOM descendant of it (no
-  // portal), so the outside-click listener can test `contains` (see
-  // usePickerSelection.ts).
+  // portal), so the outside-click effect below can test `contains`.
   const containerRef = useRef<HTMLDivElement>(null);
+  const pendingEligibilityKeyRef = useRef<FlockEligibilityKey | null>(null);
 
-  const { retry, loadMore, onQueryChange } = usePickerDiscovery({ stateRef, setState, debounceRef, highlightedIdRef, fetchPage, disabled, id, open, eligibilityKey });
-  const { commit, retryUnavailable, cancelExploration, clearSelection } = usePickerSelection({ stateRef, setState, setCommittedText, selectionGenRef, debounceRef, highlightedIdRef, fetchExactRef, containerRef, id, open, onCommit, onClear, onOutsideClick, controlledCommitted, controlledGeneration });
+  const { retry, loadMore, onQueryChange, runReplacement } = usePickerDiscovery({ stateRef, setState, debounceRef, highlightedIdRef, discoveryGenRef, pendingEligibilityKeyRef, fetchPage, disabled, id, open, eligibilityKey });
+  const { commit, retryUnavailable, cancelExploration, clearSelection } = usePickerSelection({ stateRef, setState, setCommittedText, selectionGenRef, debounceRef, highlightedIdRef, fetchExactRef, id, onCommit, onClear });
+
+  // Open (or first discovery): fetch the unfiltered first page. The eligibility
+  // key is read from stateRef (not a closure) so that a closed-then-reopened
+  // picker with a changed eligibility key issues the request under the CURRENT
+  // key, not a stale one. When the key changed while closed, the eligibility
+  // effect (declared in usePickerDiscovery, called above) has already
+  // synchronously set the phase to "closed" (resetting the window), so this
+  // effect's "closed" check passes and the fetch uses the updated key from
+  // state.
+  //
+  // When eligibility changes and open=true in the SAME commit, the eligibility
+  // effect runs first (declaration order) and sets pendingEligibilityKeyRef.
+  // This effect reads that ref and skips — the debounced replacement (scheduled
+  // by the eligibility effect) handles the request under the new key.
+  useEffect(() => {
+    if (!open) {
+      // `<Autocomplete>` remounts on every open with a clean highlight, but
+      // this ref outlives it. Left stale, a reopen onto a retained window
+      // (FR-018) whose end had been reached would treat the first ArrowDown
+      // as `atEnd` and load a page instead of moving the highlight.
+      highlightedIdRef.current = null;
+      if (debounceRef.current !== null) {
+        window.clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      // US2 fix: if the picker closes before the eligibility debounce fires,
+      // clear the pending signal so a future reopen is not suppressed. Also
+      // reset the phase to "closed" if it was "debouncing" (close-before-
+      // debounce must leave a reopenable state, not a wedge).
+      pendingEligibilityKeyRef.current = null;
+      if (stateRef.current.discovery.phase === "debouncing" || stateRef.current.discovery.phase === "replacing") {
+        discoveryGenRef.current += 1;
+        setState((prev) => ({
+          ...prev,
+          discovery: { ...prev.discovery, phase: "closed", items: [], hasMore: false, cursor: 0 },
+        }));
+      }
+      return;
+    }
+    // If the eligibility effect just fired (same commit), it scheduled a
+    // debounced replacement under the new key. Skip to avoid a duplicate
+    // immediate request under the old key.
+    if (pendingEligibilityKeyRef.current !== null) return;
+    const state = stateRef.current;
+    if (state.discovery.phase !== "closed") return;
+    const gen = ++discoveryGenRef.current;
+    void runReplacement(state.discovery.normalizedQuery, gen);
+  }, [open, runReplacement]);
+
+  // #735 — an open from the trigger hands the keyboard to the search input
+  // and selects the committed name, so the first keystroke starts a search
+  // rather than appending to "Sim House A". Declared AFTER the open effect so
+  // it never runs before the input exists in the same commit. The Retry
+  // callbacks (`retry` from usePickerDiscovery; `retryUnavailable` in
+  // usePickerSelection.ts) still call focus() themselves: those run from a
+  // button that has already taken focus, so this effect (keyed on `open`)
+  // does not fire.
+  //
+  // Select-all stays (typing must replace the name, #735), but a selection
+  // wider than the field scrolls the browser to its active end, showing the
+  // TAIL of a long name. `"backward"` puts the active end at index 0, and
+  // `scrollLeft = 0` forces the head into view, which the direction alone
+  // did not reliably do in Chromium.
+  useEffect(() => {
+    if (!open || disabled) return;
+    const inputEl = document.getElementById(id);
+    if (inputEl instanceof HTMLInputElement) {
+      inputEl.focus();
+      inputEl.setSelectionRange(0, inputEl.value.length, "backward");
+      inputEl.scrollLeft = 0;
+    }
+  }, [open, disabled, id]);
 
   // Exploration (FR-020): the visible text differs from the committed label.
   // A committed picker with an untouched field is not exploring.
@@ -120,10 +183,8 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     || ((state.selection.phase === "blank" || state.selection.phase === "uninitialized") && !required && !requestedId));
 
   // Snapshot emission: only when committed/selectionPhase/exploring/canSubmit
-  // actually change. A parent that calls setSnapshot with the received object
-  // must not loop merely because the callback identity is fresh on every
-  // render — the engine holds the latest callback in a ref and compares the
-  // four snapshot fields against the last emitted values.
+  // actually change — the engine holds the latest callback in a ref and
+  // compares the four snapshot fields against the last emitted values.
   const onSnapshotRef = useRef(onSnapshot);
   onSnapshotRef.current = onSnapshot;
   const lastSnapshotRef = useRef<{ committed: T | null; selectionPhase: SelectionPhase; exploring: boolean; canSubmit: boolean } | null>(null);
@@ -136,6 +197,66 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
     lastSnapshotRef.current = { committed: state.selection.entity, selectionPhase: state.selection.phase, exploring, canSubmit };
     onSnapshotRef.current({ committed: state.selection.entity, selectionPhase: state.selection.phase, exploring, canSubmit });
   });
+
+  // US2: controlled committed state. When the page externally resets its
+  // selection (deep link, URL change, dialog reset, create-then-hydrate),
+  // it passes a new entity or null via `controlledCommitted` and bumps
+  // `controlledGeneration`. The engine synchronizes its internal committed
+  // state so that a later Escape or exploration cannot resurrect a stale ID.
+  //
+  // INITIAL VALUE: 0, not -1. The page's first controlled sync (mount-time
+  // default, deep link, remembered) passes `controlledGeneration={1}` (or
+  // higher). Starting at -1 would skip the FIRST sync when the page passes
+  // 0 (a legitimate "no change yet" value) — but more importantly, the page
+  // often passes 1 as its first bump, and the engine's `=== lastControlledGenRef.current`
+  // check would then skip it if lastControlledGenRef started at 0 (a common
+  // off-by-one). Starting at -1 makes the first sync (gen 0 or 1) always fire.
+  // The page's own gen counter starts at 0 and bumps to 1 on its first
+  // external reset, so the engine's -1 start guarantees the page's gen-1
+  // sync is always observed.
+  const lastControlledGenRef = useRef(-1);
+  useEffect(() => {
+    if (controlledGeneration === undefined || controlledGeneration === lastControlledGenRef.current) return;
+    lastControlledGenRef.current = controlledGeneration;
+    const entity = controlledCommitted ?? null;
+    // A SELECTION transition: never bumps the discovery generation (an
+    // in-flight replacement keeps its own generation and still settles) and
+    // never wipes the discovery window.
+    selectionGenRef.current += 1;
+    setCommittedText(entity?.name ?? null);
+    setState((prev) => {
+      // If the picker is already showing results for this same entity, preserve
+      // the discovery window (items, cursor, hasMore) — only sync the selection.
+      // This avoids clearing a loaded list when the page re-hydrates the same
+      // flock (e.g. the controlled-gen effect fires on mount after the picker
+      // already discovered).
+      const sameEntity = prev.selection.entity?.id === entity?.id;
+      return {
+        ...prev,
+        selection: { entity, requestedId: null, phase: entity ? "committed" : "blank", transitionGeneration: prev.selection.transitionGeneration },
+        discovery: sameEntity
+          ? prev.discovery
+          : { ...prev.discovery, rawQuery: entity?.name ?? "", items: [], hasMore: false, cursor: 0 },
+      };
+    });
+    // Exact-identity validation: only when an exact read is provided AND the
+    // entity is NOT already known (in the discovery window OR already the
+    // committed selection from a genuine commit). A list-known or already-
+    // committed entity is admitted as-is — no spurious GET on every page mount
+    // or on every commit round-trip. The read is generation-owned; a failure
+    // enters `unavailable` (committed stays null, canSubmit false) — never the
+    // first result.
+    // A full typed entity (with a real name) is admitted as-is: pages commit
+    // the full entity from a genuine pick or from a page-owned source, and
+    // re-validating every such commit with a GET would be a spurious round-
+    // trip. Row-owned / late-sorting identity resolution (exact GET) is handled
+    // by the `requestedId` effect below (T038), which fires only when the page
+    // explicitly names an ID it does not have the full entity for.
+    // The controlledCommitted path admits the entity as-is (US1/US2 behavior).
+    // Row-owned / late-sorting identity resolution (exact GET) is handled by
+    // the `requestedId` effect below (T038), which fires only when the page
+    // explicitly names an ID it does not have the full entity for.
+  }, [controlledCommitted, controlledGeneration]);
 
   // US3 (T038): a page-named row-owned ID the engine does not yet have the
   // full entity for (not in the discovery window, not the current committed
@@ -191,6 +312,52 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
       }));
     });
   }, [requestedId, controlledGeneration]);
+
+  // US2: outside-click cancellation. When the picker is open and the user
+  // clicks outside the picker container: cancel exploration (restore committed
+  // or blank text), cancel debounce, and close. The page's write-handler guard
+  // (canSubmit) independently suppresses any same-interaction write.
+  const onOutsideClickRef = useRef(onOutsideClick);
+  onOutsideClickRef.current = onOutsideClick;
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        // Restore committed/blank text before closing (finding 5: reopen must
+        // not show an abandoned query).
+        // Restore the committed/blank text and invoke the callback, but
+        // PRESERVE the discovery window (items, cursor, hasMore, phase) and
+        // do NOT bump the discovery generation: the page's onOutsideClick may
+        // keep the picker open, and an always-open picker must retain its
+        // options and remain usable. The debounce is still cancelled
+        // separately (a stale typed replacement must not fire after restore).
+        if (debounceRef.current !== null) {
+          window.clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+        // Same stale-ref hazard as `cancelExploration`.
+        highlightedIdRef.current = null;
+        const selection = stateRef.current.selection;
+        // Outside-click closes exploration, not the page-owned requested-ID
+        // intent. Keep that exact read live while the picker is closed.
+        if (selection.phase !== "resolving" || selection.requestedId === null) {
+          selectionGenRef.current += 1;
+        }
+        const committed = selection.entity;
+        setState((prev) => ({
+          ...prev,
+          discovery: {
+            ...prev.discovery,
+            rawQuery: committed?.name ?? "",
+          },
+        }));
+        setCommittedText(committed?.name ?? null);
+        onOutsideClickRef.current?.();
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   // US2: Escape handler — the page provides the close callback. The engine
   // holds it in a ref so onKey's closure stays stable.
@@ -296,9 +463,10 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   };
   const pickerPaper = usePickerPaper(footerData);
 
-  // US2: closed state renders exactly ONE trigger in the normal form slot.
-  // The combobox/listbox are absent. Open state: no trigger, just the
-  // searchable combobox in the same position.
+  // US2: closed state renders exactly ONE trigger in the normal form slot;
+  // open state renders only the searchable combobox. The container div is
+  // rendered by BOTH branches so React reconciles it (never remounts it) —
+  // `containerRef` and the outside-click effect depend on that persistence.
   if (!open) {
     return (
       <div ref={containerRef} className={`named-picker${disabled ? " disabled" : ""}`}>
@@ -309,158 +477,23 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
 
   return (
     <div ref={containerRef} className={`named-picker${disabled ? " disabled" : ""}`}>
-      {/* Owner redesign, 2026-09-17: the floating label lives on the
-          `TextField` (`renderInput` below) now, not a separate `<label>` —
-          `Autocomplete`/`TextField` wire `id`/`InputLabel` themselves, so
-          `getByLabelText(label)` still resolves to the real input. */}
-      {showCommitted && (
-        <div className="named-picker-committed">{committedText}</div>
-      )}
-      {/* Explicit generics: the committed value is genuinely `T | null`
-          (blank/uninitialized are real states). MUI's own `disableClearable`
-          PROP ties `DisableClearable` to `true` at the type level too
-          (narrowing `value`/`onChange` to exclude `null`), which is why the
-          clear icon is suppressed via `slots.clearIndicator` below instead —
-          that leaves this generic, and the value type, alone. */}
-      <Autocomplete<T, false, false, false>
-        id={id}
-        open
-        // Set here, not on the TextField in `renderInput`: `Autocomplete`
-        // forwards `size` into `params.size`, which `{...params}` already
-        // spreads onto the TextField below — the same 390px-width overflow
-        // fix as the closed-state field's own `size="small"`.
-        size="small"
+      <PickerOpenState
+        t={t}
+        d={d}
         disabled={disabled}
-        options={d.items}
-        loading={showLoading}
-        inputValue={displayText}
-        // A shallow clone, not the entity itself: `useAutocomplete.js`'s
-        // `handleValue` bails out (never calls `onChange`) when the newly
-        // selected option is `===` the current `value` — reference equality,
-        // not `isOptionEqualToValue`. A picker whose committed entity and
-        // discovery window happen to hold the SAME object reference (e.g. a
-        // page-level default customer, FR-037, fetched once and handed to
-        // both `controlledCommitted` and the picker's own discovery request)
-        // would then silently no-op on re-clicking that already-committed
-        // option — a real regression, caught by SalesPage's new-order dialog
-        // test, not merely a test mock artifact: a caching or memoizing data
-        // layer could produce the same shared reference in production. The
-        // clone guarantees `value !== newValue`, so `onChange` always fires;
-        // `isOptionEqualToValue` (by id, below) still drives `aria-selected`.
-        // MEMOIZED (not recreated every render) — see `clonedSelectedValue`'s
-        // own comment above for why an unmemoized clone here broke Load
-        // More's highlight retention.
-        value={clonedSelectedValue}
-        onChange={(_event, newValue, reason) => {
-          // Commit by pointer/Enter (FR-030) — the ONLY two ways MUI's own
-          // handling reaches `reason === "selectOption"`. Guarded on
-          // `disabled` here (not just on the closed native input) because
-          // `Autocomplete`'s own key handling is not itself gated on it.
-          if (disabled) return;
-          if (reason === "selectOption" && newValue) commit(newValue);
-        }}
-        onInputChange={(_event, newInputValue, reason) => {
-          // Only genuine typing re-discovers. `Autocomplete` also fires this
-          // with reason "reset" right after a commit (syncing its internal
-          // input value to the selected label) and "clear" from its own
-          // clear icon (disabled below) — `commit`/`clearSelection` already
-          // own `rawQuery` for those, so re-running discovery for them would
-          // wipe the just-loaded results.
-          if (reason === "input") onQueryChange(newInputValue);
-        }}
-        // No `onClose`: Escape is fully handled by `handleRootKeyDown`
-        // (`onKeyDown` below), which runs before — and here, instead of —
-        // `Autocomplete`'s own Escape case. Outside-click keeps its own
-        // long-standing `mousedown` listener (in usePickerSelection.ts):
-        // `Autocomplete` also treats an outside click as a "blur" close, and
-        // wiring both would double-fire `onOutsideClick`.
-        onHighlightChange={(_event, option) => {
-          highlightedIdRef.current = option ? option.id : null;
-        }}
-        onKeyDown={handleRootKeyDown}
-        filterOptions={(options) => options}
-        getOptionLabel={(option) => option.name}
-        getOptionKey={(option) => option.id}
-        isOptionEqualToValue={(option, value) => option.id === value.id}
-        // One line per option with an ellipsis; the popper's own floor is set
-        // below.
-        renderOption={({ key, ...optionProps }, option) => (
-          <li key={key} {...optionProps}>
-            <Box component="span" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {option.name}
-            </Box>
-          </li>
-        )}
-        // US2/US3 own commit, retry and clear (in the footer below);
-        // `Autocomplete`'s built-in clear/popup icons would duplicate that
-        // UI, so both are nulled via `slots` (not `disableClearable` — see
-        // the generics comment above). `handleHomeEndKeys={false}` keeps
-        // Home/End native input behavior (FR-031) — `Autocomplete` jumps to
-        // the first/last option on those keys by default. `disableListWrap`
-        // stops ArrowDown at the TRUE final option (hasMore already false)
-        // from silently jumping back to the first row — found the same way
-        // as the `handleRootKeyDown` comment above, via
-        // `named-entity-picker.spec.ts`'s keyboard-paging test, which presses
-        // ArrowDown at the true end and asserts the highlight stays.
-        handleHomeEndKeys={false}
-        disableListWrap
-        // The popup stays a DOM descendant of `containerRef` (no portal to
-        // `document.body`): the engine's own outside-click listener (in
-        // usePickerSelection.ts) tests `containerRef.current.contains(event.target)`,
-        // which a portalled popper would defeat — a click on an option would
-        // read as "outside" and wrongly cancel exploration.
-        disablePortal
-        clearText={t("clear")}
-        closeText={t("close")}
-        openText={t("open")}
-        loadingText={t("loading")}
-        noOptionsText={t("noResults")}
-        // `Autocomplete` sizes the popper to the anchor's width, which in a
-        // narrow phone row is too little to read a name against; `min-width`
-        // beats that inline width, and `bottom-start` keeps it left-aligned
-        // with the field.
-        slotProps={{
-          popper: {
-            placement: "bottom-start",
-            sx: { minWidth: "min(20rem, calc(100vw - 32px))" },
-          },
-        }}
-        slots={{
-          paper: pickerPaper,
-          clearIndicator: () => null,
-          popupIndicator: () => null,
-          // The picker renders its OWN loading/no-results text in the footer
-          // (it must also cover "loading while retained rows are still
-          // shown", e.g. Load more in flight — a case `Autocomplete`'s own
-          // status slot can't reach: it hides once options are non-empty).
-          // Suppressing that slot avoids a second, usually-empty
-          // `role="status"` node — it otherwise mounts whenever the popup is
-          // open, which would make `getByRole("status")` ambiguous.
-          status: () => null,
-        }}
-        renderInput={(params: AutocompleteRenderInputParams) => (
-          <TextField
-            {...params}
-            label={label}
-            required={required}
-            placeholder={committedText ?? undefined}
-            // #916 review — same 44px floor as the closed-state trigger field
-            // above; the open search field is the one every mockup measured.
-            sx={{ "& .MuiInputBase-root": { minHeight: 44 } }}
-            slotProps={{
-              ...params.slotProps,
-              htmlInput: {
-                ...params.slotProps.htmlInput,
-                // The literal attribute: `required` above gives the native
-                // HTML attribute (and MUI's own asterisk) but not this — no
-                // picker label carries its own "*" today (contrast
-                // `useConfirm.tsx`'s `reasonLabel`, which does and so skips
-                // the `required` prop to avoid a doubled asterisk).
-                "aria-required": required || undefined,
-              },
-            }}
-          />
-        )}
+        required={required}
+        id={id}
+        label={label}
+        showLoading={showLoading}
+        displayText={displayText}
+        showCommitted={showCommitted}
+        committedText={committedText}
+        clonedSelectedValue={clonedSelectedValue}
+        commit={commit}
+        onQueryChange={onQueryChange}
+        handleRootKeyDown={handleRootKeyDown}
+        highlightedIdRef={highlightedIdRef}
+        pickerPaper={pickerPaper}
       />
     </div>
   );
