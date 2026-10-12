@@ -241,10 +241,14 @@ app.UseSerilogRequestLogging(options =>
         // escalate to Error while orchestrators poll every few seconds. The
         // exception-handler re-execution at /error is demoted too: the
         // original request already logged its Error completion, a second
-        // line would double-count every failed request.
+        // line would double-count every failed request. A client that hung up
+        // mid-request is not a server fault, though Serilog still writes its
+        // hardcoded 500 with the cancellation attached.
         httpContext.Request.Path.StartsWithSegments("/health")
         || httpContext.Features.Get<IExceptionHandlerFeature>() is not null
             ? Serilog.Events.LogEventLevel.Verbose
+            : exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested
+                ? Serilog.Events.LogEventLevel.Information
             : exception is not null || httpContext.Response.StatusCode >= 500
                 ? Serilog.Events.LogEventLevel.Error
                 : Serilog.Events.LogEventLevel.Information;

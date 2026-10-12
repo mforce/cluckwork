@@ -1,3 +1,4 @@
+using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -28,6 +29,20 @@ internal sealed class ThrowingChangeOwnPasswordValidatorForRequestLogging
     public ThrowingChangeOwnPasswordValidatorForRequestLogging() =>
         RuleFor(c => c.NewPassword).Custom((_, _) =>
             throw new InvalidOperationException("unhandled-exception probe"));
+}
+
+// A login validator that holds the request open until the client hangs up, so
+// the server is provably still working when RequestAborted fires.
+internal sealed class HangingLoginValidator : AbstractValidator<LoginRequest>
+{
+    public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public HangingLoginValidator() =>
+        RuleFor(r => r.Email).CustomAsync(async (_, _, ct) =>
+        {
+            Entered.TrySetResult();
+            await Task.Delay(Timeout.Infinite, ct);
+        });
 }
 
 // #214 — every request emits one structured completion log (method, path,
@@ -189,6 +204,37 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
             e => ScalarOf(e, "StatusCode") == "500");
         Assert.Equal(LogEventLevel.Error, completion.Level);
         Assert.Empty(CompletionEventsFor("/error"));
+    }
+
+    // A client that hangs up mid-request is not a server fault. Serilog still
+    // reports its hardcoded 500 with the cancellation attached, but below Error.
+    [Fact]
+    public async Task Client_abort_is_not_logged_at_error()
+    {
+        var validator = new HangingLoginValidator();
+        using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<IValidator<LoginRequest>>(validator)));
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+        {
+            Content = JsonContent.Create(new { farmCode = "x", email = "x@test.local", password = "x" })
+        };
+        var traceId = StampTrace(request);
+        using var hangUp = new CancellationTokenSource();
+
+        var send = host.CreateClient().SendAsync(request, hangUp.Token);
+        await validator.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await hangUp.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => send);
+
+        // The completion is written as the server unwinds, after the client has
+        // already seen its cancellation.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (!CompletionEventsFor("/api/v1/auth/login").Any(e => e.TraceId == traceId) && DateTime.UtcNow < deadline)
+            await Task.Delay(50);
+        var completion = CompletionFor("/api/v1/auth/login", traceId);
+        Assert.IsAssignableFrom<OperationCanceledException>(completion.Exception);
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.DoesNotContain(factory.Sink.Events, e => e.TraceId == traceId && e.Level >= LogEventLevel.Error);
     }
 
     // #398 review (Codex) — the regression this branch fixes, and the
