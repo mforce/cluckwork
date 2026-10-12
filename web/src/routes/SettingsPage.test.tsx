@@ -46,7 +46,7 @@ function renderedRule(element: Element, selectorSuffix: string): CSSStyleRule | 
     : undefined;
 }
 
-// Mirrors PALETTE_LABEL_KEYS in SettingsPage.tsx — kept local to the test
+// Mirrors PALETTE_LABEL_KEYS in settings/PaletteFieldset.tsx — kept local to the test
 // rather than imported, since the production module no longer exports a
 // label lookup (the labels themselves live in the `settings` i18n catalog,
 // see en.ts). Under the default "en" lng these ARE the rendered text, same
