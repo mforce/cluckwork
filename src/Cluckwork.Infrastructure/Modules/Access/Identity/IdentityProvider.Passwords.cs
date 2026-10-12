@@ -27,7 +27,8 @@ public sealed partial class IdentityProvider
     // copy: #360 made EVERY interactive SetUserPassword spend a single-use
     // step-up grant BEFORE the account lock is taken, so a losing interactive
     // reset is back to needing a fresh confirmation; offline `recover-admin`
-    // has no password-confirmation grant at all. The wording above ("your
+    // has no password-confirmation grant at all. ConcurrencyConflict's wording
+    // in IdentityProvider.DisableEnable.cs ("your
     // password confirmation has already been used") is true for interactive
     // resets but would still instruct the offline flow to redo something it
     // never did, so the copy hedges. Same Users.Conflict code — only the

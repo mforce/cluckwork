@@ -15,7 +15,8 @@ public sealed partial class IdentityProvider
     // request answers 403, not success. The copy says so rather than promising
     // a retry that cannot work.
     // Used ONLY by the disable/enable paths, where that sentence is always
-    // true. The password-reset paths use ResetConcurrencyConflict below.
+    // true. The password-reset paths use ResetConcurrencyConflict in
+    // IdentityProvider.Passwords.cs.
     private static Error ConcurrencyConflict() => Error.Conflict(
         "Users.Conflict",
         "The user was modified by another request, and your password confirmation has already been used. "
