@@ -16,8 +16,16 @@ product stays referenced.
   grades only, `ProductsPage.tsx`), sold per, default price, notes. Notes
   exist on CREATE only — the edit dialog has no notes field (its comment says
   so explicitly); editing round-trips the stored notes untouched.
-- Packed units tab: egg-unit conversions (unit, eggs per unit, status).
-  "Individual" always reads 1 and offers no edit (`products:alwaysOneMessage`).
+- Packed units tab: egg-unit conversions (unit, eggs per unit, status), now
+  its own panel (`web/src/routes/PackedUnitsPanel.tsx`, rendered by
+  `ProductsPage.tsx:486-487`). "Individual" always reads 1 and offers no
+  edit (`products:alwaysOneMessage`).
+- Edits are optimistic: the catalog responses carry `version`
+  (`web/src/api/cluckwork/catalog.ts:17,25`), each edit dialog seeds it from
+  its row (`startEdit`/`startEditConversion`, `ProductsPage.tsx:227,243`)
+  and sends it back with the save (`version: editVersion` /
+  `version: editConvVersion`, `ProductsPage.tsx:273,307`; the request
+  bodies are typed with `version` at `catalog.ts:41,59`).
 - Deactivation is soft: the product leaves the sale pickers (the endpoint
   summary in `ProductEndpoints.cs`) and the referenced product and saved
   price stay on recorded lines. An order ROW's name is not a snapshot —
@@ -73,7 +81,7 @@ on `/products`.
 - `default-farm`: Sim Large Eggs (45), Sim Medium Eggs (38), Sim Small Eggs
   (30), Sim Cracked Eggs (18), Sim Dirty Eggs (22), plus Sim Unpriced Eggs
   with no default price (#720) — prices in MINOR units, per `CatalogWanted`
-  in `src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs`.
+  in `src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Sales.cs:30`.
 - `readme-farm`: Large Eggs (45), Medium Eggs (38), Cracked Eggs (18, note
   "Sold at a discount") — `DemoProducts` in
   `src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs`, also minor
@@ -99,6 +107,26 @@ on `/products`.
   `noValidate` and always reaches the parser's message
   (`products:atMostDecimals`, or `products:noDecimalPlaces` for a
   zero-decimal currency). Never compute expected values with `value * 100`.
+- A stale edit — two tabs open, or another admin saving first — is refused,
+  not silently overwritten. The handlers compare the row's loaded `Version`
+  with the command's and fail with `Product.VersionMismatch`
+  (`src/Cluckwork.Application/Modules/Commerce/Catalog/UpdateProduct/UpdateProductHandler.cs:22-24`)
+  or `EggUnitConversion.VersionMismatch`
+  (`.../UpdateEggUnitConversion/UpdateEggUnitConversionHandler.cs:17-19`);
+  the endpoint answers HTTP 409 with that code as the ProblemDetails title
+  (`src/Cluckwork.Api/Modules/Commerce/Catalog/ProductEndpoints.cs:143-145`),
+  and the EF concurrency token can 409 with the literal title
+  "Concurrency conflict" racing the handler
+  (`src/Cluckwork.Api/Program.cs:556,574`). The dialogs treat ONLY those
+  three titles as version conflicts (`VERSION_CONFLICT_TITLES`,
+  `ProductsPage.tsx:40-44`) — any other 409 (duplicate name, say) keeps the
+  form and its idempotency key. On a real conflict the loser rebinds: it
+  clears its key, refreshes, reopens the dialog seeded from the winner's
+  values (`ProductsPage.tsx:281-290` products, `:309-317` conversions) and
+  shows `products:conflictRebindMessage` /
+  `products:packedUnitConflictRebindMessage` (`web/src/i18n/en.ts:1621-1627`) —
+  "This product was changed by someone else — the form now shows the latest
+  values; re-apply your changes."
 - Mixed-currency rows are legal: the create dialog prices in the account
   currency while an edit dialog uses that row's snapshot — do not assume one
   currency across the table.
