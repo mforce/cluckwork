@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
@@ -1182,46 +1182,65 @@ describe("DailyEntryPage assign the remainder", () => {
   // observable for the two pickers and pinned there; for this path the
   // guarantee is structural instead, and this is what enforces it.
   it("routes every change of flock or date through the disarming helper", () => {
-    const source = readFileSync(resolve(process.cwd(), "src/routes/DailyEntryPage.tsx"), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/[^\n]*/g, "");
+    // #1215 — the split moved setter calls into routes/dailyEntry/ (the
+    // create-flock write, the picker commit and the date input), so the guard
+    // reads the page PLUS every production source there. The setter
+    // declarations stay pinned on the page; the call and alias rules apply to
+    // each source in turn.
+    const dailyEntry = readdirSync(resolve(process.cwd(), "src/routes/dailyEntry"), {
+      withFileTypes: true,
+    })
+      .filter((e) => e.isFile() && /\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name))
+      .map((e) => e.name)
+      .sort()
+      .map((name) => `src/routes/dailyEntry/${name}`);
+    const sources = ["src/routes/DailyEntryPage.tsx", ...dailyEntry].map((p) => ({
+      path: p,
+      source: readFileSync(resolve(process.cwd(), p), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, ""),
+    }));
+    const page = sources[0].source;
 
     // The setters are pinned to these names FIRST. Without this the check
     // greps for a literal that a rename makes disappear: a reviewer renamed
     // the state setter and called it raw, reintroducing the bug with this test
     // still green. Renaming is now the thing that fails, and the failure says
     // to update this list.
-    expect(source, "flock setter name").toMatch(/const \[flockId, setFlockId\] = useState/);
-    expect(source, "date setter name").toMatch(/const \[date, setDate\] = useState/);
+    expect(page, "flock setter name").toMatch(/const \[flockId, setFlockId\] = useState/);
+    expect(page, "date setter name").toMatch(/const \[date, setDate\] = useState/);
 
-    // Every call site, in or out of an effect. The mount path cannot be armed
-    // yet, but it is routed anyway so the rule has no exceptions to remember.
+    // Every call site, in or out of an effect, on the page or in a moved
+    // source. The mount path cannot be armed yet, but it is routed anyway so
+    // the rule has no exceptions to remember.
     // #512 — the picker's onCommit is one of those call sites; it is routed
     // through retarget so the disarm lands in the same event as the commit.
-    for (const setter of ["setFlockId", "setDate"]) {
-      const calls = [...source.matchAll(new RegExp(`${setter}\\(`, "g"))];
-      expect(calls.length, `${setter} call sites`).toBeGreaterThan(0);
-      for (const call of calls) {
-        // #512 — the picker's onCommit is a multi-line arrow
-        // (retarget(() => { setFlockId(...); setPickerFlock(...); ... })),
-        // so the 60-char prefix shows `retarget(() => {` but NOT the trailing
-        // `setFlockId(` on the same line. The rule is still "inside
-        // retarget(...)" — the prefix just needs to END with the retarget
-        // opener. Accept `retarget(() => ` (single line) or `retarget(() => {`
-        // (multi-line block) as the prefix's tail.
-        const before = source.slice(Math.max(0, call.index - 60), call.index);
-        expect(before, `${setter} at index ${call.index} must be inside retarget(...)`)
-          .toMatch(/retarget\(\(\) =>\s*(\{|$)/);
-      }
-    }
+    for (const { path, source } of sources) {
+      for (const setter of ["setFlockId", "setDate"]) {
+        const calls = [...source.matchAll(new RegExp(`${setter}\\(`, "g"))];
+        if (path === "src/routes/DailyEntryPage.tsx") {
+          expect(calls.length, `${setter} call sites`).toBeGreaterThan(0);
+        }
+        for (const call of calls) {
+          // #512 — the picker's onCommit is a multi-line arrow
+          // (retarget(() => { setFlockId(...); setPickerFlock(...); ... })),
+          // so the 60-char prefix shows `retarget(() => {` but NOT the trailing
+          // `setFlockId(` on the same line. The rule is still "inside
+          // retarget(...)" — the prefix just needs to END with the retarget
+          // opener. Accept `retarget(() => ` (single line) or `retarget(() => {`
+          // (multi-line block) as the prefix's tail.
+          const before = source.slice(Math.max(0, call.index - 60), call.index);
+          expect(before, `${setter} at index ${call.index} in ${path} must be inside retarget(...)`)
+            .toMatch(/retarget\(\(\) =>\s*(\{|$)/);
+        }
 
-    // An alias would still let a raw call through under another name, so the
-    // setters may not be re-bound at all. (A wrapper whose BODY calls the
-    // setter is caught by the loop above; this closes the rename-at-source
-    // spelling the loop cannot see.)
-    for (const setter of ["setFlockId", "setDate"]) {
-      expect(source, `${setter} must not be aliased`)
-        .not.toMatch(new RegExp(`=\\s*${setter}\\s*[;,\\n]`));
+        // An alias would still let a raw call through under another name, so
+        // the setters may not be re-bound at all. (A wrapper whose BODY calls
+        // the setter is caught by the loop above; this closes the
+        // rename-at-source spelling the loop cannot see.)
+        expect(source, `${setter} must not be aliased in ${path}`)
+          .not.toMatch(new RegExp(`=\\s*${setter}\\s*[;,\\n]`));
+      }
     }
   });
 });
