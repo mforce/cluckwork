@@ -1,4 +1,5 @@
 using Cluckwork.Api.Cli;
+using Cluckwork.Api.Endpoints;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Hosting.Modules;
 using Cluckwork.Api.Middleware;

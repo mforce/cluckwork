@@ -1,4 +1,5 @@
 using Cluckwork.Api.Endpoints.ClientErrors;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Api.Modules.Access.Me;
 using Cluckwork.Api.Modules.Access.OAuth;
@@ -18,7 +19,7 @@ using Cluckwork.Api.Modules.Insights.Audit;
 using Cluckwork.Api.Modules.Insights.Export;
 using Cluckwork.Api.Modules.Insights.Reports;
 
-namespace Cluckwork.Api.Hosting;
+namespace Cluckwork.Api.Endpoints;
 
 // The /api/v1 endpoint groups. Program.cs calls this after the middleware pipeline and
 // before the health, /error and SPA fallback routes.
