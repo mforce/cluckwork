@@ -322,6 +322,7 @@ describe("MUI source policy (#824)", () => {
         if (value !== "0") nonzero.push(`${relative(sourceRoot, file)}:${value}`);
       });
     }
-    expect(nonzero).toEqual(["routes/DailyEntryPage.tsx:4"]);
+    // #1215 split — the action bar is EntryFooter under routes/dailyEntry/.
+    expect(nonzero).toEqual(["routes/dailyEntry/EntryFooter.tsx:4"]);
   });
 });
