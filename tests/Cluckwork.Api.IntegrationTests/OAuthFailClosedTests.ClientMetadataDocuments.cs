@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -198,7 +199,7 @@ public sealed partial class OAuthFailClosedTests
     [Fact]
     public async Task FailingUrl_IsFetchedOnlyWithinItsBudget()
     {
-        await using var metadata = await MetadataHostAsync();
+        await using var metadata = await MetadataHostAsync(counterClock: new FakeTimeProvider());
         var user = await SeedAsync(Roles.Manager);
         var url = NewDocumentUrl();
         metadata.Server.Respond = metadata.Server.Serves("", status: 500);
@@ -273,7 +274,7 @@ public sealed partial class OAuthFailClosedTests
     [Fact]
     public async Task RemovedDocument_IsNotRevived_ByDrainingTheBudget()
     {
-        await using var metadata = await MetadataHostAsync();
+        await using var metadata = await MetadataHostAsync(counterClock: new FakeTimeProvider());
         var user = await SeedAsync(Roles.Manager);
         var url = NewDocumentUrl();
         await AskConsentAsync(metadata, user, url);
@@ -494,7 +495,8 @@ public sealed partial class OAuthFailClosedTests
     }
 
     // Serves a valid document for whichever path is asked, redirecting to RedirectUri.
-    private async Task<MetadataHost> MetadataHostAsync(bool enabled = true)
+    // A test that drains a budget passes counterClock, for the same reason as BudgetResolver.
+    private async Task<MetadataHost> MetadataHostAsync(bool enabled = true, FakeTimeProvider? counterClock = null)
     {
         var server = await MetadataDocumentServer.StartAsync();
         server.Respond = context => server.Serves(
@@ -503,7 +505,13 @@ public sealed partial class OAuthFailClosedTests
         var host = Host().WithWebHostBuilder(builder =>
         {
             builder.UseSetting("OAuth:ClientMetadata:Enabled", enabled.ToString());
-            builder.ConfigureTestServices(services => services.AddSingleton(_ => network.Fetcher()));
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(_ => network.Fetcher());
+                if (counterClock is null) return;
+                services.RemoveAll<IFixedWindowCounter>();
+                services.AddSingleton<IFixedWindowCounter>(new InProcessFixedWindowCounter(counterClock));
+            });
         });
         return new MetadataHost(host, server, network);
     }
