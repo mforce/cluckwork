@@ -862,29 +862,6 @@ input.cell {
 
 /* -------------------------------------------- Daily entry (F134) */
 
-/* The three steps are a real sequence, not decoration: grading is capped by the
-   counts, which prefill against the flock and date. */
-.entry-step {
-  margin-bottom: 1.75rem;
-}
-
-.entry-step > h3 {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0;
-}
-
-/* Tabbing into a field the pinned bar is covering is a focus-order failure
-   (WCAG 2.4.3): measured 3 of 14 controls landing behind it at 390x844, the
-   worst by 114px. Scoped to this screen's controls rather than a global
-   scroll-padding, which would make focus scrolling overshoot everywhere else.
-   10rem clears the bar's tallest state. */
-.entry-step input,
-.entry-step select {
-  scroll-margin-bottom: 10rem;
-}
-
 /* Says "Step 1", not just "1" — a bare numeral asks the reader to infer that it
    is a step at all. Only the " of 2" is screen-reader-only, because that part
    genuinely is not on screen; everything visible is spoken exactly once. */
@@ -902,71 +879,11 @@ input.cell {
   letter-spacing: 0;
 }
 
-/* The panes reconcile against each other — the sellable figure the left one
-   produces is the target the right one has to hit — so they sit side by side
-   and the whole day is one glance. minmax(0,1fr): a bare 1fr floors at the
-   content's min-content and would push the page wider than the viewport. */
-.entry-cols {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2rem 2.5rem;
-  align-items: start;
-}
-
 .entry-pane {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-panel);
   padding: 1.35rem 1.5rem;
-}
-
-.entry-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
-/* Name left, control right, on one line. The old wrapping flex grew every
-   field to fill 300px for a three-digit number and orphaned the fifth onto a
-   row of its own. */
-.entry-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 1rem;
-}
-
-.entry-row > label {
-  font-size: 0.9rem;
-  color: var(--muted);
-  margin: 0;
-}
-
-/* Sellable, shown as a value rather than buried in a sentence. */
-.entry-readout {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 1.1rem 0 0;
-  padding-top: 0.9rem;
-  border-top: 1px dashed var(--hairline);
-}
-
-.entry-readout .k {
-  font-size: 0.8rem;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.entry-readout .v {
-  font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  /* #835/#948 — one of the stat figures; clears the root's text-cut pin so
-     the display cut applies at this size. */
-  font-variation-settings: normal;
 }
 
 /* How many eggs are still unaccounted for — the number the grading pane is
@@ -1026,15 +943,6 @@ input.cell {
   cursor: grabbing;
 }
 
-/* Armed: every grade row becomes a target, so the whole pane reads as one. */
-.entry-row.taking {
-  outline: 1px dashed var(--stat-accent);
-  outline-offset: 0.35rem;
-  border-radius: var(--r-input);
-  /* The take button is appended, not swapped in, so the row grows a column. */
-  grid-template-columns: minmax(0, 1fr) auto auto;
-}
-
 .entry-take {
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
@@ -1047,42 +955,6 @@ input.cell {
 .entry-take:hover:not(:disabled) {
   background: var(--stat-accent);
   color: var(--surface);
-}
-
-/* ---- the same two steps inside a dialog: History's adjust form (#69) ----
-   A correction replaces the day's official numbers, so it is the same job as
-   capturing them and reads the same way — two panes that reconcile, with the
-   sellable figure the left one produces as the target the right one has to hit.
-   Only the surrounding chrome differs, which is all this block adjusts. */
-.entry-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-}
-
-/* The panes stop at the reason field, so the last one drops the page layout's
-   trailing gap (the flex column above owns the spacing here). */
-.dialog .entry-step {
-  margin-bottom: 0;
-}
-
-/* The step heading is an h3 like the dialog's own title; inside the panel it is
-   a subheading of it, not a peer. */
-.dialog .entry-step > h3 {
-  font-size: 0.95rem;
-}
-
-/* The pane sits ON the dialog surface, so a filled card would be invisible —
-   the hairline is what still separates the two steps. */
-.dialog .entry-pane {
-  background: transparent;
-  padding: 1.1rem 1.15rem;
-}
-
-/* Wraps, rather than stretching to one line: the reason is a sentence, and it
-   is the last thing standing between the correction and Save. */
-.entry-reason input {
-  width: 100%;
 }
 
 .entry-chip.done { background: var(--tint-ok); }
@@ -2411,7 +2283,7 @@ label.check {
   border-radius: 2px;
 }
 
-/* #829 — `.num`'s tabular figures and `.cust`'s truncation, unscoped: both
+/* #829 — `.num`'s tabular figures, unscoped: it
    used to be `.dash-list`-prefixed and the list itself is gone (Recent
    sales is now an `sx`-laid-out row, D2 pair 14). Deliberately narrow —
    only what the removed rules carried, not `table.data td.num`'s
@@ -2421,16 +2293,10 @@ label.check {
   white-space: nowrap;
 }
 
-.cust {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* #829 — the grade ledger (`.stock-ledger`) and the recent-sales list
    (`.dash-list`), including the panel-width container query the latter
    used, are gone: both are `sx`-laid-out MUI rows now (D2 pairs 14/21-
-   adjacent), and `.swatch`/`.num`/`.cust` above carry what they still need. */
+   adjacent), and `.swatch`/`.num` above carry what they still need. */
 
 /* ---------------------------------------------------- Help (docs layout) */
 .help-head {
@@ -2954,13 +2820,6 @@ dl.mistakes {
     margin-top: 0.75rem;
   }
 
-  /* One pane above the other: side by side on a phone would put four-digit
-     inputs in a 160px column. */
-  .entry-cols {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.5rem;
-  }
-
   /* Barn use is one-handed and often gloved: 44px is the minimum comfortable
      touch target, and the default padding lands under it. The take button
      belongs here more than any of them — dragging does not work on touch, so on
@@ -2970,10 +2829,6 @@ dl.mistakes {
   .entry-row .entry-take,
   .entry-chip-grab {
     min-height: 2.75rem;
-  }
-
-  .entry-row .numfield-step {
-    width: 2.75rem;
   }
 
   /* #827 — the phone bottom-sheet variant (`.dialog-backdrop`'s
