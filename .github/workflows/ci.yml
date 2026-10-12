@@ -251,11 +251,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
-      # #1271: per-test start and end times in milliseconds; the console log rounds
-      # them down to whole seconds. The trx holds test names, timings, outcomes,
-      # failure messages and stack traces. Its run-level StdOut repeats the test
-      # process's console output (Testcontainers and host log lines), which this
-      # step's log already shows. The disposable-credential argument above applies.
+      # #1271: precise per-test start/end timestamps for timing and overlap analysis.
+      # The trx holds test names, timings, outcomes, failure messages and stack
+      # traces. Its run-level StdOut repeats the test process's console output
+      # (Testcontainers and host log lines), which the Test step's log already
+      # shows. The disposable-credential argument above applies.
       - name: Upload integration timings
         if: always() && matrix.group == 'integration'
         uses: actions/upload-artifact@v7
