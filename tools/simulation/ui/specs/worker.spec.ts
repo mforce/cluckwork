@@ -128,7 +128,8 @@ test.describe("Worker", () => {
     // (here, the assigned default) lives in the field's `value`. Its own
     // server-side scope (#388) means the unassigned flock is unreachable
     // even by an explicit search for it.
-    // The trigger's value is `DailyEntryPage.tsx`'s own `"{name} ({breed})"`
+    // The trigger's value is the daily-entry context row's own
+    // `"{name} ({breed})"` (web/src/routes/dailyEntry/EntryContextRow.tsx)
     // (plus a depleted suffix when relevant), never the bare name, so this
     // needs a prefix match.
     const flockTrigger = page.getByRole("textbox", { name: tEn("dailyEntry:flockLabel") });

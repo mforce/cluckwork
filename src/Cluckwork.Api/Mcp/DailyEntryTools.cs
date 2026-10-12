@@ -56,6 +56,8 @@ public sealed class DailyEntryTools(
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey))
             throw new McpException("idempotencyKey is required.");
+        if (string.IsNullOrWhiteSpace(flock))
+            throw new McpException("flock is required.");
 
         // Keyed on the tool name, so another tool cannot collide, and on the user, so two
         // people's agents choosing the same key do not refuse or replay each other.
@@ -174,12 +176,13 @@ public sealed class DailyEntryTools(
         foreach (var line in grades)
         {
             // Grade names are unique per farm, ignoring case (IX_EggGrades_AccountId_FarmId_LowerName).
-            var grade = line is null ? null : active.FirstOrDefault(g => Guid.TryParse(line.Grade, out var gradeId)
+            var name = line?.Grade?.Trim();
+            var grade = name is null ? null : active.FirstOrDefault(g => Guid.TryParse(name, out var gradeId)
                 ? g.Id == gradeId
-                : string.Equals(g.Name, line.Grade, StringComparison.OrdinalIgnoreCase));
+                : string.Equals(g.Name, name, StringComparison.OrdinalIgnoreCase));
             if (grade is null)
                 return Result.Failure<List<GradeQuantityDto>>(Error.Validation("DailyEntry.UnknownGrade",
-                    $"No active grade '{line?.Grade}'. Active grades: {string.Join(", ", active.Select(g => g.Name))}."));
+                    $"No active grade '{name}'. Active grades: {string.Join(", ", active.Select(g => g.Name))}."));
             lines.Add(new GradeQuantityDto(grade.Id, line!.Quantity));
         }
 
