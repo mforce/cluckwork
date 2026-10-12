@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-[Collection(IntegrationCollection.Name)]
 public sealed class AccountLifecycleCommandTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private static readonly string ApiDllPath = typeof(Program).Assembly.Location;
     private static readonly TimeSpan SubprocessTimeout = TimeSpan.FromSeconds(60);

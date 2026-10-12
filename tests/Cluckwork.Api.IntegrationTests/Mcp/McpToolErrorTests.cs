@@ -21,8 +21,8 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // #1227 — what a model and the log see when a tool call fails: a bad argument is named with
 // its expected shape, a tool's own refusal logs below Error with no stack trace, and any
 // other exception stays an Error whose text never reaches the model.
-[Collection(IntegrationCollection.Name)]
 public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private const string Entry =
         "\"idempotencyKey\":\"k\",\"flock\":\"Any\",\"date\":\"2026-10-11\",\"totalEggs\":1,"

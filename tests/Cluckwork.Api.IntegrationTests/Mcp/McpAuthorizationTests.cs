@@ -19,8 +19,8 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // #806 — who reaches /mcp and what they see: the challenge and discovery a client needs
 // to connect, the token audience, role ∩ scope on tools/list and tools/call, and the
 // shared request checks driven through the real route rather than a probe.
-[Collection(IntegrationCollection.Name)]
 public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private static readonly string[] BothScopes = [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries];
     private static readonly string[] ReadTools =

@@ -15,8 +15,8 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 // #807 — the read tools through the real OAuth flow and the SDK's client: guard rows 26
 // (a cross-farm bearer reads nothing), 31 (every reply is bounded and says so) and the
 // name-resolution contract, plus #388's flock scope for a Worker.
-[Collection(IntegrationCollection.Name)]
 public sealed class McpReadToolsTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 

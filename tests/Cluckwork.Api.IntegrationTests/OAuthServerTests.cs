@@ -28,8 +28,8 @@ namespace Cluckwork.Api.IntegrationTests;
 // #795 — the authorization-code + PKCE flow end to end, and the wall that keeps its
 // token away from business endpoints. OAuthFailClosedTests covers the endpoints that
 // accept it (#796).
-[Collection(IntegrationCollection.Name)]
 public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     internal const string RedirectUri = "https://client.example/callback";
 

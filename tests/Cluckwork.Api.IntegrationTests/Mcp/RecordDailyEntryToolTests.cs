@@ -18,8 +18,8 @@ using static Cluckwork.Api.IntegrationTests.Mcp.McpConnection;
 namespace Cluckwork.Api.IntegrationTests.Mcp;
 
 // #809 — cluckwork_record_daily_entry through the real OAuth flow and the SDK's client.
-[Collection(IntegrationCollection.Name)]
 public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private static readonly string[] WriteOnly = [OAuthScopes.WriteDailyEntries];
     private static readonly string[] BothScopes = [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries];

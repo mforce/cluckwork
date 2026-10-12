@@ -58,7 +58,7 @@ def summarize(directory):
     shared_classes = set()
     for source in pathlib.Path("tests/Cluckwork.Api.IntegrationTests").rglob("*.cs"):
         shared_classes.update(re.findall(
-            r"\[Collection\(IntegrationCollection.Name\)\]\s*public (?:sealed )?class (\w+)",
+            r"\[Collection\(IntegrationCollection.Name\)\]\s*public (?:sealed )?(?:partial )?class (\w+)",
             source.read_text(),
         ))
     shared = [row for row in rows if row[0].rsplit(".", 1)[-1] in shared_classes]

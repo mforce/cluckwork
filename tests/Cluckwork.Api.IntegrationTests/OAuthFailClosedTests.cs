@@ -32,8 +32,8 @@ namespace Cluckwork.Api.IntegrationTests;
 // #796 — an OAuth access token runs the same fail-closed chain a session JWT does. The
 // probes below are the only endpoints that accept OAuth tokens, and they exist only in
 // this test host; they sit in the real endpoint table, behind the real middleware.
-[Collection(IntegrationCollection.Name)]
 public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory factory)
+    : IClassFixture<CluckworkWebApplicationFactory>
 {
     private const string ReadScope = "cw796.read";
     private const string WriteScope = "cw796.write";
