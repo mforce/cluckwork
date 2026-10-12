@@ -3,7 +3,7 @@
    never has to coexist with one, but sits highest on principle — it is the
    very first thing the authenticated shell shows. #827 moved every dialog
    onto MUI, whose `Modal` stacks at `theme.zIndex.modal` (1300 by default) —
-   an entirely different numeric scale from this file's own z-indices, so
+   an entirely different numeric scale from the app stylesheet's own z-indices, so
    there is no longer a single number this comment could cite as "above the
    dialog"; the "never coexists" claim above is what actually keeps this
    correct, not the relative z-index value. Known gap, not solved here:

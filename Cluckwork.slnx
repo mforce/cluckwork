@@ -430,6 +430,7 @@
     <File Path="web/src/test/rows.test.tsx" />
     <File Path="web/src/test/rows.ts" />
     <File Path="web/src/test/setup.ts" />
+    <File Path="web/src/test/stylesheet.test.ts" />
     <File Path="web/src/test/stylesheet.ts" />
     <File Path="web/src/test/viteConfig.test.ts" />
   </Folder>

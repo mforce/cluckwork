@@ -23,7 +23,7 @@
 /* #142/#936 — the "new version is ready" affordance is now a full,
    splashscreen-like overlay (plain HTML, not MUI): UpdatePrompt mounts
    outside FarmThemeProvider (#142), so — same as `.brand-splash-backdrop`
-   below it in this file — a real MUI ThemeProvider is never in scope, and
+   in splash.css — a real MUI ThemeProvider is never in scope, and
    the base `:where(button)`/`button.link` rules already carry this app's
    branding without one. Retired the #828 corner Snackbar/Alert: a bottom-
    corner toast was exactly the treatment reported hardest to notice on a

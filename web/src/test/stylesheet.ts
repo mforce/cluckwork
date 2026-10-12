@@ -23,10 +23,22 @@ import { fileURLToPath } from "node:url";
 const INDEX_REL = "../styles.css";
 const INDEX_PATH = fileURLToPath(new URL(INDEX_REL, import.meta.url));
 
+// Every `@import` statement, in any casing, so an unsupported form cannot be
+// skipped silently. Only the one form below is inlined; anything else throws.
+const ANY_IMPORT = /@import\b[^;]*;?\n?/gi;
+const SUPPORTED = /^@import "(\.\.?\/[^"]+\.css)";\n?$/;
+
+/** `path`'s CSS with each relative `@import` inlined, recursively and in order. */
+export function inlineImports(path: string, importers: readonly string[] = []): string {
+  if (importers.includes(path)) throw new Error(`@import cycle: ${[...importers, path].join(" -> ")}`);
+  return readFileSync(path, "utf8").replace(ANY_IMPORT, (statement) => {
+    const rel = SUPPORTED.exec(statement)?.[1];
+    if (rel === undefined) throw new Error(`unsupported @import in ${path}: ${statement.trim()}`);
+    return inlineImports(resolve(dirname(path), rel), [...importers, path]);
+  });
+}
+
 /** The whole app stylesheet as one string, in cascade order. */
 export function readStylesheet(): string {
-  const css = readFileSync(INDEX_PATH, "utf8").replace(/^@import "(\.\/[^"]+)";\n/gm,
-    (_, rel: string) => readFileSync(resolve(dirname(INDEX_PATH), rel), "utf8"));
-  if (css.includes("@import")) throw new Error("styles.css has an @import this reader does not inline");
-  return css;
+  return inlineImports(INDEX_PATH);
 }

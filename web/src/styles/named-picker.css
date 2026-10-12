@@ -7,7 +7,7 @@
    This rule still applies: BusyButton always renders MUI's own `Button`,
    still a real `<button disabled>` DOM node, and MUI dims a disabled Button
    by swapping its palette colours, never by `opacity` — so the global
-   `button:disabled { opacity: .5 }` rule above is untouched by anything MUI
+   `button:disabled { opacity: .5 }` rule in controls.css is untouched by anything MUI
    sets and would still halve the whole busy subtree. Both rules are
    `:where()`-demoted (#823), so this one wins on source order, not
    specificity — keep it below that rule (styles.elevation.test.ts pins the

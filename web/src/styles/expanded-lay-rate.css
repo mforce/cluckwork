@@ -3,7 +3,7 @@
    the owner on 2026-09-24: an overview map of the whole range above a daily
    window that scrolls, both drawn from the same day slots the card uses.
 
-   The frame is the post-login splash's, above — fixed full-viewport backdrop,
+   The frame is the post-login splash's in splash.css — fixed full-viewport backdrop,
    content centred on both axes, one way out beneath it, and a fade only under
    prefers-reduced-motion: no-preference. Two owner departures: the column is
    wider than the splash's 640px because the subject is ninety bars rather than

@@ -155,8 +155,7 @@
 }
 
 /* #883 round 4, finding B — wrapped in `:where()` so this contributes ZERO
-   specificity, the same device the #823 bare-element sweep uses above (L340
-   onward), extended to a scoped-but-still-outranking selector that sweep did
+   specificity, the same device the #823 bare-element sweep uses in controls.css, extended to a scoped-but-still-outranking selector that sweep did
    not catch (it only walked selectors with no class of their own). At its
    un-where'd specificity (0,1,1), `.content a` beat MUI's own single
    generated class (0,1,0) regardless of Emotion's `prepend: true` injection
