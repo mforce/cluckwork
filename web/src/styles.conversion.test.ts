@@ -50,8 +50,8 @@ const exactDynamicValues = new Map<string, readonly string[]>([
   ["components/StatusBadge.tsx:variant", STATUS_BADGE_CLASSES],
   ["components/StockBar.tsx:s.colorIndex", Array.from({ length: GRADE_COLOURS }, (_, index) => String(index + 1))],
   ["components/ThemeToggle.tsx:className", [""]],
-  ["routes/Dashboard.tsx:deltaClass(trendData.henDay.delta)", DASHBOARD_DELTA_CLASSES],
-  ["routes/Dashboard.tsx:s.colorIndex", Array.from({ length: GRADE_COLOURS }, (_, index) => String(index + 1))],
+  ["routes/dashboard/LayRateCard.tsx:deltaClass(trendData.henDay.delta)", DASHBOARD_DELTA_CLASSES],
+  ["routes/dashboard/StockPanel.tsx:s.colorIndex", Array.from({ length: GRADE_COLOURS }, (_, index) => String(index + 1))],
 ]);
 const consultedDynamicValues = new Set<string>();
 
@@ -301,7 +301,7 @@ describe("MUI source policy (#824)", () => {
       // "& .MuiTableCell-head" to a sibling key like "&& h2" changes its
       // identity instead of keeping the same collected count.
       "components/FieldConsole.tsx#FieldConsole > & .MuiTableCell-head > textTransform:\"uppercase\"",
-      "routes/Dashboard.tsx#Dashboard > textTransform:\"uppercase\"",
+      "routes/dashboard/LayRateCard.tsx#LayRateCard > textTransform:\"uppercase\"",
       "routes/sales/SalesPage.tsx#SalesPage > textTransform:\"uppercase\"",
     ]);
   });

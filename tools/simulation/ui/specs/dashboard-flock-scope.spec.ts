@@ -308,8 +308,9 @@ test.describe("Dashboard Lay rate flock scope", () => {
       .toHaveText(tEn("namedEntityPicker:noResults"));
   });
 
-  // #935 — regression coverage for the Dashboard.tsx fix (see its comment
-  // for the root cause). Fails at ~247px on the unfixed code.
+  // #935 — regression coverage for the Dashboard picker fix (see
+  // routes/dashboard/LayRateCard.tsx's comment for the root cause). Fails at
+  // ~247px on the unfixed code.
   test("the picker dialog holds its 30rem desktop width while filtering, with no horizontal overflow", async ({ page, signIn }) => {
     await signIn(owner());
     await page.goto("/");
@@ -335,7 +336,8 @@ test.describe("Dashboard Lay rate flock scope", () => {
     expect(doc.scrollWidth, "the page scrolls sideways while the picker is open and filtered").toBeLessThanOrEqual(doc.clientWidth + 1);
   });
 
-  // #937 — Dashboard.tsx reserves real height so Paper's box already fits
+  // #937 — routes/dashboard/LayRateCard.tsx reserves real height so Paper's
+  // box already fits
   // the results popover, rather than disabling the clip (which changes what
   // Popper's `flip` modifier reads as available space and can flip the
   // popover above the search field, over the title — checked directly via

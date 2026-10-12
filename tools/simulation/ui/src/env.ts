@@ -38,7 +38,7 @@ export const API_PREFIX = "/api/v1";
 /**
  * Presence-only CSRF header the API requires on `/auth/refresh`. Any value is
  * accepted; the header must be there. Mirrors k6/config.js's CSRF_HEADER_NAME —
- * and the SPA's own client.ts, which is what the browser will actually send.
+ * and the SPA's own request.ts, which is what the browser will actually send.
  */
 export const CSRF_HEADER_NAME = "X-Cluckwork-Auth";
 

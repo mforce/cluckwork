@@ -4,7 +4,7 @@
 // browser — which session the user ends up in, and what a reload then does
 // (post-#433: for the login race, a forced fresh sign-in — see the reload
 // block's comment) — not the mechanism. The mechanism is `sessionGeneration` in
-// `web/src/api/client.ts`: a module-level counter that `login()` and `logout()`
+// `web/src/api/session.ts`: a module-level counter that `login()` and `logout()`
 // bump, captured before each await and re-checked on settlement, so a superseded
 // completion is discarded (`StaleSessionError`) instead of committing tokens.
 //
@@ -69,7 +69,7 @@
 // always revoke a stale-generation flight's cookie instead of skipping the
 // revoke whenever an access token happens to be present (which never proved
 // anything about which Set-Cookie the browser actually kept). See that
-// function's own comment in `web/src/api/client.ts` and the corrected unit
+// function's own comment in `web/src/api/sessionState.ts` and the corrected unit
 // test in `client.test.ts`.
 //
 // **AND THE LATE-`Set-Cookie` RACE CANNOT BE EXPRESSED WITH THIS INSTRUMENT AT
@@ -125,7 +125,7 @@
 //
 // CONSEQUENCE, stated plainly (updated by #393): the hazard itself is fixed
 // and unit-covered in `client.test.ts` now — see revokeSupersededCookie()'s
-// comment in `web/src/api/client.ts`. What's still true is narrower than the
+// comment in `web/src/api/sessionState.ts`. What's still true is narrower than the
 // original claim: THIS spec, specifically, still cannot express the cookie
 // mechanism at the browser/E2E level, because `page.route` + `route.continue()`
 // cannot carry a stale cookie (see above) — that's a property of this testing
