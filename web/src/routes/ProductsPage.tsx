@@ -18,6 +18,7 @@ import {
   STICKY_TABLE_HEAD_SX, selectableRowProps, useClampSelection,
 } from "../components/FieldConsole";
 import { EmptyState } from "../components/EmptyState";
+import { PackedUnitsPanel } from "./PackedUnitsPanel";
 import { ProductDialogs } from "./ProductDialogs";
 import { StatusBadge } from "../components/StatusBadge";
 import { useDialogAction } from "../components/useDialogAction";
@@ -327,7 +328,6 @@ export function ProductsPage() {
   const editingProduct = products.find((p) => p.id === editingId) ?? null;
   const editingConv = conversions.find((c) => c.id === editingConvId) ?? null;
   const selectedProduct = products.find((p) => p.id === selectedProductId) ?? null;
-  const selectedConv = conversions.find((c) => c.id === selectedConvId) ?? null;
 
   // #908 — shared between the row's own Actions cell and the inspector's
   // actions, so both call sites stay one implementation.
@@ -478,49 +478,8 @@ export function ProductsPage() {
         )}
       </Box>
 
-      <Box role="tabpanel" id="packed-units-tabpanel" aria-labelledby="packed-units-tab" hidden={tab !== "packedUnits"}>
-        <ListInspectorPane
-          tableLabel={t("packedUnitsHeading")}
-          onClearSelection={() => setSelectedConvId(null)}
-          table={(
-            <LedgerTableContainer scrollHint="columnsAndRows">
-              <Table size="small" sx={isAdmin ? { "& :is(th, td):last-child": { display: { xs: "none", md: "table-cell" } } } : undefined}>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("unitHeader")}</TableCell>
-                    <TableCell align="right" sx={STICKY_TABLE_HEAD_SX}>{t("eggsPerUnitHeader")}</TableCell>
-                    <TableCell sx={STICKY_TABLE_HEAD_SX}>{t("statusHeader")}</TableCell>
-                    {isAdmin && <TableCell sx={STICKY_TABLE_HEAD_SX}>{tc("actions")}</TableCell>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {conversions.map((c) => (
-                    <TableRow key={c.id} className={c.active ? undefined : "muted"}
-                      {...selectableRowProps(c.id === selectedConvId, () => setSelectedConvId(c.id))}>
-                      <TableCell sx={NOWRAP}>{c.unitCode}</TableCell>
-                      <TableCell align="right" sx={NOWRAP}>{fmt.count(c.eggsPerUnit)}</TableCell>
-                      <TableCell sx={NOWRAP}>{statusLabel(c.active ? "Active" : "Inactive")}</TableCell>
-                      {isAdmin && <TableCell sx={NOWRAP}>{renderConversionActions(c)}</TableCell>}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </LedgerTableContainer>
-          )}
-          inspector={(
-            <RecordInspector
-              ariaLabel={tc("inspectorLabel", { entity: t("packedUnitEntitySingular") })}
-              title={selectedConv?.unitCode}
-              emptyMessage={tc("inspectorEmptyPrompt")}
-              fields={selectedConv ? [
-                { label: t("eggsPerUnitHeader"), value: fmt.count(selectedConv.eggsPerUnit) },
-                { label: t("statusHeader"), value: statusLabel(selectedConv.active ? "Active" : "Inactive") },
-              ] : undefined}
-              actions={isAdmin && selectedConv ? { primary: renderConversionActions(selectedConv) } : undefined}
-            />
-          )}
-        />
-      </Box>
+      <PackedUnitsPanel hidden={tab !== "packedUnits"} conversions={conversions} isAdmin={isAdmin}
+        selectedId={selectedConvId} onSelect={setSelectedConvId} renderActions={renderConversionActions} />
     </section>
   );
 }
