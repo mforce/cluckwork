@@ -443,8 +443,14 @@ describe("ProductsPage version conflict", () => {
     expect(mockUpdate.mock.calls[1][2]).not.toBe(mockUpdate.mock.calls[0][2]); // fresh idempotency key
   });
 
-  it("keeps a duplicate-name 409 as a plain error, without rebinding", async () => {
-    mockUpdate.mockRejectedValueOnce(new ApiError(409, "Product.DuplicateName", "Name taken."));
+  // Only a version 409 rebinds. Any other 409 (duplicate name, the unique-index
+  // race, an idempotency key still in flight) keeps the typed form and the key.
+  it.each([
+    ["Product.DuplicateName"],
+    ["Data conflict"],
+    ["A request with this Idempotency-Key is still being processed. Retry shortly."],
+  ])("keeps a %s 409 as a plain error, without rebinding", async (title) => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(409, title, "Name taken."));
     await renderReady(ADMIN);
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
     fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Legacy Tray" } });
@@ -454,6 +460,13 @@ describe("ProductsPage version conflict", () => {
 
     expect(within(dialog()).getByText("Name taken.")).toBeInTheDocument();
     expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy Tray");
+    expect(mockListProducts).toHaveBeenCalledTimes(1); // no conflict reload
+
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(mockUpdate.mock.calls[1][2]).toBe(mockUpdate.mock.calls[0][2]); // same idempotency key
   });
 
   it("rebinds the packed-unit dialog to the winner's values and retries from the new version", async () => {

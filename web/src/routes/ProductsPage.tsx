@@ -34,9 +34,14 @@ const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
 // so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
-// A 409 that is not a duplicate name means the row changed since it was loaded.
+// The 409s that mean "the row changed since it was loaded": the handlers' stale
+// base Version, and the EF token's race (Program.cs). Every other 409 is a
+// different failure and keeps the form and its idempotency key.
+const VERSION_CONFLICT_TITLES = new Set([
+  "Product.VersionMismatch", "EggUnitConversion.VersionMismatch", "Concurrency conflict",
+]);
 const isVersionConflict = (err: unknown) =>
-  err instanceof ApiError && err.status === 409 && err.title !== "Product.DuplicateName";
+  err instanceof ApiError && err.status === 409 && VERSION_CONFLICT_TITLES.has(err.title);
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
