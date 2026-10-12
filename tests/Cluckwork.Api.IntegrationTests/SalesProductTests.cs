@@ -153,7 +153,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var conversions = await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions");
         var carton = conversions!.Single(c => c.UnitCode == "Carton");
         var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = 30, active = true }) };
+        { Content = JsonContent.Create(new { version = carton.Version, eggsPerUnit = 30, active = true }) };
         put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
 
@@ -190,7 +190,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var conversions = await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions");
         var carton = conversions!.Single(c => c.UnitCode == "Carton");
         var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = 30, active = true }) };
+        { Content = JsonContent.Create(new { version = carton.Version, eggsPerUnit = 30, active = true }) };
         put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
 
@@ -261,7 +261,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         var conversions = await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions");
         var tray = conversions!.Single(c => c.UnitCode == "Tray");
         var off = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{tray.Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = tray.EggsPerUnit, active = false }) };
+        { Content = JsonContent.Create(new { version = tray.Version, eggsPerUnit = tray.EggsPerUnit, active = false }) };
         off.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(off)).StatusCode);
         var noConv = await AddLineAsync(client, orderId, productId, 1, unit: "Tray", price: 100);
@@ -328,7 +328,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         {
             Content = JsonContent.Create(new
             {
-                name = "Large Eggs", defaultUnit = "Egg",
+                version = 0, name = "Large Eggs", defaultUnit = "Egg",
                 defaultPriceMinorUnits = (long?)100, eggGradeId = grades["Medium"],
                 notes = (string?)null,
             })
@@ -456,7 +456,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         {
             Content = JsonContent.Create(new
             {
-                name = "Unpriced dozen", defaultUnit = "Egg",
+                version = 0, name = "Unpriced dozen", defaultUnit = "Egg",
                 defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
                 notes = (string?)null,
             })
@@ -641,7 +641,7 @@ public sealed class SalesProductTests(CluckworkWebApplicationFactory factory)
         {
             Content = JsonContent.Create(new
             {
-                name = "Large Eggs", defaultUnit = "Egg",
+                version = 0, name = "Large Eggs", defaultUnit = "Egg",
                 defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
                 notes = (string?)null,
             })

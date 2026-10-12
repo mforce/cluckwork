@@ -178,7 +178,7 @@ else
 // Resolve the real client IP and scheme from a trusted proxy's forwarded
 // headers before anything reads RemoteIpAddress or Request.Scheme (the rate
 // limiter, HTTPS redirection and HSTS all depend on it) — #143/#144.
-app.UseForwardedHeaders();
+app.UseTrustedForwardedHeaders();
 
 // Security response headers on every response (#144). Outermost after the
 // forwarded headers so it also covers static files and error responses.

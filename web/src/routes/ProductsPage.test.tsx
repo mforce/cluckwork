@@ -339,6 +339,7 @@ describe("ProductsPage edit", () => {
     expect(mockUpdate.mock.calls[0][0]).toBe("p1");
     // notes carries the seeded "premium" — the dialog seeds it and it is untouched.
     expect(mockUpdate.mock.calls[0][1]).toEqual({
+      version: 1, // the base the row was loaded at
       name: "Grade A Half-Dozen",
       defaultUnit: "Carton",
       defaultPriceMinorUnits: 1250,
@@ -409,8 +410,86 @@ describe("ProductsPage packed-unit conversions", () => {
     });
 
     expect(mockUpdateConversion.mock.calls[0][0]).toBe("conv-carton");
-    expect(mockUpdateConversion.mock.calls[0][1]).toEqual({ eggsPerUnit: 18, active: false });
+    expect(mockUpdateConversion.mock.calls[0][1]).toEqual({ version: 2, eggsPerUnit: 18, active: false });
     expect(mockUpdateConversion.mock.calls[0][2]).toEqual(expect.any(String)); // idempotency key
+  });
+});
+
+// A save from a stale base Version gets 409: the dialog rebinds to the other
+// admin's values (Expenses/History pattern), and the next save is a new request
+// from the new base — never a silent overwrite.
+describe("ProductsPage version conflict", () => {
+  it("rebinds the product dialog to the winner's values and retries from the new version", async () => {
+    const winner: Product = { ...P1, name: "Their Dozen", defaultPriceMinorUnits: 900, version: 2 };
+    mockUpdate.mockRejectedValueOnce(new ApiError(409, "Product.VersionMismatch", "stale"));
+    await renderReady(ADMIN);
+    mockListProducts.mockResolvedValue([winner, P2]);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "My Dozen" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText(i18n.t("products:conflictRebindMessage"))).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Their Dozen");
+    expect(within(dialog()).getByLabelText(/Default price/)).toHaveValue(0.9);
+
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(mockUpdate.mock.calls[0][1]).toMatchObject({ version: 1, name: "My Dozen" });
+    expect(mockUpdate.mock.calls[1][1]).toMatchObject({ version: 2, name: "Their Dozen" });
+    expect(mockUpdate.mock.calls[1][2]).not.toBe(mockUpdate.mock.calls[0][2]); // fresh idempotency key
+  });
+
+  // Only a version 409 rebinds. Any other 409 (duplicate name, the unique-index
+  // race, an idempotency key still in flight) keeps the typed form and the key.
+  it.each([
+    ["Product.DuplicateName"],
+    ["Data conflict"],
+    ["A request with this Idempotency-Key is still being processed. Retry shortly."],
+  ])("keeps a %s 409 as a plain error, without rebinding", async (title) => {
+    mockUpdate.mockRejectedValueOnce(new ApiError(409, title, "Name taken."));
+    await renderReady(ADMIN);
+    fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "Legacy Tray" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText("Name taken.")).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy Tray");
+    expect(mockListProducts).toHaveBeenCalledTimes(1); // no conflict reload
+
+    mockUpdate.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(mockUpdate.mock.calls[1][2]).toBe(mockUpdate.mock.calls[0][2]); // same idempotency key
+  });
+
+  it("rebinds the packed-unit dialog to the winner's values and retries from the new version", async () => {
+    const winner: EggUnitConversion = { ...CONV_CARTON, eggsPerUnit: 24, version: 3 };
+    mockUpdateConversion.mockRejectedValueOnce(new ApiError(409, "Concurrency conflict", "stale"));
+    await renderReady(ADMIN);
+    mockListConversions.mockResolvedValue([CONV_INDIVIDUAL, winner]);
+    switchToPackedUnits();
+    fireEvent.click(within(screen.getByRole("row", { name: /Carton/ })).getByRole("button", { name: "edit" }));
+    fireEvent.change(within(dialog()).getByRole("spinbutton", { name: "Eggs per unit" }), { target: { value: "18" } });
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+
+    expect(within(dialog()).getByText(i18n.t("products:packedUnitConflictRebindMessage"))).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText("Eggs per unit")).toHaveValue(24);
+
+    mockUpdateConversion.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
+    });
+    expect(mockUpdateConversion.mock.calls[0][1]).toEqual({ version: 2, eggsPerUnit: 18, active: true });
+    expect(mockUpdateConversion.mock.calls[1][1]).toEqual({ version: 3, eggsPerUnit: 24, active: true });
   });
 });
 
@@ -489,15 +568,15 @@ describe("ProductsPage error placement (#479)", () => {
   });
 
   it("shows a failed edit inside the dialog, not on the page behind it", async () => {
-    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this product."));
+    mockUpdate.mockRejectedValue(new ApiError(409, "Product.DuplicateName", "A product with that name already exists."));
     await renderReady(ADMIN);
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
 
-    expect(within(dialog()).getByText("Someone else changed this product.")).toBeInTheDocument();
-    expect(screen.getAllByText("Someone else changed this product.")).toHaveLength(1);
+    expect(within(dialog()).getByText("A product with that name already exists.")).toBeInTheDocument();
+    expect(screen.getAllByText("A product with that name already exists.")).toHaveLength(1);
   });
 
   it("shows a failed conversion save inside the dialog, not on the page behind it", async () => {
@@ -518,13 +597,13 @@ describe("ProductsPage error placement (#479)", () => {
   // so whatever the previous product's attempt left is sitting in the very
   // slot the next product's dialog renders (pi review of #491).
   it("does not carry one product's failed edit into another product's dialog", async () => {
-    mockUpdate.mockRejectedValue(new ApiError(409, "Conflict", "Someone else changed this product."));
+    mockUpdate.mockRejectedValue(new ApiError(409, "Product.DuplicateName", "A product with that name already exists."));
     await renderReady(ADMIN);
     fireEvent.click(within(screen.getByRole("row", { name: /Grade A Dozen/ })).getByRole("button", { name: "edit" }));
     await act(async () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Save" }));
     });
-    expect(within(dialog()).getByText("Someone else changed this product.")).toBeInTheDocument();
+    expect(within(dialog()).getByText("A product with that name already exists.")).toBeInTheDocument();
 
     // The row behind the backdrop is not mouse-reachable, but #480 established
     // a screen reader's virtual cursor still gets there — the same door the
@@ -536,7 +615,7 @@ describe("ProductsPage error placement (#479)", () => {
     // The dialog really did swap records — otherwise the assertion below would
     // pass for the wrong reason.
     expect(within(dialog()).getByLabelText("Name")).toHaveValue("Legacy Tray");
-    expect(within(dialog()).queryByText("Someone else changed this product.")).not.toBeInTheDocument();
+    expect(within(dialog()).queryByText("A product with that name already exists.")).not.toBeInTheDocument();
   });
 
   it("does not carry one conversion's failed save into another conversion's dialog", async () => {

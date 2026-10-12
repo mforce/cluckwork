@@ -10,9 +10,19 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
 {
     // Grades are always eager-loaded: RecordProduction does a full replace of the
     // lines, which requires the current lines to be tracked (orphan delete).
+    // Reads load them in catalog order (EggGradeRepository: SortOrder, then
+    // Name), not physical row order, which differs between databases. The two
+    // filter-free write lookups below show no lines, so they keep a plain Include.
+    private IQueryable<DailyEntry> WithGrades(IQueryable<DailyEntry> entries) =>
+        entries.Include(e => e.Grades
+            .OrderBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId && x.AccountId == g.AccountId)
+                .Select(x => x.SortOrder).FirstOrDefault())
+            .ThenBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId && x.AccountId == g.AccountId)
+                .Select(x => x.Name).FirstOrDefault())
+            .ThenBy(g => g.EggGradeId));
+
     public Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        db.DailyEntries
-            .Include(e => e.Grades)
+        WithGrades(db.DailyEntries)
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public Task<DailyEntry?> GetByIdForFlockScopedWriteAsync(
@@ -43,17 +53,13 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
                 e.Status != DailyEntryStatus.Voided, ct);
 
     public Task<DailyEntry?> GetReadOnlyAsync(Guid id, CancellationToken ct = default) =>
-        db.DailyEntries
-            .AsNoTracking()
-            .Include(e => e.Grades)
+        WithGrades(db.DailyEntries.AsNoTracking())
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     public async Task<IReadOnlyList<DailyEntry>> ListAsync(
         Guid? flockId, DateOnly? from, DateOnly? to, int limit, int offset,
         CancellationToken ct = default) =>
-        await db.DailyEntries
-            .AsNoTracking()
-            .Include(e => e.Grades)
+        await WithGrades(db.DailyEntries.AsNoTracking())
             .Where(e => (flockId == null || e.FlockId == flockId)
                      && (from == null || e.Date >= from)
                      && (to == null || e.Date <= to))

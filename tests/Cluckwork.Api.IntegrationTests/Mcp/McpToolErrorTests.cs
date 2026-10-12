@@ -43,6 +43,8 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
         { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[{"grade":"Large","quantity":"ten"}]}""", "grades[0].quantity must be a whole number." },
         { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[{"grade":"Large","quantity":null}]}""", "grades[0].quantity must be a whole number." },
         { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry}},"grades":[{"grade":"Large","Quantity":"ten"}]}""", "grades[0].quantity must be a whole number." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry.Replace("\"Any\"", "null")}}}""", "flock is required." },
+        { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, $$"""{{{Entry.Replace("\"Any\"", "\" \"")}}}""", "flock is required." },
         { DailyEntryTools.RecordDailyEntry, OAuthScopes.WriteDailyEntries, """{"idempotencyKey":"k","flock":"Any","totalEggs":1,"crackedEggs":0,"dirtyEggs":0,"discardedEggs":0,"mortalityCount":0}""", "date is required." },
     };
 

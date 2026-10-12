@@ -85,7 +85,10 @@ get a fresh budget per request. The same endpoints therefore count refused beare
 address in the shared counter: 300 a minute, checked before authentication. A presented bearer
 answered 401 spends one; a valid call, a per-token 429 and a tokenless discovery probe spend
 nothing. Once an address has spent its budget, its valid tokens are refused too until the
-minute rolls over, because nothing can tell them apart before authentication. Refusals
+minute rolls over, because nothing can tell them apart before authentication. A proxy outside
+`RateLimiting:TrustedProxies` puts every client in its one address, so one caller can then
+spend the budget for all; the first request whose `X-Forwarded-For` is ignored logs
+`RateLimiting.ForwardedHeadersIgnored` at Warning, once per process, naming the peer. Refusals
 reach that budget only when they finish, so the same endpoints also cap bearer
 authentications in flight per address at 32, per process: in-flight work is each instance's
 own (#271 records the classification). A request gives its permit back once the credential

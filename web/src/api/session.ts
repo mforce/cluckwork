@@ -243,7 +243,8 @@ export async function changePassword(
 // email, disabling a user, re-enabling a user, assigning a worker to a flock,
 // or removing a worker's flock assignment. The grant is returned to the caller and
 // used EXACTLY ONCE, immediately, as the X-Cluckwork-Step-Up header on that
-// one follow-up request (see UsersPage.tsx) — this function itself never
+// one follow-up request (see the UsersPage dialog hooks under
+// web/src/routes/users/) — this function itself never
 // stores the token or the password anywhere longer-lived than its own return
 // value, and there is nothing here to clear on logout: unlike the access
 // token, no module-level state holds a step-up grant at all.
