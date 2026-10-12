@@ -6,7 +6,7 @@ The Cluckwork SPA is built for internationalization from the start. This guide d
 
 The sweep's goal is full coverage of all **client-authored** SPA copy — text written into this codebase's own components and screens (labels, buttons, headings, prose, placeholders). It does **not** chase text that originates on the server:
 
-- **Uncoded validation messages and problem-details fall back to `ApiError.message`, which is server English by design.** [`src/api/client.ts`](./src/api/client.ts)'s `parseError` renders the server's own message whenever a validation error has no explicit error code, or a code with no matching `errors:*` catalog key — see the `defaultValue: msg` fallback there. That English text is not a client string literal, so there is nothing here to externalize for it.
+- **Uncoded validation messages and problem-details fall back to `ApiError.message`, which is server English by design.** [`src/api/errors.ts`](./src/api/errors.ts)'s `parseError` renders the server's own message whenever a validation error has no explicit error code, or a code with no matching `errors:*` catalog key — see the `defaultValue: msg` fallback there. That English text is not a client string literal, so there is nothing here to externalize for it.
 - **Coded errors already translate.** A field error that DOES carry a known code (e.g. `Me.Language.Format`) is looked up in the `errors` namespace and rendered in the UI language; only the fallback path renders server English. See [Key naming](#key-naming) below.
 
 The hardcoded-string scan (below) reflects this boundary: it only flags JSX text and literal attribute values in `.tsx` files, never a string riding in on an API response.

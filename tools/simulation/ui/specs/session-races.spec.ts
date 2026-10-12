@@ -4,7 +4,7 @@
 // browser — which session the user ends up in, and what a reload then does
 // (post-#433: for the login race, a forced fresh sign-in — see the reload
 // block's comment) — not the mechanism. The mechanism is `sessionGeneration` in
-// `web/src/api/client.ts`: a module-level counter that `login()` and `logout()`
+// `web/src/api/session.ts`: a module-level counter that `login()` and `logout()`
 // bump, captured before each await and re-checked on settlement, so a superseded
 // completion is discarded (`StaleSessionError`) instead of committing tokens.
 //
