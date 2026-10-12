@@ -99,7 +99,7 @@ export function usePickerSelection<T extends NamedEntity>({ stateRef, setState, 
   }, [id, setCommittedText, setState, fetchExactRef, selectionGenRef, stateRef]);
 
   // US2: cancel exploration and restore committed/blank text — shared by
-  // Escape (the picker root's `onKeyDown` in NamedEntityPicker.tsx). The
+  // Escape (`Autocomplete`'s `onClose` with reason "escape", in NamedEntityPicker.tsx). The
   // discovery window (items, cursor, hasMore, phase) is retained, never
   // wiped, and the discovery generation is untouched: an in-flight request
   // settles into the retained window under its own generation.

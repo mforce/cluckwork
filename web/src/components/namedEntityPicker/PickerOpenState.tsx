@@ -100,9 +100,9 @@ export function PickerOpenState<T extends NamedEntity>({ t, d, disabled, require
         // No `onClose`: Escape is fully handled by `handleRootKeyDown`
         // (`onKeyDown` below), which runs before — and here, instead of —
         // `Autocomplete`'s own Escape case. Outside-click keeps its own
-        // long-standing `mousedown` listener (in NamedEntityPicker.tsx):
-        // `Autocomplete` also treats an outside click as a "blur" close, and
-        // wiring both would double-fire `onOutsideClick`.
+        // long-standing `mousedown` listener (in NamedEntityPicker.tsx): `Autocomplete` also
+        // treats an outside click as a "blur" close, and wiring both would
+        // double-fire `onOutsideClick`.
         onHighlightChange={(_event, option) => {
           highlightedIdRef.current = option ? option.id : null;
         }}
@@ -134,10 +134,10 @@ export function PickerOpenState<T extends NamedEntity>({ t, d, disabled, require
         handleHomeEndKeys={false}
         disableListWrap
         // The popup stays a DOM descendant of `containerRef` (no portal to
-        // `document.body`): the engine's own outside-click listener (in
-        // NamedEntityPicker.tsx) tests `containerRef.current.contains(event.target)`,
-        // which a portalled popper would defeat — a click on an option would
-        // read as "outside" and wrongly cancel exploration.
+        // `document.body`): the engine's own outside-click listener (in NamedEntityPicker.tsx)
+        // tests `containerRef.current.contains(event.target)`, which a
+        // portalled popper would defeat — a click on an option would read as
+        // "outside" and wrongly cancel exploration.
         disablePortal
         clearText={t("clear")}
         closeText={t("close")}

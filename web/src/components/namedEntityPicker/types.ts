@@ -1,6 +1,13 @@
 // #1215 file split — the picker's public contract types, moved verbatim out of
 // NamedEntityPicker.tsx. Re-exported from that file; nothing here is new API.
 
+// The shapes below mirror `specs/001-searchable-entity-picker/data-model.md`
+// (Picker Transport Models, State Transitions) and `contracts/picker-ui.md`
+// (Shared Snapshot). US1 lands discovery, paging, commit and retention;
+// the US2/US3 selection-transition machinery (exact/default/lifecycle
+// generations, unavailable states, Escape/clear, Retry) arrives in T026–T034
+// on top of the same state.
+
 // --- Eligibility policy ------------------------------------------------------
 
 /**

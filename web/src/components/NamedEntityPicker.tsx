@@ -1,16 +1,14 @@
-// #512 — the shared named-entity picker engine behind the typed
-// `FlockPicker` / `CustomerPicker` adapters (FR-053: pages never import it).
+// #512 — the shared named-entity picker: transport/selection/snapshot
+// contracts plus the one async discovery+commit engine they describe.
 //
-// The shapes below mirror `specs/001-searchable-entity-picker/data-model.md`
-// (Picker Transport Models, State Transitions) and `contracts/picker-ui.md`
-// (Shared Snapshot). US1 lands discovery, paging, commit and retention;
-// the US2/US3 selection-transition machinery (exact/default/lifecycle
-// generations, unavailable states, Escape/clear, Retry) arrives in T026–T034
-// on top of the same state.
+// THIS FILE IS THE ENGINE. Pages never import it: they consume the typed
+// `FlockPicker` / `CustomerPicker` adapters (FlockPicker.tsx /
+// CustomerPicker.tsx), and the engine itself is feature-local. Nothing
+// outside this feature should import from this module, and it must never grow
+// a generic catalog/entity-link API — the spec (FR-053) forbids a shared
+// framework beyond the two typed adapters.
 //
-// COMPOSITION ROOT: owns the engine's refs/setters and every effect in base
-// order; the hooks hold callbacks (plus the suppressed eligibility effect in
-// usePickerDiscovery). Internals: ./namedEntityPicker/.
+// COMPOSITION ROOT: owns the engine's refs/setters and every effect in base order; hooks hold callbacks; internals: ./namedEntityPicker/.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -29,12 +27,20 @@ export { FLOCK_ELIGIBILITIES };
 export type { FlockEligibilityKey, NamedEntityPage, DiscoveryPhase, DiscoveryState, SelectionPhase, PickerSelection, PickerSnapshot };
 
 /**
- * The one async picker engine: US1 discovery/commit/retention; US2/US3
- * (T026–T034) selection-transition generations, unavailable states, Escape/
- * clear, Retry. State discipline: a single `EngineState`, updated ONLY via
- * functional `setState((prev) => …)` — never a ref snapshot — with genRef as
- * the only cross-await authority (re-checked after every await).
+ * The one async picker engine. US1 scope: discovery (debounce, replacement,
+ * extension, dedupe, raw-count cursor, final-empty termination), commit by
+ * pointer/Enter, Arrow activation, committed-label retention (FR-018),
+ * eligibility-change rediscovery, and disabled non-interactivity.
+ * Selection-transition generations, unavailable states, Escape/clear, Retry,
+ * and the full ARIA write-safety surface are US2/US3 (T026–T034).
+ *
+ * State discipline: a single `EngineState` object, updated ONLY through
+ * functional `setState((prev) => …)` updaters that build on `prev` — never on
+ * a ref snapshot of the painted state. The generation token (genRef) is the
+ * only cross-await authority: every continuation re-checks it after every
+ * await (success AND failure) before touching state.
  */
+
 // --- The engine (T014) -------------------------------------------------------
 
 export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trigger, fetchPage, fetchExact, eligibilityKey, required = false, disabled = false, open = false, onSnapshot, onEscape, onOutsideClick, controlledCommitted, controlledGeneration, requestedId, onCommit, onClear, pinnedChoice }: EngineProps<T>) {
@@ -88,8 +94,6 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   const fetchExactRef = useRef(fetchExact);
   fetchExactRef.current = fetchExact;
 
-  // The picker's container: the open popup is a DOM descendant of it (no
-  // portal), so the outside-click effect below can test `contains`.
   const containerRef = useRef<HTMLDivElement>(null);
   const pendingEligibilityKeyRef = useRef<FlockEligibilityKey | null>(null);
 
@@ -100,10 +104,9 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // key is read from stateRef (not a closure) so that a closed-then-reopened
   // picker with a changed eligibility key issues the request under the CURRENT
   // key, not a stale one. When the key changed while closed, the eligibility
-  // effect (declared in usePickerDiscovery, called above) has already
-  // synchronously set the phase to "closed" (resetting the window), so this
-  // effect's "closed" check passes and the fetch uses the updated key from
-  // state.
+  // effect (declared in usePickerDiscovery.ts) has already synchronously set the phase to
+  // "closed" (resetting the window), so this effect's "closed" check passes and
+  // the fetch uses the updated key from state.
   //
   // When eligibility changes and open=true in the SAME commit, the eligibility
   // effect runs first (declaration order) and sets pendingEligibilityKeyRef.
@@ -147,11 +150,9 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   // #735 — an open from the trigger hands the keyboard to the search input
   // and selects the committed name, so the first keystroke starts a search
   // rather than appending to "Sim House A". Declared AFTER the open effect so
-  // it never runs before the input exists in the same commit. The Retry
-  // callbacks (`retry` from usePickerDiscovery; `retryUnavailable` in
-  // usePickerSelection.ts) still call focus() themselves: those run from a
-  // button that has already taken focus, so this effect (keyed on `open`)
-  // does not fire.
+  // it never runs before the input exists in the same commit. The Retry paths
+  // in the discovery and selection hooks still call focus() themselves: those run from a button that has
+  // already taken focus, so this effect (keyed on `open`) does not fire.
   //
   // Select-all stays (typing must replace the name, #735), but a selection
   // wider than the field scrolls the browser to its active end, showing the
@@ -463,10 +464,9 @@ export function NamedEntityPickerEngine<T extends NamedEntity>({ id, label, trig
   };
   const pickerPaper = usePickerPaper(footerData);
 
-  // US2: closed state renders exactly ONE trigger in the normal form slot;
-  // open state renders only the searchable combobox. The container div is
-  // rendered by BOTH branches so React reconciles it (never remounts it) —
-  // `containerRef` and the outside-click effect depend on that persistence.
+  // US2: closed state renders exactly ONE trigger in the normal form slot.
+  // The combobox/listbox are absent. Open state: no trigger, just the
+  // searchable combobox in the same position.
   if (!open) {
     return (
       <div ref={containerRef} className={`named-picker${disabled ? " disabled" : ""}`}>
