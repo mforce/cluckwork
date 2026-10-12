@@ -226,10 +226,15 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Cluckwork.slnx --locked-mode
 
+      # #1271: same-day integration runs differ ~1.7x; this shows which runner hardware ran.
+      - name: Show runner CPU
+        if: matrix.group == 'integration'
+        run: lscpu | grep -E '^(Model name|CPU\(s\)):'
+
       - name: Test
         run: >-
           dotnet test ${{ matrix.project }} --configuration Release --no-restore --verbosity normal
-          ${{ matrix.group == 'integration' && '--blame-hang-timeout 5m --blame-hang-dump-type mini --results-directory TestResults' || '' }}
+          ${{ matrix.group == 'integration' && '--blame-hang-timeout 5m --blame-hang-dump-type mini --results-directory TestResults --logger "trx;LogFileName=integration.trx"' || '' }}
 
       # Deliberately retain dumps of raw process memory and XML for 3 days, unlike
       # e2e-smoke.yml's credential-artifact stripping. Test credentials are disposable
@@ -245,6 +250,20 @@ jobs:
             TestResults/**/*.dmp
           if-no-files-found: ignore
           retention-days: 3
+
+      # #1271: per-test start and end times in milliseconds; the console log rounds
+      # them down to whole seconds. The trx holds test names, timings, outcomes,
+      # failure messages and stack traces. Its run-level StdOut repeats the test
+      # process's console output (Testcontainers and host log lines), which this
+      # step's log already shows. The disposable-credential argument above applies.
+      - name: Upload integration timings
+        if: always() && matrix.group == 'integration'
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-trx
+          path: TestResults/integration.trx
+          if-no-files-found: ignore
+          retention-days: 14
 
   # No longer runs tests (#775): the four test projects are legs of the `tests`
   # matrix above, so a failing group can cancel the others. What is left here is
