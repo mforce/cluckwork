@@ -23,7 +23,7 @@ keyed on the proxy's own address still *works*, it just puts every client in one
 bucket — so a login-attempt flood from one IP is indistinguishable from normal
 traffic, and the protection reads as present. A warning in a log nobody reads at
 deploy time does not close that.
-The guard checks only that the list is non-empty. A list that misses the proxy
+The guard checks only that the list is non-empty. A non-empty list that misses the proxy
 is caught at the first forwarded request instead: `RateLimiting.ForwardedHeadersIgnored`
 logs at Warning, once per process, naming the peer whose `X-Forwarded-For` was ignored (#806).
 
@@ -32,6 +32,10 @@ logs at Warning, once per process, naming the peer whose `X-Forwarded-For` was i
 `RateLimiting:AllowNoTrustedProxies=true` — for a rare direct-TLS deploy with no
 fronting proxy, where there are no `X-Forwarded-*` headers to trust in the first
 place. It is not a way to get a misconfigured proxy deployment to start.
+Under the opt-out, forwarded headers are ignored entirely: with an empty list the
+app does not run the forwarding middleware, because ASP.NET's own middleware
+trusts every peer when its trust lists are empty, so any client could otherwise
+choose its rate-limit address and its scheme.
 
 ## Scope
 

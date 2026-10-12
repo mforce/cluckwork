@@ -1,3 +1,4 @@
+using System.Net;
 using Cluckwork.Application.Common;
 using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -46,20 +47,26 @@ internal static class CluckworkEdgeSecurityServiceCollectionExtensions
 
 internal static class ForwardedHeadersTrust
 {
-    // An untrusted peer's X-Forwarded-For is ignored, so every client behind that peer shares
-    // its address in each per-address limit: login (#143) and the /mcp failure budget and
-    // in-flight cap (#1225). The framework says so at Debug only. Checked here, before
-    // UseForwardedHeaders, because only here is RemoteIpAddress still the socket peer.
-    public static void UseForwardedHeadersWarningWhenIgnored(this IApplicationBuilder app)
+    // #260: forwarded headers are honoured only from RateLimiting:TrustedProxies. The framework
+    // trusts every peer when its trust lists are empty, so with no trusted proxy it is not added.
+    //
+    // A peer outside a non-empty list has its X-Forwarded-For ignored, so every client behind
+    // it shares one address in each per-address limit: login (#143) and the /mcp failure budget
+    // and in-flight cap (#1225). The framework says so at Debug only. Checked before
+    // UseForwardedHeaders, because only there is RemoteIpAddress still the socket peer.
+    public static void UseTrustedForwardedHeaders(this IApplicationBuilder app)
     {
         var options = app.ApplicationServices.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
+        if (options.KnownIPNetworks.Count == 0 && options.KnownProxies.Count == 0)
+            return;
+
         var warned = 0;
         app.Use((context, next) =>
         {
             if (warned == 0
                 && context.Request.Headers.ContainsKey(options.ForwardedForHeaderName)
                 && context.Connection.RemoteIpAddress is { } peer
-                && !options.KnownIPNetworks.Any(n => n.Contains(peer))
+                && !IsKnown(options, peer)
                 && Interlocked.Exchange(ref warned, 1) == 0)
             {
                 context.RequestServices.GetRequiredService<ILoggerFactory>()
@@ -75,4 +82,10 @@ internal static class ForwardedHeadersTrust
         });
         app.UseForwardedHeaders();
     }
+
+    // ForwardedHeadersMiddleware.CheckKnownAddress (aspnetcore v10.0.0).
+    private static bool IsKnown(ForwardedHeadersOptions options, IPAddress peer) =>
+        (peer.IsIPv4MappedToIPv6 && IsKnown(options, peer.MapToIPv4()))
+        || options.KnownProxies.Contains(peer)
+        || options.KnownIPNetworks.Any(n => n.Contains(peer));
 }

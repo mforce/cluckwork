@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -44,7 +46,20 @@ public sealed class ForwardedHeadersIgnoredLoggingTests(CluckworkWebApplicationF
         Assert.Empty(Events(sink));
     }
 
-    private WebApplicationFactory<Program> Host(Sink sink) =>
+    // The framework also trusts KnownProxies; the app leaves that list empty today.
+    [Fact]
+    public async Task ForwardedFor_FromAKnownProxy_DoesNotWarn()
+    {
+        var sink = new Sink();
+        using var host = Host(sink, services => services.PostConfigure<ForwardedHeadersOptions>(
+            o => o.KnownProxies.Add(IPAddress.Parse("10.98.0.7"))));
+
+        await GetAsync(host.CreateClient(), "10.98.0.7", forwardedFor: "203.0.113.10");
+
+        Assert.Empty(Events(sink));
+    }
+
+    private WebApplicationFactory<Program> Host(Sink sink, Action<IServiceCollection>? configure = null) =>
         factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("RateLimiting:TrustedProxies:0", "10.99.0.0/24");
@@ -52,6 +67,7 @@ public sealed class ForwardedHeadersIgnoredLoggingTests(CluckworkWebApplicationF
             {
                 services.AddSingleton<IStartupFilter, FakeRemoteIpStartupFilter>();
                 services.AddSingleton<ILogEventSink>(sink);
+                configure?.Invoke(services);
             });
         });
 

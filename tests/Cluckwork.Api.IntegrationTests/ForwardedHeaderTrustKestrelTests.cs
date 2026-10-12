@@ -1,10 +1,15 @@
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -95,6 +100,39 @@ public sealed class TrustedTwoHopKestrelFactory : CluckworkWebApplicationFactory
         builder.UseSetting("RateLimiting:Login:WindowSeconds", "86400");
         builder.UseSetting("RateLimiting:TrustedProxies:0", "127.0.0.1/32");
         builder.UseSetting("RateLimiting:TrustedProxies:1", "10.50.0.0/24");
+    }
+}
+
+// No trusted proxy: the direct-TLS opt-out (#260). The base factory sets
+// AllowNoTrustedProxies and no TrustedProxies. The framework middleware trusts every
+// peer when its lists are empty, so this pins that no peer's headers are honoured.
+public sealed class NoTrustedProxiesKestrelFactory : CluckworkWebApplicationFactory
+{
+    public const string PeerPath = "/test/forwarded/peer";
+
+    public AuthRateLimitLoggingFactory.CollectingSink Sink { get; } = new();
+
+    public NoTrustedProxiesKestrelFactory() => UseKestrel(0);
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<IStartupFilter, PeerProbe>();
+            services.AddSingleton<ILogEventSink>(Sink);
+        });
+    }
+
+    private sealed class PeerProbe : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            next(app);
+            var endpoints = (IEndpointRouteBuilder)app.Properties["__EndpointRouteBuilder"]!;
+            endpoints.MapGet(PeerPath, (HttpContext c) => $"{c.Connection.RemoteIpAddress}|{c.Request.Scheme}")
+                .AllowAnonymous();
+        };
     }
 }
 
@@ -215,5 +253,25 @@ public sealed class TrustedMultiHopForwardedHeaderTests(TrustedTwoHopKestrelFact
         var b = factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await ForwardedRequests.PostLoginAsync(b, forwardedFor: "203.0.113.100, 10.50.0.7")).StatusCode);
+    }
+}
+
+public sealed class NoTrustedProxiesForwardedHeaderTests(NoTrustedProxiesKestrelFactory factory)
+    : IClassFixture<NoTrustedProxiesKestrelFactory>
+{
+    [Fact]
+    public async Task Forwarded_headers_from_any_peer_are_ignored_when_no_proxy_is_trusted()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, NoTrustedProxiesKestrelFactory.PeerPath);
+        request.Headers.Add("X-Forwarded-For", "203.0.113.10");
+        request.Headers.Add("X-Forwarded-Proto", "https");
+
+        var response = await factory.CreateClient().SendAsync(request);
+
+        var seen = (await response.Content.ReadAsStringAsync()).Split('|');
+        Assert.True(IPAddress.IsLoopback(IPAddress.Parse(seen[0])), $"RemoteIpAddress was {seen[0]}");
+        Assert.Equal("http", seen[1]);
+        Assert.DoesNotContain(factory.Sink.Events, e => e.Properties.TryGetValue("SecurityEvent", out var name)
+            && name.ToString() == $"\"{SecurityEvents.ForwardedHeadersIgnored}\"");
     }
 }

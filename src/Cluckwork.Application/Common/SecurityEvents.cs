@@ -57,7 +57,7 @@ public static class SecurityEvents
     public const string RateLimitRejected = "Auth.RateLimitRejected";
 
     // Fires once per process for the first request whose X-Forwarded-For arrives from a
-    // peer outside RateLimiting:TrustedProxies. The header is ignored, so every client
+    // peer outside a non-empty RateLimiting:TrustedProxies. The header is ignored, so every client
     // behind that peer shares one address in the login limiter and the /mcp failure
     // budget: one caller can spend it for all of them (#806, #260).
     public const string ForwardedHeadersIgnored = "RateLimiting.ForwardedHeadersIgnored";

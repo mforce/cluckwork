@@ -52,7 +52,7 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
         Assert.Same(McpPost(factory), exempt);
     }
 
-    // #1230: every [McpServerTool] method is served, and an optional parameter is
+    // #1230: exactly the [McpServerTool] methods are served, and an optional parameter is
     // advertised as its plain type: omitted, never null.
     [Fact]
     public async Task ToolSchemas_AreServedForEveryTool_WithoutNull()
