@@ -10,12 +10,18 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
 {
     // Grades are always eager-loaded: RecordProduction does a full replace of the
     // lines, which requires the current lines to be tracked (orphan delete).
-    // They load in the egg-grade catalog's order (EggGradeRepository: SortOrder,
-    // then Name), never physical row order, which differs between databases.
+    // Reads load them in the egg-grade catalog's order (EggGradeRepository:
+    // SortOrder, then Name), never physical row order, which differs between
+    // databases. Only under the tenant filter: the two flock-scoped write
+    // lookups below lift every filter, would read EggGrades unscoped, and never
+    // show their lines to anyone, so they keep a plain Include. The explicit
+    // AccountId keeps the grade lookup scoped even if this ever runs unfiltered.
     private IQueryable<DailyEntry> WithGrades(IQueryable<DailyEntry> entries) =>
         entries.Include(e => e.Grades
-            .OrderBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId).Select(x => x.SortOrder).FirstOrDefault())
-            .ThenBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId).Select(x => x.Name).FirstOrDefault())
+            .OrderBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId && x.AccountId == g.AccountId)
+                .Select(x => x.SortOrder).FirstOrDefault())
+            .ThenBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId && x.AccountId == g.AccountId)
+                .Select(x => x.Name).FirstOrDefault())
             .ThenBy(g => g.EggGradeId));
 
     public Task<DailyEntry?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
@@ -24,9 +30,10 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
 
     public Task<DailyEntry?> GetByIdForFlockScopedWriteAsync(
         Guid id, Guid accountId, CancellationToken ct = default) =>
-        WithGrades(db.DailyEntries
+        db.DailyEntries
             .IgnoreQueryFilters()
-            .Where(e => e.AccountId == accountId))
+            .Where(e => e.AccountId == accountId)
+            .Include(e => e.Grades)
             .FirstOrDefaultAsync(e => e.Id == id, ct);
 
     // Write-side natural-key lookup (#388): same bypass as
@@ -37,7 +44,9 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
     public Task<DailyEntry?> FindByNaturalKeyForFlockScopedWriteAsync(
         Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date,
         CancellationToken ct = default) =>
-        WithGrades(db.DailyEntries.IgnoreQueryFilters())
+        db.DailyEntries
+            .IgnoreQueryFilters()
+            .Include(e => e.Grades)
             .FirstOrDefaultAsync(e =>
                 e.AccountId == accountId &&
                 e.FarmId == farmId &&

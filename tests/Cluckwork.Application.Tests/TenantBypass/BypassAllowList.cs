@@ -147,8 +147,8 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.DailyEntryRepository.GetByIdForFlockScopedWriteAsync(Guid id, Guid accountId, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/DailyEntryRepository.cs",
-            Hash = "c6ecb68e",
-            Justification = "#388 write-side authorization lookup: bypasses the combined tenant+flock query filter so an OWN-account unassigned draft reaches FlockScopeGuard (preserving the 422 contract), then reinstates tenant isolation explicitly with e.AccountId == accountId so a foreign-account id still reads as null. READ endpoints never call this method and stay symmetric 404. WithGrades' EggGrades subquery runs unfiltered here too, but it only orders the entry's own lines by their own grade's SortOrder/Name, so nothing from another account is read into the result.",
+            Hash = "0c8e7a59",
+            Justification = "#388 write-side authorization lookup: bypasses the combined tenant+flock query filter so an OWN-account unassigned draft reaches FlockScopeGuard (preserving the 422 contract), then reinstates tenant isolation explicitly with e.AccountId == accountId so a foreign-account id still reads as null. READ endpoints never call this method and stay symmetric 404.",
         },
         new()
         {
@@ -168,8 +168,8 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.EggOperations.Repositories.DailyEntryRepository.FindByNaturalKeyForFlockScopedWriteAsync(Guid accountId, Guid farmId, Guid houseId, Guid flockId, DateOnly date, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/DailyEntryRepository.cs",
-            Hash = "7c9f68da",
-            Justification = "#388 post-live-guard write/provenance natural-key lookup: bypasses the request-start flock snapshot so RecordDailyEntry, RecordFeedUsage and RecordWaterUsage see a newly assigned sibling's live entry state; reinstates AccountId explicitly and keeps the full natural key plus non-Voided predicate. Read endpoints never call it. WithGrades' EggGrades subquery runs unfiltered here too, but it only orders the entry's own lines by their own grade's SortOrder/Name, so nothing from another account is read into the result.",
+            Hash = "64d57feb",
+            Justification = "#388 post-live-guard write/provenance natural-key lookup: bypasses the request-start flock snapshot so RecordDailyEntry, RecordFeedUsage and RecordWaterUsage see a newly assigned sibling's live entry state; reinstates AccountId explicitly and keeps the full natural key plus non-Voided predicate. Read endpoints never call it.",
         },
         new()
         {
