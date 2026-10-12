@@ -44,7 +44,7 @@ MUST_CHANGE=src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs
 CONNECTED=src/Cluckwork.Infrastructure/Modules/Access/OAuth/ConnectedApps.cs
 PROVIDER=src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs
 ME=src/Cluckwork.Api/Modules/Access/Me/MeEndpoints.cs
-PROGRAM=src/Cluckwork.Api/Program.cs
+ENDPOINT_GROUPS=src/Cluckwork.Api/Hosting/CluckworkEndpointGroups.cs
 ACCOUNT=src/Cluckwork.Domain/Modules/Farm/Accounts/Account.cs
 ACCOUNT_ENDPOINTS=src/Cluckwork.Api/Modules/Farm/Accounts/AccountEndpoints.cs
 SWITCH_HANDLER=src/Cluckwork.Application/Modules/Farm/Accounts/SetConnectedApps/SetConnectedAppsHandler.cs
@@ -143,7 +143,7 @@ loopback-host-merged#kill#REGISTRATION#new UriBuilder(uri) { Port = -1 }#new Uri
 response-normalized#kill#ENDPOINT#uri => uri.OriginalString)#uri => uri.AbsoluteUri)#OAuthClientRegistrationTests.ReturnedRedirectUri_IsUsable#Expected: OK
 reserved-parameter-500#kill#ENDPOINT#catch (OpenIddictExceptions.ValidationException exception)#catch (OpenIddictExceptions.ValidationException exception) when (exception.Results.IsDefault)#OAuthClientRegistrationTests.ReservedRedirectParameter_IsARegistrationError#Expected: BadRequest
 own-apps-anyones#kill#CONNECTED#db.OAuthAuthorizations.Where(authorization => authorization.Subject == subject)#db.OAuthAuthorizations.Where(authorization => authorization.Subject != null)#OAuthFailClosedTests.ConnectedApps_ListsOnlyYourOwn#Collections differ
-farm-apps-not-owner-only#kill#PROGRAM#    .RequireAuthorization(AuthPolicies.OwnerOnly)\n#    .RequireAuthorization()\n#OAuthFailClosedTests.FarmConnectedApps_AreOwnerOnly#Expected: Forbidden
+farm-apps-not-owner-only#kill#ENDPOINT_GROUPS#            .RequireAuthorization(AuthPolicies.OwnerOnly)\n#            .RequireAuthorization()\n#OAuthFailClosedTests.FarmConnectedApps_AreOwnerOnly#Expected: Forbidden
 farm-list-every-farm#kill#CONNECTED#db.Users.Where(user => user.AccountId == accountId)#db.Users.Where(user => user.AccountId != Guid.Empty)#OAuthFailClosedTests.Owner_SeesAndDisconnectsOnlyTheirOwnFarm#Collections differ
 disconnect-any-farm#kill#CONNECTED#user => user.Id == userId && user.AccountId == accountId#user => user.Id == userId#OAuthFailClosedTests.Owner_SeesAndDisconnectsOnlyTheirOwnFarm#Expected: NotFound
 one-authorization-revoked#kill#CONNECTED#var revoked = await authorizations.ExecuteUpdateAsync(#var revoked = await authorizations.OrderBy(authorization => authorization.CreationDate).Take(1).ExecuteUpdateAsync(#OAuthFailClosedTests.Disconnect_RevokesEveryAuthorizationOfTheApp_AndItsTokens#authorization(s) of the app stayed valid
@@ -266,7 +266,7 @@ rpc-429-no-retry-after#kill#LIMITS#context.HttpContext.Response.Headers.RetryAft
 tool-walk-declared-only#kill#TOOL_SURFACE#        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;#        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;#Mcp.McpToolSurfaceTests.InheritedToolMethod_IsGatedByItsDeclaringType#Assert.Contains() Failure
 tool-walk-reflected-type-gates#kill#TOOL_SURFACE#.Concat(method.DeclaringType!.GetCustomAttributes(inherit: true))#.Concat(method.ReflectedType!.GetCustomAttributes(inherit: true))#Mcp.McpToolSurfaceTests.InheritedToolMethod_IsGatedByItsDeclaringType#Assert.Contains() Failure
 tool-walk-finds-nothing#kill#TOOL_SURFACE#Where(m => HasAttribute(m, "McpServerToolAttribute"))#Where(m => HasAttribute(m, "NoSuchAttribute"))#Mcp.McpEndpointTests.ToolWalk_ReachesEveryToolTheSdkRegisters#Values differ
-mcp-mapped-without-issuer#kill#PROGRAM#        .MapOAuthEndpoints();\n    app.MapCluckworkMcp();\n}#        .MapOAuthEndpoints();\n}\napp.MapCluckworkMcp();#Mcp.McpEndpointTests.WithoutAnIssuer_McpIsNotMapped#WithHttpTransport
+mcp-mapped-without-issuer#kill#ENDPOINT_GROUPS#                .MapOAuthEndpoints();\n            app.MapCluckworkMcp();\n        }#                .MapOAuthEndpoints();\n        }\n        app.MapCluckworkMcp();#Mcp.McpEndpointTests.WithoutAnIssuer_McpIsNotMapped#WithHttpTransport
 audience-unchecked#kill#SERVER#\n                validation.AddAudiences(resource);##Mcp.McpAuthorizationTests.TokenIssuedForAnotherResource_IsRefused#Expected: Unauthorized
 audience-unchecked-unbound#kill#SERVER#\n                validation.AddAudiences(resource);##Mcp.McpAuthorizationTests.TokenWithoutTheMcpAudience_IsRefused#Expected: Unauthorized
 resource-not-stamped#kill#SERVER#context.Principal!.SetResources(context.Request!.GetResources() is { IsEmpty: false } asked\n                                ? asked\n                                : [resource]);#_ = resource;#Mcp.McpAuthorizationTests.TokenForMcp_IsAccepted#Expected: OK
@@ -303,7 +303,7 @@ money-tier-ignored#kill#COMMERCE_TOOLS#var settlement = !maySeeMoney ? Settlemen
 payments-wider-than-route#kill#COMMERCE_TOOLS#    [Authorize(Policy = AuthPolicies.SalesAccess)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#    [Authorize(Policy = AuthPolicies.SalesFlow)]\n    [Authorize(Policy = AuthPolicies.FarmReadScope)]\n    [MirrorsRoute("ListOrderPayments")]#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#admits Worker, which ListOrderPayments denies
 customer-note-returned#kill#COMMERCE_TOOLS#public sealed record CustomerRow(Guid CustomerId, string Name);#public sealed record CustomerRow(Guid CustomerId, string Name, string? Note = null);#Mcp.McpToolSurfaceTests.RealTree_ReadToolRepliesReturnOnlyReviewedText#Collections differ
 balance-currency-assumed#kill#COMMERCE_TOOLS#McpMoney.From(minorUnits, settings.CurrencyCode, settings.CurrencyMinorUnit)#McpMoney.From(minorUnits, settings.CurrencyCode, 2)#Mcp.McpCommerceToolsTests.Amounts_AreDecimalsInTheirCurrencysPrecision#Values differ
-customers-route-admin-only#kill#PROGRAM#app.MapGroup("/api/v1/customers")\n    .WithTags("Customers")\n    .RequireAuthorization()\n#app.MapGroup("/api/v1/customers")\n    .WithTags("Customers")\n    .RequireAuthorization(AuthPolicies.AdminOnly)\n#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#CommerceTools.ListCustomersAsync admits Worker, which ListCustomers denies
+customers-route-admin-only#kill#ENDPOINT_GROUPS#        app.MapGroup("/api/v1/customers")\n            .WithTags("Customers")\n            .RequireAuthorization()\n#        app.MapGroup("/api/v1/customers")\n            .WithTags("Customers")\n            .RequireAuthorization(AuthPolicies.AdminOnly)\n#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#CommerceTools.ListCustomersAsync admits Worker, which ListCustomers denies
 parity-first-route-only#kill#PARITY#foreach (var routeName in mirrored)#foreach (var routeName in mirrored.Take(1))#Mcp.McpRouteParityTests.ToolBreakingParity_IsAFinding#Assert.Contains() Failure
 scope-unmatched-to-readonly#kill#TOOL_SURFACE#if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))#if (scopes.Count > 1)#Mcp.McpToolSurfaceTests.ToolMissingAGate_IsAGateFinding#Assert.Contains() Failure
 write-tool-on-read-scope#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy#a write tool requires exactly scope:daily-entries:write
@@ -404,7 +404,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$PROVIDER" "$ME" "$PROGRAM" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO" "$PARITY" "$DAILY_TOOLS")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$PROVIDER" "$ME" "$ENDPOINT_GROUPS" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO" "$PARITY" "$DAILY_TOOLS")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then
