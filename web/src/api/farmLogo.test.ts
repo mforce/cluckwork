@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { uploadFarmLogo } from "./cluckwork";
 import { setAccessToken, clearAccessToken } from "../auth/tokenStore";
 
-// The one wrapper with logic of its own (#123): everything else in cluckwork.ts
-// is a path and a type. Exercised against a stubbed fetch, so the real
-// apiPutBytes → apiFetch → raw chain runs — the screen tests mock this module
-// out and never evaluate it.
+// The one wrapper with logic of its own (#123): everything else in the
+// api/cluckwork/ modules is a path and a type. Exercised against a stubbed
+// fetch, so the real apiPutBytes → apiFetch → raw chain runs — the screen tests
+// mock this module out and never evaluate it.
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function headerOf(name: string): string | null {
