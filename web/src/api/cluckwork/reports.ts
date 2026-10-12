@@ -1,0 +1,109 @@
+import { apiGet } from "../client";
+
+// --- Reports (#91) ---
+
+export interface ProductionDay {
+  date: string;
+  totalEggs: number;
+  cracked: number;
+  dirty: number;
+  discarded: number;
+  /** Hand-graded remainder: total − cracked − dirty − discarded (#394). */
+  sellable: number;
+  /**
+   * #396 — eggs that became stock WITHOUT being hand-graded: the cracked and
+   * dirty counters, but only where that entry resolved the condition to a
+   * grade. Separate from `sellable` on purpose; the two answer different
+   * questions and were only ever equal while conditions were always losses.
+   */
+  fromCounts: number;
+  deaths: number;
+  /**
+   * #780 — houses that filed an OFFICIAL entry (Submitted, Locked or
+   * ManagerAdjusted). The field that separates a day nobody recorded from one
+   * that genuinely produced no eggs: every other figure here is 0 for both. A
+   * day holding only a Draft counts 0 here while the capture tiles still show
+   * it as captured.
+   */
+  recordedFlocks: number;
+  /**
+   * #780 — houses that owed a filing that day: placed, not yet depleted or
+   * archived. `recordedFlocks < expectedFlocks` is a PARTIALLY recorded day,
+   * whose `totalEggs` is a floor rather than a figure.
+   */
+  expectedFlocks: number;
+  /**
+   * #780 — expected flocks with no filing, and the only sound test for a
+   * partly recorded day. Comparing `recordedFlocks` against `expectedFlocks`
+   * is not: they count different sets, so expected {A, B} against filings
+   * {A, C} gives 2 and 2 and hides B.
+   */
+  missingFlocks: number;
+  /** Every bird alive that day, whether or not its house reported. */
+  henDays: number;
+  /** The exposure that reported — `henDayPct`'s denominator (#780). */
+  recordedHenDays: number;
+  /**
+   * `henDayPct`'s NUMERATOR (#780): the eggs of exactly the flocks whose birds
+   * are in `recordedHenDays`. Equal to `totalEggs` on any ordinary day; they
+   * part only where a flock filed while the bird ledger says it had no birds,
+   * and carrying it is what keeps the rate reproducible from the payload.
+   */
+  ratedEggs: number;
+  /** `ratedEggs` over `recordedHenDays`. null when nothing reported. */
+  henDayPct: number | null;
+}
+
+export interface ProductionReport {
+  days: ProductionDay[];
+  totalEggs: number;
+  totalSellable: number;
+  totalFromCounts: number;
+  totalDeaths: number;
+  totalHenDays: number;
+  /** `periodHenDayPct`'s denominator and numerator, so it is reproducible (#780). */
+  totalRecordedHenDays: number;
+  totalRatedEggs: number;
+  periodHenDayPct: number | null;
+  gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
+}
+
+export interface SalesSummary {
+  confirmedCount: number;
+  revenueMinorUnits: number;
+  paidMinorUnits: number;
+  outstandingMinorUnits: number;
+  voidedCount: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export interface ExpenseSummaryReport {
+  categories: { expenseCategoryId: string; name: string; totalMinorUnits: number }[];
+  grandTotalMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+export interface ProfitReport {
+  revenueMinorUnits: number;
+  expensesMinorUnits: number;
+  profitMinorUnits: number;
+  currencyCode: string;
+  currencyMinorUnit: number;
+}
+
+const rangeQuery = (from: string, to: string) => `?from=${from}&to=${to}`;
+
+// #916 — `flockId` scopes the whole report (days, totals, hen-day %) to one
+// flock, server-side (IReportQueries.cs / FlockScope's own query filter): the
+// browser never filters an unscoped payload itself. Omitted, the report
+// covers every flock the caller can see, exactly as before.
+export const getProductionReport = (from: string, to: string, flockId?: string, signal?: AbortSignal) =>
+  apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}${flockId ? `&flockId=${flockId}` : ""}`, signal);
+export const getSalesSummary = (from: string, to: string) =>
+  apiGet<SalesSummary>(`/reports/sales${rangeQuery(from, to)}`);
+export const getExpenseSummary = (from: string, to: string) =>
+  apiGet<ExpenseSummaryReport>(`/reports/expenses${rangeQuery(from, to)}`);
+export const getProfitReport = (from: string, to: string) =>
+  apiGet<ProfitReport>(`/reports/profit${rangeQuery(from, to)}`);
