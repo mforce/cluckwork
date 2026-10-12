@@ -1928,7 +1928,7 @@ export const en = {
   // unitSystemLabel/firstDayOfWeekLabel below are the FIELD labels, not the
   // option text. The four palette ids have no cross-screen enum family (this
   // is their only render site), so their display names are flat keys here
-  // instead — see the PALETTE_LABEL_KEYS map in SettingsPage.tsx.
+  // instead — see the PALETTE_LABEL_KEYS map in settings/PaletteFieldset.tsx.
   settings: {
     eyebrow: "Farm configuration",
     heading: "Farm settings",
