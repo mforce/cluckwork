@@ -114,7 +114,7 @@ public sealed class AdminRecoveryService(
         currentUser.ResolveSystemActor(SystemActors.BreakGlass);
 
         // Serialized with the SAME account-wide lock DisableUserAsync takes
-        // (IdentityProvider.cs) — not because recovery cares about the
+        // (IdentityProvider.DisableEnable.cs) — not because recovery cares about the
         // last-active-Owner count, but because taking it is what makes a
         // concurrent disable of THIS target block until this transaction
         // commits or rolls back, rather than interleave with it. The re-read
