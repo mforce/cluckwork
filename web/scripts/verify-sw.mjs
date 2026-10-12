@@ -396,11 +396,10 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // adds wiring only (the page plus its extracted history/ modules), and the
 // merged main measures 1,642.12 KiB locally.
 //
-// 2026-10-12, raised to 1,647 KiB for the #1215 ExpensesPage split: the split
-// adds wiring only, and the branch measures 1,645.60 KiB locally (1,646.11
-// KiB by this check's own count). Any further raise needs a new maintainer
-// decision.
-const PRECACHE_CEILING_KIB = 1647;
+// 2026-10-12, raised to 1,645 KiB for the #1215 SettingsPage split: the split
+// adds wiring only (the page plus its extracted settings/ modules), and the
+// merged main measures 1,644.15 KiB locally.
+const PRECACHE_CEILING_KIB = 1645;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {

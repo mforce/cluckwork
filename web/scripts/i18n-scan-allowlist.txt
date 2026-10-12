@@ -30,7 +30,7 @@
 
 # Locale-code FORMAT EXAMPLE in the timezone/locale override hint, not prose
 # ("en-US" is data — a BCP-47 example — not a sentence to translate).
-src/routes/SettingsPage.tsx:en-US
+src/routes/settings/LocalizationSection.tsx:en-US
 
 # Brand name, not prose. Only reachable when a future pass adds index.html to
 # the scanned paths (see the header comment above).
