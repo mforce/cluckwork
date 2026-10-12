@@ -13,7 +13,8 @@ SPA assets and API requests. The React SPA runs in the browser.
 ```mermaid
 flowchart LR
     browser["Browser<br/>React SPA"] -->|HTTPS| proxy["Traefik<br/>TLS routing"]
-    proxy -->|HTTP| api[".NET API<br/>SPA assets + /api/v1"]
+    apps["AI apps<br/>MCP clients"] -->|HTTPS| proxy
+    proxy -->|HTTP| api[".NET API<br/>SPA assets + /api/v1<br/>/mcp + OAuth"]
     api --> db[("Postgres<br/>persistent data")]
     api --> redis[("Redis<br/>shared state")]
 ```
@@ -21,8 +22,9 @@ flowchart LR
 | Component | Responsibility |
 |---|---|
 | Browser | Runs the React UI and sends API requests |
+| AI apps | Get a token from the OAuth endpoints, then call farm tools at `/mcp` |
 | Traefik | Routes HTTPS traffic in Compose's `prod` profile |
-| .NET API | Serves the SPA and endpoints; runs background jobs and sweeps |
+| .NET API | Serves the SPA, endpoints, `/mcp` and the OAuth authorization server; runs background jobs and sweeps |
 | Postgres | Stores farm data, Identity, audit records and jobs; coordinates the job leader lease |
 | Redis | Shares claims, rate-limit counters and report leases |
 
@@ -83,7 +85,7 @@ module may use.
 flowchart LR
     subgraph administration["Farm administration"]
         direction TB
-        Access["Access<br/>users and Identity"]
+        Access["Access<br/>users, Identity, connected apps and OAuth"]
         Farm["Farm<br/>account settings and media"]
         Access ~~~ Farm
     end
@@ -126,25 +128,31 @@ flowchart TD
     CLI -->|yes| EXIT["run, then exit — the HTTP<br/>pipeline is never registered"]
     CLI -->|no| EDGE
 
-    EDGE["forwarded headers · security headers · cache defaults<br/>HSTS <i>(not in Development)</i> · exception handler<br/>HTTPS redirect · SPA shell · static files · request logging"]
-    EDGE --> LIMITS["rate limiter · per-endpoint body caps"]
-    LIMITS --> AUTHN["UseAuthentication<br/><i>JWT → HttpContext.User</i>"]
+    EDGE["forwarded headers <i>(trusted proxies only)</i> · security headers · cache defaults<br/>HSTS <i>(not in Development)</i> · exception handler<br/>HTTPS redirect · SPA shell · static files · request logging"]
+    EDGE --> ORIGIN["UseMcpOriginCheck <i>(only with an OAuth issuer)</i><br/><i>foreign Origin on /mcp → 403</i>"]
+    ORIGIN --> ADDRESS["UseOAuthApiAddressLimits<br/><i>/mcp: refused-bearer budget and in-flight cap per client address</i>"]
+    ADDRESS --> LIMITS["rate limiter · per-endpoint body caps"]
+    LIMITS --> AUTHN["UseAuthentication<br/><i>session JWT, or OpenIddict reference token on /mcp → HttpContext.User</i>"]
     AUTHN --> AMBIENT["AmbientPrincipalMiddleware<br/><i>blanks the ambient principal for endpoints that must ignore a bearer</i>"]
     AMBIENT --> TENANT["TenantResolutionMiddleware<br/><i>account_id claim → TenantContext</i>"]
     TENANT --> FLOCKSCOPE["FlockScopeResolutionMiddleware<br/><i>live UserRoleAssignment read → per-request FlockScope</i>"]
-    FLOCKSCOPE --> EPOCH["CredentialEpochMiddleware<br/><i>fresh DB read, every request</i>"]
-    EPOCH --> MCP["MustChangePasswordMiddleware<br/><i>403s everything but change-password + logout</i>"]
-    MCP --> AUTHZ["UseAuthorization"]
+    FLOCKSCOPE --> EPOCH["CredentialEpochMiddleware<br/><i>fresh DB read, every request<br/>revokes a superseded app token · stamps an app's last use</i>"]
+    EPOCH --> RELEASE["UseOAuthApiInFlightRelease<br/><i>gives back the /mcp in-flight permit</i>"]
+    RELEASE --> MUSTCHANGE["MustChangePasswordMiddleware<br/><i>403s everything but change-password + logout</i>"]
+    MUSTCHANGE --> AUTHZ["UseAuthorization"]
     AUTHZ --> IDEM["IdempotencyMiddleware"]
     IDEM --> ENDPOINT["endpoint · /health · SPA shell fallback"]
 ```
 
-The table explains five of those positions:
+The table explains eight of those positions:
 
 | Placement | Why | Break it and |
 |---|---|---|
+| `UseMcpOriginCheck` **before** the rate limits and authentication | Both MCP revisions require Origin validation against DNS rebinding. It matches the `/mcp` path, not the endpoint, so it also covers methods that `/mcp` does not map, such as DELETE, PUT and OPTIONS (#806) | After authentication, a foreign page gets 401 or 405 instead of 403, and a foreign request with a bearer costs a token lookup |
+| `UseOAuthApiAddressLimits` **after** forwarded headers, **before** `UseRateLimiter` | It keys on the client address, so it must follow the forwarded headers. The rate limiter's per-token key is unverified text, so a caller who rotates forged bearers gets a fresh budget for each one. This step counts each address's refused bearers and caps its bearer authentications in flight, before any token lookup (#806) | After the rate limiter, a refused address still spends a per-token permit. After authentication, every forged bearer costs a token lookup before it is refused |
 | `FlockScopeResolutionMiddleware` **after** tenant/user resolution, **before** endpoint queries | It resolves the caller's live `UserRoleAssignment` flock scope for the whole request. It skips resolution when `IExceptionHandlerFeature` is present, which marks a `/error` re-execution, so a database fault can render `/error` without another assignment query | Moving or removing it lets a restricted Worker read unassigned flock rows (#388); removing the re-execution skip makes error rendering itself fail whenever the original failure was the database, so the client gets no mapped `ProblemDetails` response |
 | `CredentialEpochMiddleware` **after** tenant resolution | It reads the user's current epoch from the tenant's database | A revoked credential keeps working (#364) |
+| `UseOAuthApiInFlightRelease` **after** `CredentialEpochMiddleware`, **before** `UseAuthorization` | The in-flight permit covers authentication and the credential gates only. Once they have decided, the request gives the permit back, so a valid call's body and tool work hold none (#806). `CredentialEpochMiddlewareOrderTests` pins the position | Before the epoch gate, its database reads escape the cap. After the endpoint, 32 slow tool calls from one address refuse its next authentication |
 | `MustChangePasswordMiddleware` **before** `UseAuthorization` | The gate then applies uniformly, whatever policy tier an endpoint carries | An endpoint's own policy decides whether a forced reset is enforced (#283) |
 | `IdempotencyMiddleware` **after** `UseAuthorization` | A replay returns a cached response *without invoking the endpoint* | A role-denied caller replaying someone else's key gets the cached response instead of a 403 |
 | `SpaShell` **before** the static-file middleware | It templates `/` and `/index.html` with this response's CSP nonce (#873), and the static middleware would otherwise serve the untemplated file from `wwwroot` first | The browser refuses MUI's Emotion styles and nothing reports it. Clients that installed the service worker are hit hardest, because it precaches `/index.html` and answers every navigation from it |
