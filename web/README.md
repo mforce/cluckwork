@@ -52,7 +52,9 @@ cleanup). Tests sit next to the code they cover as `*.test.ts(x)`, and CI runs
 and API-layer logic all need Vitest coverage. A coverage gate (`vite.config.ts`
 → `test.coverage.thresholds`) enforces it: a global regression floor that
 ratchets up as screens gain tests, plus per-directory high-water locks that hold
-the fully-covered foundation (`src/auth`, `src/lib`, `src/api/client.ts`) at
+the fully-covered foundation (`src/auth`, `src/lib`, and the #1215 split's
+HTTP-client modules `src/api/errors/trace/request/sessionState/authCookieLock/session/refresh`)
+at
 ~100% so it can't backslide. Raise the global floor in the same PR that adds a
 screen's tests.
 

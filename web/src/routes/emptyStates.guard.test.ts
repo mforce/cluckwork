@@ -11,9 +11,9 @@ import path from "node:path";
 // check, and must not be read as one.
 const EMPTY_STATE_SITES: { file: string; key: string }[] = [
   { file: "CustomersPage.tsx", key: "noCustomersMessage" },
-  { file: "Dashboard.tsx", key: "noFlocksMessage" },
-  { file: "Dashboard.tsx", key: "noStockMessage" },
-  { file: "Dashboard.tsx", key: "noOrdersMessage" },
+  { file: "dashboard/CollectionPanel.tsx", key: "noFlocksMessage" },
+  { file: "dashboard/StockPanel.tsx", key: "noStockMessage" },
+  { file: "dashboard/SalesPanel.tsx", key: "noOrdersMessage" },
   { file: "FlocksPage.tsx", key: "noFlocksMessage" },
   { file: "ProductsPage.tsx", key: "noProductsMessage" },
   { file: "StockPage.tsx", key: "noStockMessage" },

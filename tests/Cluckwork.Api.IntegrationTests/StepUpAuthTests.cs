@@ -1494,7 +1494,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
     // ---------- #336 review: one user attempt must cost ONE failed access ----------
     //
-    // web/src/api/client.ts's apiFetch treats EVERY 401 as an expired access
+    // web/src/api/refresh.ts's apiFetch treats EVERY 401 as an expired access
     // token: it silently refreshes the session and REPLAYS the identical
     // request. While /auth/step-up answered a wrong password with 401, one
     // password the operator typed once reached the password check TWICE — so
