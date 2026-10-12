@@ -273,8 +273,8 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Api.Middleware.IdempotentUnit.TryClaimOrInspectAsync(IdempotencyScope scope, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)",
             File = "src/Cluckwork.Api/Middleware/IdempotentUnit.cs",
-            Hash = "f6fee6c6",
-            Justification = "Raw-SQL UPDATE that steals an expired idempotency lease; the statement carries WHERE \"AccountId\" = {scope.AccountId} AND (EndpointHash, IdempotencyKeyHash) — scoped to this tenant's claim. Not a row lock.",
+            Hash = "6a17bf61",
+            Justification = "Raw-SQL INSERT ... ON CONFLICT DO NOTHING that claims an idempotency key, writing \"AccountId\" = {scope.AccountId} (#1230), and a raw-SQL UPDATE that steals an expired idempotency lease; the statement carries WHERE \"AccountId\" = {scope.AccountId} AND (EndpointHash, IdempotencyKeyHash) — scoped to this tenant's claim. Not a row lock.",
         },
         new()
         {

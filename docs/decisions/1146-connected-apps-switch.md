@@ -64,9 +64,11 @@ maintainer raised the ceiling to 1,960 KiB for it (`web/scripts/verify-sw.mjs`).
 
 - A code issued just before the switch goes off still redeems into a token. That
   token is refused on its first request.
-- `OAuthLastUsedStamp` runs during token validation, before the middleware refuses,
+- ~~`OAuthLastUsedStamp` runs during token validation, before the middleware refuses,
   so an app retrying while the switch is off still moves its **Last used**. Suspension
-  and a disabled user behave the same way today.
+  and a disabled user behave the same way today.~~ Removed by #1229: the stamp now runs
+  in `CredentialEpochMiddleware` only after the verdict is Current, so a refused retry
+  never moves **Last used**.
 
 ## Proof
 

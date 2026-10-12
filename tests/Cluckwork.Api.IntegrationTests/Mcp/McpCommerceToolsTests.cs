@@ -100,6 +100,20 @@ public sealed class McpCommerceToolsTests(CluckworkWebApplicationFactory factory
         Assert.DoesNotContain("cluckwork_list_customer_balances", tools);
     }
 
+    // #1228: like the flock list and REST, the refusal does not echo the caller's value.
+    [Fact]
+    public async Task UnknownStatus_IsRefusedWithoutEchoingIt()
+    {
+        using var host = Host(factory);
+        var owner = await SeedAsync(factory, Roles.Owner);
+        await using var client = await ConnectAsync(host, await IssueAsync(host, owner, [OAuthScopes.ReadFarm]));
+
+        var error = await ErrorAsync(client, "cluckwork_list_sales_orders", new() { ["status"] = PlantedText });
+
+        Assert.Contains("status must be Draft, Confirmed", error);
+        Assert.DoesNotContain(PlantedText, error);
+    }
+
     [Fact]
     public async Task UnpaidOrders_AreOnlyThoseStillOwing()
     {

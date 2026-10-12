@@ -44,7 +44,7 @@ namespace Cluckwork.Api.Middleware;
 // same protocol. Success is the operation's own verdict, never "it returned":
 // a failure is not cached, so a domain refusal (a depleted flock) does not
 // replay forever after the farm fixes it.
-public sealed class IdempotentUnit(AppDbContext db, IOptions<IdempotencyOptions> options)
+public sealed class IdempotentUnit(AppDbContext db, IOptions<IdempotencyOptions> options, ILogger<IdempotentUnit> logger)
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(40);
 
@@ -265,28 +265,21 @@ public sealed class IdempotentUnit(AppDbContext db, IOptions<IdempotencyOptions>
     private async Task<ClaimAttempt> TryClaimOrInspectAsync(
         IdempotencyScope scope, Guid ownerToken, DateTimeOffset leaseExpiresAt, DateTimeOffset now, CancellationToken ct)
     {
-        var fresh = new IdempotencyRecord
-        {
-            Id = Guid.NewGuid(),
-            AccountId = scope.AccountId,
-            EndpointHash = scope.EndpointHash,
-            IdempotencyKeyHash = scope.KeyHash,
-            RequestHash = scope.RequestHash,
-            Status = IdempotencyStatus.InProgress,
-            LeaseOwner = ownerToken,
-            LeaseExpiresAt = leaseExpiresAt,
-            CreatedAt = now,
-        };
-        db.IdempotencyRecords.Add(fresh);
-        try
-        {
-            await db.SaveChangesAsync(ct);
-            return new ClaimAttempt(ClaimKind.Claimed);
-        }
-        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
-        {
-            db.Entry(fresh).State = EntityState.Detached;
-        }
+        // A replay, or a concurrent claim that won the race, is an expected outcome, so it
+        // is a DO NOTHING rather than a unique violation EF would log twice at Error (#1230).
+        // Raw SQL gets no retry of its own; the execution strategy replays it as it replayed
+        // the SaveChanges this replaced, and a replay after a lost acknowledgment finds our
+        // own row below (RetryBoundaryTests).
+        var claimed = await db.Database.CreateExecutionStrategy().ExecuteAsync(() =>
+            db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO idempotency_records ("Id", "AccountId", "EndpointHash", "IdempotencyKeyHash", "RequestHash",
+                    "Status", "LeaseOwner", "LeaseExpiresAt", "CreatedAt")
+                VALUES ({Guid.NewGuid()}, {scope.AccountId}, {scope.EndpointHash}, {scope.KeyHash}, {scope.RequestHash},
+                    {(int)IdempotencyStatus.InProgress}, {ownerToken}, {leaseExpiresAt}, {now})
+                ON CONFLICT ("AccountId", "EndpointHash", "IdempotencyKeyHash") DO NOTHING
+                """, ct));
+        if (claimed == 1) return new ClaimAttempt(ClaimKind.Claimed);
+        logger.LogDebug("Idempotency key already claimed; inspecting the existing claim.");
 
         // Steal: only a row whose lease has expired AND whose RequestHash
         // matches ours (an unrelated payload under the same key is always a
@@ -371,11 +364,6 @@ public sealed class IdempotentUnit(AppDbContext db, IOptions<IdempotencyOptions>
             await Task.Delay(PollInterval, ct);
         }
     }
-
-    // Postgres unique_violation on the (AccountId, EndpointHash,
-    // IdempotencyKeyHash) index — a concurrent fresh claim beat us to it.
-    private static bool IsUniqueViolation(DbUpdateException ex) =>
-        ex.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation };
 }
 
 // Which claim an operation runs under. EndpointHash names the operation and
