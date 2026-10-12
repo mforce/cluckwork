@@ -10,12 +10,9 @@ public sealed class DailyEntryRepository(AppDbContext db) : IDailyEntryRepositor
 {
     // Grades are always eager-loaded: RecordProduction does a full replace of the
     // lines, which requires the current lines to be tracked (orphan delete).
-    // Reads load them in the egg-grade catalog's order (EggGradeRepository:
-    // SortOrder, then Name), never physical row order, which differs between
-    // databases. Only under the tenant filter: the two flock-scoped write
-    // lookups below lift every filter, would read EggGrades unscoped, and never
-    // show their lines to anyone, so they keep a plain Include. The explicit
-    // AccountId keeps the grade lookup scoped even if this ever runs unfiltered.
+    // Reads load them in catalog order (EggGradeRepository: SortOrder, then
+    // Name), not physical row order, which differs between databases. The two
+    // filter-free write lookups below show no lines, so they keep a plain Include.
     private IQueryable<DailyEntry> WithGrades(IQueryable<DailyEntry> entries) =>
         entries.Include(e => e.Grades
             .OrderBy(g => db.EggGrades.Where(x => x.Id == g.EggGradeId && x.AccountId == g.AccountId)
