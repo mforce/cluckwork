@@ -2,8 +2,8 @@
 
 What the farm sells (#97 part 1) and the packed-unit conversions behind it:
 one route with two tabs (#908). Each egg product maps to an egg grade — sales
-draw stock from that grade's lots. There is no hard delete; history keeps a
-deactivated product's name.
+draw stock from that grade's lots. There is no hard delete; a deactivated
+product stays referenced.
 
 ## Sub-features
 
@@ -12,20 +12,29 @@ deactivated product's name.
   activate/deactivate, and the "New product" page-head button. On an empty
   catalog the button is withheld and the `EmptyState` offers the same action
   (#655). Admins hide the last column on the phone (`ProductsPage.tsx` sx).
-- Create/edit dialogs (`web/src/routes/ProductDialogs.tsx`): name, grade
-  (saleable grades only, `ProductsPage.tsx`), sold per, default price, notes.
-  Prices are parsed as exact strings into minor units; create uses the
-  account currency, edit uses the row's own snapshot (codex review of #98).
+- Create dialog (`web/src/routes/ProductDialogs.tsx`): name, grade (saleable
+  grades only, `ProductsPage.tsx`), sold per, default price, notes. Notes
+  exist on CREATE only — the edit dialog has no notes field (its comment says
+  so explicitly); editing round-trips the stored notes untouched.
 - Packed units tab: egg-unit conversions (unit, eggs per unit, status).
   "Individual" always reads 1 and offers no edit (`products:alwaysOneMessage`).
-- Deactivation is soft: the product leaves sales pickers; recorded orders keep
-  the name and price they were sold with.
+- Deactivation is soft: the product leaves the sale pickers (the endpoint
+  summary in `ProductEndpoints.cs`) and the referenced product and saved
+  price stay on recorded lines. An order ROW's name is not a snapshot —
+  `SalesPage.tsx` resolves names from the current catalog (it loads
+  `includeInactive: true` so deactivated references still resolve), so a
+  renamed product shows its new name on existing orders. Only the audit
+  payloads snapshot product names (`AuditEventRows.tsx`).
 
 ## How to get to it (user POV)
 
 Nav: Setup, Products (`web/src/routes/nav.tsx`, shown to the `isAdmin` tier —
 Admin or Manager, `web/src/auth/claims.ts:currentUserIsAdmin`). Route
-`/products`.
+`/products`. The route itself is authenticated, not role-gated: the catalog
+and conversion reads accept any signed-in role, while every write
+(create/update/activate/deactivate) is `AdminOnly`
+(`src/Cluckwork.Api/Modules/Commerce/Catalog/ProductEndpoints.cs`), so
+another role can deep-link here and read.
 
 ## Driving it with Playwright
 
@@ -47,8 +56,10 @@ the inspector closes via the button named `tEn("audit:closeInspector")`.
 
 Labels come through `tEn("products:…")` (`products:newProductButton`,
 `products:editButton`, `products:deactivateButton`,
-`products:packedUnitsHeading`); status cells route through
-`enums:statusLabel`, not the catalog.
+`products:packedUnitsHeading`). Status cells render through the
+`statusLabel` function (`web/src/i18n/enums-status.ts`), which resolves the
+keys `enums:status.Active` / `enums:status.Inactive` — assert with those
+`tEn` keys, not a hardcoded "Active".
 
 Proof: after deactivating a product its row reads Inactive (`StatusBadge`) and
 the Activate action replaces Deactivate; after editing a packed unit the
@@ -61,26 +72,37 @@ on `/products`.
 
 - `default-farm`: Sim Large Eggs (45), Sim Medium Eggs (38), Sim Small Eggs
   (30), Sim Cracked Eggs (18), Sim Dirty Eggs (22), plus Sim Unpriced Eggs
-  with no default price (#720) — `CatalogWanted` in
-  `src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs`.
+  with no default price (#720) — prices in MINOR units, per `CatalogWanted`
+  in `src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs`.
 - `readme-farm`: Large Eggs (45), Medium Eggs (38), Cracked Eggs (18, note
   "Sold at a discount") — `DemoProducts` in
-  `src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs`.
-- Packed units come from the base-reference migration, not a seeder:
-  Individual 1, Dozen 12, Flat 30, Tray 30, Carton 12, Case 360
-  (`InsertUnitConversionIfMissing`, `20260801190854_InitialCreate.cs`).
+  `src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs`, also minor
+  units.
+- Packed units for the DEFAULT farm come from the base-reference migration,
+  which inserts rows for that fixed AccountId only: Individual 1, Dozen 12,
+  Flat 30, Tray 30, Carton 12, Case 360 (`InsertUnitConversionIfMissing`,
+  `20260801190854_InitialCreate.cs`). `readme-farm` is provisioned by
+  `provision-account` (`tools/simulation/reset.sh`), whose
+  `AccountProvisioner` calls `StageDefaults()` ->
+  `EggUnitConversion.Defaults` (`EggUnitConversionProvisioning.cs`) — the
+  same six values, from provisioning rather than the migration.
 
 ## Gotchas
 
 - There is no "New product" button on an empty catalog — the EmptyState is the
   action (#655). Assert the EmptyState's button, not the page head.
-- Price fields reject floats and excess decimals with
-  `products:enterPriceAsNumber` / `products:atMostDecimals`; drive them with
-  plain decimal strings and never `value * 100`.
+- Prices are parsed as exact decimal strings into minor units
+  (`toMinorUnits`, `ProductsPage.tsx`): plain decimals like "0.45" are fine;
+  malformed input and excess precision are rejected. The error differs by
+  dialog — CREATE keeps the browser's `min`/`step` validation
+  (`ProductDialogs.tsx`), so the browser may stop it first, while EDIT is
+  `noValidate` and always reaches the parser's message
+  (`products:atMostDecimals`, or `products:noDecimalPlaces` for a
+  zero-decimal currency). Never compute expected values with `value * 100`.
 - Mixed-currency rows are legal: the create dialog prices in the account
   currency while an edit dialog uses that row's snapshot — do not assume one
   currency across the table.
-- Changing a packed unit only affects future sales; recorded orders keep the
-  count they were sold with (`products:packedUnitsIntro`).
+- Changing a packed unit only affects future sales; snapshotted sale lines
+  keep their factor (`products:packedUnitsIntro`, `ProductEndpoints.cs`).
 - On a phone viewport an admin's Actions column is hidden — drive row actions
   from the inspector, as `phone.spec.ts` does.

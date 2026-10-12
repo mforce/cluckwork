@@ -15,12 +15,18 @@ rows are written by the server inside the transactions they record.
   summary's second line; expanding shows the entity, the payload summary
   (`audit:details*`, e.g. discount reasons #745/#756) or the raw reason.
 - Entity-scoped mode: `?entityId=<guid>`, reached from a record's own screen
-  via its "Audit history" link (`recordHistory:viewHistoryLink`,
-  `web/src/components/ProvenanceCell.tsx`); the heading becomes
-  "<entityType> history" (`audit:scopedHeading`).
+  via its "Audit history" link (`common:recordHistory.viewHistoryLink`,
+  `web/src/components/ProvenanceCell.tsx` — the `common` namespace, dotted
+  key). The heading is "<entityType> history" (`audit:scopedHeading`) only
+  once the first scoped page has returned a row; while loading, and when the
+  scoped record has no events, it is the fallback `audit:scopedHeadingFallback`
+  ("Record history") — `AuditPage.tsx` (`scopedEntityType`,
+  `t("scopedHeadingFallback")`).
 - Connected-app filters (#800): "Only actions through connected apps"
   checkbox and the per-row "Show only {{app}}" pivot.
-- 100 events per page (`PAGE` in `AuditPage.tsx`), then a `load more` link.
+- 100 events per page (`PAGE` in `AuditPage.tsx`), then a button (styled as a
+  link) labelled `audit:loadMoreButton` (`AuditPage.tsx` renders
+  `<button className="link">`).
 
 ## How to get to it (user POV)
 
@@ -44,7 +50,12 @@ const panels = page.getByRole("article");
 await expect(panels.first()).toBeVisible();
 // Filter by action; option text comes from enums:auditAction.*, never English.
 const filter = page.getByLabel(tEn("audit:actionFilterLabel"), { exact: true });
-await filter.selectOption(await filter.locator("option").nth(1).getAttribute("value"));
+const option = filter.locator("option").nth(1);
+const value = await option.getAttribute("value");
+expect(value, "the option has a server value").toBeTruthy();
+await filter.selectOption(value!);
+// Deeper pages: the control is a BUTTON styled as a link, not role=link.
+await page.getByRole("button", { name: tEn("audit:loadMoreButton") }).click();
 ```
 
 Labels come through `tEn("audit:…")`; action and entity-type option text route
@@ -72,7 +83,10 @@ refusal status captured from the network.
   unscoped view (`GUID_PATTERN`, `AuditPage.tsx` #493).
 - The empty states are distinct on purpose (`audit:emptyMessage` vs the
   scoped/filtered variants, #493/#666) — assert the one your scenario
-  actually produces.
-- The fixture writes audit events for every seeding write (flock placement,
-  orders, products), so the log is never empty on a fresh reset;
-  `owner.spec.ts` fails loudly if it is.
+  actually produces, and expect `audit:scopedHeadingFallback`, not an entity
+  name, when a scoped view loads or filters to zero rows.
+- The fixture's seeding writes populate a non-empty audit log — flock
+  creation, product creation and order actions run through audited handlers
+  — but NOT every write: payments, for example, are recorded without an
+  audit writer (`RecordPaymentHandler.cs` persists and logs, no
+  `IAuditWriter`). Do not expect an audit event per fixture row.
