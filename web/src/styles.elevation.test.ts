@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import postcss from "postcss";
 import type { AtRule, Node, Rule } from "postcss";
+import { readStylesheet } from "./test/stylesheet";
 
 // #651 — elevation encodes what floats; radius encodes nesting depth.
 //
@@ -12,7 +11,7 @@ import type { AtRule, Node, Rule } from "postcss";
 // happened to think of exactly the thing a guard exists to stop anyone
 // trusting. jsdom computes no layout, so the declarations are read from the
 // parsed stylesheet — the same approach as styles.num.test.ts.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 const clean = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").trim();
 

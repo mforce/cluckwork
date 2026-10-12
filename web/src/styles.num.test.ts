@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import postcss from "postcss";
 import type { Rule } from "postcss";
+import { readStylesheet } from "./test/stylesheet";
 
 // Numeric table cells (#650): right-aligned, tabular figures, never wrapped.
 // jsdom computes no layout, so the declarations are read from the parsed
 // stylesheet — the same approach as components/styles.dialog.test.ts.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 
 function declarationsFor(selector: string): Map<string, string> {

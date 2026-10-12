@@ -14,14 +14,12 @@
 // figure is recorded in the stylesheet instead of asserted: it measures a
 // palette weakness, and a palette that improved it should not turn a test red.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { BRANDS, DEFAULT_BRAND } from "../lib/brand";
 import { contrast, resolveTokens } from "../test/cssTokens";
 import type { Mode } from "../test/cssTokens";
+import { readStylesheet } from "../test/stylesheet";
 
-const CSS_REL = "../styles.css";
-const css = readFileSync(fileURLToPath(new URL(CSS_REL, import.meta.url)), "utf8")
+const css = readStylesheet()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 const bodyOf = (selector: string) => {
   const match = Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g))

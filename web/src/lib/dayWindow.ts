@@ -42,7 +42,7 @@ export interface DayWindow {
 }
 
 // What the strip actually lays out: n slots and n-1 gaps. The week hairline
-// adds no margin in the expanded strip (styles.css `.lay-expand .day-week`),
+// adds no margin in the expanded strip (styles/expanded-lay-rate.css `.lay-expand .day-week`),
 // so this is the whole width — a 9px jog every seventh day would put 100px of
 // drift into a 90-day range and every figure below with it.
 export function stripWidth({ days, slot, gap }: StripMetrics): number {

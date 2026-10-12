@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { render, screen, within, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
@@ -12,6 +10,7 @@ import i18n from "../i18n";
 import { en } from "../i18n/en";
 import { es } from "../i18n/es";
 import { tl } from "../i18n/tl";
+import { readStylesheet } from "../test/stylesheet";
 
 // Minimal IntersectionObserver stub (jsdom has none): capture the callback so a
 // test can simulate a section scrolling into view.
@@ -486,7 +485,7 @@ describe("HelpPage", () => {
     render(<HelpPage />);
     expect(within(screen.getByRole("navigation", { name: "Help contents" })).getAllByRole("link").length)
       .toBeGreaterThan(20);
-    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+    const css = readStylesheet();
     const railRule = css.match(/\.help-toc\s*\{(?<body>[^}]*)\}/)?.groups?.body ?? "";
     expect(railRule).toMatch(/max-height:\s*calc\(100dvh - 3rem\)/);
     expect(railRule).toMatch(/overflow-y:\s*auto/);

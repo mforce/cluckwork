@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { render, screen, within, act, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router";
 import { AuditPage, isFetchStale } from "./AuditPage";
@@ -9,6 +7,7 @@ import type { AuditEvent } from "../api/cluckwork";
 import i18n from "../i18n";
 import { clearAccessToken, setAccessToken } from "../auth/tokenStore";
 import { makeToken } from "../test/jwt";
+import { readStylesheet } from "../test/stylesheet";
 
 // AuditPage's only network dep is listAuditEvents; mock that seam so the screen
 // renders against controlled data — no network, no backend. ApiError stays real
@@ -29,7 +28,7 @@ vi.mock("../api/cluckwork", () => ({
 }));
 
 const mockListAuditEvents = vi.mocked(listAuditEvents);
-const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const stylesheet = readStylesheet();
 
 function auditFilterColumnCountAt(width: number) {
   const base = /\.audit-filters\s*\{[^}]*grid-template-columns:\s*repeat\((\d+),/.exec(stylesheet)?.[1];

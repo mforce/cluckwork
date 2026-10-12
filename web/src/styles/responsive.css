@@ -1,0 +1,244 @@
+/* ------------------------------------------------ Responsive (#49 kept) */
+@media (max-width: 900px) {
+  /* Reserve the real bar height so the sticky footers clear it and the page can
+     scroll its last row out from under it. Must sit on a selector, not bare in
+     the @media — a loose custom-property declaration is invalid and the parser
+     drops it AND the rule after it. */
+  :root {
+    /* Includes the home-indicator inset, so the sticky footers that offset by
+       this token clear the bar on a notched phone too — the bar's own physical
+       height is its content plus that same inset. */
+    --tabbar-h: calc(3.6rem + env(safe-area-inset-bottom));
+  }
+
+  /* The Drawer (sidebar) and BottomNavigation (tab bar) are hidden/shown by
+     the theme's own `md` breakpoint (`sx={{ display: { xs: …, md: … } }}` in
+     AppLayout.tsx/BottomNav.tsx) — no CSS rule needed here for either. */
+
+  .content {
+    /* Exactly the tab bar below the content (the token already carries the
+       home-indicator inset), so a sticky footer parked at
+       `bottom: var(--tabbar-h)` reaches its flow rest on its stuck line —
+       clearing the bar without a gap. */
+    padding: 1.5rem 1.15rem var(--tabbar-h);
+  }
+
+  .content > section > h2,
+  .content .page-head h2 {
+    font-size: 1.5rem;
+  }
+
+  .audit-scope {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .audit-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  table.data {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    min-width: 0;
+    /* #441 — real-device repro (Android Chrome PWA + Firefox, both
+       confirmed): despite overflow-x: auto correctly scrolling the table
+       WITHIN itself (verified — clientWidth stays small, scrollLeft works),
+       mobile browsers' initial LAYOUT viewport sizing still measured this
+       table's raw un-clipped content width and inflated window.innerWidth
+       past the visual viewport — overflow-x:auto/hidden on every ancestor up
+       to <body> did not stop it. `contain: layout` does: it tells the
+       browser this element's internal layout can never affect an ancestor's
+       (or the viewport's) size, closing the gap overflow alone can't.
+       Without it, BottomNav's `position: fixed; bottom: 0` anchors to that
+       inflated layout viewport instead of the visible one and renders far
+       below the actual screen — reproduced exactly: innerWidth was measured
+       at up to 1066px against a 412px visual viewport, with the nav's own
+       rect landing ~1300px below the visible area. */
+    contain: layout;
+    /* Scroll-shadow affordance (#150). Overlay scrollbars vanish at rest, so a
+       wide table gives no sign the last column is clipped. Two "cover" layers
+       (surface -> transparent) are pinned to the CONTENT (attachment: local):
+       they ride the row and mask the cue at whichever edge you have reached.
+       Two "cue" layers (--scroll-cue -> transparent) are pinned to the SCROLLER
+       (attachment: scroll): they sit at the element edges and show through
+       wherever content still overflows past them. Result: a right fade while
+       there is more right, a left fade once scrolled, neither at rest with no
+       overflow — theme-aware via the tokens, no JS, no per-table markup, so it
+       covers every data table at once. (Lea Verou's technique.) The cue layers
+       are LINEAR (not Verou's radial): a radial cue fades out toward the top and
+       bottom rows, so on a tall table the edge reads unevenly — a linear bar is
+       uniform down the whole edge. The cover's solid stop (40% of 2.25rem =
+       0.9rem) fully spans the 0.85rem cue, so nothing peeks at the rested edge. */
+    background:
+      linear-gradient(to right, var(--surface) 40%, transparent) 0 0 / 2.25rem 100% no-repeat local,
+      linear-gradient(to left, var(--surface) 40%, transparent) 100% 0 / 2.25rem 100% no-repeat local,
+      linear-gradient(to right, var(--scroll-cue), transparent) 0 0 / 0.85rem 100% no-repeat scroll,
+      linear-gradient(to left, var(--scroll-cue), transparent) 100% 0 / 0.85rem 100% no-repeat scroll;
+  }
+
+  .help table.data {
+    white-space: normal;
+  }
+
+  .help-layout {
+    /* minmax(0, …), not bare 1fr — same #441 grid-blowout shape the old
+       `.shell` fix guarded against: a bare 1fr track floors at .help-toc's
+       wrapping nav's min-content, not 0, and that nav's own flex-wrap row is
+       wide enough (many TOC entries) to blow the whole page out past the
+       viewport. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  /* #657 — the rail becomes one horizontal strip pinned under the head. */
+  .help-toc {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0 -1.15rem;
+    padding: 0.5rem 1.15rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .help-toc .help-kicker {
+    display: none;
+  }
+
+  .help-toc ul {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+    margin: 0;
+  }
+
+  .help-toc li a { white-space: nowrap; }
+
+  .help-hero {
+    padding: 1.25rem 1.15rem 1rem;
+  }
+
+  /* No keyboard to press "/" on. */
+  .help-search-field kbd {
+    display: none;
+  }
+
+  .help-search-field input {
+    padding-right: 1rem;
+  }
+
+  .help-section-head {
+    flex-wrap: wrap;
+  }
+
+  .mistake {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .glossary-entry {
+    scroll-margin-top: 6.5rem;
+  }
+
+  .glossary-group h4 {
+    top: 3rem;
+  }
+
+  .form-grid label {
+    min-width: 0;
+    flex: 1 1 40%;
+  }
+
+  .form-grid .numfield-field {
+    min-width: 0;
+    flex: 1 1 40%;
+  }
+
+  .inline-form input {
+    flex: 1 1 100%;
+  }
+
+  .inline-form button[type="submit"] {
+    flex: 1 1 100%;
+  }
+
+  /* #740 — one action per line, each the full width of its container. A
+     999px radius never clamps into an ellipse once the button is wider than
+     it is tall, so the longest tl label costs a line of height instead of
+     reshaping the control.
+
+     NOT sticky, which it was until #823: three stacked buttons parked above
+     the tab bar is ~170px of chrome on an 844px viewport. Daily entry's own
+     sticky footer (a MUI `Paper`, #830 — was `.entry-foot`) is unaffected and
+     still the field-first capture bar; its side-by-side buttons are its own
+     sx, not this rule. */
+  .actions {
+    flex-direction: column;
+    padding: 0.75rem 0;
+    margin-top: 0.75rem;
+  }
+
+  /* Barn use is one-handed and often gloved: 44px is the minimum comfortable
+     touch target, and the default padding lands under it. The take button
+     belongs here more than any of them — dragging does not work on touch, so on
+     a phone it is the ONLY way to hand the remainder to a grade. */
+  .entry-row input,
+  .entry-row .numfield-step,
+  .entry-row .entry-take,
+  .entry-chip-grab {
+    min-height: 2.75rem;
+  }
+
+  /* #827 — the phone bottom-sheet variant (`.dialog-backdrop`'s
+     `align-items: flex-end`, `.dialog`'s sheet chrome, `.dialog.wide`'s reset
+     and `@keyframes dialog-sheet`) is retired in favour of MUI `Dialog`'s own
+     centred paper, sized to its content with a 16px side margin below 900px
+     (owner, 2026-09-17, chosen from the three mockups on #892 over the
+     full-screen form D3.3 had planned); only the phone More menu takes
+     `fullScreen`. The dialog-foot
+     stacking rule below is unrelated to that chrome and stays — unconverted
+     callers still render a raw `.dialog-foot` footer inside the dialog's
+     content. */
+
+  /* `justify-content: flex-end` still applies down the block axis, so the
+     buttons need `align-items` to fill the row rather than sit at their
+     intrinsic width. `.actions` stretches by default and needs neither. */
+  /* Owner decision 2026-09-17 (#892 mockups): phone form dialogs are centred
+     and sized to content, and their footer keeps Cancel and the action side by
+     side, right-aligned, like the desktop one. The 44px touch target comes
+     from the padding rule below, not from stretching the buttons full-width. */
+  .dialog .dialog-foot {
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .dialog .form-grid label,
+  .dialog .form-grid .numfield-field {
+    flex: 0 0 auto;
+  }
+
+  /* The padding, not the retired `flex: 1`, is what holds these to a 44px
+     touch target: the base button padding lands at about 39px. */
+  .dialog .dialog-foot button,
+  .actions button {
+    padding: 0.85rem 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+

@@ -5,7 +5,7 @@
 // the unit suite cannot tell a box inside its row from one hanging 33px out of
 // it — and the defect was a LAYOUT feedback loop between the readout's width
 // and its placement, not a state bug. The loop itself is explained on `.tip` in
-// web/src/styles.css; only a laid-out page can hold the result of it.
+// web/src/styles/day-strip.css; only a laid-out page can hold the result of it.
 //
 // WHAT THIS ASSERTS, and why it is not a pixel baseline. Three implementation-
 // independent facts:

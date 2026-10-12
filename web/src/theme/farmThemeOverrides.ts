@@ -2,7 +2,7 @@ import { alpha } from "@mui/material/styles";
 import type { Theme, ThemeOptions } from "@mui/material/styles";
 import type { ThemeMode, TokenValues } from "./farmTokens";
 
-/** WCAG 2.2 AAA 2.5.5, and the floor `styles.css` already holds phone controls to. */
+/** WCAG 2.2 AAA 2.5.5, and the floor `styles/responsive.css` already holds phone controls to. */
 const PHONE_TOUCH_TARGET_PX = 44;
 
 /**
@@ -226,7 +226,7 @@ export function farmThemeOverrides({
       // No `MuiDialogActions` override: dialog footers stay a right-aligned
       // row at every width (#896, owner decision 2026-09-17, a D3.4 exception
       // like the Daily entry footer), which is the component's own default.
-      // A raw `<label>` styles.css still targets (§2.3's `:where(label)`
+      // A raw `<label>` styles/controls.css still targets (§2.3's `:where(label)`
       // demotion neutralises it only where MUI itself declares the property —
       // `FormControlLabel` never declares `flex-direction`/`gap` on its own
       // root, so the zero-specificity rule was the only source and stacked its
@@ -348,7 +348,7 @@ export function farmThemeOverrides({
         },
       },
       // `Tabs`' own default (`textColor="primary"`) paints the selected label
-      // with `palette.primary.main` (raw `--brand`), which styles.css keeps
+      // with `palette.primary.main` (raw `--brand`), which styles/tokens.css keeps
       // out of the dark block on purpose and so reads near-invisible on a
       // dark surface. `--stat-accent` is the same "active" device
       // `MuiBottomNavigationAction` and the sidebar already use.
@@ -380,7 +380,7 @@ export function farmThemeOverrides({
       // `document.documentElement.scrollWidth` 941px against a 390px frame,
       // `phone.spec.ts`'s "no walked screen overflows" walk). `contain:
       // layout` is what closes the gap: it tells the browser this element's
-      // internal layout can never affect an ancestor's size. `styles.css`'s
+      // internal layout can never affect an ancestor's size. `styles/responsive.css`'s
       // own `table.data` phone rule (§2.2) already carries this for every
       // unconverted ledger; this is the same fix for MUI's `TableContainer`,
       // the component D3.2 names as this app's phone table treatment going
@@ -446,7 +446,7 @@ export function farmThemeOverrides({
         },
       },
       // The group heading keeps its own CSS class (`.nav-group-label` /
-      // `.more-group-label`, styles.css — D4/#824's guard keys on those two
+      // `.more-group-label`, styles/shell.css — D4/#824's guard keys on those two
       // selectors for the caps casing), so this only neutralises MUI's own
       // subheader chrome (its sticky positioning and background) rather than
       // fighting the class for size and colour.
@@ -479,7 +479,7 @@ export function farmThemeOverrides({
       // underlined in the 28% ink rule at rest, full ink on hover and focus.
       // No screen renders `@mui/material`'s `Link` today (they render
       // `Typography component={Link}` from react-router, styled by
-      // `:where(.content a)` in styles.css instead), so this is groundwork —
+      // `:where(.content a)` in styles/shell.css instead), so this is groundwork —
       // it has to exist before a screen can adopt the real component, and
       // `farmTheme.policy.test.ts` is where it is pinned.
       MuiLink: {

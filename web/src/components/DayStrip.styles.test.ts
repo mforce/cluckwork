@@ -9,17 +9,10 @@
 // stays untouched, so the assertions ABOUT that CSS move here rather than
 // disappearing with the block that used to carry them.
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { literalColourIn } from "../test/cssTokens";
+import { readStylesheet } from "../test/stylesheet";
 
-// Relative path held in a variable, not an inline literal: Vite's
-// import-analysis plugin statically pattern-matches
-// `new URL("literal", import.meta.url)` and rewrites it to a dev-server asset
-// URL under the jsdom test environment, which fileURLToPath() then rejects as
-// "not scheme file" (see src/test/cssTokens.ts).
-const CSS_REL = "../styles.css";
-const css = readFileSync(fileURLToPath(new URL(CSS_REL, import.meta.url)), "utf8")
+const css = readStylesheet()
   .replace(/\/\*[\s\S]*?\*\//g, "");
 // Any rule that APPLIES to one of these surfaces, not only one whose selector
 // starts with it: `.unrelated, .day:hover { … }` reaches the slot just as

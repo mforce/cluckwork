@@ -285,7 +285,7 @@ export function LayRateCard({
                   `overflow: visible` also changes what Popper's `flip`
                   modifier reads as available space, flipping the
                   popover above the search field. `dashboard-flock-
-                  picker` (styles.css) caps the listbox at ~6 rows
+                  picker` (styles/named-picker.css) caps the listbox at ~6 rows
                   instead of MUI's 40vh default, so the modal stays
                   compact and only the listbox itself scrolls; 22.5rem
                   matches that cap plus the pinned choice button, the

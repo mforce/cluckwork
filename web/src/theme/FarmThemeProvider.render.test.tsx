@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { fireEvent, render } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 import Checkbox from "@mui/material/Checkbox";
@@ -18,11 +16,12 @@ import { Egg } from "lucide-react";
 import { DEFAULT_BRAND } from "../lib/brand";
 import { createFarmTheme } from "./FarmThemeProvider";
 import { tokensFor } from "./farmTokens.test";
+import { readStylesheet } from "../test/stylesheet";
 
 // A local review of #871 (CodeRabbit rate-limited that round) found a bug
 // invisible to farmTheme.policy.test.ts, which reads what `createFarmTheme`
 // DECLARES rather than the DOM it eventually reaches: `MuiFormControlLabel`
-// had no override at all. `styles.css`'s `:where(label)` sets
+// had no override at all. `styles/controls.css`'s `:where(label)` sets
 // `flex-direction: column; gap: 0.35rem` on every raw `<label>`, demoted to
 // zero specificity so any MUI class beats it — but `FormControlLabel`'s own
 // root never declares `flex-direction`/`gap`, so the zero-specificity rule
@@ -62,7 +61,7 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
       // The real stylesheet, injected exactly as `main.tsx` loads it — this is
       // the cascade the bug depends on, and a component test that never loads
       // `styles.css` would not see it.
-      const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+      const css = readStylesheet();
       const style = document.createElement("style");
       style.textContent = css;
       document.head.appendChild(style);

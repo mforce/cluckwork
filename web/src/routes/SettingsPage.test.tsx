@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,8 +15,9 @@ import type { Brand } from "../lib/brand";
 import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
+import { readStylesheet } from "../test/stylesheet";
 
-const stylesCss = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const stylesCss = readStylesheet();
 const srOnlyCss = stylesCss.match(/\.sr-only\s*\{[^}]*\}/)?.[0] ?? "";
 
 function renderedStyleRules(): CSSStyleRule[] {

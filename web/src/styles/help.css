@@ -1,0 +1,334 @@
+/* ---------------------------------------------------- Help (docs layout) */
+.help-head {
+  margin-bottom: 1.75rem;
+}
+
+/* Sentence-case kicker above the title and the rail (#657): a label, not a
+   tracked caps eyebrow — the caps convention leaves the app with #652. */
+.help-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Head band (#657): kicker, title, lead and the search in one inset band,
+   so the page opens on the thing a reader came to do. */
+.help-hero {
+  background: var(--surface-2);
+  border-radius: var(--r-panel);
+  padding: 1.75rem 2rem 1.25rem;
+  margin: 0 0 2rem;
+}
+
+.help-hero .help-head {
+  margin-bottom: 1.25rem;
+}
+
+/* Search (#657): one box over the guide and the glossary; the status line
+   under it is the live region that says how much matched. */
+.help-search {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 40rem;
+}
+
+.help-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 0;
+}
+
+.help-search-field svg {
+  position: absolute;
+  top: 50%;
+  left: 0.9rem;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.help-search-field input {
+  width: 100%;
+  height: 2.9rem;
+  padding: 0 3rem 0 2.6rem;
+  font-size: 1rem;
+  background: var(--surface);
+}
+
+.help-search-field kbd {
+  position: absolute;
+  top: 50%;
+  right: 0.7rem;
+  transform: translateY(-50%);
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  pointer-events: none;
+}
+
+/* Night: the band and the field are two dark greys a hairline apart, so the
+   field becomes a recessed well — canvas-dark, with a light edge — and the
+   key hint gets an edge of its own. Light needs none of this: white on the
+   inset grey already reads as a field. */
+:root[data-theme="dark"] .help-search-field input {
+  background: var(--canvas);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-theme="dark"] .help-search-field kbd {
+  background: var(--surface);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--ink);
+}
+
+.help-search-status {
+  min-height: 1.4rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* Section head (#657): the heading and, where the section describes a
+   screen the reader can reach, the door to it. */
+.help-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.help-body .help-section-head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.help-open {
+  flex: none;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--link);
+  text-decoration: none;
+}
+
+/* #834 — this ring is a hover highlight, not a link underline: --stat-accent
+   is this stylesheet's existing "interactive edge" colour (.palette-option's
+   checked border), not a repurposed --link. */
+.help-open:hover {
+  border-color: var(--stat-accent);
+  text-decoration: none;
+}
+
+/* Glossary jump bar (#657): one chip per group, under the heading. */
+.glossary-jump ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0;
+}
+
+.glossary-jump a {
+  display: inline-block;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.glossary-jump a:hover {
+  border-color: var(--brand);
+  text-decoration: none;
+}
+
+/* Fixing mistakes (#657): a mistake → fix list, the mistake in ink and the
+   fix beside it, instead of a two-column data table. */
+dl.mistakes {
+  margin: 0.5rem 0 0;
+}
+
+.mistake {
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
+  gap: 0.3rem 1.5rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.mistake dt {
+  margin: 0;
+  font-weight: 600;
+}
+
+.mistake dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.mistake dd strong {
+  color: var(--ink);
+}
+
+/* Glossary (#657): grouped searchable disclosures with stable anchors. */
+.glossary-group h4 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 1.5rem 0 0;
+  padding: 0.6rem 0 0.4rem;
+  font-size: 1.05rem;
+  background: var(--canvas);
+  scroll-margin-top: 1.5rem;
+}
+
+.glossary {
+  margin: 0;
+}
+
+.glossary-entry {
+  margin: 0.875rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+  scroll-margin-top: 3.5rem;
+}
+
+.glossary-entry:target {
+  background: var(--tint-accent);
+  box-shadow: 0 0 0 0.6rem var(--tint-accent);
+  border-radius: 4px;
+}
+
+.glossary-entry summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.glossary-entry p {
+  margin: 0.35rem 0 0;
+  max-width: 60ch;
+  line-height: 1.6;
+}
+
+.help-lead {
+  font-size: 1.1rem;
+  color: var(--muted);
+  max-width: 44rem;
+  margin: 0;
+}
+
+/* A sticky contents rail beside the guide body (collapses on mobile). */
+.help-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.help-toc {
+  position: sticky;
+  top: 1.5rem;
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.help-toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.help-toc li a {
+  display: block;
+  padding: 0.32rem 0.6rem;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.help-toc li a:hover {
+  color: var(--brand);
+  background: var(--tint-accent);
+  text-decoration: none;
+}
+
+/* current section (scroll-spy) */
+.help-toc li a.active {
+  color: var(--brand);
+  background: var(--tint-accent);
+  border-radius: 3px;
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+
+:root[data-theme="dark"] .help-toc li a:hover,
+:root[data-theme="dark"] .help-toc li a.active { color: var(--stat-accent); }
+:root[data-theme="dark"] .help-toc li a.active { box-shadow: inset 2px 0 0 var(--stat-accent); }
+
+.help-body {
+  max-width: 48rem;
+}
+
+.help-body h3 {
+  margin: 2.5rem 0 0.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--hairline);
+  font-size: 0.9375rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.help-body > .help-section:first-child > .help-section-head {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.help-body p,
+.help-body li {
+  line-height: 1.65;
+}
+
+.help-body ul {
+  padding-left: 1.15rem;
+}
+
+.help-body li {
+  margin-bottom: 0.5rem;
+}
+
+.help-body code {
+  background: var(--surface-2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.help table.data th[scope="row"] {
+  padding-right: 1.5rem;
+  white-space: nowrap;
+}
+

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readStylesheet } from "./test/stylesheet";
 
 // Every custom property the app reads must be declared in styles.css. An
 // undeclared `var(--x)` fails silently: the whole declaration becomes invalid
@@ -12,7 +13,7 @@ import { describe, expect, it } from "vitest";
 // name fake properties on purpose and are excluded.
 
 const SRC = join(__dirname);
-const css = readFileSync(join(SRC, "styles.css"), "utf8");
+const css = readStylesheet();
 const declared = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]));
 
 function walk(dir: string, out: string[] = []): string[] {

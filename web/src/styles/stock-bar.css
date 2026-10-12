@@ -1,0 +1,81 @@
+/* ---------------------------------- Stock stacked bar (#654, #777) */
+.stock-total {
+  margin: 0 0 0.1rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.stock-fig {
+  display: block;
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sibling of .meter: several segments on one track. Taller than the 6px
+   single-fill meter on purpose, and taller again since #777 so a grade worth
+   under a percent of the farm's stock is still a visible band. */
+.meter-stack {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  overflow: hidden;
+  margin: 0.55rem 0 0.7rem;
+}
+
+/* The width is the share, with a floor so a sub-percent grade does not round
+   away to nothing. The floor is not free: flex takes the 3px minimums and the
+   2px gaps out of the largest band, so at many grades the biggest band reads a
+   few points short of its true share. Measured on a 192px track that is about
+   1.5 points at 8 grades and 4 at 20. The ledger's share column, not the band,
+   is the figure of record. */
+.meter-stack > span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+}
+
+/* Categorical grade hues (#777), declared once per theme and NOT per brand
+   palette: the farm's brand identifies the farm, these identify grades, and
+   letting the palette move them would make the same grade a different colour
+   on two deployments. styles.grades.test.ts holds that.
+   The wheel opens blue, violet, green on purpose — brick, ochre, green at the
+   first three positions made a farm's Small, Medium, Large read as a
+   red/amber/green ramp, the interface saying Small is bad. */
+.meter-stack > span.grade-1, .swatch.grade-1 { background: var(--grade-1); }
+.meter-stack > span.grade-2, .swatch.grade-2 { background: var(--grade-2); }
+.meter-stack > span.grade-3, .swatch.grade-3 { background: var(--grade-3); }
+.meter-stack > span.grade-4, .swatch.grade-4 { background: var(--grade-4); }
+.meter-stack > span.grade-5, .swatch.grade-5 { background: var(--grade-5); }
+.meter-stack > span.grade-6, .swatch.grade-6 { background: var(--grade-6); }
+.meter-stack > span.grade-7, .swatch.grade-7 { background: var(--grade-7); }
+.meter-stack > span.grade-8, .swatch.grade-8 { background: var(--grade-8); }
+
+/* #829 — the grade swatch's own size; it used to be scoped under the
+   `.stock-ledger` list, which is gone (the ledger is now `sx`-laid-out). */
+.swatch {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+}
+
+/* #829 — `.num`'s tabular figures, unscoped: it
+   used to be `.dash-list`-prefixed and the list itself is gone (Recent
+   sales is now an `sx`-laid-out row, D2 pair 14). Deliberately narrow —
+   only what the removed rules carried, not `table.data td.num`'s
+   right-alignment, which stays scoped to real tables (#831 to #833). */
+.num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* #829 — the grade ledger (`.stock-ledger`) and the recent-sales list
+   (`.dash-list`), including the panel-width container query the latter
+   used, are gone: both are `sx`-laid-out MUI rows now (D2 pairs 14/21-
+   adjacent), and `.swatch`/`.num` above carry what they still need. */
+

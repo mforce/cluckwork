@@ -1,0 +1,313 @@
+/* Cluckwork visual identity (#52) — adapted from web/DESIGN.md ("Slacc"
+   aubergine system). The marketing language becomes a farm-ops app: the
+   brand's chromatic monotheism (aubergine) is the navigation spine, the
+   pastel-mesh flourish is reserved for the login front door, and data
+   screens take a hairline treatment lifted with badges, meters, and carded
+   toolbars. Light/night is user-toggled (data-theme) over the OS default.
+   Design-only: markup semantics are unchanged. */
+
+:root {
+  /* Brand — the one accent, reused everywhere it matters (DESIGN.md monotheism).
+     Named --brand, not --aubergine: the values below are the default aubergine
+     palette, but a farm can select another (#149), and a token named after a
+     colour it no longer holds is exactly the drift that misleads later. */
+  --brand: #4a154b;
+  --brand-press: #611f69;
+  --brand-tint: #592466;
+  --on-brand: #ffffff;
+  --on-brand-mute: #d9bdde;
+
+  /* Ink & links (#834 retires the Slack-blue departure — DIRECTION.md, owner
+     decision 2026-09-16, supersedes D7.1's brand-derived `--link: var(--brand)`
+     proposal: a link is ink, underlined in a 28% ink rule, full ink on hover
+     and focus. --link stays its own name rather than folding into --ink at
+     every call site — it names what the colour is FOR, and it is the smaller
+     diff over rewriting six consumers. --link-hover is retired: "full ink on
+     hover" is already --ink, so no separate hover shade is needed. */
+  --ink: #1d1d1d;
+  --muted: #696969;
+  --link: var(--ink);
+  --link-rule: #c0c0c0; /* 28% --ink flattened over --surface (#ffffff) */
+
+  /* Surfaces */
+  --canvas: #f3eee8;
+  --surface: #fffdf9;
+  --surface-2: #f3eee8;
+  --soft: var(--surface-2);
+  --lavender: #f9f0ff;
+  --hairline: #ded3ca;
+  /* Ruled lists (#864 direction): --rule between rows, --rule-strong (28% ink)
+     under headers, above totals and under fields. */
+  --rule: var(--hairline);
+  --rule-strong: rgba(29, 29, 29, 0.28);
+  --row-hover: #faf5fc;
+  --scroll-cue: rgba(29, 21, 33, 0.22); /* edge fade for horizontally-scrolling tables (#150) */
+
+  /* Grade hues (#777) — eight around the wheel at even lightness, warmed to sit
+     beside the aubergine brand. Deliberately NOT brand-scoped: a farm's palette
+     identifies the farm, these identify egg grades, and a grade must not be a
+     different colour on two deployments.
+     They must also stay clear of the SEMANTIC colours, which is not obvious and
+     was got wrong: the first draft's grade-6 was dE 4.3 from --success and its
+     grade-5 dE 11.9 from --warn, so a stock band read as a status signal on a
+     screen that shows both. styles.grades.test.ts measures it now. */
+  --grade-1: #2076a0;
+  --grade-2: #8d55b3;
+  --grade-3: #54862f;
+  --grade-4: #da475d;
+  --grade-5: #8a7972;
+  --grade-6: #138a8e;
+  --grade-7: #b24a80;
+  --grade-8: #5069b8;
+
+  /* Semantic */
+  --error: #bd3a14; /* darkened so the small danger badge clears AA (4.5:1) */
+  --success: #007a5a;
+  --warn: #8a5a00; /* amber that clears AA on white */
+
+  /* Destructive action fill (F135). Themed, unlike --brand: no single red
+     clears BOTH 4.5:1 for its white label and 3:1 against the surface behind it
+     in light and dark at once. Press is the lighter step, matching
+     --brand-press. Light 6.71/6.71 rest, 5.56/5.56 press. */
+  --danger: #a8320f;
+  --danger-press: #bd3a14;
+  /* Deliberately NOT re-declared in the dark blocks, unlike its two siblings:
+     white is the only label that works on all four fills (4.60–6.71), and the
+     dark values were picked so it stays that way. Black would fail on the dark
+     rest fill at 3.79. */
+  --on-danger: #ffffff;
+
+  /* Tinted badge fills (soft, theme-aware) */
+  --tint-accent: #f3e9f5;
+  --tint-ok: #e2f2ec;
+  --tint-warn: #f7ecd9;
+  --tint-danger: #f9e5df;
+  --tint-muted: #eeeaf0;
+
+  /* Themeable component hooks (overridden wholesale in dark) */
+  --stat-accent: var(--brand);
+  /* focus ring / accent-on-surface — theme-aware so it stays visible in dark;
+     the sidebar (aubergine) overrides this to a light ring below. */
+  --focus: var(--stat-accent);
+  --auth-brand: var(--brand);
+  --auth-card-border: rgba(255, 255, 255, 0.7);
+  --auth-card-shadow: 0 20px 60px rgba(74, 21, 75, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #ffe6d3 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #ecdcff 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9f0e2 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #f7e4ff 0%, transparent 60%),
+    var(--lavender);
+
+  --r-input: 4px;
+  --r-panel: 8px;
+  --r-card: 12px;
+  --r-pill: 999px;
+  --sidebar-w: 244px;
+  /* Height reserved for the mobile tab bar. Zero on desktop, where the bar is
+     hidden — so `bottom: var(--tabbar-h)` on the sticky footers is a no-op
+     there and lifts them above the bar on a phone. */
+  --tabbar-h: 0px;
+
+  --font: "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --scrim: rgba(29, 21, 33, 0.42);
+  /* #864 — three-layer diffused shadows, borrowed from the high-end-visual-
+     design skill's proposal and confirmed on the issue (2026-09-16). Replaces
+     the single 24px/64px blob with a hairline, a mid spread and a soft far
+     glow, visible on the phone tab bar and the dialog/drawer/menu floats
+     `elevationScale()` in FarmThemeProvider.tsx maps onto these same tokens. */
+  --shadow-dialog: 0 1px 2px rgba(29, 21, 33, 0.06), 0 12px 32px rgba(29, 21, 33, 0.10), 0 40px 96px rgba(29, 21, 33, 0.12);
+  --shadow-bar: 0 -1px 0 rgba(29, 21, 33, 0.05), 0 -16px 40px rgba(29, 21, 33, 0.07);
+
+  font-family: var(--font);
+  color: var(--ink);
+  color-scheme: light; /* native controls follow the app's theme, not the OS, once toggled */
+  /* #948 review — `font-optical-sizing: auto` (the CSS default, set by #835's
+     opsz.css import) varies the axis continuously with the RENDERED size, so
+     body text, inputs and table cells at 16px on phones would drift off the
+     14px text cut they render at on main. Pin the whole app to the text cut
+     here; the handful of stat figures #835 targets clear this pin with their
+     own `font-variation-settings: normal`, which hands them back to auto. */
+  font-variation-settings: "opsz" 14;
+}
+
+/* ---- Farm accent palettes (#149) ----
+   The farm's accent, independent of the user's light/night choice. The default
+   (aubergine) has NO block: it is the :root values above, which is what makes
+   an unknown or stale data-brand fall back to it with no validation here.
+
+   ORDER IS LOAD-BEARING. :root[data-brand=X] and :root[data-theme="dark"] are
+   both specificity (0,2,0), so source order decides between them, and these
+   light blocks sit BEFORE the dark base deliberately:
+     - the brand fill family is mode-independent and the dark base does not
+       redeclare it, so setting it once here also covers dark; and
+     - a token omitted from a dark palette block falls back to the DARK base
+       (unbranded but mode-correct) instead of leaking a light value.
+   The required-set test in styles.test.ts enforces the rest. */
+
+:root[data-brand="forest"] {
+  --brand: #14432a;
+  --brand-press: #1b5a38;
+  --brand-tint: #1a5133;
+  --on-brand: #ffffff;
+  --on-brand-mute: #bcd9c6;
+  --tint-accent: #e6f2ea;
+  --lavender: #eefaf1;
+  --row-hover: #f5faf7;
+  --auth-card-shadow: 0 20px 60px rgba(20, 67, 42, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #d8f0dd 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #dcefe2 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9f0e2 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #e4f7e9 0%, transparent 60%),
+    var(--lavender);
+}
+
+:root[data-brand="slate"] {
+  --brand: #1b3a5c;
+  --brand-press: #254e79;
+  --brand-tint: #22456b;
+  --on-brand: #ffffff;
+  --on-brand-mute: #c0d4e6;
+  --tint-accent: #e7eff7;
+  --lavender: #eef4fb;
+  --row-hover: #f5f8fc;
+  --auth-card-shadow: 0 20px 60px rgba(27, 58, 92, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #d7e6f4 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #dce8f5 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #d9ecf0 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #e4eefb 0%, transparent 60%),
+    var(--lavender);
+}
+
+:root[data-brand="terracotta"] {
+  --brand: #6b2716;
+  --brand-press: #8a3520;
+  --brand-tint: #7d2f1c;
+  --on-brand: #ffffff;
+  --on-brand-mute: #eec3b3;
+  --tint-accent: #f8eae4;
+  --lavender: #fdf0e9;
+  --row-hover: #fdf6f3;
+  --auth-card-shadow: 0 20px 60px rgba(107, 39, 22, 0.14);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, #fbe0d0 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, #f8e3d6 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, #f7e7dd 0%, transparent 62%),
+    radial-gradient(50% 50% at 18% 90%, #fdeade 0%, transparent 60%),
+    var(--lavender);
+}
+
+/* ---- Night mode: the ONE dark construct ----
+   public/theme-init.js always writes a concrete data-theme (saved choice, else
+   the OS preference) before first paint, so this selector alone covers both
+   the explicit toggle and the OS default. It used to be mirrored by a
+   `@media (prefers-color-scheme: dark) :root:not([data-theme])` twin; the pair
+   drifted and shipped washed-out dialogs from #131 until F134 caught it.
+   Palettes (#149) multiply this block, so the twin had to go first. */
+:root[data-theme="dark"] {
+  --ink: #f2ecf4;
+  --muted: #b3a8b8;
+  --link: var(--ink);
+  --link-rule: #5c5560; /* 28% --ink flattened over --surface (dark) */
+  --canvas: #302733;
+  --surface: #231d25;
+  --surface-2: #302733;
+  --lavender: #241c2a;
+  --hairline: #554655;
+  --rule: var(--hairline);
+  --rule-strong: rgba(242, 236, 244, 0.28);
+  --row-hover: #2b2231;
+  --scroll-cue: rgba(255, 255, 255, 0.16); /* edge cue for scrolling tables (#150) — a light glow, since a dark shadow vanishes on the dark surface */
+
+  /* The same wheel lifted for a dark surface. Same order, so grade N is the
+     same grade in both themes. */
+  --grade-1: #2fb0ef;
+  --grade-2: #c08fe0;
+  --grade-3: #8fbf6e;
+  --grade-4: #f5858a;
+  --grade-5: #afa498;
+  --grade-6: #4fdadb;
+  --grade-7: #e98fb4;
+  --grade-8: #8fa3e8;
+  --error: #ff8666;
+  --success: #4bbf97;
+  --warn: #e0a44a;
+  /* Lifted off the light values so the fill clears 3:1 against the dark
+     surface while its white label still clears 4.5:1 — 3.05/5.53 rest,
+     3.67/4.60 press. The band that satisfies both at once is narrow. */
+  --danger: #bc3c14;
+  --danger-press: #d44028;
+  --tint-accent: #33203a;
+  --tint-ok: #14342b;
+  --tint-warn: #3a2e18;
+  --tint-danger: #3a2019;
+  --tint-muted: #2c2333;
+  --stat-accent: #e2b4e6;
+  --auth-brand: #e2b4e6;
+  --auth-card-border: var(--hairline);
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(122, 47, 132, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(74, 21, 75, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
+    var(--canvas);
+  --scrim: rgba(0, 0, 0, 0.62);
+  /* #864 — the dark twin of the light block above; same three layers, tuned
+     for a dark surface (opaque black layers rather than tinted ink). */
+  --shadow-dialog: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.4), 0 40px 96px rgba(0, 0, 0, 0.45);
+  --shadow-bar: 0 -1px 0 rgba(0, 0, 0, 0.35), 0 -16px 40px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+/* Dark palette blocks (#149). Specificity (0,3,0), so these beat both the dark
+   base and the light palette block above. Each must declare the full set the
+   dark base declares as LITERALS — the dark base hardcodes --stat-accent and
+   --auth-brand rather than aliasing --brand, so omitting one here renders a
+   forest farm with aubergine-pink accents at night. Enforced by
+   styles.test.ts. The --brand family is NOT here: it is mode-independent and
+   comes from the light palette block. */
+
+:root[data-brand="forest"][data-theme="dark"] {
+  --stat-accent: #a8dcbb;
+  --auth-brand: #a8dcbb;
+  --tint-accent: #16301f;
+  --row-hover: #1e2a22;
+  --lavender: #17241b;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(31, 105, 63, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(20, 67, 42, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 90, 70, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+
+:root[data-brand="slate"][data-theme="dark"] {
+  --stat-accent: #aecfeb;
+  --auth-brand: #aecfeb;
+  --tint-accent: #182a3b;
+  --row-hover: #1d2731;
+  --lavender: #16202a;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(37, 78, 121, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(27, 58, 92, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(45, 70, 90, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+
+:root[data-brand="terracotta"][data-theme="dark"] {
+  --stat-accent: #f2b79c;
+  --auth-brand: #f2b79c;
+  --tint-accent: #36211a;
+  --row-hover: #2e211c;
+  --lavender: #251a16;
+  --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --auth-bg:
+    radial-gradient(60% 55% at 12% 18%, rgba(138, 53, 32, 0.5) 0%, transparent 60%),
+    radial-gradient(55% 50% at 88% 12%, rgba(107, 39, 22, 0.6) 0%, transparent 60%),
+    radial-gradient(55% 55% at 82% 88%, rgba(90, 60, 45, 0.35) 0%, transparent 62%),
+    var(--canvas);
+}
+

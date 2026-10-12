@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { contrast, declaredKeys, literalColourIn, luminance, resolveTokens, type Mode } from "./test/cssTokens";
 import { BRANDS, DEFAULT_BRAND } from "./lib/brand";
 import { CONSOLE_DESTRUCTIVE_LINK_SX } from "./components/FieldConsole";
+import { readStylesheet } from "./test/stylesheet";
 
 // Reads the actual token name a style declares (e.g. "var(--error)" -> "--error"),
 // rather than assuming which token the code uses — a future edit that points
@@ -18,7 +19,7 @@ function tokenNameIn(value: string): string {
 // Non-default palettes carry a data-brand attribute; the default carries none.
 const attrFor = (brand: string) => (brand === DEFAULT_BRAND ? null : brand);
 const MODES: Mode[] = ["light", "dark"];
-const stylesheet = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const stylesheet = readStylesheet();
 
 describe("Field Console heading typography", () => {
   it("keeps the serif family on raw h1 and h2 headings only", () => {
@@ -378,7 +379,7 @@ it("pins every brand-scoped token a palette block can declare", () => {
 // Scope: this covers the three selectors that are always underlined at rest,
 // hover, and focus.
 describe("the full-ink underline applies to keyboard focus, not only mouse hover (#834)", () => {
-  const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+  const css = readStylesheet();
 
   // Tolerant of whitespace/line-wrapping so a reformat doesn't break it, but
   // it still ties the SELECTOR to the DECLARATION rather than checking either

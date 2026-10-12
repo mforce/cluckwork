@@ -124,8 +124,8 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
     // in `@media (prefers-reduced-motion: reduce) { transition: none }`. That
     // covers `BottomNavigationAction`'s built-in colour fade and the ripple
     // (disabled below anyway) with no JS matchMedia listener — a pure CSS
-    // media query, mirroring the `no-preference` block `styles.css` already
-    // gates its own hand-rolled animation behind (~L583). The ONE transition
+    // media query, mirroring the `no-preference` block `styles/splash.css` already
+    // gates its own hand-rolled animation behind (~L31). The ONE transition
     // this app adds by hand (`MuiButtonBase`'s press-feedback scale, below)
     // is a plain style object rather than something built through that
     // helper, so it repeats the same media query itself.
@@ -189,7 +189,7 @@ export function createFarmTheme(tokens: TokenValues, mode: ThemeMode): Theme {
  * the console carries "Applying inline style violates ... 'style-src 'self''".
  * That blocks every MUI style, not only this one, so the theme below is
  * groundwork until the CSP is settled. Adopting it is then one element here
- * plus deleting `styles.css`'s `*` and `body` rules.
+ * plus deleting `styles/base.css`'s `*` and `body` rules.
  */
 export function FarmThemeProvider({ children }: { children: ReactNode }) {
   // Held in state, not derived in render: this reads live DOM state, so each

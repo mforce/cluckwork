@@ -217,7 +217,7 @@ export function henDayTrend(current: ProductionReport, previous: ProductionRepor
 }
 
 // Grade is a CATEGORICAL dimension, so it gets a categorical encoding (#777):
-// `colorIndex` picks one of this many distinct hues, declared in styles.css for
+// `colorIndex` picks one of this many distinct hues, declared in styles/tokens.css for
 // both themes and deliberately independent of the farm's brand palette. Egg
 // grades are user-editable and unbounded, so past this count the hues repeat —
 // the ledger beside the bar, not the colour, is what names every grade. The

@@ -1,0 +1,225 @@
+:where(h1, h2) {
+  font-family: Georgia, serif;
+}
+
+:where(h1, h2, h3, h4) {
+  font-weight: 800;
+  letter-spacing: -0.02em; /* DESIGN.md: negative tracking on display sizes */
+  line-height: 1.15;
+}
+
+/* ---------------------------------------------------------------- Buttons */
+:where(button) {
+  padding: 0.66rem 1.5rem;
+  border: none;
+  border-radius: var(--r-input);
+  background: var(--brand);
+  color: var(--on-brand);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.05s ease;
+}
+
+:where(button:hover:not(:disabled)) {
+  background: var(--brand-press);
+}
+
+:where(button:active:not(:disabled)) {
+  transform: translateY(1px);
+}
+
+:where(button:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* #828 — `.btn-danger` (F135's destructive-action fill) is retired: its one
+   remaining caller (UsersPage's step-up disable) now reads `color="error"`
+   on the MUI `Button` every BusyButton renders, same as every other
+   destructive action in the app. */
+
+/* Inline action / navigation buttons — text, not pills. Ink, like links
+   (#834): underlined at rest in the 28% ink rule, full ink on hover and
+   keyboard focus (DIRECTION.md), the latter alongside the global
+   `:focus-visible` outline below, not instead of it. */
+button.link {
+  background: none;
+  color: var(--link);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0;
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--r-input);
+  text-decoration: underline;
+  text-decoration-color: var(--link-rule);
+  text-underline-offset: 2px;
+}
+
+button.link:hover:not(:disabled),
+button.link:focus-visible {
+  background: none;
+  text-decoration: underline;
+  text-decoration-color: var(--ink);
+  text-underline-offset: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Error-boundary fallback (#140). Reads like a page, in both themes: the
+   screen-scope version sits inside the content pane with the shell around it;
+   the app-scope version is the whole page, so it carries its own gutters. */
+.crash {
+  max-width: 32rem;
+  margin: 2.5rem auto;
+  padding: 0 1.15rem;
+  text-align: center;
+}
+
+.crash h2 {
+  margin: 0 0 0.5rem;
+}
+
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  margin: 1.4rem 0 1rem;
+}
+
+.crash-home {
+  font-weight: 600;
+}
+
+.crash-detail {
+  margin-top: 1rem;
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.crash-detail summary {
+  cursor: pointer;
+}
+
+.crash-detail pre {
+  margin: 0.6rem 0 0;
+  padding: 0.75rem;
+  background: var(--surface-2);
+  border-radius: var(--r-input);
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* --------------------------------------------------------- Inputs & forms */
+:where(label) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+:where(input, select, textarea) {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-input);
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+:where(input:focus, select:focus, textarea:focus) {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+
+:where(input[type="checkbox"]) {
+  accent-color: var(--stat-accent);
+  width: 1rem;
+  height: 1rem;
+}
+
+.form-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.form-grid label {
+  min-width: 8rem;
+}
+
+/* A labelled stepper in a form (#250). Sibling label + NumberField, styled to
+   sit exactly like the label-wrapped inputs beside it — sibling because a
+   <label> may not contain interactive content other than its own control, and
+   the stepper carries two buttons. */
+.numfield-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-grid .numfield-field {
+  min-width: 8rem;
+}
+
+/* #720 R11 — the live price hint. It sits AFTER .form-grid, not inside it: a
+   third child in a cell would bottom-align under align-items:end and lift
+   that field's label and input above the row (R8), and a fixed out-of-flow
+   reservation for it (R9) overlapped the Add line button once a translation
+   ran long enough to wrap past one line. In normal flow it wraps to any
+   height in any locale — es and tl are roughly twice en's length — with no
+   fixed reservation for a longer translation to overflow. Verified by
+   rendering at 1180px and 420px with the tl string. */
+.form-grid + .discount {
+  margin: 0 0 1.25rem;
+}
+
+/* #720 R11 — .form-grid is reused on eight other screens with no hint after
+   it, so this tightens ONLY the one that has one: a blanket margin-bottom
+   change on the bare .form-grid rule would have re-spaced every form on the
+   app for a gap this screen alone needed shortened. With the hint now
+   sitting right after this grid as a normal block, the ordinary 1.25rem gap
+   read as an orphaned paragraph floating between the add-line row and the
+   actions row rather than belonging to either. Checked by rendering. */
+.form-grid:has(+ .discount) {
+  margin-bottom: 0.4rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.5rem 0 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.inline-form input {
+  width: 10rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+input.cell {
+  width: 6.5rem;
+}
+

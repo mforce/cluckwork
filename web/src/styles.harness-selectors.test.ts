@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readStylesheet } from "./test/stylesheet";
 
 // Every class the Playwright harness selects by must still exist in the app,
 // either as a rule in styles.css or as a className token in a non-test .tsx.
@@ -30,7 +31,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const rawCss = readFileSync(join(WEB, "styles.css"), "utf8");
+const rawCss = readStylesheet();
 // Comments come out first: a rule family's obituary ("ul.dash-list is gone")
 // would otherwise keep the class alive for the harness. The stripper is a
 // plain regex, so a `/*` inside a quoted CSS string would swallow real rules;

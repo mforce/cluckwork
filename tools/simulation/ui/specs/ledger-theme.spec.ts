@@ -85,7 +85,7 @@ function luminanceOf([r, g, b]: [number, number, number]): number {
 // best possible contrast, rather than the ~2.7:1 it truly paints as. The
 // compositing below is load-bearing, not a simplification target.
 //
-// `opacity` is a SEPARATE multiplier from the colour's own alpha: styles.css's
+// `opacity` is a SEPARATE multiplier from the colour's own alpha: styles/controls.css's
 // global `:where(button:disabled) { opacity: .5 }` composites the WHOLE
 // element (already resolved colour and all) at half strength over its
 // backdrop, on top of whatever alpha the colour itself carries. Skipping this
@@ -206,7 +206,7 @@ const ROUTE_CHECKS: RouteCheck[] = [
 // state neither screen reaches under the default fixture. This is a CASCADE
 // PROBE, same disclosure as `ROUTE_CHECKS` above: it tests the real cascade
 // on the real screen — `button.link` is the exact selector every such control
-// resolves through (styles.css), so a node built with that class inside the
+// resolves through (styles/controls.css), so a node built with that class inside the
 // screen's own live `[data-field-console]` section answers the same cascade
 // question a naturally-occurring one would — but it is not evidence the app
 // itself ever disables a control there.
@@ -291,7 +291,7 @@ for (const brand of BRANDS) {
 // mismatch so the browser reaches the state the way a user would, not by
 // toggling a class from outside.
 //
-// --muted, --surface, --surface-2, and styles.css's global disabled-opacity
+// --muted, --surface, --surface-2, and styles/controls.css's global disabled-opacity
 // rule are all palette-invariant (none is redeclared per data-brand block —
 // confirmed by grep, and by the four palette-sweep runs above measuring the
 // identical disabled contrast regardless of brand), so one dark-mode run of

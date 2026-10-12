@@ -16,7 +16,7 @@ export const LINK_ACTION_SX = {
   // #930 — MUI's own dark-mode action.disabled (rgba(255,255,255,0.3)) clears
   // only ~2.6:1 against --surface/--surface-2, under the 3:1 floor. `opacity:
   // 1` overrides the global `:where(button:disabled) { opacity: .5 }`
-  // (styles.css) — left unset, it halves --muted's own contrast to
+  // (styles/controls.css) — left unset, it halves --muted's own contrast to
   // 2.84:1/2.68:1, still under 3:1.
   "&.Mui-disabled": { color: "var(--muted)", opacity: 1 },
 };

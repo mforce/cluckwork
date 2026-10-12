@@ -30,7 +30,6 @@ public sealed partial class FileSizeLimitTests
         ["web/src/api/cluckwork.ts"] = 1472,
         ["web/src/components/NamedEntityPicker.tsx"] = 1531,
         ["web/src/routes/UsersPage.tsx"] = 1361,
-        ["web/src/styles.css"] = 3581,
     };
 
     private static readonly Dictionary<string, int> LegacyTests = new(StringComparer.Ordinal)

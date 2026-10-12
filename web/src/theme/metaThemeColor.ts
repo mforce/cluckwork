@@ -26,7 +26,7 @@ import { readThemeTokens, type TokenValues } from "./farmTokens";
  * post-login splash (`BrandSplash.tsx`) is on screen — #976 round 2:
  * measured desktop login at `#f3eee8`, the bar at `#f9f0ff`. Both fill the
  * WHOLE viewport with no sidebar at all, in `--surface-2`/`--canvas`, which
- * are the same literal value in every palette × mode block in styles.css
+ * are the same literal value in every palette × mode block in styles/tokens.css
  * (confirmed by reading the file, not just the fallback object above), so
  * `--canvas` alone covers both without bridging a second token for it.
  */

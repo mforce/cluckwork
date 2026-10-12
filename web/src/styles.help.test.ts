@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import postcss from "postcss";
 import type { AtRule, Rule } from "postcss";
+import { readStylesheet } from "./test/stylesheet";
 
 // #657 visual pass — the layout facts jsdom cannot see: the glossary uses
 // disclosures, and the rail is a plain-link strip on
 // a phone. Read from the parsed stylesheet, as
 // styles.num.test.ts and components/styles.dialog.test.ts do.
-const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+const css = readStylesheet();
 const root = postcss.parse(css);
 const clean = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").trim();
 
