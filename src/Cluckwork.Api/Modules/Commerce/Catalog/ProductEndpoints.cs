@@ -91,7 +91,7 @@ public static class ProductEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
 
         var command = new UpdateProductCommand(
-            id, request.Name, request.DefaultUnit,
+            id, request.Version, request.Name, request.DefaultUnit,
             request.DefaultPriceMinorUnits, request.EggGradeId, request.Notes);
 
         var validation = await validator.ValidateAsync(command, ct);
@@ -127,7 +127,7 @@ public static class ProductEndpoints
     {
         if (!tenant.IsResolved) return Results.Unauthorized();
 
-        var command = new UpdateEggUnitConversionCommand(id, request.EggsPerUnit, request.Active);
+        var command = new UpdateEggUnitConversionCommand(id, request.Version, request.EggsPerUnit, request.Active);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
@@ -141,6 +141,7 @@ public static class ProductEndpoints
         if (error.Code.EndsWith(".NotFound", StringComparison.Ordinal))
             return Results.NotFound();
         return error.Code is "Product.DuplicateName" or "Product.NotActive" or "Product.AlreadyActive"
+                or "Product.VersionMismatch" or "EggUnitConversion.VersionMismatch"
             ? Results.Problem(error.Description, statusCode: StatusCodes.Status409Conflict, title: error.Code)
             : Results.Problem(error.Description, statusCode: 422, title: error.Code);
     }
@@ -161,10 +162,10 @@ public sealed record CreateProductRequest(
     long? DefaultPriceMinorUnits, Guid? EggGradeId, string? Notes);
 
 public sealed record UpdateProductRequest(
-    string Name, string DefaultUnit,
+    int? Version, string Name, string DefaultUnit,
     long? DefaultPriceMinorUnits, Guid? EggGradeId, string? Notes);
 
 public sealed record EggUnitConversionResponse(
     Guid Id, string UnitCode, int EggsPerUnit, bool Active, int Version);
 
-public sealed record UpdateEggUnitConversionRequest(int EggsPerUnit, bool Active);
+public sealed record UpdateEggUnitConversionRequest(int? Version, int EggsPerUnit, bool Active);

@@ -33,6 +33,10 @@ const DIALOG_SCOPES = ["create", "edit", "edit-conversion"] as const;
 // so short values (names, numbers, chips, actions) are pinned; free text wraps.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
+// A 409 that is not a duplicate name means the row changed since it was loaded.
+const isVersionConflict = (err: unknown) =>
+  err instanceof ApiError && err.status === 409 && err.title !== "Product.DuplicateName";
+
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
@@ -76,6 +80,7 @@ export function ProductsPage() {
 
   // edit (products) — dialog seeded from the row
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editVersion, setEditVersion] = useState(0);
   const [editName, setEditName] = useState("");
   const [editUnit, setEditUnit] = useState("Dozen");
   const [editGradeId, setEditGradeId] = useState("");
@@ -84,6 +89,7 @@ export function ProductsPage() {
 
   // edit (conversions) — dialog seeded from the row
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editConvVersion, setEditConvVersion] = useState(0);
   const [editEggs, setEditEggs] = useState(1);
   const [editConvActive, setEditConvActive] = useState(true);
 
@@ -109,6 +115,7 @@ export function ProductsPage() {
     ]);
     setProducts(p);
     setConversions(c);
+    return { products: p, conversions: c };
   };
 
   useEffect(() => {
@@ -211,6 +218,7 @@ export function ProductsPage() {
     closeEditConversion();
     openDialog("edit");
     setEditingId(p.id);
+    setEditVersion(p.version);
     setEditName(p.name);
     setEditUnit(p.defaultUnit);
     setEditGradeId(p.eggGradeId ?? "");
@@ -226,6 +234,7 @@ export function ProductsPage() {
     closeEdit();
     openDialog("edit-conversion");
     setEditingConvId(c.id);
+    setEditConvVersion(c.version);
     setEditEggs(c.eggsPerUnit);
     setEditConvActive(c.active);
   }
@@ -252,14 +261,28 @@ export function ProductsPage() {
     // superseded gate is UNREACHABLE here (the row edit button is disabled while
     // the write is in flight) but kept for INV-1 consistency and defence.
     await run("edit", async (current) => {
-      await commit(`update:${id}`, (key) =>
-        updateProduct(id, {
-          name: editName,
-          defaultUnit: editUnit,
-          defaultPriceMinorUnits: priceMinor,
-          eggGradeId: editGradeId,
-          notes: editNotes.trim() || null,
-        }, key));
+      try {
+        await commit(`update:${id}`, (key) =>
+          updateProduct(id, {
+            version: editVersion,
+            name: editName,
+            defaultUnit: editUnit,
+            defaultPriceMinorUnits: priceMinor,
+            eggGradeId: editGradeId,
+            notes: editNotes.trim() || null,
+          }, key));
+      } catch (err) {
+        if (!isVersionConflict(err)) throw err;
+        // Another admin saved first: rebind the dialog to their values, as
+        // Expenses and History do. The key goes too — the next save is a new
+        // request with a new base version.
+        clearKey(`update:${id}`);
+        const fresh = (await refresh()).products.find((p) => p.id === id);
+        if (fresh) startEdit(fresh);
+        // startEdit re-opened the dialog's session, which mutes its slot.
+        errors.beginAttempt("edit");
+        throw new Error(i18n.t("products:conflictRebindMessage"));
+      }
       if (!current()) return;
       setEditingId(null);
     });
@@ -272,8 +295,20 @@ export function ProductsPage() {
     // Superseded gate is unreachable here too (row edit button disabled while
     // busy); kept for consistency. Key stays per conversion.
     await run("edit-conversion", async (current) => {
-      await commit(`conv:${id}`, (key) =>
-        updateEggUnitConversion(id, { eggsPerUnit: editEggs, active: editConvActive }, key));
+      try {
+        await commit(`conv:${id}`, (key) =>
+          updateEggUnitConversion(id, {
+            version: editConvVersion, eggsPerUnit: editEggs, active: editConvActive,
+          }, key));
+      } catch (err) {
+        if (!isVersionConflict(err)) throw err;
+        // Same rebind as the product dialog above.
+        clearKey(`conv:${id}`);
+        const fresh = (await refresh()).conversions.find((c) => c.id === id);
+        if (fresh) startEditConversion(fresh);
+        errors.beginAttempt("edit-conversion");
+        throw new Error(i18n.t("products:packedUnitConflictRebindMessage"));
+      }
       if (!current()) return;
       setEditingConvId(null);
     });

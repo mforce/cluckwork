@@ -1,5 +1,6 @@
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -92,7 +93,7 @@ public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
         {
             Content = JsonContent.Create(new
             {
-                name = "Best Eggs", defaultUnit = "Carton",
+                version = 0, name = "Best Eggs", defaultUnit = "Carton",
                 defaultPriceMinorUnits = (long?)600, eggGradeId = grades["Medium"],
                 notes = "premium",
             })
@@ -134,7 +135,7 @@ public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
         // A market where the carton is 30 eggs.
         var carton = conversions.Single(c => c.UnitCode == "Carton");
         var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = 30, active = true }) };
+        { Content = JsonContent.Create(new { version = carton.Version, eggsPerUnit = 30, active = true }) };
         put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.NoContent, (await client.SendAsync(put)).StatusCode);
 
@@ -144,12 +145,12 @@ public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
         // Individual is immutable → 422; eggsPerUnit < 1 → 400.
         var individual = conversions.Single(c => c.UnitCode == "Individual");
         var immutable = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{individual.Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = 6, active = true }) };
+        { Content = JsonContent.Create(new { version = individual.Version, eggsPerUnit = 6, active = true }) };
         immutable.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await client.SendAsync(immutable)).StatusCode);
 
         var zero = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = 0, active = true }) };
+        { Content = JsonContent.Create(new { version = carton.Version + 1, eggsPerUnit = 0, active = true }) };
         zero.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(zero)).StatusCode);
     }
@@ -171,57 +172,119 @@ public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
             (await CreateProductAsync(client, "P-numtype", grades["Large"], type: "1")).StatusCode);
     }
 
-    // AGENTS.md race rule: every aggregate mutation bumps Version by exactly 1
-    // per success — parallel writers can conflict (409) but never lose updates.
+    // AGENTS.md race rule: two admins editing from the same loaded Version.
+    // Exactly one wins, the other gets 409, and the stored row is wholly the
+    // winner's payload — never last-writer-wins.
     [Fact]
-    public async Task ParallelWrites_NeverLoseUpdates()
+    public async Task Product_Update_SameBaseVersion_ExactlyOneWinner()
     {
-        var (client, _, _, grades) = await SetupAsync();
+        var (client, accountId, _, grades) = await SetupAsync();
         var created = await CreateProductAsync(client, "Race Eggs", grades["Large"]);
         var id = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
 
-        Task<HttpResponseMessage> Update(string name)
-        {
-            var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/products/{id}")
+        Task<HttpResponseMessage> Update(string name, long price) =>
+            client.PutWithKeyAsync($"/api/v1/products/{id}", Guid.NewGuid().ToString(), new
             {
-                Content = JsonContent.Create(new
-                {
-                    name, defaultUnit = "Dozen",
-                    defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"],
-                    notes = (string?)null,
-                })
-            };
-            put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-            return client.SendAsync(put);
-        }
+                version = 0, name, defaultUnit = "Dozen",
+                defaultPriceMinorUnits = (long?)price, eggGradeId = grades["Large"],
+                notes = (string?)null,
+            });
 
-        var responses = await Task.WhenAll(Update("Race Eggs A"), Update("Race Eggs B"));
-        var successes = responses.Count(r => r.StatusCode == HttpStatusCode.NoContent);
-        Assert.True(successes >= 1);
-        Assert.All(responses, r => Assert.Contains(r.StatusCode,
-            new[] { HttpStatusCode.NoContent, HttpStatusCode.Conflict }));
+        var responses = await Task.WhenAll(Update("Race Eggs A", 500), Update("Race Eggs B", 900));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
 
-        // Version moved exactly once per success — a lost update would show
-        // fewer bumps than successes.
-        var row = Assert.Single((await client.GetFromJsonAsync<List<ProductRow>>("/api/v1/products"))!);
-        Assert.Equal(successes, row.Version);
+        var row = await factory.WithTenantScopeAsync(accountId, db => db.Products.SingleAsync(p => p.Id == id));
+        Assert.Equal(1, row.Version);
+        Assert.True(
+            (row.Name == "Race Eggs A" && row.DefaultPriceMinorUnits == 500) ||
+            (row.Name == "Race Eggs B" && row.DefaultPriceMinorUnits == 900),
+            "final row must be wholly one winner's payload");
+    }
 
-        // Same rule for conversions.
-        var conversions = await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions");
-        var carton = conversions!.Single(c => c.UnitCode == "Carton");
-        Task<HttpResponseMessage> UpdateConv(int eggs)
-        {
-            var put = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/egg-unit-conversions/{carton.Id}")
-            { Content = JsonContent.Create(new { eggsPerUnit = eggs, active = true }) };
-            put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
-            return client.SendAsync(put);
-        }
-        var convResponses = await Task.WhenAll(UpdateConv(18), UpdateConv(30));
-        var convSuccesses = convResponses.Count(r => r.StatusCode == HttpStatusCode.NoContent);
-        Assert.True(convSuccesses >= 1);
-        var after = (await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions"))!
+    [Fact]
+    public async Task Conversion_Update_SameBaseVersion_ExactlyOneWinner()
+    {
+        var (client, accountId, _, _) = await SetupAsync();
+        var carton = (await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions"))!
             .Single(c => c.UnitCode == "Carton");
-        Assert.Equal(carton.Version + convSuccesses, after.Version);
+
+        Task<HttpResponseMessage> Update(int eggs) =>
+            client.PutWithKeyAsync($"/api/v1/egg-unit-conversions/{carton.Id}", Guid.NewGuid().ToString(),
+                new { version = carton.Version, eggsPerUnit = eggs, active = true });
+
+        var responses = await Task.WhenAll(Update(18), Update(30));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+
+        var row = await factory.WithTenantScopeAsync(accountId,
+            db => db.EggUnitConversions.SingleAsync(c => c.Id == carton.Id));
+        Assert.Equal(carton.Version + 1, row.Version);
+        Assert.Contains(row.EggsPerUnit, new[] { 18, 30 });
+    }
+
+    // The deterministic half: a form loaded before someone else's save is
+    // refused even when the two requests never overlap.
+    [Fact]
+    public async Task Product_StaleBaseVersion_Is409_AndChangesNothing()
+    {
+        var (client, accountId, _, grades) = await SetupAsync();
+        var created = await CreateProductAsync(client, "Stale Eggs", grades["Large"]);
+        var id = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
+        object Body(string name) => new
+        {
+            version = 0, name, defaultUnit = "Dozen",
+            defaultPriceMinorUnits = (long?)500, eggGradeId = grades["Large"], notes = (string?)null,
+        };
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.PutWithKeyAsync($"/api/v1/products/{id}", Guid.NewGuid().ToString(), Body("First"))).StatusCode);
+        var stale = await client.PutWithKeyAsync($"/api/v1/products/{id}", Guid.NewGuid().ToString(), Body("Second"));
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Contains("Product.VersionMismatch", await stale.Content.ReadAsStringAsync());
+
+        var product = await factory.WithTenantScopeAsync(accountId, db => db.Products.SingleAsync(p => p.Id == id));
+        Assert.Equal(("First", 1), (product.Name, product.Version));
+    }
+
+    [Fact]
+    public async Task Conversion_StaleBaseVersion_Is409_AndChangesNothing()
+    {
+        var (client, accountId, _, _) = await SetupAsync();
+        var carton = (await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions"))!
+            .Single(c => c.UnitCode == "Carton");
+        object Conv(int eggs) => new { version = carton.Version, eggsPerUnit = eggs, active = true };
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutWithKeyAsync(
+            $"/api/v1/egg-unit-conversions/{carton.Id}", Guid.NewGuid().ToString(), Conv(18))).StatusCode);
+        var staleConv = await client.PutWithKeyAsync(
+            $"/api/v1/egg-unit-conversions/{carton.Id}", Guid.NewGuid().ToString(), Conv(30));
+        Assert.Equal(HttpStatusCode.Conflict, staleConv.StatusCode);
+        Assert.Contains("EggUnitConversion.VersionMismatch", await staleConv.Content.ReadAsStringAsync());
+
+        var conversion = await factory.WithTenantScopeAsync(accountId,
+            db => db.EggUnitConversions.SingleAsync(c => c.Id == carton.Id));
+        Assert.Equal((18, carton.Version + 1), (conversion.EggsPerUnit, conversion.Version));
+    }
+
+    // An omitted version is a 400, not a silent pass as version 0.
+    [Fact]
+    public async Task MissingVersion_Is400()
+    {
+        var (client, _, _, grades) = await SetupAsync();
+        var created = await CreateProductAsync(client, "No Version", grades["Large"]);
+        var id = (await created.Content.ReadFromJsonAsync<Created>())!.Id;
+        var carton = (await client.GetFromJsonAsync<List<ConversionRow>>("/api/v1/egg-unit-conversions"))!
+            .Single(c => c.UnitCode == "Carton");
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutWithKeyAsync(
+            $"/api/v1/products/{id}", Guid.NewGuid().ToString(), new
+            {
+                name = "X", defaultUnit = "Dozen", defaultPriceMinorUnits = (long?)500,
+                eggGradeId = grades["Large"], notes = (string?)null,
+            })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PutWithKeyAsync(
+            $"/api/v1/egg-unit-conversions/{carton.Id}", Guid.NewGuid().ToString(),
+            new { eggsPerUnit = 18, active = true })).StatusCode);
     }
 
     // The lower(Name) unique index is the real duplicate guarantee — the
@@ -264,7 +327,7 @@ public sealed class CatalogTests(CluckworkWebApplicationFactory factory)
             (await worker.PostWithKeyAsync($"/api/v1/products/{id}/deactivate", Guid.NewGuid().ToString())).StatusCode);
         var put = new HttpRequestMessage(HttpMethod.Put,
             $"/api/v1/egg-unit-conversions/{conversions![0].Id}")
-        { Content = JsonContent.Create(new { eggsPerUnit = 24, active = true }) };
+        { Content = JsonContent.Create(new { version = conversions[0].Version, eggsPerUnit = 24, active = true }) };
         put.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.SendAsync(put)).StatusCode);
     }

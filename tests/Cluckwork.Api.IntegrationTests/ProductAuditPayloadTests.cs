@@ -90,6 +90,7 @@ public sealed class ProductAuditPayloadTests(CluckworkWebApplicationFactory fact
             $"/api/v1/products/{productId}", Guid.NewGuid().ToString(),
             new
             {
+                version = 0,
                 name = "Large Eggs Packed",
                 defaultUnit = "Tray",
                 defaultPriceMinorUnits = 650,

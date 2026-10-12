@@ -1071,6 +1071,7 @@ export const createProduct = (body: {
 }, key?: string) => apiPost<Created>("/products", body, key);
 
 export const updateProduct = (id: string, body: {
+  version: number;
   name: string;
   defaultUnit: string;
   defaultPriceMinorUnits: number | null;
@@ -1088,6 +1089,7 @@ export const listEggUnitConversions = () =>
   apiGet<EggUnitConversion[]>("/egg-unit-conversions");
 
 export const updateEggUnitConversion = (id: string, body: {
+  version: number;
   eggsPerUnit: number;
   active: boolean;
 }, key?: string) => apiPut<void>(`/egg-unit-conversions/${id}`, body, key);

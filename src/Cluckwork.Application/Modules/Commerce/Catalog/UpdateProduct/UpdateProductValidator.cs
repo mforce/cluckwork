@@ -8,6 +8,9 @@ public sealed class UpdateProductValidator : AbstractValidator<UpdateProductComm
 {
     public UpdateProductValidator()
     {
+        // An omitted Version binds to null, never 0 (UpdateCustomerValidator).
+        RuleFor(x => x.Version).NotNull().WithErrorCode("Product.Version.Required")
+            .GreaterThanOrEqualTo(0).WithErrorCode("Product.Version.NonNegative");
         RuleFor(x => x.Name).NotEmpty().WithErrorCode("Product.Name.Required")
             .MaximumLength(Product.MaxNameLength).WithErrorCode("Product.Name.MaxLength");
         // All products are egg products this phase, so the egg-unit whitelist
