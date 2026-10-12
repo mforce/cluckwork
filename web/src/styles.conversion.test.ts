@@ -292,8 +292,8 @@ describe("MUI source policy (#824)", () => {
     }
     expect(dropShadows.sort()).toEqual([
       "pwa/UpdatePrompt.tsx#UpdatePrompt > boxShadow:\"var(--shadow-bar)\"",
-      "theme/FarmThemeProvider.tsx#createFarmTheme > components > MuiAutocomplete > styleOverrides > paper > boxShadow:base.shadows[8]",
-      "theme/FarmThemeProvider.tsx#createFarmTheme > components > MuiTooltip > styleOverrides > tooltip > boxShadow:base.shadows[8]",
+      "theme/farmThemeOverrides.ts#farmThemeOverrides > components > MuiAutocomplete > styleOverrides > paper > boxShadow:base.shadows[8]",
+      "theme/farmThemeOverrides.ts#farmThemeOverrides > components > MuiTooltip > styleOverrides > tooltip > boxShadow:base.shadows[8]",
     ]);
     expect(uppercase.sort()).toEqual([
       // #824 — the property path (not just the container) is what tells

@@ -38,7 +38,7 @@ const OWNER_TABS = ["nav:dashboard", "nav:dailyEntry", "nav:stock", "nav:sales"]
  * earlier version of this comment cited it for 44 — attributing the app's own,
  * stricter choice to a standard that does not require it. The floor is the
  * app's: #829 moved the tab bar onto MUI `BottomNavigation`, and
- * `MuiBottomNavigationAction`'s theme override (FarmThemeProvider.tsx) sets
+ * `MuiBottomNavigationAction`'s theme override (farmThemeOverrides.ts) sets
  * `minHeight: 44` explicitly — the same number the CSS `.tab` rule it
  * replaced used to reach via `min-height: 3.4rem` (54.4px, itself over the
  * 44px floor "the rest of the app now holds to").
@@ -80,7 +80,7 @@ async function rectOf(locator: Locator, what: string) {
  * (owner, 2026-09-17) moved `.dialog .dialog-foot` off the general stacking
  * rule too, row and right-aligned at every width, matching the #892
  * mockups — `MuiDialogActions` carries no phone override at all any more
- * (`FarmThemeProvider.tsx`), so a converted dialog's `DialogActions` and an
+ * (`farmThemeOverrides.ts`), so a converted dialog's `DialogActions` and an
  * unconverted screen's raw `.dialog-foot` div now agree. A walk that
  * demanded full width everywhere would fail on both of these rows, which
  * the design says must not be full width.

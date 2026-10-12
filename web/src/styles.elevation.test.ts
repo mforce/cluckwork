@@ -256,7 +256,7 @@ describe("#651 radius: a three-step scale, declared as tokens", () => {
 
   // #827 retired both `.dialog` radius rules — MUI `Dialog`'s own paper now
   // carries `--r-card` through `MuiDialog.styleOverrides.paper.borderRadius`
-  // (FarmThemeProvider.tsx), pinned by `farmTheme.policy.test.ts`'s own
+  // (farmThemeOverrides.ts), pinned by `farmTheme.policy.test.ts`'s own
   // dialog radius assertion (added with the theme in #823, unchanged by
   // this PR). A selector this file no longer declares would make a
   // CSS-text lookup here pass vacuously — exactly the trap #822 D4 named

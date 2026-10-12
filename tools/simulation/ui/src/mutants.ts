@@ -1030,7 +1030,7 @@ export const MUTANTS: Record<string, Mutant> = {
   // fill a `flex-direction: column` parent) satisfies both while genuinely
   // being the #740 shape one axis over. This mutant reverts #896's own fix —
   // `MuiDialogActions` carries no phone override at all any more
-  // (`FarmThemeProvider.tsx`), so a dialog footer stays row at every width —
+  // (`farmThemeOverrides.ts`), so a dialog footer stays row at every width —
   // back to a stacked column, and only the new vertical-band-intersection/
   // flex-direction assertion on `phone.spec.ts`'s dialog-footer row can catch
   // it (NOT same-top-edge equality — Grades' own footer legitimately fails
