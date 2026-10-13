@@ -126,8 +126,7 @@ public sealed class TenantBypassAllowListTests : IDisposable
             namespace A;
             public class R
             {
-                public int Good() => Query().IgnoreQueryFilters().Count();
-                private static System.Linq.IQueryable<int> Query() => System.Linq.Enumerable.Range(0, 1);
+                public int Good() => System.Linq.Enumerable.Range(0, 1).AsQueryable().IgnoreQueryFilters().Count();
             }
             """);
         // The symbol is the scanner's reconstructed display form (Namespace.Type
@@ -140,6 +139,27 @@ public sealed class TenantBypassAllowListTests : IDisposable
 
         var withoutEntry = Scan(_tempRoot, Entries());
         Assert.Contains(GuardScanner.Evaluate(withoutEntry), f => f.Contains("unexcused bypass"));
+    }
+
+    // #1268: the row's Hash covers only its member, so a same-type IQueryable
+    // helper could hold the predicate an exemption relies on and be edited
+    // without re-review (#1256's WithGrades). The row must refuse to excuse it.
+    [Fact]
+    public void AllowListedBypass_CallingASameTypeQueryHelper_Fails()
+    {
+        WriteSource("src/A.cs", """
+            namespace A;
+            public class R
+            {
+                public int Good() => Query().IgnoreQueryFilters().Count();
+                private static System.Linq.IQueryable<int> Query() => System.Linq.Enumerable.Range(0, 1).AsQueryable();
+            }
+            """);
+        var report = Scan(_tempRoot, Entries(("A.R.Good()", "src/A.cs", "test fixture")));
+
+        Assert.Contains(GuardScanner.Evaluate(report), f =>
+            f.Contains("A.R.Good()", StringComparison.Ordinal)
+            && f.Contains("same-type query helper Query", StringComparison.Ordinal));
     }
 
     // M8-M3: an entry matching zero sites is STALE and fails — a deleted

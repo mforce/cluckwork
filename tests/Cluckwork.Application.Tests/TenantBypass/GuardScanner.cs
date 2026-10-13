@@ -44,7 +44,10 @@ public sealed record BypassOccurrence(
     string? QuerySignature = null,
     // #1072 — the allow-list leg's hash: the same token hash over the whole
     // member EnclosingSymbol names. Only Scan populates it.
-    string? MemberHash = null);
+    string? MemberHash = null,
+    // #1268 — a same-type IQueryable helper the hashed member calls. Its
+    // predicates sit outside MemberHash, so an allow-list row cannot excuse it.
+    string? QueryHelper = null);
 
 public sealed record AllowListMismatch(AllowListEntry Entry, string Reason);
 
@@ -351,7 +354,7 @@ public static class GuardScanner
                     EnclosingSymbolOf(access, file),
                     $"forwards-bypass (property) {rootText}",
                     PredicateHasAccountId: PredicateHasAccountId(access),
-                    MemberHash: MemberHashOf(access)));
+                    MemberHash: MemberHashOf(access), QueryHelper: QueryHelperOf(access)));
             }
 
             // UserManager.Users — a member access, not an invocation. The
@@ -368,7 +371,7 @@ public static class GuardScanner
                         access.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
                         EnclosingSymbolOf(access, file), "UserManager.Users",
                         PredicateHasAccountId: PredicateHasAccountId(access),
-                        MemberHash: MemberHashOf(access)));
+                        MemberHash: MemberHashOf(access), QueryHelper: QueryHelperOf(access)));
                 }
             }
         }
@@ -493,6 +496,12 @@ public static class GuardScanner
                 : new AllowListMismatch(e,
                     "entry matches no occurrence in src/; delete its row from TenantBypass/BypassAllowList.cs"))
             .ToList();
+        stale.AddRange(excusedOccurrences
+            .Where(o => o.QueryHelper is not null)
+            .Select(o => new AllowListMismatch(allowList.First(e => matches(o, e)),
+                $"its member calls the same-type query helper {o.QueryHelper}, whose predicates the Hash does not cover; "
+                + "inline them into the member, then update the row's Hash"))
+            .DistinctBy(m => m.Entry));
 
         return new GuardReport(occurrences, excusedOccurrences,
             unexcusedOccurrences,
@@ -945,17 +954,34 @@ public static class GuardScanner
     // the whole file.
     internal static string MemberHashOf(SyntaxNode node)
     {
-        if (node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>() is { } method)
-        {
-            return node.Ancestors().OfType<LocalFunctionStatementSyntax>().FirstOrDefault() is { } local
-                ? Sha256Prefix($"{local.Identifier.ValueText} {NormalizeQueryText(method)}")
-                : TokenHash(method);
-        }
+        var scope = HashedScopeOf(node);
+        return scope is BaseMethodDeclarationSyntax
+            && node.Ancestors().OfType<LocalFunctionStatementSyntax>().FirstOrDefault() is { } local
+            ? Sha256Prefix($"{local.Identifier.ValueText} {NormalizeQueryText(scope)}")
+            : TokenHash(scope);
+    }
 
-        return TokenHash(
-            (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
-            ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
-            ?? node.SyntaxTree.GetRoot());
+    private static SyntaxNode HashedScopeOf(SyntaxNode node) =>
+        (SyntaxNode?)node.FirstAncestorOrSelf<BaseMethodDeclarationSyntax>()
+        ?? (SyntaxNode?)node.FirstAncestorOrSelf<AccessorDeclarationSyntax>()
+        ?? (SyntaxNode?)node.FirstAncestorOrSelf<BasePropertyDeclarationSyntax>()
+        ?? node.SyntaxTree.GetRoot();
+
+    // #1268 — the first name in the hashed scope that matches a method of the
+    // enclosing type with IQueryable anywhere in its signature. Matching by
+    // name is fail-closed: a same-named local or an overload with another
+    // shape is flagged too. Same-file only, like the forwarding walk above.
+    internal static string? QueryHelperOf(SyntaxNode node)
+    {
+        var scope = HashedScopeOf(node);
+        var helpers = node.FirstAncestorOrSelf<TypeDeclarationSyntax>()?.Members
+            .OfType<MethodDeclarationSyntax>()
+            .Where(m => m != scope && $"{m.ReturnType} {m.ParameterList} {m.ConstraintClauses}".Contains("Queryable", StringComparison.Ordinal))
+            .Select(m => m.Identifier.ValueText)
+            .ToHashSet(StringComparer.Ordinal) ?? [];
+        return scope.DescendantNodes().OfType<IdentifierNameSyntax>()
+            .Select(n => n.Identifier.ValueText)
+            .FirstOrDefault(helpers.Contains);
     }
 
     // Comments out, whitespace uniform, LITERALS UNTOUCHED. #698 review: the
@@ -987,7 +1013,7 @@ public static class GuardScanner
             kind, Relative(repoRoot, file),
             invocation.GetLocation().GetLineSpan().StartLinePosition.Line + 1,
             EnclosingSymbolOf(invocation, file), detail,
-            MemberHash: MemberHashOf(invocation));
+            MemberHash: MemberHashOf(invocation), QueryHelper: QueryHelperOf(invocation));
 
         if (kind == BypassKind.RawSql)
         {
