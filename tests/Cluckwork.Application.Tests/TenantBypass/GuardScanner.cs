@@ -979,7 +979,7 @@ public static class GuardScanner
             .Where(m => m != scope && $"{m.ReturnType} {m.ParameterList} {m.ConstraintClauses}".Contains("Queryable", StringComparison.Ordinal))
             .Select(m => m.Identifier.ValueText)
             .ToHashSet(StringComparer.Ordinal) ?? [];
-        return scope.DescendantNodes().OfType<IdentifierNameSyntax>()
+        return scope.DescendantNodes().OfType<SimpleNameSyntax>()
             .Select(n => n.Identifier.ValueText)
             .FirstOrDefault(helpers.Contains);
     }

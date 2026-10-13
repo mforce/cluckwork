@@ -151,15 +151,15 @@ public sealed class TenantBypassAllowListTests : IDisposable
             namespace A;
             public class R
             {
-                public int Good() => Query().IgnoreQueryFilters().Count();
-                private static System.Linq.IQueryable<int> Query() => System.Linq.Enumerable.Range(0, 1).AsQueryable();
+                public int Good() => Scoped<int>(System.Linq.Enumerable.Range(0, 1).AsQueryable()).IgnoreQueryFilters().Count();
+                private static System.Linq.IQueryable<T> Scoped<T>(System.Linq.IQueryable<T> rows) => rows;
             }
             """);
         var report = Scan(_tempRoot, Entries(("A.R.Good()", "src/A.cs", "test fixture")));
 
         Assert.Contains(GuardScanner.Evaluate(report), f =>
             f.Contains("A.R.Good()", StringComparison.Ordinal)
-            && f.Contains("same-type query helper Query", StringComparison.Ordinal));
+            && f.Contains("same-type query helper Scoped", StringComparison.Ordinal));
     }
 
     // M8-M3: an entry matching zero sites is STALE and fails — a deleted
