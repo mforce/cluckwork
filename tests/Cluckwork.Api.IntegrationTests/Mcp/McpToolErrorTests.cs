@@ -143,6 +143,38 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(McpErrorCode.InvalidParams, refused.ErrorCode);
     }
 
+    // A client that hangs up mid-call is not a server fault. The SDK cancels the POST with a
+    // token linked to RequestAborted, so this is the request log's /mcp branch.
+    [Fact]
+    public async Task ClientAbort_LogsNoError()
+    {
+        var sink = new Sink();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var host = Host(sink).WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton(entered);
+            services.AddMcpServer().WithTools<HangingTools>();
+        }));
+        await using var client = await ConnectAsync(host, sink, OAuthScopes.ReadFarm);
+        using var hangUp = new CancellationTokenSource();
+
+        var call = client.CallToolAsync(HangingTools.Name, cancellationToken: hangUp.Token).AsTask();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await hangUp.CancelAsync();
+        await Assert.ThrowsAnyAsync<Exception>(() => call);
+
+        // The request's completion is written as the server unwinds, after the client gave up.
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (!sink.Observed.Any(IsAbortedCompletion) && DateTime.UtcNow < deadline)
+            await Task.Delay(50);
+        var completion = Assert.Single(sink.Observed, IsAbortedCompletion);
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.DoesNotContain(sink.Observed, e => e.Level >= LogEventLevel.Error);
+
+        static bool IsAbortedCompletion(LogEvent e) =>
+            e.Exception is OperationCanceledException && e.Properties.ContainsKey("StatusCode");
+    }
+
     private static void AssertLoggedBelowError(Sink sink, string tool)
     {
         Assert.DoesNotContain(sink.Observed, e => e.Level >= LogEventLevel.Error);
@@ -215,6 +247,20 @@ public sealed class McpToolErrorTests(CluckworkWebApplicationFactory factory)
 
         [McpServerTool(Name = Protocol), Description("Throws.")]
         public string ThrowProtocol(DateOnly date) => throw new McpProtocolException(Secret, McpErrorCode.InvalidParams);
+    }
+
+    [McpServerToolType]
+    public sealed class HangingTools(TaskCompletionSource entered)
+    {
+        public const string Name = "cw1286_hang";
+
+        [McpServerTool(Name = Name), Description("Waits until the call is cancelled.")]
+        public async Task<string> Hang(CancellationToken ct)
+        {
+            entered.TrySetResult();
+            await Task.Delay(Timeout.Infinite, ct);
+            return Name;
+        }
     }
 
     [McpServerToolType]

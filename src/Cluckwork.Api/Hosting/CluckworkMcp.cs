@@ -120,21 +120,22 @@ internal static class CluckworkMcp
             .ExcludeFromDescription();
     }
 
+    // Matched as routing matches the route: ignoring case, with one optional trailing slash.
+    public static bool IsPath(PathString path) =>
+        string.Equals(path.Value, Path, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(path.Value, Path + "/", StringComparison.OrdinalIgnoreCase);
+
     // MCP transports require Origin validation against DNS rebinding, for every request to
     // the endpoint. It runs before authentication and rate limiting, so a foreign page gets
     // 403 whatever it sends. A native client sends no Origin; a browser sends its page's.
     // Keyed on the path, not the endpoint, because a method /mcp does not map (DELETE, PUT,
-    // OPTIONS) selects routing's own 405 endpoint. Matched as routing matches the route:
-    // ignoring case, with one optional trailing slash.
+    // OPTIONS) selects routing's own 405 endpoint.
     public static void UseMcpOriginCheck(this IApplicationBuilder app, Uri issuer)
     {
         var required = new RequiredOrigin(issuer);
         app.Use((context, next) =>
         {
-            var path = context.Request.Path.Value;
-            if (!(string.Equals(path, Path, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(path, Path + "/", StringComparison.OrdinalIgnoreCase))
-                || required.Allows(context.Request.Headers.Origin))
+            if (!IsPath(context.Request.Path) || required.Allows(context.Request.Headers.Origin))
                 return next(context);
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return Task.CompletedTask;
