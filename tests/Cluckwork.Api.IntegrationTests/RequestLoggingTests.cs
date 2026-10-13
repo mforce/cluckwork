@@ -45,6 +45,25 @@ internal sealed class HangingLoginValidator : AbstractValidator<LoginRequest>
         });
 }
 
+// A login validator whose own timeout fires first; the client then hangs up
+// before the timeout's exception escapes.
+internal sealed class TimeoutThenHangUpLoginValidator : AbstractValidator<LoginRequest>
+{
+    public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public TimeoutThenHangUpLoginValidator() =>
+        RuleFor(r => r.Email).CustomAsync(async (_, _, ct) =>
+        {
+            using var timeout = new CancellationTokenSource();
+            await timeout.CancelAsync();
+            var timedOut = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => Task.Delay(Timeout.Infinite, timeout.Token));
+            Entered.TrySetResult();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Task.Delay(Timeout.Infinite, ct));
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(timedOut);
+        });
+}
+
 // A login validator whose own timeout fires while the client is still waiting.
 internal sealed class TimingOutLoginValidator : AbstractValidator<LoginRequest>
 {
@@ -224,8 +243,31 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
     public async Task Client_abort_is_not_logged_at_error()
     {
         var validator = new HangingLoginValidator();
+
+        var completion = await HangUpDuringLoginAsync(validator, validator.Entered.Task);
+
+        Assert.Equal(LogEventLevel.Information, completion.Level);
+        Assert.DoesNotContain(factory.Sink.Events, e => e.TraceId == completion.TraceId && e.Level >= LogEventLevel.Error);
+    }
+
+    // The server's own timeout fired first; the client leaving afterwards does
+    // not turn that server fault into a hang-up.
+    [Fact]
+    public async Task Server_cancellation_overlapping_a_client_abort_is_still_logged_at_error()
+    {
+        var validator = new TimeoutThenHangUpLoginValidator();
+
+        var completion = await HangUpDuringLoginAsync(validator, validator.Entered.Task);
+
+        Assert.Equal(LogEventLevel.Error, completion.Level);
+    }
+
+    // Hangs up once the server has entered the validator; returns the request's
+    // completion, which carries the escaping cancellation.
+    private async Task<LogEvent> HangUpDuringLoginAsync(IValidator<LoginRequest> validator, Task entered)
+    {
         using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.AddSingleton<IValidator<LoginRequest>>(validator)));
+            services.AddSingleton(validator)));
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
         {
             Content = JsonContent.Create(new { farmCode = "x", email = "x@test.local", password = "x" })
@@ -234,7 +276,7 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
         using var hangUp = new CancellationTokenSource();
 
         var send = host.CreateClient().SendAsync(request, hangUp.Token);
-        await validator.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await entered.WaitAsync(TimeSpan.FromSeconds(30));
         await hangUp.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => send);
 
@@ -245,8 +287,7 @@ public sealed class RequestLoggingTests(RequestLoggingFactory factory)
             await Task.Delay(50);
         var completion = CompletionFor("/api/v1/auth/login", traceId);
         Assert.IsAssignableFrom<OperationCanceledException>(completion.Exception);
-        Assert.Equal(LogEventLevel.Information, completion.Level);
-        Assert.DoesNotContain(factory.Sink.Events, e => e.TraceId == traceId && e.Level >= LogEventLevel.Error);
+        return completion;
     }
 
     // The negative control: a cancellation the server raised itself, with the

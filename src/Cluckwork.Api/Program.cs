@@ -243,11 +243,19 @@ app.UseSerilogRequestLogging(options =>
         // original request already logged its Error completion, a second
         // line would double-count every failed request. A client that hung up
         // mid-request is not a server fault, though Serilog still writes its
-        // hardcoded 500 with the cancellation attached.
+        // hardcoded 500 with the cancellation attached. Only a cancellation of
+        // RequestAborted itself counts: another token that fired while the
+        // client also left is still a server fault.
         httpContext.Request.Path.StartsWithSegments("/health")
         || httpContext.Features.Get<IExceptionHandlerFeature>() is not null
             ? Serilog.Events.LogEventLevel.Verbose
-            : exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested
+            : exception is OperationCanceledException canceled
+              && httpContext.RequestAborted.IsCancellationRequested
+              && (canceled.CancellationToken == httpContext.RequestAborted
+                  // MCP SDK 2.2.0 links RequestAborted with its transport-disposed
+                  // token (StreamableHttpServerTransport.cs:243), and a linked
+                  // token cannot be traced back to its source.
+                  || CluckworkMcp.IsPath(httpContext.Request.Path))
                 ? Serilog.Events.LogEventLevel.Information
             : exception is not null || httpContext.Response.StatusCode >= 500
                 ? Serilog.Events.LogEventLevel.Error
