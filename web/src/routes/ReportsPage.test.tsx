@@ -206,7 +206,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // sit beside it; the browser never sums days itself.
   it("shows the server's losses total and the two period rates in the tiles", async () => {
     renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
-    const tiles = await screen.findByRole("list", { name: "Period" });
+    const tiles = await screen.findByLabelText("Period");
     within(tiles).getByText("8"); // (2+3+5)+(1+1+2) − 6, not the raw 14
     within(tiles).getByText("95.9%"); // (181+6)/195
     within(tiles).getByText("4.1%"); // 8/195 — the two rates add up to 100

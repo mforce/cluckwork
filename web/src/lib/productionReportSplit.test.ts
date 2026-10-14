@@ -62,6 +62,24 @@ describe("splitProductionReport (#918 — folds two adjacent trend windows into 
     expect(later.gradeTotals).toEqual([]);
   });
 
+  // #1297 — a midpoint rate must round to even, the way the server's
+  // Math.Round(x, 1) does, or the split cannot reproduce a separate request.
+  // 80 eggs: 70 hand-graded, 9 saleable cracked, 1 discarded. Both rates land
+  // on an exact midpoint (98.75 / 1.25) and the lay rate does too (79 rated
+  // over 80 recorded): Math.round would answer 98.8 / 1.3 — a 100.1 total —
+  // where the server answers 98.8 / 1.2.
+  it("rounds midpoint rates to even, reproducing the server's Math.Round(x, 1)", () => {
+    const midpoint: ProductionDay = {
+      date: "2026-07-14", totalEggs: 80, cracked: 9, dirty: 0, discarded: 1, sellable: 70, fromCounts: 9,
+      deaths: 0, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 80, recordedHenDays: 80,
+      ratedEggs: 79, henDayPct: 98.8,
+    };
+    const { earlier } = splitProductionReport(report([midpoint]), "2026-07-15");
+    expect(earlier.periodSellablePct).toBe(98.8);
+    expect(earlier.periodLossPct).toBe(1.2);
+    expect(earlier.periodHenDayPct).toBe(98.8);
+  });
+
   it("reports null, never 0, when a half's exposure is entirely unrecorded", () => {
     const fortnight = report([
       day("2026-07-08", 0, 0, 0), day("2026-07-09", 0, 0, 0), day("2026-07-10", 0, 0, 0),
