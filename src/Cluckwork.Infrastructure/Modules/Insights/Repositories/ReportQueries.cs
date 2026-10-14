@@ -310,13 +310,19 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         }
 
         var totalEggs = days.Sum(x => x.TotalEggs);
+        var totalSellable = days.Sum(x => x.Sellable);
+        var totalFromCounts = days.Sum(x => x.FromCounts);
+        // #1297 — the eggs the period produced but never turned into stock: the
+        // raw cracked/dirty/discarded counters minus what resolved to a grade.
+        var totalLosses = days.Sum(x => x.Cracked + x.Dirty + x.Discarded) - totalFromCounts;
         var totalHenDays = days.Sum(x => x.HenDays);
         var totalRecordedHenDays = days.Sum(x => x.RecordedHenDays);
         return new ProductionReport(
             days,
             totalEggs,
-            days.Sum(x => x.Sellable),
-            days.Sum(x => x.FromCounts),
+            totalSellable,
+            totalFromCounts,
+            totalLosses,
             days.Sum(x => x.Deaths),
             totalHenDays,
             totalRecordedHenDays,
@@ -325,6 +331,11 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             // period total and the rows it summarises cannot tell different
             // stories — and so the period cannot exceed 100% where no row does.
             totalRecordedHenDays > 0 ? Math.Round(totalRatedEggs * 100m / totalRecordedHenDays, 1) : null,
+            // #1297 — the two rates follow the farm's own saleable setting via
+            // FromCounts, so they always add up to 100. Null for a period with
+            // no eggs, the way the lay rate answers an unrecorded period.
+            totalEggs > 0 ? Math.Round((totalSellable + totalFromCounts) * 100m / totalEggs, 1) : null,
+            totalEggs > 0 ? Math.Round(totalLosses * 100m / totalEggs, 1) : null,
             combined
                 .Select(t => new GradeTotal(
                     t.Key, gradeNames.GetValueOrDefault(t.Key, "?"), t.Value))

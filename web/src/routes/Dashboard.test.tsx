@@ -89,8 +89,8 @@ const day = (
   henDayPct: recordedFlocks > 0 ? totalEggs : null,
 });
 const report = (periodHenDayPct: number | null, days: ProductionDay[]): ProductionReport => ({
-  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0, totalRecordedHenDays: 0, totalRatedEggs: 0,
-  periodHenDayPct, gradeTotals: [],
+  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalLosses: 0, totalDeaths: 0, totalHenDays: 0, totalRecordedHenDays: 0, totalRatedEggs: 0,
+  periodHenDayPct, periodSellablePct: null, periodLossPct: null, gradeTotals: [],
 });
 const STOCK: StockRow[] = [
   { eggGradeId: "g1", gradeName: "Grade A", available: 1240, restricted: 0, lowStockFloor: null, belowFloor: false },

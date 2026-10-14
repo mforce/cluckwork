@@ -2023,6 +2023,10 @@ export const tl = {
     eggsHeader: "Itlog",
     lossesHeader: "Nasira (b/m/t)",
     sellableHeader: "Maibebenta",
+    // #1297 — machine-drafted, pending native review (#182). Reuses the page's
+    // own words for the two tiles the rates belong to.
+    sellablePctHeader: "Maibebenta %",
+    lossPctHeader: "Nasira %",
     // #396 — basag/marumi na itlog na naging stock sa halip na malugi.
     // Machine-drafted, pending native review (#182).
     conditionHeader: "May depekto",
@@ -3032,7 +3036,9 @@ export const tl = {
       + "halip na 0%. Minamarkahan ang bilang na lampas sa 100%: isang itlog lang bawat araw ang "
       + "inilalagay ng inahin, kaya ang mas maraming itlog kaysa sa hen-days na may tala ay "
       + "nangangahulugang hindi magkatugma ang entry at ang talaan ng ibon, at kailangang suriin ang "
-      + "bilang ng ibon ng kawang iyon.",
+      + "bilang ng ibon ng kawang iyon. Hinahati ng mga <strong>Maibebenta %</strong> at <strong>Nasira "
+      + "%</strong> na tile ang mga itlog ng panahon sa stock at lugi, batay sa saleable setting ng mga "
+      + "gradong Basag at Marumi, at 100 ang kabuuan ng dalawa.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>May depekto</strong>: basag at maruming itlog na naging stock sa halip na ituring na "
@@ -3688,6 +3694,22 @@ export const tl = {
       "Mga indibidwal na itlog na naibenta sa mga kumpirmadong order sa panahon — mga linya sa selling "
       + "units × ang eggs-per-unit factor nito, mga egg line lamang. Ipinapakita ng seksyong Pera ng "
       + "pahina ng Ulat ang kabuuan katabi ng Kita, kasama ang paghahati ayon sa grado.",
+
+    // #1297 — machine-drafted, pending native review (#182).
+    glossarySellablePctTerm: "Maibebenta %",
+    glossarySellablePctDef:
+      "Ang mga itlog ng panahon na naging stock — mga naibebentang na-grade sa kamay pati ang basag at "
+      + "maruming itlog na tumugma sa isang grado — sa kabuuang itlog na nakolekta, × 100. Sumusunod ito "
+      + "sa saleable setting ng mga gradong Basag at Marumi na nakuha sa pag-submit: ang pagpalit ng "
+      + "checkbox ay hindi kailanman binabago ang nakaraang araw. Kasama ng Nasira %, 100 ang kabuuan ng "
+      + "dalawa; ang panahong walang itlog ay nagpapakita ng gitling.",
+    glossaryLossPctTerm: "Nasira %",
+    glossaryLossPctDef:
+      "Ang mga itlog ng panahon na hindi naging stock — basag, marumi at tapon, minus ang basag at "
+      + "maruming itlog na tumugma sa isang grado — sa kabuuang itlog na nakolekta, × 100. Sumusunod ito "
+      + "sa saleable setting ng mga gradong Basag at Marumi na nakuha sa pag-submit: ang pagpalit ng "
+      + "checkbox ay hindi kailanman binabago ang nakaraang araw. Kasama ng Maibebenta %, 100 ang kabuuan "
+      + "ng dalawa; ang panahong walang itlog ay nagpapakita ng gitling.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:

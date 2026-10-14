@@ -34,8 +34,8 @@ const missing = (date: string) => day(date, 0, 100, 0, 1);
 const partly = (date: string, totalEggs: number, recorded = 1, expected = 3) =>
   day(date, totalEggs, 100, recorded, expected);
 const report = (periodHenDayPct: number | null, days: ProductionDay[] = []): ProductionReport => ({
-  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalDeaths: 0, totalHenDays: 0,
-  totalRecordedHenDays: 0, totalRatedEggs: 0, periodHenDayPct, gradeTotals: [],
+  days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalLosses: 0, totalDeaths: 0, totalHenDays: 0,
+  totalRecordedHenDays: 0, totalRatedEggs: 0, periodHenDayPct, periodSellablePct: null, periodLossPct: null, gradeTotals: [],
 });
 
 describe("captureTiles (#654, INV-3, INV-9)", () => {

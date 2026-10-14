@@ -907,8 +907,20 @@ scope.
 
 **Production report (#91)** — per-day official production over a range
 (Draft entries aren't submitted, Voided ones vacated their day — neither
-counts): eggs, losses, sellable, deaths, hen-day %, period totals, grade
-breakdown. Open to workers — it is their own recorded work.
+counts): eggs, losses, sellable, deaths, hen-day %, sellable %, egg loss %,
+period totals, grade breakdown. Open to workers — it is their own recorded
+work.
+
+**Sellable % (#1297)** — the period's eggs that became stock — hand-graded
+sellable eggs plus the cracked and dirty eggs that resolved to a grade — over
+total eggs collected, × 100. It follows the Cracked and Dirty grades'
+**saleable** setting captured at submit time, so changing the checkbox never
+rewrites a past day. Together with **Egg loss %** it adds up to 100.
+
+**Egg loss % (#1297)** — the period's eggs that never became stock — cracked,
+dirty and discarded, minus the cracked and dirty eggs that resolved to a grade
+— over total eggs collected, × 100. Same setting rule as **Sellable %**; the
+two rates add up to 100, and a period with no eggs has no rate (a dash).
 
 **Report query bounding + concurrency limit (#311)** — every report (production,
 sales, expenses, profit) is bounded to a validated range (default the last 7

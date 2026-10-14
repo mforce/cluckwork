@@ -44,7 +44,11 @@ const PRODUCTION: ProductionReport = {
     { date: "2026-07-19", totalEggs: 100, cracked: 2, dirty: 3, discarded: 5, sellable: 90, fromCounts: 6, deaths: 1, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 109, recordedHenDays: 109, ratedEggs: 100, henDayPct: 91.7 },
     { date: "2026-07-18", totalEggs: 95, cracked: 1, dirty: 1, discarded: 2, sellable: 91, fromCounts: 0, deaths: 0, recordedFlocks: 1, expectedFlocks: 1, missingFlocks: 0, henDays: 98, recordedHenDays: 98, ratedEggs: 95, henDayPct: null },
   ],
-  totalEggs: 195, totalSellable: 181, totalFromCounts: 6, totalDeaths: 1, totalHenDays: 207, totalRecordedHenDays: 207, totalRatedEggs: 195, periodHenDayPct: 94.2,
+  totalEggs: 195, totalSellable: 181, totalFromCounts: 6,
+  // #1297 — the server's losses total and rates: (2+3+5)+(1+1+2) − 6 = 8,
+  // (181+6)/195 = 95.9, 8/195 = 4.1 — the two rates add up to 100.
+  totalLosses: 8, totalDeaths: 1, totalHenDays: 207, totalRecordedHenDays: 207, totalRatedEggs: 195,
+  periodHenDayPct: 94.2, periodSellablePct: 95.9, periodLossPct: 4.1,
   gradeTotals: [
     { eggGradeId: "gr1", name: "Grade A", quantity: 60 },
     { eggGradeId: "gr2", name: "Grade B", quantity: 30 },
@@ -196,6 +200,16 @@ describe("ReportsPage production section (renders for every role)", () => {
 
     // The header must resolve through the catalog, not be hardcoded English.
     expect(screen.getByRole("columnheader", { name: "Condition" })).toBeInTheDocument();
+  });
+
+  // #1297 — the Losses tile reads the server's total and the two rate tiles
+  // sit beside it; the browser never sums days itself.
+  it("shows the server's losses total and the two period rates in the tiles", async () => {
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    const tiles = await screen.findByRole("list", { name: "Period" });
+    within(tiles).getByText("8"); // (2+3+5)+(1+1+2) − 6, not the raw 14
+    within(tiles).getByText("95.9%"); // (181+6)/195
+    within(tiles).getByText("4.1%"); // 8/195 — the two rates add up to 100
   });
 
   it("shows 0 in the Condition column for a day whose conditions were losses", async () => {

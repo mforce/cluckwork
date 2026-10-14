@@ -2621,6 +2621,10 @@ export const en = {
     eggsHeader: "Eggs",
     lossesHeader: "Losses (cr/di/ds)",
     sellableHeader: "Sellable",
+    // #1297 — period rates that follow the Cracked and Dirty grades' saleable
+    // setting via the server's FromCounts, so the two always add up to 100.
+    sellablePctHeader: "Sellable %",
+    lossPctHeader: "Loss %",
     // #396 — cracked/dirty eggs that became stock instead of being written off.
     // "Condition" is the term the specs and glossary already use for those two
     // grades; deliberately NOT "ungraded" (they do carry a grade, shown in the
@@ -3634,7 +3638,10 @@ export const en = {
       + "nothing supports. The <strong>Hen-days</strong> column is every bird alive, recorded or not, so "
       + "the gap between the two is what is missing. A day nobody recorded shows a dash rather than 0%. "
       + "A figure above 100% is flagged: a hen lays at most one egg a day, so more eggs than recorded "
-      + "hen-days means a filing and the bird ledger disagree, and that flock's bird count needs checking.",
+      + "hen-days means a filing and the bird ledger disagree, and that flock's bird count needs checking. "
+      + "The <strong>Sellable %</strong> and <strong>Loss %</strong> tiles split the period's eggs into "
+      + "stock and losses, following the Cracked and Dirty grades' saleable setting, and together they "
+      + "add up to 100.",
     // #396 — the new column needs explaining because two of its neighbours look
     // like they should already cover it: Losses shows the same cracked/dirty
     // numbers (as counts, whether sold or not), and Sellable is the graded
@@ -4232,6 +4239,21 @@ export const en = {
       "Individual eggs sold on confirmed orders in the period — order lines in selling units × their "
       + "eggs-per-unit factor, egg lines only. The Reports page's Money section shows the total next to "
       + "Revenue, with the split by grade.",
+
+    // #1297 — the two period rates. Both follow the Cracked and Dirty grades'
+    // saleable setting via FromCounts, captured at submit time.
+    glossarySellablePctTerm: "Sellable %",
+    glossarySellablePctDef:
+      "The period's eggs that became stock — hand-graded sellable eggs plus the cracked and dirty eggs "
+      + "that resolved to a grade — over total eggs collected, × 100. It follows the Cracked and Dirty "
+      + "grades' saleable setting, captured at submit time, so changing the checkbox never rewrites a "
+      + "past day. Together with Egg loss % it adds up to 100; a period with no eggs shows a dash.",
+    glossaryLossPctTerm: "Egg loss %",
+    glossaryLossPctDef:
+      "The period's eggs that never became stock — cracked, dirty and discarded, minus the cracked and "
+      + "dirty eggs that resolved to a grade — over total eggs collected, × 100. It follows the Cracked "
+      + "and Dirty grades' saleable setting, captured at submit time, so changing the checkbox never "
+      + "rewrites a past day. Together with Sellable % it adds up to 100; a period with no eggs shows a dash.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:

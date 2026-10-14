@@ -122,13 +122,16 @@ export function ReportsPage() {
 
       {production && (
         <>
-          <Box component="dl" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridAutoFlow: { xs: "column" }, gridAutoColumns: { xs: "115px", md: "minmax(0, 1fr)" }, overflowX: "auto", borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
+          <Box component="dl" role="list" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridAutoFlow: { xs: "column" }, gridAutoColumns: { xs: "115px", md: "minmax(0, 1fr)" }, overflowX: "auto", borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
             {[
               [t("eggsHeader"), fmt.count(production.totalEggs)],
               [t("sellableHeader"), fmt.count(production.totalSellable)],
               [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></>],
               ...(isAdmin && profit ? [[t("profitRowLabel"), fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)]] : []),
-              [t("lossesHeader"), fmt.count(production.days.reduce((sum, day) => sum + day.cracked + day.dirty + day.discarded, 0))],
+              // #1297 — server totals and rates, not sums over `days` in the browser.
+              [t("lossesHeader"), fmt.count(production.totalLosses)],
+              [t("sellablePctHeader"), production.periodSellablePct === null ? "—" : <>{fmt.count(production.periodSellablePct, 1)}%</>],
+              [t("lossPctHeader"), production.periodLossPct === null ? "—" : <>{fmt.count(production.periodLossPct, 1)}%</>],
             ].map(([label, value]) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
               <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
               <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>

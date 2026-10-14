@@ -18,6 +18,7 @@ const report = (days: ProductionDay[]): ProductionReport => ({
   totalRecordedHenDays: days.reduce((a, d) => a + d.recordedHenDays, 0),
   totalRatedEggs: days.reduce((a, d) => a + d.ratedEggs, 0),
   periodHenDayPct: null, // irrelevant: the split recomputes its own from `days`, never trusts this
+  totalLosses: 0, periodSellablePct: null, periodLossPct: null, // recomputed too (#1297)
   gradeTotals: [{ eggGradeId: "g1", name: "Grade A", quantity: 999 }],
 });
 
@@ -48,6 +49,12 @@ describe("splitProductionReport (#918 — folds two adjacent trend windows into 
     expect(later.totalEggs).toBe(320 + 321 + 322 + 323 + 324 + 325 + 326);
     expect(earlier.totalRecordedHenDays).toBe(700);
     expect(later.totalRecordedHenDays).toBe(700);
+    // #1297 — the losses total and the two rates are plain sums over `days[]`
+    // too, computed the identical way server-side. These days grade everything
+    // as sellable, so the whole period sells: 100% and 0%.
+    expect(earlier.totalLosses).toBe(0);
+    expect(earlier.periodSellablePct).toBe(100);
+    expect(earlier.periodLossPct).toBe(0);
     // Nothing in `days[]` carries a per-grade breakdown; recomputing it would
     // be a guess, so each half's is deliberately empty rather than borrowed
     // from the combined report.

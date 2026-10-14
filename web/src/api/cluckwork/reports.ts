@@ -59,12 +59,26 @@ export interface ProductionReport {
   totalEggs: number;
   totalSellable: number;
   totalFromCounts: number;
+  /**
+   * #1297 — the eggs the period produced but never turned into stock: the raw
+   * cracked/dirty/discarded counters minus `totalFromCounts`. The Losses tile
+   * reads this instead of summing days in the browser.
+   */
+  totalLosses: number;
   totalDeaths: number;
   totalHenDays: number;
   /** `periodHenDayPct`'s denominator and numerator, so it is reproducible (#780). */
   totalRecordedHenDays: number;
   totalRatedEggs: number;
   periodHenDayPct: number | null;
+  /**
+   * #1297 — (totalSellable + totalFromCounts) / totalEggs × 100 and
+   * totalLosses / totalEggs × 100, rounded like `periodHenDayPct`. Together
+   * they add up to 100, and both follow the Cracked and Dirty grades'
+   * saleable setting via `totalFromCounts`. null for a period with no eggs.
+   */
+  periodSellablePct: number | null;
+  periodLossPct: number | null;
   gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
 }
 

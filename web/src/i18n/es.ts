@@ -1954,6 +1954,10 @@ export const es = {
     eggsHeader: "Huevos",
     lossesHeader: "Pérdidas (ag/su/de)",
     sellableHeader: "Vendible",
+    // #1297 — machine-drafted, pending native review (#182). Reuses the page's
+    // own words for the two tiles the rates belong to.
+    sellablePctHeader: "Vendible %",
+    lossPctHeader: "Pérdidas %",
     // #396 — huevos rajados/sucios que pasaron a inventario en vez de perderse.
     // Machine-drafted, pending native review (#182).
     conditionHeader: "Con defecto",
@@ -2917,7 +2921,10 @@ export const es = {
       + "no, así que la diferencia entre ambas es lo que falta. Un día que nadie registró muestra un guion "
       + "en vez de 0 %. Una cifra por encima del 100 % se marca: una gallina pone como máximo un huevo al "
       + "día, así que más huevos que días-gallina registrados significa que una entrada y el registro de "
-      + "aves no coinciden, y hay que revisar el recuento de aves de ese lote.",
+      + "aves no coinciden, y hay que revisar el recuento de aves de ese lote. Los mosaicos "
+      + "<strong>Vendible %</strong> y <strong>Pérdidas %</strong> dividen los huevos del período en "
+      + "inventario y pérdidas, según la opción de venta de los grados Rajado y Sucio, y juntos suman "
+      + "100 %.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "
@@ -3553,6 +3560,20 @@ export const es = {
       "Huevos individuales vendidos en pedidos confirmados del período — líneas de venta en unidades de "
       + "venta × sus huevos por unidad, solo líneas de huevo. La sección Dinero de la página Informes "
       + "muestra el total junto a Ingresos, con el desglose por clasificación.",
+
+    // #1297 — machine-drafted, pending native review (#182).
+    glossarySellablePctTerm: "Vendible %",
+    glossarySellablePctDef:
+      "Los huevos del período que pasaron a inventario — vendibles clasificados a mano más los rajados "
+      + "y sucios que resolvieron a un grado — sobre el total de huevos recolectados, × 100. Sigue la "
+      + "opción de venta de los grados Rajado y Sucio capturada al enviar: cambiar la casilla nunca "
+      + "reescribe un día pasado. Junto con Pérdidas % suma 100; un período sin huevos muestra un guion.",
+    glossaryLossPctTerm: "Pérdidas %",
+    glossaryLossPctDef:
+      "Los huevos del período que nunca pasaron a inventario — rajados, sucios y descartados, menos los "
+      + "rajados y sucios que resolvieron a un grado — sobre el total de huevos recolectados, × 100. "
+      + "Sigue la opción de venta de los grados Rajado y Sucio capturada al enviar: cambiar la casilla "
+      + "nunca reescribe un día pasado. Junto con Vendible % suma 100; un período sin huevos muestra un guion.",
 
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:

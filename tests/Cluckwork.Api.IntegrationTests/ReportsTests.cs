@@ -18,8 +18,9 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
     private sealed record GradeRow(Guid EggGradeId, string Name, int Quantity);
     private sealed record ProductionDto(
         List<DayRow> Days, int TotalEggs, int TotalSellable, int TotalFromCounts,
-        int TotalDeaths, long TotalHenDays, long TotalRecordedHenDays,
-        int TotalRatedEggs, decimal? PeriodHenDayPct, List<GradeRow> GradeTotals);
+        int TotalLosses, int TotalDeaths, long TotalHenDays, long TotalRecordedHenDays,
+        int TotalRatedEggs, decimal? PeriodHenDayPct, decimal? PeriodSellablePct,
+        decimal? PeriodLossPct, List<GradeRow> GradeTotals);
     private sealed record SalesDto(
         int ConfirmedCount, long RevenueMinorUnits, long PaidMinorUnits,
         long OutstandingMinorUnits, int VoidedCount,
@@ -109,6 +110,95 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(
             report.TotalSellable + report.TotalFromCounts,
             report.GradeTotals.Sum(g => g.Quantity));
+
+        // #1297 — Cracked is saleable on this farm: its 6 eggs are sellable and
+        // out of the losses, Dirty (3) and discarded (1) are the only losses.
+        Assert.Equal(4, report.TotalLosses);
+        Assert.Equal(96.0m, report.PeriodSellablePct);
+        Assert.Equal(4.0m, report.PeriodLossPct);
+        Assert.Equal(100m, report.PeriodSellablePct + report.PeriodLossPct);
+    }
+
+    // #1297 — a period with no eggs has no rate: null, not 0, the way the lay
+    // rate answers a period with no recorded exposure. 0.0% would be the claim
+    // #780 removed — a percentage over nothing.
+    [Fact]
+    public async Task Production_ZeroEggPeriod_NullRates()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var houseId = Guid.NewGuid();
+        var flockId = await factory.SeedFlockAsync(accountId, farmId, houseId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // Recorded, official, and genuinely zero — not an unrecorded period.
+        var response = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId, flockId, date = Today,
+            totalEggs = 0, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = Array.Empty<object>()
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var id = (await response.Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{id}/submit", Guid.NewGuid().ToString());
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+
+        Assert.Equal(0, report!.TotalEggs);
+        Assert.Equal(0, report.TotalLosses);
+        Assert.Null(report.PeriodSellablePct);
+        Assert.Null(report.PeriodLossPct);
+    }
+
+    // #1297 — the other side of the amendment: a farm whose Cracked grade is
+    // NOT saleable. The 6 cracked eggs resolve to nothing, stay a loss, and
+    // the rates must read 90/10 rather than inventing stock that never was.
+    [Fact]
+    public async Task Production_CrackedGradeNotSaleable_CountsAsLoss()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.EggGrades.Add(Cluckwork.Domain.Modules.EggOperations.Eggs.EggGrade.Create(
+                Guid.NewGuid(), accountId, farmId, "Cracked", Cluckwork.Domain.Modules.EggOperations.Contracts.EggGradeType.Quality,
+                60, isSaleable: false, dailyEntryKind: Cluckwork.Domain.Modules.EggOperations.Contracts.DailyEntryKind.Cracked));
+            await db.SaveChangesAsync();
+        });
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // 100 = 90 hand-graded + 6 cracked + 3 dirty + 1 discarded.
+        var entryId = (await (await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId,
+                houseId = Guid.NewGuid(),
+                flockId,
+                date = Today,
+                totalEggs = 100,
+                crackedEggs = 6,
+                dirtyEggs = 3,
+                discardedEggs = 1,
+                mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 90 } }
+            })).Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        var report = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+
+        Assert.Equal(90, report!.TotalSellable);
+        Assert.Equal(0, report.TotalFromCounts); // Cracked never resolved to a grade
+        Assert.Equal(10, report.TotalLosses);    // 6 + 3 + 1, nothing went to stock
+        Assert.Equal(90.0m, report.PeriodSellablePct);
+        Assert.Equal(10.0m, report.PeriodLossPct);
+        Assert.Equal(100m, report.PeriodSellablePct + report.PeriodLossPct);
     }
 
     [Fact]

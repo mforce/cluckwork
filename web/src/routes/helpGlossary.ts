@@ -59,6 +59,8 @@ const ENTRIES = [
   // Eggs, grades & stock
   { key: "EggLot", group: "eggsStock", spec: "Egg lot" },
   { key: "Grade", group: "eggsStock", spec: "Egg grade" },
+  { key: "SellablePct", group: "eggsStock", spec: "Sellable %" },
+  { key: "LossPct", group: "eggsStock", spec: "Egg loss %" },
   { key: "LowStockFloor", group: "eggsStock", spec: "Low-stock floor" },
   { key: "EggMovementLedger", group: "eggsStock", spec: "Egg movement ledger" },
   { key: "StockWriteOff", group: "eggsStock", spec: "Stock write-off" },

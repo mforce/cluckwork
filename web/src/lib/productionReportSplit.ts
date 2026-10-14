@@ -40,16 +40,22 @@ function summarize(days: ProductionDay[]): ProductionReport {
   const sum = (pick: (d: ProductionDay) => number) => days.reduce((total, d) => total + pick(d), 0);
   const totalRatedEggs = sum((d) => d.ratedEggs);
   const totalRecordedHenDays = sum((d) => d.recordedHenDays);
+  const totalEggs = sum((d) => d.totalEggs);
+  const totalFromCounts = sum((d) => d.fromCounts);
+  const totalLosses = sum((d) => d.cracked + d.dirty + d.discarded) - totalFromCounts;
   return {
     days,
-    totalEggs: sum((d) => d.totalEggs),
+    totalEggs,
     totalSellable: sum((d) => d.sellable),
-    totalFromCounts: sum((d) => d.fromCounts),
+    totalFromCounts,
+    totalLosses,
     totalDeaths: sum((d) => d.deaths),
     totalHenDays: sum((d) => d.henDays),
     totalRecordedHenDays,
     totalRatedEggs,
     periodHenDayPct: totalRecordedHenDays > 0 ? Math.round((totalRatedEggs * 100 / totalRecordedHenDays) * 10) / 10 : null,
+    periodSellablePct: totalEggs > 0 ? Math.round(((sum((d) => d.sellable) + totalFromCounts) * 100 / totalEggs) * 10) / 10 : null,
+    periodLossPct: totalEggs > 0 ? Math.round((totalLosses * 100 / totalEggs) * 10) / 10 : null,
     gradeTotals: [],
   };
 }
