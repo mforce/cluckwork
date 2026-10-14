@@ -153,6 +153,16 @@ public static class OAuthServerRegistration
                     .EnableTokenEndpointPassthrough();
                 if (allowPlainHttp)
                     aspNetCore.DisableTransportSecurityRequirement();
+
+                // #1294 — every client is public (#797, #1148), so the token endpoint takes
+                // no client authentication and discovery advertises only none. This must
+                // follow UseAspNetCore, whose own options step adds client_secret_basic.
+                server.Configure(options =>
+                {
+                    options.ClientAuthenticationMethods.Clear();
+                    options.ClientAuthenticationMethods.Add(ClientAuthenticationMethods.None);
+                    options.ClientAssertionTypes.Clear();
+                });
             })
             .AddValidation(validation =>
             {

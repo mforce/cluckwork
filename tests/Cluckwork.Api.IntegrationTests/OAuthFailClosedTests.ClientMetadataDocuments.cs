@@ -1,4 +1,7 @@
 using System.Net;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.IntegrationTests.SharedState;
@@ -192,6 +195,109 @@ public sealed partial class OAuthFailClosedTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.False(await StoredAsync(url), "a document naming another client was stored");
+    }
+
+    // #1294 — ChatGPT's document prefers private_key_jwt and also offers none, which is
+    // the one method discovery advertises.
+    [Fact]
+    public async Task DocumentOfferingNone_BesideASignedAssertion_ReachesConsent()
+    {
+        await using var metadata = await MetadataHostAsync();
+        var user = await SeedAsync(Roles.Manager);
+        var url = NewDocumentUrl();
+        metadata.Server.Respond = metadata.Server.Serves(MetadataDocumentServer.ChatGptDocument(url, RedirectUri));
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(
+            metadata.Host, user.Jwt, AuthorizeParameters(url, NewVerifier(), ReadScope));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("ChatGPT", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("clientName").GetString());
+    }
+
+    [Fact]
+    public async Task DocumentNotOfferingNone_IsRefused_AndNotStored()
+    {
+        await using var metadata = await MetadataHostAsync();
+        var user = await SeedAsync(Roles.Manager);
+        var url = NewDocumentUrl();
+        metadata.Server.Respond = metadata.Server.Serves(
+            MetadataDocumentServer.ChatGptDocument(url, RedirectUri, offered: """["private_key_jwt"]"""));
+
+        using var response = await OAuthServerTests.SendAuthorizeAsync(
+            metadata.Host, user.Jwt, AuthorizeParameters(url, NewVerifier(), ReadScope));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("error_description:token_endpoint_auth_method must be none; this server accepts public clients only.",
+            await response.Content.ReadAsStringAsync());
+        Assert.False(await StoredAsync(url), "a document without none was stored");
+    }
+
+    // Offering none makes the client public, never confidential: the token endpoint
+    // refuses every way of authenticating one, and the same code then redeems without.
+    [Theory]
+    [InlineData(ClientAuthenticationMethods.ClientSecretPost, "client_secret_post")]
+    [InlineData(ClientAuthenticationMethods.ClientSecretBasic, "client_secret_basic")]
+    [InlineData(ClientAuthenticationMethods.PrivateKeyJwt, "client_assertion_type")]
+    public async Task ClientAuthentication_AtTheTokenEndpoint_IsRefused(string method, string named)
+    {
+        await using var metadata = await MetadataHostAsync();
+        var user = await SeedAsync(Roles.Manager);
+        var url = NewDocumentUrl();
+        metadata.Server.Respond = metadata.Server.Serves(MetadataDocumentServer.ChatGptDocument(url, RedirectUri));
+        var verifier = NewVerifier();
+        var code = await AuthorizeAsync(metadata.Host, user.Jwt, url, verifier, ReadScope);
+
+        using var refused = await Client(metadata.Host, bearer: null).SendAsync(AuthenticatedRedeem(url, code, verifier, method));
+
+        var body = await refused.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(Errors.InvalidClient, body.GetProperty("error").GetString());
+        Assert.Contains(named, body.GetProperty("error_description").GetString());
+        using var redeemed = await RedeemAsync(metadata.Host, url, code, verifier);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+    }
+
+    private static HttpRequestMessage AuthenticatedRedeem(string clientId, string code, string verifier, string method)
+    {
+        var form = new Dictionary<string, string>
+        {
+            ["grant_type"] = GrantTypes.AuthorizationCode,
+            ["client_id"] = clientId,
+            ["code"] = code,
+            ["redirect_uri"] = RedirectUri,
+            ["code_verifier"] = verifier,
+        };
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/oauth/token");
+        switch (method)
+        {
+            case ClientAuthenticationMethods.ClientSecretPost:
+                form["client_secret"] = "guessed";
+                break;
+            case ClientAuthenticationMethods.ClientSecretBasic:
+                request.Headers.Authorization = new AuthenticationHeaderValue("Basic",
+                    Convert.ToBase64String(Encoding.ASCII.GetBytes($"{Uri.EscapeDataString(clientId)}:guessed")));
+                break;
+            case ClientAuthenticationMethods.PrivateKeyJwt:
+                form["client_assertion_type"] = ClientAssertionTypes.JwtBearer;
+                form["client_assertion"] = SignedAssertion(clientId);
+                break;
+        }
+        request.Content = new FormUrlEncodedContent(form);
+        return request;
+    }
+
+    // An RFC 7523 assertion signed with a key the client never published.
+    private static string SignedAssertion(string clientId)
+    {
+        using var key = RSA.Create(2048);
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var signingInput = Base64Url(JsonSerializer.SerializeToUtf8Bytes(new { alg = "RS256", typ = "JWT" })) + "." +
+            Base64Url(JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                iss = clientId, sub = clientId, aud = "https://localhost/api/v1/oauth/token",
+                jti = Guid.NewGuid().ToString("N"), iat = now, exp = now + 300,
+            }));
+        var signature = key.SignData(Encoding.ASCII.GetBytes(signingInput), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        return signingInput + "." + Base64Url(signature);
     }
 
     // A URL that keeps failing is not fetched more than its budget allows, however often

@@ -33,6 +33,8 @@ public static class ClientMetadata
     // connected app (#800). Known metadata document URLs are far shorter.
     public const int MaxDocumentUrlLength = AuditEvent.MaxConnectedAppClientIdLength;
 
+    private const string PublicClientsOnly = "token_endpoint_auth_method must be none; this server accepts public clients only.";
+
     // DCR mints Guid "N" ids, so the prefix alone tells the two kinds apart (draft §7.1).
     public static bool IsDocumentUrl([NotNullWhen(true)] string? clientId) =>
         clientId is not null && clientId.StartsWith("https://", StringComparison.Ordinal);
@@ -60,10 +62,10 @@ public static class ClientMetadata
         IsDocumentUrl(clientId) ? new Uri(clientId).Authority : null;
 
     // Every field is untrusted. The document must name itself (draft §4) and must not
-    // carry a secret (§4.1); the rest is held to exactly the rules a DCR request meets.
+    // carry a secret (§4.1); the rest is held to the rules a DCR request meets.
     public static Result<OpenIddictApplicationDescriptor> FromDocument(string documentUrl, ReadOnlyMemory<byte> json)
     {
-        ClientRegistrationRequest? request;
+        ClientRegistrationRequest request;
         try
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { AllowDuplicateProperties = false, MaxDepth = 8 });
@@ -75,7 +77,19 @@ public static class ClientMetadata
                 return InvalidMetadata("The document's client_id must equal its URL.");
             if (root.TryGetProperty("client_secret", out _) || root.TryGetProperty("client_secret_expires_at", out _))
                 return InvalidMetadata("A metadata document must not carry a client secret.");
-            request = root.Deserialize<ClientRegistrationRequest>();
+            request = root.Deserialize<ClientRegistrationRequest>()!;
+
+            // #1294 — ChatGPT's document lists every method it can use in this plural field
+            // and keeps the singular one as a preference. The method comes from that list's
+            // intersection with discovery's, which is only none. RFC 7591 has no plural
+            // field, so DCR still reads the singular one alone.
+            var offered = root.Deserialize<OfferedAuthMethods>()!.Methods;
+            if (offered is not null)
+            {
+                if (!offered.Contains(ClientAuthenticationMethods.None))
+                    return InvalidMetadata(PublicClientsOnly);
+                request = request with { TokenEndpointAuthMethod = ClientAuthenticationMethods.None };
+            }
         }
         // GetString and Deserialize throw InvalidOperationException, not JsonException, for
         // a string holding a lone surrogate.
@@ -84,8 +98,11 @@ public static class ClientMetadata
             return InvalidMetadata("The metadata document is not valid client metadata.");
         }
 
-        return ToDescriptor(request!, documentUrl);
+        return ToDescriptor(request, documentUrl);
     }
+
+    private sealed record OfferedAuthMethods(
+        [property: JsonPropertyName("token_endpoint_auth_methods_supported")] string?[]? Methods);
 
     public static Result<OpenIddictApplicationDescriptor> ToDescriptor(ClientRegistrationRequest request, string clientId)
     {
@@ -138,7 +155,7 @@ public static class ClientMetadata
             return InvalidMetadata("response_types must be code.");
 
         if (request.TokenEndpointAuthMethod is not (null or ClientAuthenticationMethods.None))
-            return InvalidMetadata("token_endpoint_auth_method must be none; this server accepts public clients only.");
+            return InvalidMetadata(PublicClientsOnly);
 
         return descriptor;
     }

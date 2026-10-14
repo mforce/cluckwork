@@ -21,7 +21,8 @@ authorization-code grant and nothing else; PKCE with S256 is already required se
 (#795). Redirect URIs must be `https`, or `http` on `localhost`, `127.0.0.1` or `[::1]`,
 with no fragment and no user info. A client whose redirect URIs are all `http` loopback is
 native, and may then authorize on any port. The client's name is untrusted display text. Discovery
-advertises the endpoint as `registration_endpoint`. The `oauth-register` policy limits it
+advertises the endpoint as `registration_endpoint`, and since #1294 lists only `none` in
+`token_endpoint_auth_methods_supported`. The `oauth-register` policy limits it
 per client IP on the shared `IFixedWindowCounter`. `OAuthPurgeSweep` runs under
 `DurableJobWorker`'s leader gate and removes dead tokens, dead authorizations and
 applications nobody approved.

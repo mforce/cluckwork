@@ -68,6 +68,37 @@ public sealed class ClientMetadataTests
         Assert.Equal([new Uri("https://app.test/callback")], descriptor.RedirectUris);
     }
 
+    // #1294 — the method comes from the intersection of the document's list with this
+    // server's, so a client that offers none is public whatever it prefers.
+    [Fact]
+    public void DocumentOfferingNone_BecomesAPublicClient_WhateverItPrefers()
+    {
+        var descriptor = ClientMetadata.FromDocument(Url, Json(MetadataDocumentServer.ChatGptDocument(Url))).Value;
+
+        Assert.Equal(ClientTypes.Public, descriptor.ClientType);
+        Assert.Equal("ChatGPT", descriptor.DisplayName);
+    }
+
+    public static TheoryData<string> DocumentsNotOfferingNone => new()
+    {
+        """{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_method":"private_key_jwt"}""",
+        MetadataDocumentServer.ChatGptDocument(Url, offered: """["private_key_jwt"]"""),
+        MetadataDocumentServer.ChatGptDocument(Url, offered: "[]"),
+        """{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_method":"none","token_endpoint_auth_methods_supported":["private_key_jwt"]}""",
+    };
+
+    // A list that leaves out none says the client cannot use it, whatever the singular
+    // field says. The refusal reads as it did before the list was read.
+    [Theory]
+    [MemberData(nameof(DocumentsNotOfferingNone))]
+    public void DocumentNotOfferingNone_IsRefused(string json)
+    {
+        var error = ClientMetadata.FromDocument(Url, Json(json)).Error;
+
+        Assert.Equal("invalid_client_metadata", error.Code);
+        Assert.Equal("token_endpoint_auth_method must be none; this server accepts public clients only.", error.Description);
+    }
+
     [Fact]
     public void LoopbackOnlyDocument_IsNative_WithPortlessRedirects()
     {
@@ -94,7 +125,8 @@ public sealed class ClientMetadataTests
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":"https://app.test/cb"}""")]
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","client_name":{"a":1},"redirect_uris":["https://app.test/cb"]}""")]
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"grant_types":["client_credentials"]}""")]
-    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_method":"private_key_jwt"}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_methods_supported":"none"}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_methods_supported":[["none"]]}""")]
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"response_types":["token"]}""")]
     [InlineData("not json")]
     public void UntrustedDocument_IsRefused(string json) =>
@@ -109,6 +141,7 @@ public sealed class ClientMetadataTests
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"grant_types":["\uDC00"]}""")]
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"response_types":["\uD800"]}""")]
     [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_method":"\uD800"}""")]
+    [InlineData("""{"client_id":"https://app.test/oauth/client.json","redirect_uris":["https://app.test/cb"],"token_endpoint_auth_methods_supported":["none","\uD800"]}""")]
     public void LoneSurrogate_InAnyStringField_IsInvalidMetadata(string json)
     {
         Result<OpenIddictApplicationDescriptor>? result = null;
