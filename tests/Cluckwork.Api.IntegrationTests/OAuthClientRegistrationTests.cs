@@ -64,6 +64,37 @@ public sealed class OAuthClientRegistrationTests(CluckworkWebApplicationFactory 
         Assert.Equal("https://localhost/api/v1/oauth/register", endpoint.GetString());
     }
 
+    // #1294 — Claude chooses a metadata document only when none is advertised, and every
+    // client here is public. Any endpoint OpenIddict adds later gets its own list, so
+    // every list is checked, not just the token endpoint's.
+    [Fact]
+    public async Task Discovery_AdvertisesOnlyPublicClientAuthentication()
+    {
+        var metadata = await OAuthServerTests.HttpsClient(factory, bearer: null)
+            .GetFromJsonAsync<JsonElement>("/.well-known/oauth-authorization-server");
+
+        var lists = metadata.EnumerateObject()
+            .Where(property => property.Name.EndsWith("_auth_methods_supported", StringComparison.Ordinal))
+            .ToDictionary(property => property.Name, property => Strings(metadata, property.Name));
+        Assert.Equal(["token_endpoint_auth_methods_supported"], lists.Keys);
+        Assert.All(lists.Values, methods => Assert.Equal([ClientAuthenticationMethods.None], methods));
+    }
+
+    // The plural list is ChatGPT's metadata document convention, not RFC 7591's, so a
+    // registration request naming another method is refused whatever the list says.
+    [Fact]
+    public async Task Registration_ReadsOnlyTheSingularAuthMethod()
+    {
+        using var response = await RegisterAsync(factory, new
+        {
+            redirect_uris = new[] { OAuthServerTests.RedirectUri },
+            token_endpoint_auth_method = ClientAuthenticationMethods.PrivateKeyJwt,
+            token_endpoint_auth_methods_supported = new[] { ClientAuthenticationMethods.None },
+        });
+
+        await AssertErrorAsync(response, "invalid_client_metadata");
+    }
+
     // Registration is anonymous whatever the caller sends: a session bearer must not
     // resolve a farm and pull the request into the idempotency protocol.
     [Fact]

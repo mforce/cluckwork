@@ -55,6 +55,12 @@ internal sealed class MetadataDocumentServer : IAsyncDisposable
     public static string Document(string clientId, string redirectUri = "https://app.test/callback", string name = "Doc Client") =>
         $$"""{"client_id":"{{clientId}}","client_name":"{{name}}","redirect_uris":["{{redirectUri}}"],"grant_types":["authorization_code"],"response_types":["code"],"token_endpoint_auth_method":"none"}""";
 
+    // ChatGPT's document as https://chatgpt.com/oauth/client.json served it on 2026-10-14,
+    // under another URL: it prefers private_key_jwt and offers none as well (#1294).
+    public static string ChatGptDocument(string clientId, string redirectUri = "https://app.test/callback",
+        string offered = """["none","private_key_jwt"]""") =>
+        $$"""{"client_id":"{{clientId}}","client_uri":"https://chatgpt.com/","redirect_uris":["{{redirectUri}}"],"token_endpoint_auth_method":"private_key_jwt","token_endpoint_auth_methods_supported":{{offered}},"grant_types":["authorization_code","refresh_token"],"response_types":["code"],"client_name":"ChatGPT","logo_uri":"https://persistent.oaistatic.com/sonic/misc/openai-logo.png","token_endpoint_auth_signing_alg":"RS256","jwks_uri":"https://chatgpt.com/oauth/jwks.json"}""";
+
     public Func<HttpContext, Task> Serves(string body, string contentType = "application/json", int status = 200,
         string? cacheControl = null) => async context =>
     {
