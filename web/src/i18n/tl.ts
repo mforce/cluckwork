@@ -2544,11 +2544,12 @@ export const tl = {
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
     signingInAppAddress:
-      "<strong>Pagkonekta ng AI app.</strong> Pare-pareho ang paraan ng pagkonekta ng bawat AI app na sumusuporta "
-      + "sa MCP. Idagdag ang Cluckwork sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app "
-      + "ang Cluckwork sa iyong browser; mag-sign in kung hihingin. Tingnan ang hinihingi nito, ilagay ang "
-      + "<strong>Ang kasalukuyan mong password</strong> at piliin ang <strong>Payagan</strong>. Walang ibinibigay "
-      + "na client ID o secret ang Cluckwork, kaya hindi makakakonekta ang app na humihingi nito.",
+      "<strong>Pagkonekta ng AI app.</strong> Para ikonekta ang isang compatible na AI app, idagdag ang Cluckwork "
+      + "sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app ang Cluckwork sa iyong "
+      + "browser; mag-sign in kung hihingin. Tingnan ang hinihingi nito, ilagay ang <strong>Ang kasalukuyan mong "
+      + "password</strong> at piliin ang <strong>Payagan</strong>. Walang client ID o secret na kokopyahin mula sa "
+      + "Cluckwork, dahil kusang inaayos ng mga compatible na app ang sarili nilang sign-in. Hindi "
+      + "makakakonekta ang app na humihingi ng client secret.",
     signingInAppClaude:
       "<strong>Claude</strong> (claude.ai at ang Claude desktop app). Pumunta sa <strong>Customize › "
       + "Connectors</strong>, piliin ang <strong>Add custom connector</strong>, i-paste ang address at piliin ang "

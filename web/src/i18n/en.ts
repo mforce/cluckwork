@@ -3195,11 +3195,11 @@ export const en = {
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
     signingInAppAddress:
-      "<strong>Connecting an AI app.</strong> Every AI app that supports MCP connects the same way. Add "
-      + "Cluckwork in the app with this address: <code>{{address}}</code>. The app opens Cluckwork in your "
-      + "browser; sign in if asked. Check what it asks for, type <strong>Your current password</strong> and "
-      + "choose <strong>Allow</strong>. Cluckwork hands out no client ID or secret, so an app that requires "
-      + "one cannot connect.",
+      "<strong>Connecting an AI app.</strong> To connect a compatible AI app, add Cluckwork in the app with "
+      + "this address: <code>{{address}}</code>. The app opens Cluckwork in your browser; sign in if asked. "
+      + "Check what it asks for, type <strong>Your current password</strong> and choose <strong>Allow</strong>. "
+      + "Cluckwork gives you no client ID or secret to copy, because compatible apps set up their own sign-in. "
+      + "An app that requires a client secret cannot connect.",
     // Vendor menu names are copied from each vendor's own documentation and kept
     // in English in every locale, because those apps show them in English.
     signingInAppClaude:

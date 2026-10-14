@@ -2452,11 +2452,12 @@ export const es = {
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
       + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
     signingInAppAddress:
-      "<strong>Conectar una aplicación de IA.</strong> Toda aplicación de IA compatible con MCP se conecta de la "
-      + "misma forma. Agrega Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La "
-      + "aplicación abre Cluckwork en tu navegador; inicia sesión si te lo pide. Revisa lo que pide, escribe "
-      + "<strong>Tu contraseña actual</strong> y elige <strong>Permitir</strong>. Cluckwork no entrega ningún ID "
-      + "de cliente ni secreto, así que una aplicación que exija uno no puede conectarse.",
+      "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, agrega "
+      + "Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre Cluckwork en "
+      + "tu navegador; inicia sesión si te lo pide. Revisa lo que pide, escribe <strong>Tu contraseña "
+      + "actual</strong> y elige <strong>Permitir</strong>. Cluckwork no te da ningún ID de cliente ni secreto que "
+      + "copiar, porque las aplicaciones compatibles configuran su propio inicio de sesión. Una aplicación que "
+      + "exige un secreto de cliente no puede conectarse.",
     signingInAppClaude:
       "<strong>Claude</strong> (claude.ai y la aplicación de escritorio de Claude). Ve a <strong>Customize › "
       + "Connectors</strong>, elige <strong>Add custom connector</strong>, pega la dirección y elige "
