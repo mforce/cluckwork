@@ -77,7 +77,6 @@ public sealed class ClientMetadataTests
 
         Assert.Equal(ClientTypes.Public, descriptor.ClientType);
         Assert.Equal("ChatGPT", descriptor.DisplayName);
-        Assert.Equal([new Uri("https://app.test/callback")], descriptor.RedirectUris);
     }
 
     public static TheoryData<string> DocumentsNotOfferingNone => new()

@@ -195,7 +195,8 @@ whose `client_id` is a string equal, ordinally, to the URL (draft §4). It must 
 `client_secret` or `client_secret_expires_at` (draft §4.1). The rest goes through
 `ToDescriptor`, the #797 rules: a public client, `authorization_code` only
 (`refresh_token` accepted and dropped), `response_types` of `code`,
-`token_endpoint_auth_method` of `none` (so `private_key_jwt` is refused), one to ten
+`token_endpoint_auth_method` of `none` (or a supported-methods list that includes
+`none`, see the #1294 amendment below), one to ten
 redirect URIs that are `https` or `http` loopback, a loopback-only client stored as
 native with port-less URIs, and the name sanitised and capped at 100. OpenIddict's own
 validation still runs when the row is created or updated, so a reserved `iss` parameter
@@ -248,7 +249,8 @@ decode it, so a path segment could not name a metadata client reliably.
 
 ## What this does NOT cover
 
-- `private_key_jwt` and `jwks`: refused; this server accepts public clients only.
+- `private_key_jwt` and `jwks`: never used; this server accepts public clients only. A
+  document that offers `none` beside `private_key_jwt` becomes a public client (#1294).
 - Prompting again when a document changes (draft §8.4). A changed name or redirect URI
   takes effect at the next refresh; an existing approval stays, and every new code still
   needs the password (#798).
@@ -286,3 +288,76 @@ decode it, so a path segment could not name a metadata client reliably.
   ran on 2026-10-10 against `a3a56fd6`, and all were killed, one after correcting the
   assertion text it declared. Baseline and restore were green at 272 of 272.
   `MUTANT_FILTER='^cimd-'` runs just these.
+
+## Amendment, 2026-10-14: only `none` is advertised, and a document's list is read (#1294)
+
+**What happened.** Discovery advertised `token_endpoint_auth_methods_supported` as
+`client_secret_post`, `private_key_jwt` and `client_secret_basic`. These are OpenIddict
+7.7.1's defaults: `OpenIddictServerOptions` starts with the first two, and the ASP.NET
+Core integration adds Basic. No client here could use any of them, because DCR and
+metadata documents both register public clients. Two clients failed on it:
+
+- Claude's hosted apps use a metadata document only when discovery lists `none`, and
+  otherwise fall back to DCR
+  ([Claude connector authentication](https://claude.com/docs/connectors/building/authentication#dcr-and-cimd-details)).
+- ChatGPT's document at `https://chatgpt.com/oauth/client.json` names `private_key_jwt`
+  as its singular `token_endpoint_auth_method`, and lists `["none","private_key_jwt"]`
+  in `token_endpoint_auth_methods_supported`. Only the singular field was read, so the
+  document was refused with `token_endpoint_auth_method must be none`.
+
+**The rule.** The server enables one client authentication method, `none`, and no
+client assertion type. `OAuthServerRegistration` sets both after `UseAspNetCore()`,
+because that call registers an options step that adds `client_secret_basic` back. The
+token endpoint is the only endpoint discovery lists methods for; this server enables no
+revocation or introspection endpoint.
+
+A metadata document's `token_endpoint_auth_methods_supported`, when present, decides:
+
+- If it includes `none`, the client is registered as public, whatever the singular field
+  prefers.
+- If it leaves `none` out, including an empty list, the document is refused with the
+  same `invalid_client_metadata` message as before.
+- If the document has no such list, the singular field decides, as before.
+
+DCR still reads only the singular field. RFC 7591 §2 defines no plural field, so a
+registration request that names `private_key_jwt` is refused whatever else it sends.
+
+**Sources.** OpenAI's
+[authentication guide](https://developers.openai.com/plugins/build/auth#client-registration)
+defines the plural field: "ChatGPT's CIMD document lists the methods ChatGPT can use", the
+singular one is a "legacy" preference kept "during the transition", and "ChatGPT selects a
+method from the intersection of those sets". Servers "must reject methods outside the
+intersection". It also says "For CIMD, ChatGPT supports `none` for public-client token
+exchange". draft-ietf-oauth-client-id-metadata-document-02 has no plural field. Its §8.2
+says a client that declares `private_key_jwt` is confidential, and that the server MUST
+then require that authentication. ChatGPT's document declares both methods, and the
+intersection with this server is `none`. Following OpenAI's negotiation means this server
+never verifies ChatGPT's signed assertion. The client is then identified the way every
+public client here is: by the redirect URIs that its own host publishes, by PKCE, and by
+the user's consent with a step-up password (#798).
+
+**Why this is safe.** A client registered this way is an ordinary public client. Nothing
+in the document is stored beyond what `ToDescriptor` keeps; `jwks_uri` and the signing
+algorithm are ignored. At the token endpoint OpenIddict refuses `client_secret_post` and
+`client_secret_basic` as methods the server does not support. It refuses a client
+assertion because its type is not supported, before it parses the assertion. Behind
+those checks, a public client's secret or assertion is refused again by OpenIddict's
+client-type check. PKCE with S256 stays required server-wide (#795).
+
+**How it is enforced.**
+
+- `OAuthClientRegistrationTests.Discovery_AdvertisesOnlyPublicClientAuthentication`
+  reads every `*_auth_methods_supported` entry in the final discovery response and
+  requires exactly one, the token endpoint's, equal to `["none"]`.
+- `OAuthClientRegistrationTests.Registration_ReadsOnlyTheSingularAuthMethod` keeps the
+  plural field out of DCR.
+- `ClientMetadataTests` covers ChatGPT's document as a public client, four documents
+  that do not offer `none` refused with the old message, a list of the wrong shape, and a
+  lone surrogate inside the list.
+- `OAuthFailClosedTests.ClientMetadataDocuments` takes ChatGPT's document to consent and
+  refuses one that offers only `private_key_jwt`, storing nothing. For each of
+  `client_secret_post`, `client_secret_basic` and `private_key_jwt`, the token endpoint
+  refuses the attempt with `invalid_client`, and the same code then redeems without
+  client authentication.
+- `tools/oauth/mutation-check.sh` adds `auth-methods-default`, `auth-secrets-accepted`,
+  `assertion-types-kept`, `cimd-offered-none-ignored` and `cimd-offered-without-none`.

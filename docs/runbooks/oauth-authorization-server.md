@@ -84,7 +84,11 @@ sit under it:
 "authorization_endpoint": "https://farm.example/api/v1/oauth/authorize",
 "token_endpoint": "https://farm.example/api/v1/oauth/token",
 "registration_endpoint": "https://farm.example/api/v1/oauth/register",
+"token_endpoint_auth_methods_supported": ["none"],
 ```
+
+Every app registers as a public client, so `none` is the only method listed (#1294).
+Claude's hosted apps use a client ID metadata document only when `none` is listed.
 
 `client_id_metadata_document_supported: true` appears unless step A.4's switch turned it
 off.
