@@ -351,13 +351,9 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             .CountAsync(o => o.Status == SalesOrderStatus.Voided
                           && o.OrderDate >= from && o.OrderDate <= to, ct);
 
-        // Eggs sold ride the SAME confirmed in-range orders revenue sums above
-        // (OrderDate), so the egg figure and the money figure cannot describe
-        // different order sets. The line's ProductTypeSnapshot is taken at line
-        // creation, and QuantityBase is already individual eggs
-        // (quantity × eggs-per-unit) — grouping by the snapshotted grade id,
-        // never re-resolving the live catalog. One grouped SQL query; no items
-        // are materialized.
+        // The SAME confirmed in-range orders revenue sums above, so the egg and
+        // money figures can never describe different order sets. QuantityBase is
+        // already individual eggs; the snapshot, never the live grade catalog.
         var eggLines = await db.SalesOrderItems
             .Where(i => i.ProductTypeSnapshot == ProductType.Egg
                      && db.SalesOrders.Any(o => o.Id == i.SalesOrderId

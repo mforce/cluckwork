@@ -1023,10 +1023,9 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
     }
 
     // #1296 — eggs sold count QuantityBase (selling units × eggs per unit) on
-    // CONFIRMED in-range EGG lines, the same order set revenue sums. Dozens
-    // count as their eggs (×12), trays as theirs (×30); a draft order, a voided
-    // order, an order outside the range, and a non-egg line on an otherwise
-    // in-range confirmed order all stay out.
+    // CONFIRMED in-range EGG lines, the same order set revenue sums: dozens and
+    // trays count as eggs; drafts, voided orders, out-of-range orders and
+    // non-egg lines stay out.
     [Fact]
     public async Task Sales_EggsSold_CountsBaseUnitsOnConfirmedEggLinesOnly()
     {
