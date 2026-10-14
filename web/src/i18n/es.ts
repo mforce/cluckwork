@@ -2452,9 +2452,23 @@ export const es = {
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
       + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
     signingInAppAddress:
-      "<strong>Conectar una aplicación de IA.</strong> Una aplicación de IA compatible con MCP se conecta en "
-      + "esta dirección: <code>{{address}}</code>. Después te envía a Cluckwork para permitirla. "
-      + "Permite <strong>Leer datos de la granja</strong>, <strong>Anotar registros diarios</strong> o ambos.",
+      "<strong>Conectar una aplicación de IA.</strong> Toda aplicación de IA compatible con MCP se conecta de la "
+      + "misma forma. Agrega Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La "
+      + "aplicación abre Cluckwork en tu navegador; inicia sesión si te lo pide. Revisa lo que pide, escribe "
+      + "<strong>Tu contraseña actual</strong> y elige <strong>Permitir</strong>. Cluckwork no entrega ningún ID "
+      + "de cliente ni secreto, así que una aplicación que exija uno no puede conectarse.",
+    signingInAppClaude:
+      "<strong>Claude</strong> (claude.ai y la aplicación de escritorio de Claude). Ve a <strong>Customize › "
+      + "Connectors</strong>, elige <strong>Add custom connector</strong>, pega la dirección y elige "
+      + "<strong>Add</strong>. En un plan Team o Enterprise, un Owner de la organización de Claude lo agrega en "
+      + "<strong>Organization settings › Connectors</strong>, y tú eliges <strong>Connect</strong> en él dentro de "
+      + "<strong>Customize › Connectors</strong>. El plan Free permite un conector personalizado. Claude se "
+      + "conecta desde los servidores de Anthropic, así que esta dirección debe ser accesible desde internet.",
+    signingInAppClaudeCode:
+      "<strong>Claude Code.</strong> Ejecuta <code>claude mcp add --transport http cluckwork {{address}}</code>, "
+      + "luego ejecuta <code>claude mcp login cluckwork</code>, o escribe <code>/mcp</code> en Claude Code, e "
+      + "inicia sesión en el navegador que se abre. Claude Code se ejecuta en tu computadora, así que basta con que la dirección sea "
+      + "accesible desde ella.",
     signingInConnectApp:
       "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede pedir actuar "
       + "como tú. Cluckwork muestra lo que pide, <strong>Leer datos de la granja</strong>, <strong>Anotar registros "

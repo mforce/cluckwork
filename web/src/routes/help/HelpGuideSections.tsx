@@ -88,6 +88,17 @@ export function HelpGuideSections({ openLink }: { openLink: (sectionId: string) 
           />
         </li>
         <li>
+          <Trans ns="help" i18nKey="signingInAppClaude" components={{ strong: <strong /> }} />
+        </li>
+        <li>
+          <Trans
+            ns="help"
+            i18nKey="signingInAppClaudeCode"
+            values={{ address: `${window.location.origin}/mcp` }}
+            components={{ strong: <strong />, code: <code /> }}
+          />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="signingInConnectApp" components={{ strong: <strong /> }} />
         </li>
         <li>

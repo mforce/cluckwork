@@ -44,6 +44,9 @@ describe("HelpPage", () => {
   it("gives the farm's own MCP address for connecting an AI app", () => {
     render(<HelpPage />);
     expect(screen.getByText(`${window.location.origin}/mcp`, { selector: "code" })).toBeInTheDocument();
+    expect(
+      screen.getByText(`claude mcp add --transport http cluckwork ${window.location.origin}/mcp`, { selector: "code" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the contents rail and the sections in step, in document order", () => {

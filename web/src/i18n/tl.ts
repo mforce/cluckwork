@@ -2544,10 +2544,23 @@ export const tl = {
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
     signingInAppAddress:
-      "<strong>Pagkonekta ng AI app.</strong> Kumokonekta sa address na ito ang AI app na sumusuporta sa MCP: "
-      + "<code>{{address}}</code>. Ipapadala ka nito sa Cluckwork para payagan "
-      + "ito. Payagan ang <strong>Basahin ang datos ng bukid</strong>, <strong>Itala ang araw-araw na "
-      + "tala</strong> o pareho.",
+      "<strong>Pagkonekta ng AI app.</strong> Pare-pareho ang paraan ng pagkonekta ng bawat AI app na sumusuporta "
+      + "sa MCP. Idagdag ang Cluckwork sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app "
+      + "ang Cluckwork sa iyong browser; mag-sign in kung hihingin. Tingnan ang hinihingi nito, ilagay ang "
+      + "<strong>Ang kasalukuyan mong password</strong> at piliin ang <strong>Payagan</strong>. Walang ibinibigay "
+      + "na client ID o secret ang Cluckwork, kaya hindi makakakonekta ang app na humihingi nito.",
+    signingInAppClaude:
+      "<strong>Claude</strong> (claude.ai at ang Claude desktop app). Pumunta sa <strong>Customize › "
+      + "Connectors</strong>, piliin ang <strong>Add custom connector</strong>, i-paste ang address at piliin ang "
+      + "<strong>Add</strong>. Sa Team o Enterprise plan, isang Owner ng Claude organization ang magdadagdag nito "
+      + "sa <strong>Organization settings › Connectors</strong>, at pipiliin mo ang <strong>Connect</strong> dito "
+      + "sa <strong>Customize › Connectors</strong>. Isang custom connector lang ang puwede sa Free plan. "
+      + "Kumokonekta ang Claude mula sa mga server ng Anthropic, kaya dapat maabot ang address na ito mula sa internet.",
+    signingInAppClaudeCode:
+      "<strong>Claude Code.</strong> Patakbuhin ang <code>claude mcp add --transport http cluckwork "
+      + "{{address}}</code>, saka patakbuhin ang <code>claude mcp login cluckwork</code>, o i-type ang "
+      + "<code>/mcp</code> sa Claude Code, at mag-sign in sa browser na magbubukas. Tumatakbo ang Claude Code sa iyong computer, kaya sapat nang "
+      + "maabot ang address mula roon.",
     signingInConnectApp:
       "<strong>Pagkonekta ng app.</strong> Puwedeng humiling ang isang panlabas na app, gaya ng AI assistant, na "
       + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito, <strong>Basahin ang datos ng bukid</strong>, "

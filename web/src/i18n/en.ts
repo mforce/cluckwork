@@ -3195,9 +3195,25 @@ export const en = {
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
     signingInAppAddress:
-      "<strong>Connecting an AI app.</strong> An AI app that supports MCP connects at this address: "
-      + "<code>{{address}}</code>. It then sends you to Cluckwork to allow it. Allow <strong>Read farm "
-      + "data</strong>, <strong>Record daily entries</strong> or both.",
+      "<strong>Connecting an AI app.</strong> Every AI app that supports MCP connects the same way. Add "
+      + "Cluckwork in the app with this address: <code>{{address}}</code>. The app opens Cluckwork in your "
+      + "browser; sign in if asked. Check what it asks for, type <strong>Your current password</strong> and "
+      + "choose <strong>Allow</strong>. Cluckwork hands out no client ID or secret, so an app that requires "
+      + "one cannot connect.",
+    // Vendor menu names are copied from each vendor's own documentation and kept
+    // in English in every locale, because those apps show them in English.
+    signingInAppClaude:
+      "<strong>Claude</strong> (claude.ai and the Claude desktop app). Go to <strong>Customize › "
+      + "Connectors</strong>, choose <strong>Add custom connector</strong>, paste the address and choose "
+      + "<strong>Add</strong>. On a Team or Enterprise plan, a Claude organization Owner adds it under "
+      + "<strong>Organization settings › Connectors</strong>, and you choose <strong>Connect</strong> on it "
+      + "under <strong>Customize › Connectors</strong>. The Free plan allows one custom connector. Claude "
+      + "connects from Anthropic's servers, so this address must be reachable from the internet.",
+    signingInAppClaudeCode:
+      "<strong>Claude Code.</strong> Run <code>claude mcp add --transport http cluckwork {{address}}</code>, "
+      + "then run <code>claude mcp login cluckwork</code>, or type <code>/mcp</code> in Claude Code, and sign in "
+      + "through the browser that opens. Claude Code runs on your computer, so the address only has to be reachable "
+      + "from it.",
     signingInConnectApp:
       "<strong>Connecting an app.</strong> An outside app, such as an AI assistant, can ask to act as you. "
       + "Cluckwork shows what it asks for, <strong>Read farm data</strong>, <strong>Record daily entries</strong> or both, "
