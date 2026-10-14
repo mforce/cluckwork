@@ -488,10 +488,10 @@ editing again. This reacts to observed data, not changes made after the last
 fetch; it does not add server-side concurrent-edit detection (#713).
 
 **Eggs sold (#1296)** — individual eggs on the period's **confirmed** orders:
-each **Sales line**'s `quantity` (selling units) × its snapshotted eggs-per-unit
-factor (`quantity_base`), on egg lines only. The Reports page's Money section
-shows the total next to Revenue and a split by grade; voided and draft orders,
-out-of-range orders, and non-egg lines never count.
+the sum of each **Sales line**'s `quantity_base`, where
+`quantity_base = quantity × base_unit_factor`, on egg lines only. The Reports
+page's Money section shows the total next to Revenue and a split by grade;
+voided and draft orders, out-of-range orders, and non-egg lines never count.
 
 **Worker sale allocation policy (#612)** — one farm setting deciding how a
 restricted plain **Worker's** confirmation may draw stock: `AssignedFlocksOnly`

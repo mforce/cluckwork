@@ -424,7 +424,12 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 //
 // 2026-10-12, raised to 1,662 KiB for #1256 (the product and packed-unit
 // conflict rebind); the merged branch measures 1,661.68 KiB locally.
-const PRECACHE_CEILING_KIB = 1662;
+//
+// 2026-10-14, raised to 1,663 KiB for #1296 (the reports eggs-sold row): the
+// base ceiling was 1,662 KiB and the branch measures 1,662.76 KiB locally —
+// the delta is the new row, help prose and glossary entries in all three
+// locales, which the i18n parity rules require.
+const PRECACHE_CEILING_KIB = 1663;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
