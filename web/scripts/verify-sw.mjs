@@ -429,7 +429,12 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // base ceiling was 1,662 KiB and the branch measures 1,662.76 KiB locally —
 // the delta is the new row, help prose and glossary entries in all three
 // locales, which the i18n parity rules require.
-const PRECACHE_CEILING_KIB = 1663;
+//
+// 2026-10-14, raised to 1,665 KiB for #1297 (sellable and loss rates),
+// approved by the maintainer: the base ceiling was 1,663 KiB and the branch
+// measures 1,664.40 KiB. The delta is the English help prose and two glossary
+// entries; es and tl are not precached since #1149.
+const PRECACHE_CEILING_KIB = 1665;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
