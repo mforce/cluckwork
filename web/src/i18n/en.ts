@@ -2607,6 +2607,9 @@ export const en = {
   // pattern as sales:orderTotal).
   reports: {
     revenueRowLabel: "Revenue",
+    // #1296 — individual eggs on the range's confirmed egg lines (QuantityBase);
+    // the secondary line is the per-grade split, DATA like the expenses row's.
+    eggsSoldRowLabel: "Eggs sold",
     title: "Reports",
     fromLabel: "From",
     toLabel: "To",
@@ -3644,6 +3647,7 @@ export const en = {
       + "before you switched them on keep showing 0 — turning a grade on never rewrites a past day.",
     reportsMoney:
       "<strong>Money</strong> (admin): sales summary for the range's orders (revenue / paid / outstanding), "
+      + "<strong>Eggs sold</strong> — individual eggs on confirmed egg lines, with the by-grade split — "
       + "expenses by category, and <strong>basic profit</strong> — confirmed revenue minus recorded expenses, "
       + "no cost-of-goods.",
     reportsThrottle:
@@ -4222,6 +4226,12 @@ export const en = {
       + "rather than a zero. Draft, cancelled and voided orders show a dash, because payments attach to "
       + "confirmed orders only and so they have no outstanding amount. Voiding a payment makes the "
       + "outstanding amount grow back. Only Sales, Manager and owner users see this column.",
+
+    glossaryEggsSoldTerm: "Eggs sold",
+    glossaryEggsSoldDef:
+      "Individual eggs sold on confirmed orders in the period — order lines in selling units × their "
+      + "eggs-per-unit factor, egg lines only. The Reports page's Money section shows the total next to "
+      + "Revenue, with the split by grade.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:

@@ -22,7 +22,8 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         int TotalRatedEggs, decimal? PeriodHenDayPct, List<GradeRow> GradeTotals);
     private sealed record SalesDto(
         int ConfirmedCount, long RevenueMinorUnits, long PaidMinorUnits,
-        long OutstandingMinorUnits, int VoidedCount, string CurrencyCode, int CurrencyMinorUnit);
+        long OutstandingMinorUnits, int VoidedCount,
+        int EggsSold, List<GradeRow> EggsSoldByGrade, string CurrencyCode, int CurrencyMinorUnit);
     private sealed record ProfitDto(
         long RevenueMinorUnits, long ExpensesMinorUnits, long ProfitMinorUnits,
         string CurrencyCode, int CurrencyMinorUnit);
@@ -660,6 +661,30 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(80m, next.HenDayPct);
     }
 
+    // #1296 — a non-egg order line for the exclusion test: SalesOrderItem has
+    // no public factory and every property is privately set, so the row is
+    // built by reflection the same way the domain tests reach internal state.
+    private static Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem RawManureLine(
+        Guid accountId, Guid orderId, Guid productId, Guid gradeId)
+    {
+        var item = (Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem)Activator.CreateInstance(
+            typeof(Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem), nonPublic: true)!;
+        var type = typeof(Cluckwork.Domain.Modules.Commerce.Sales.SalesOrderItem);
+        void Set(string name, object value) => type.GetProperty(name)!.SetValue(item, value);
+        Set("AccountId", accountId);
+        Set("SalesOrderId", orderId);
+        Set("ProductId", productId);
+        Set("ProductTypeSnapshot", Cluckwork.Domain.Modules.Commerce.Contracts.ProductType.Manure);
+        Set("EggGradeId", gradeId);
+        Set("Unit", Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Package);
+        Set("BaseUnitFactor", 1);
+        Set("Quantity", 5);
+        Set("QuantityBase", 5);
+        Set("UnitPrice", new Cluckwork.Domain.Common.Money(500, "USD", 2));
+        Set("ListPriceBasis", Cluckwork.Domain.Modules.Commerce.Contracts.ListPriceBasis.ProductUnpriced);
+        return item;
+    }
+
     private static async Task MoveAsync(HttpClient client, Guid flockId, DateOnly date, string type, int quantity)
     {
         var response = await client.PostWithKeyAsync($"/api/v1/flocks/{flockId}/movements",
@@ -995,6 +1020,104 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(4000, profit!.RevenueMinorUnits);
         Assert.Equal(900, profit.ExpensesMinorUnits);
         Assert.Equal(3100, profit.ProfitMinorUnits);
+    }
+
+    // #1296 — eggs sold count QuantityBase (selling units × eggs per unit) on
+    // CONFIRMED in-range EGG lines, the same order set revenue sums. Dozens
+    // count as their eggs (×12), trays as theirs (×30); a draft order, a voided
+    // order, an order outside the range, and a non-egg line on an otherwise
+    // in-range confirmed order all stay out.
+    [Fact]
+    public async Task Sales_EggsSold_CountsBaseUnitsOnConfirmedEggLinesOnly()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var dozenProduct = await factory.SeedProductAsync(accountId, farmId, grades["Large"],
+            "Large Dozens", unit: Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Dozen);
+        var trayProduct = await factory.SeedProductAsync(accountId, farmId, grades["Large"],
+            "Large Trays", unit: Cluckwork.Domain.Modules.Commerce.Contracts.ProductUnit.Tray);
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        // Stock for every confirmed line below to allocate against.
+        var record = await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = Guid.NewGuid(), flockId, date = Today,
+            totalEggs = 500, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 500 } }
+        });
+        await client.PostWithKeyAsync(
+            $"/api/v1/daily-entries/{(await record.Content.ReadFromJsonAsync<Created>())!.Id}/submit",
+            Guid.NewGuid().ToString());
+
+        var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = $"Buyer {Guid.NewGuid():N}"[..20], phone = "555-0100" });
+        var customerId = (await customer.Content.ReadFromJsonAsync<Created>())!.Id;
+
+        async Task<Guid> OrderAsync(DateOnly date)
+        {
+            var order = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+                new { customerId, orderDate = date });
+            return (await order.Content.ReadFromJsonAsync<Created>())!.Id;
+        }
+
+        // In-range: 3 dozens (36) + 2 trays (60) = 96, counted as eggs, not units.
+        var mixed = await OrderAsync(Today);
+        await client.PostWithKeyAsync($"/api/v1/sales/{mixed}/items", Guid.NewGuid().ToString(),
+            new { productId = dozenProduct, quantity = 3, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync($"/api/v1/sales/{mixed}/items", Guid.NewGuid().ToString(),
+            new { productId = trayProduct, quantity = 2, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync($"/api/v1/sales/{mixed}/confirm", Guid.NewGuid().ToString());
+
+        // Confirmed in-range order that ALSO carries a non-egg line: only its
+        // egg line (1 dozen = 12) counts. The write path refuses non-egg
+        // products ("Only egg products can be sold in this phase"), so the
+        // line is inserted directly to exercise the report's own filter.
+        var withManure = await OrderAsync(Today);
+        await client.PostWithKeyAsync($"/api/v1/sales/{withManure}/items", Guid.NewGuid().ToString(),
+            new { productId = dozenProduct, quantity = 1, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync($"/api/v1/sales/{withManure}/confirm", Guid.NewGuid().ToString());
+        await factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            // The write path refuses non-egg products ("Only egg products can
+            // be sold in this phase") and SalesOrderItem.Create is internal to
+            // the domain, so the excluded line is materialized by reflection —
+            // the report's own filter is what is under test.
+            db.SalesOrderItems.Add(RawManureLine(accountId, withManure, dozenProduct, grades["Large"]));
+            await db.SaveChangesAsync();
+        });
+
+        // Draft in range: 2 dozens that must not count.
+        var draft = await OrderAsync(Today);
+        await client.PostWithKeyAsync($"/api/v1/sales/{draft}/items", Guid.NewGuid().ToString(),
+            new { productId = dozenProduct, quantity = 2, unitPriceMinorUnits = 100 });
+
+        // Voided in range: 1 dozen that must not count.
+        var voided = await OrderAsync(Today);
+        await client.PostWithKeyAsync($"/api/v1/sales/{voided}/items", Guid.NewGuid().ToString(),
+            new { productId = dozenProduct, quantity = 1, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync($"/api/v1/sales/{voided}/confirm", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.OK, (await client.PostWithKeyAsync(
+            $"/api/v1/sales/{voided}/void", Guid.NewGuid().ToString(), new { reason = "wrong order" })).StatusCode);
+
+        // Confirmed but OUTSIDE the range: 1 dozen that must not count.
+        var old = await OrderAsync(Today.AddDays(-10));
+        await client.PostWithKeyAsync($"/api/v1/sales/{old}/items", Guid.NewGuid().ToString(),
+            new { productId = dozenProduct, quantity = 1, unitPriceMinorUnits = 100 });
+        await client.PostWithKeyAsync($"/api/v1/sales/{old}/confirm", Guid.NewGuid().ToString());
+
+        var range = $"?from={Today.AddDays(-3):yyyy-MM-dd}&to={Today:yyyy-MM-dd}";
+        var sales = await client.GetFromJsonAsync<SalesDto>($"/api/v1/reports/sales{range}");
+
+        // 36 + 60 + 12 — and the egg figure rides the same confirmed in-range
+        // order set revenue reports (2 orders), so neither half can drift.
+        Assert.Equal(2, sales!.ConfirmedCount);
+        Assert.Equal(108, sales!.EggsSold);
+        var grade = Assert.Single(sales!.EggsSoldByGrade);
+        Assert.Equal("Large", grade.Name);
+        Assert.Equal(108, grade.Quantity);
     }
 
     [Fact]

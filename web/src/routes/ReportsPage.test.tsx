@@ -75,7 +75,12 @@ const OVER_100_FLAG = "Above 100%: more eggs were recorded than birds on the led
 
 const SALES: SalesSummary = {
   confirmedCount: 5, revenueMinorUnits: 10000, paidMinorUnits: 8000, outstandingMinorUnits: 2000,
-  voidedCount: 2, currencyCode: "USD", currencyMinorUnit: 2,
+  voidedCount: 2, eggsSold: 360,
+  eggsSoldByGrade: [
+    { eggGradeId: "gr1", name: "Grade A", quantity: 240 },
+    { eggGradeId: "gr2", name: "Grade B", quantity: 120 },
+  ],
+  currencyCode: "USD", currencyMinorUnit: 2,
 };
 const SALES_NO_VOIDED: SalesSummary = { ...SALES, voidedCount: 0 };
 
@@ -293,6 +298,11 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     expect(screen.getByText(
       "5 confirmed order(s) — revenue $100.00, paid $80.00, outstanding $20.00 (2 voided)",
     )).toBeInTheDocument();
+    // #1296 — the eggs-sold row sits beside revenue: total from QuantityBase,
+    // the per-grade split as the secondary DATA line (like the expenses row's).
+    expect(screen.getByText("Eggs sold")).toBeInTheDocument();
+    expect(screen.getByText("360")).toBeInTheDocument();
+    expect(screen.getByText("Grade A 240, Grade B 120")).toBeInTheDocument();
     expect(screen.getByText("Feed $50.00, Utilities $15.00 — total $65.00")).toBeInTheDocument();
     expect(screen.getByText(/revenue \$100\.00 − expenses \$65\.00 =/)).toBeInTheDocument();
     expect(screen.getByText("$35.00", { selector: "strong" }).tagName).toBe("STRONG");
@@ -424,6 +434,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it.each([
     ["revenueRowLabel", "Revenue"],
+    ["eggsSoldRowLabel", "Eggs sold"],
     ["expensesRowLabel", "Expenses"],
     ["profitRowLabel", "Profit (basic)"],
   ])("reads the %s row label from the catalog, not a hardcoded literal", async (key, original) => {

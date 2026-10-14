@@ -1942,6 +1942,7 @@ export const es = {
   // {{profit}} placeholders and the <strong> tag in profitLine.
   reports: {
     revenueRowLabel: "Ingresos",
+    eggsSoldRowLabel: "Huevos vendidos",
     title: "Informes",
     fromLabel: "Desde",
     toLabel: "Hasta",
@@ -2927,7 +2928,8 @@ export const es = {
       + "reescribe un día pasado.",
     reportsMoney:
       "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
-      + "pendiente), gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "
+      + "pendiente), <strong>Huevos vendidos</strong> — huevos individuales en líneas de huevo confirmadas, "
+      + "con el desglose por clasificación — gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "
       + "gastos registrados, sin costo de bienes vendidos.",
     reportsThrottle:
       "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
@@ -3545,6 +3547,12 @@ export const es = {
       + "cancelados y anulados muestran una raya, porque los pagos solo se aplican a pedidos confirmados y "
       + "por eso no tienen monto pendiente. Anular un pago hace que el monto pendiente vuelva a crecer. "
       + "Solo los usuarios de Ventas, Gerente y propietario ven esta columna.",
+
+    glossaryEggsSoldTerm: "Huevos vendidos",
+    glossaryEggsSoldDef:
+      "Huevos individuales vendidos en pedidos confirmados del período — líneas de venta en unidades de "
+      + "venta × sus huevos por unidad, solo líneas de huevo. La sección Dinero de la página Informes "
+      + "muestra el total junto a Ingresos, con el desglose por clasificación.",
 
     glossaryInventoryItemTerm: "Artículo de inventario",
     glossaryInventoryItemDef:

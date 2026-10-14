@@ -74,6 +74,9 @@ export interface SalesSummary {
   paidMinorUnits: number;
   outstandingMinorUnits: number;
   voidedCount: number;
+  /** Individual eggs (QuantityBase) on confirmed egg lines in the range — the same orders revenue sums. */
+  eggsSold: number;
+  eggsSoldByGrade: { eggGradeId: string; name: string; quantity: number }[];
   currencyCode: string;
   currencyMinorUnit: number;
 }

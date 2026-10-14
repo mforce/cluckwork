@@ -2011,6 +2011,7 @@ export const tl = {
   // the same reason.
   reports: {
     revenueRowLabel: "Kita",
+    eggsSoldRowLabel: "Naibentang itlog",
     title: "Mga Ulat",
     fromLabel: "Mula",
     toLabel: "Hanggang",
@@ -3042,7 +3043,8 @@ export const tl = {
       + "hindi kailanman binabago ang nakaraang araw.",
     reportsMoney:
       "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
-      + "natitira), gastos kada kategorya, at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
+      + "natitira), <strong>Naibentang itlog</strong> — mga indibidwal na itlog sa mga kumpirmadong egg line, "
+      + "kasama ang paghahati ayon sa grado — gastos kada kategorya, at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
       + "nakatalang gastos, walang cost-of-goods.",
     reportsThrottle:
       "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
@@ -3680,6 +3682,12 @@ export const tl = {
       + "ng gitling, dahil ang mga bayad ay para lang sa nakumpirmang order at kaya wala silang nakabinbin "
       + "na halaga. Ang pag-void ng isang bayad ay nagpapabalik ng nakabinbin na halaga. Ang mga user lang "
       + "na Benta, Manager at owner ang nakakakita ng kolum na ito.",
+
+    glossaryEggsSoldTerm: "Naibentang itlog",
+    glossaryEggsSoldDef:
+      "Mga indibidwal na itlog na naibenta sa mga kumpirmadong order sa panahon — mga linya sa selling "
+      + "units × ang eggs-per-unit factor nito, mga egg line lamang. Ipinapakita ng seksyong Pera ng "
+      + "pahina ng Ulat ang kabuuan katabi ng Kita, kasama ang paghahati ayon sa grado.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:

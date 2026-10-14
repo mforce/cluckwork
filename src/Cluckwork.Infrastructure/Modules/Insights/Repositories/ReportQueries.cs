@@ -351,10 +351,39 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             .CountAsync(o => o.Status == SalesOrderStatus.Voided
                           && o.OrderDate >= from && o.OrderDate <= to, ct);
 
+        // Eggs sold ride the SAME confirmed in-range orders revenue sums above
+        // (OrderDate), so the egg figure and the money figure cannot describe
+        // different order sets. The line's ProductTypeSnapshot is taken at line
+        // creation, and QuantityBase is already individual eggs
+        // (quantity × eggs-per-unit) — grouping by the snapshotted grade id,
+        // never re-resolving the live catalog. One grouped SQL query; no items
+        // are materialized.
+        var eggLines = await db.SalesOrderItems
+            .Where(i => i.ProductTypeSnapshot == ProductType.Egg
+                     && db.SalesOrders.Any(o => o.Id == i.SalesOrderId
+                             && o.Status == SalesOrderStatus.Confirmed
+                             && o.OrderDate >= from && o.OrderDate <= to))
+            .GroupBy(i => i.EggGradeId)
+            .Select(g => new { EggGradeId = g.Key, Quantity = g.Sum(i => i.QuantityBase) })
+            .ToListAsync(ct);
+
+        // Names resolve the way GetProductionAsync's breakdown does: one lookup
+        // for the ids the grouping produced, "?" when a grade has since gone.
+        var eggGradeNames = await db.EggGrades
+            .Where(g => eggLines.Select(e => e.EggGradeId).Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.Name, ct);
+
         var revenue = confirmed.Sum(o => o.Total);
         var (code, minor) = await AccountCurrencyAsync(ct);
         return new SalesSummary(
-            confirmed.Count, revenue, paid, revenue - paid, voidedCount, code, minor);
+            confirmed.Count, revenue, paid, revenue - paid, voidedCount,
+            eggLines.Sum(e => e.Quantity),
+            eggLines
+                .Select(e => new GradeTotal(
+                    e.EggGradeId, eggGradeNames.GetValueOrDefault(e.EggGradeId, "?"), e.Quantity))
+                .OrderByDescending(t => t.Quantity)
+                .ToList(),
+            code, minor);
     }
 
     public async Task<ExpenseSummary> GetExpensesAsync(

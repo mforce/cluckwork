@@ -224,6 +224,15 @@ export function ReportsPage() {
                 </Typography>
               </Box>
               <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("eggsSoldRowLabel")}</Typography>
+                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.count(sales.eggsSold)}</Typography>
+                {sales.eggsSoldByGrade.length > 0 && (
+                  <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
+                    {sales.eggsSoldByGrade.map((g) => `${g.name} ${fmt.count(g.quantity)}`).join(", ")}
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
                 <Typography component="dt" sx={{ fontWeight: 700 }}>{t("expensesRowLabel")}</Typography>
                 <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}</Typography>
                 <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
