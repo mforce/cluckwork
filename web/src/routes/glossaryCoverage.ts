@@ -63,7 +63,7 @@ export const SPEC_ONLY: Record<string, string> = {
   "entity-scoped audit history": NOT_YET,
   "record-type filter": NOT_YET,
   "clearing filters": NOT_YET,
-  "hen-day %": NOT_YET,
+  // #1299 round-1 review — Hen-day % now has an in-app entry (glossaryHenDayPctTerm/Def).
   "partly recorded day": NOT_YET,
   "production report": NOT_YET,
   "profit, basic": NOT_YET,

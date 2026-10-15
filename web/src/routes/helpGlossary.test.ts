@@ -82,8 +82,8 @@ describe("help glossary data", () => {
 
   it("only ever loses NOT_YET rows", () => {
     // Lower this when a NOT_YET term gets its entry. A new term needs an entry
-    // or a real reason, never NOT_YET.
-    expect(Object.values(SPEC_ONLY).filter((reason) => reason === NOT_YET)).toHaveLength(46);
+    // or a real reason, never NOT_YET. (#1299 round-1 — Hen-day % left at 45.)
+    expect(Object.values(SPEC_ONLY).filter((reason) => reason === NOT_YET)).toHaveLength(45);
   });
 
   it("names, for every entry, a term that exists in specs/product/GLOSSARY.md", () => {

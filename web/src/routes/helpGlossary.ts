@@ -61,6 +61,8 @@ const ENTRIES = [
   { key: "Grade", group: "eggsStock", spec: "Egg grade" },
   { key: "SellablePct", group: "eggsStock", spec: "Sellable %" },
   { key: "LossPct", group: "eggsStock", spec: "Egg loss %" },
+  // #1299 round-1 review — the Hen-day % column's in-app entry.
+  { key: "HenDayPct", group: "eggsStock", spec: "Hen-day %" },
   { key: "LowStockFloor", group: "eggsStock", spec: "Low-stock floor" },
   { key: "EggMovementLedger", group: "eggsStock", spec: "Egg movement ledger" },
   { key: "StockWriteOff", group: "eggsStock", spec: "Stock write-off" },
