@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.1.1](https://github.com/mforce/cluckwork/compare/v1.1.0...v1.1.1) (2026-10-15)
+
+
+### Features
+
+* **reports:** break production down by flock ([#1307](https://github.com/mforce/cluckwork/issues/1307)) ([f05314d](https://github.com/mforce/cluckwork/commit/f05314d6d30bd1359fdbd072f466e7027b854d4f))
+* **reports:** compare each figure with the previous period ([#1310](https://github.com/mforce/cluckwork/issues/1310)) ([edd767b](https://github.com/mforce/cluckwork/commit/edd767bac0eb9e5687712cdfc164d17e24ecfc00))
+* **reports:** show eggs sold next to eggs produced ([#1301](https://github.com/mforce/cluckwork/issues/1301)) ([51836bb](https://github.com/mforce/cluckwork/commit/51836bbbd2c616be54868823eae3d401e3400b03))
+* **reports:** show feed cost per dozen ([#1306](https://github.com/mforce/cluckwork/issues/1306)) ([acfc7fa](https://github.com/mforce/cluckwork/commit/acfc7fa6175f0c9c2d37773e0720de1e3221679d))
+* **reports:** show sellable egg % and egg loss % ([#1303](https://github.com/mforce/cluckwork/issues/1303)) ([9994646](https://github.com/mforce/cluckwork/commit/999464618571bb19b4dad25ce254dd4f9e89c71b))
+* **reports:** split Reports into Production and Money tabs ([#1309](https://github.com/mforce/cluckwork/issues/1309)) ([512eca7](https://github.com/mforce/cluckwork/commit/512eca76c2f8e77fe9b06434a491ef35ea58ca46))
+
+
+### Bug fixes
+
+* **oauth:** advertise only public-client auth and accept ChatGPT's metadata document ([#1295](https://github.com/mforce/cluckwork/issues/1295)) ([ab1b4ac](https://github.com/mforce/cluckwork/commit/ab1b4ac476ea9ea80fdcc18e5eaa8d49281f220c))
+
+
+### Documentation
+
+* **help:** add steps to connect Claude and Claude Code to the farm's MCP address ([#1292](https://github.com/mforce/cluckwork/issues/1292)) ([7185d0c](https://github.com/mforce/cluckwork/commit/7185d0c6da800be10d1b1dd752468500288776b6))
+
+
+### Chores
+
+* force release 1.1.1 ([fff5ea6](https://github.com/mforce/cluckwork/commit/fff5ea61035182590d3131943efb61df192a3b74))
+
 ## [1.1.0](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.1.0) (2026-10-14)
 
 
