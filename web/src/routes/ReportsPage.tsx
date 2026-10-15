@@ -204,9 +204,9 @@ export function ReportsPage() {
                       <TableCell align="right">{t("flockLossesHeader")}</TableCell>
                       <TableCell align="right">{t("sellableHeader")}</TableCell>
                       <TableCell align="right">{t("deathsHeader")}</TableCell>
-                      {/* The rate uses only the flocks that recorded; null, not 0, for one with no exposure. */}
                       <TableCell align="right">{t("recordedHenDaysHeader")}</TableCell>
                       <TableCell align="right">{t("ratedEggsHeader")}</TableCell>
+                      {/* The rate uses only the flocks that recorded; null, not 0, for one with no exposure. */}
                       <TableCell align="right">{t("henDayPctHeader")}</TableCell>
                     </TableRow>
                   </TableHead>
