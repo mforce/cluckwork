@@ -1,6 +1,6 @@
 // tools/simulation/ui/specs-screenshots/screenshots.spec.ts — #549.
 //
-// Captures the four images the root README embeds, from the built SPA
+// Captures the five images the root README embeds, from the built SPA
 // over the simulation and demo farms. Run it deliberately:
 //
 //     npm run screenshots        # from tools/simulation/ui, with the sim stack up
@@ -8,8 +8,8 @@
 // ================== THE STALENESS CONTRACT ==================
 //
 // These images are DOCUMENTATION ARTEFACTS, not test baselines, and **nothing
-// enforces that they match the current UI**. A change to any of the four
-// screens below silently invalidates them; a reviewer looking at a stale
+// enforces that they match the current UI**. A change to any of the five
+// captures below silently invalidates them; a reviewer looking at a stale
 // screenshot cannot tell. The honest mitigation is the one this file can
 // actually keep: the capture is scripted, so refreshing is one command rather
 // than a hunt for whoever took the last one. Re-run it when a captured screen
@@ -263,7 +263,29 @@ test.describe("README screenshots", () => {
     const lastRow = page.getByRole("table").first().locator("tbody tr").last();
     await expect(lastRow.locator("td").nth(1)).not.toHaveText("0");
 
-    await capture(page, "reports.png");
+    await capture(page, "reports-production.png");
+  });
+
+  test("reports — money over a non-empty seeded period", async ({ page, signIn, farm }) => {
+    await signIn(castMember("Owner"));
+    await page.setViewportSize({ width: 1280, height: 1100 });
+    await page.goto("/reports");
+
+    const today = farmToday(farm.timeZoneId);
+    await page.getByLabel(tEn("reports:fromLabel"), { exact: true }).fill(daysBefore(today, 30));
+    await page.getByLabel(tEn("reports:toLabel"), { exact: true }).fill(today);
+    await page.getByRole("tab", { name: tEn("reports:moneyTab") }).click();
+
+    const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
+    await expect(money).toBeVisible();
+    const revenue = money.getByText(tEn("reports:revenueRowLabel"), { exact: true })
+      .locator("xpath=following-sibling::dd[1]");
+    const expenses = money.getByText(tEn("reports:expensesRowLabel"), { exact: true })
+      .locator("xpath=following-sibling::dd[1]");
+    await expect(revenue).toHaveText(/[1-9]/);
+    await expect(expenses).toHaveText(/[1-9]/);
+
+    await capture(page, "reports-money.png");
   });
 
   test("sales — orders across their lifecycle", async ({ page, signIn }) => {

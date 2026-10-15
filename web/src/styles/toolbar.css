@@ -5,7 +5,7 @@
    stays outside it — not a date control). Each date/month input inside is
    capped by the `max-width` rule below, which is the fix #653 exists for: an
    `<input type="date">` in a bare `.form-grid`/`.filters` div otherwise fills
-   the row (docs/images/reports.png, before this).
+   the row, as the pre-#653 Reports layout did.
    --r-panel likewise has this rule as its only consumer.
 
    Why it is inset rather than carded (#651): elevation encodes what floats,
@@ -31,8 +31,8 @@
   margin: 0;
 }
 
-/* Two ten-character dates do not need the row's full width — the bug #653
-   fixes (docs/images/reports.png: a ~950px date field). The
+/* Two ten-character dates do not need the row's full width — the pre-#653
+   Reports date field was about 950px wide. The
    `input[type="month"]` arm was retired with its last caller in #667: leaving
    a rule for a control no screen renders is a styling rule with zero call
    sites, and a guard asserting it reads as safety for nothing (#662). */

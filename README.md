@@ -108,13 +108,14 @@ link to its audit history.
 Reports open on the Production tab, which shows daily production for a selected
 date range plus grade and flock totals. Owners and Managers can switch to the
 Money tab for revenue, expenses, and basic profit; Workers and Sales users see
-Production only. The image below shows the earlier combined layout and remains
-in place until the split Production view is recaptured.
+Production only.
 
-![Reports Production view with a seven-day production table and reported grade totals](docs/images/reports.png)
+![Reports Production tab for a seven-day submitted period with summary metrics, daily production and by-flock tables, and Large, Medium, and Small grade totals](docs/images/reports-production.png)
+
+![Reports Money tab for a 31-day period with non-zero revenue and expenses, eggs sold, feed cost per dozen, and negative basic profit](docs/images/reports-money.png)
 
 The Dashboard and Sales images use the demo-seeded `readme-farm`; Daily entry
-and Reports use the simulation fixture. All four come from the built SPA via
+and Reports use the simulation fixture. All five come from the built SPA via
 [`tools/simulation/ui/specs-screenshots/`](tools/simulation/ui/specs-screenshots/)
 and are refreshed with `npm run screenshots`.
 
