@@ -434,7 +434,11 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // approved by the maintainer: the base ceiling was 1,663 KiB and the branch
 // measures 1,664.40 KiB. The delta is the English help prose and two glossary
 // entries; es and tl are not precached since #1149.
-const PRECACHE_CEILING_KIB = 1665;
+//
+// 2026-10-15, raised to 1,675 KiB, approved by the maintainer, to cover the
+// report work in #1298, #1299 and #1300 in one decision instead of three. The
+// base ceiling was 1,665 KiB; this branch measures 1,665.81 KiB.
+const PRECACHE_CEILING_KIB = 1675;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
