@@ -485,7 +485,7 @@ describe("ReportsPage tabs (#1308)", () => {
     };
   }
 
-  it("canonicalizes the real /reports alias without dropping its range", async () => {
+  it("canonicalizes an omitted tab segment without dropping its range", async () => {
     renderReports({ token: NON_ADMIN, route: "/reports?from=2026-06-01&to=2026-06-30" });
 
     expect(await screen.findByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
