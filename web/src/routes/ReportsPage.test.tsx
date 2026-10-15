@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, within, fireEvent, waitFor } from "@testing-library/react";
+import { act, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { ReportsPage } from "./ReportsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { Routes, Route } from "react-router";
@@ -132,6 +132,7 @@ const ADMIN = { sub: "u1", role: "Admin" };
 // Manager only) — not an absent-claim stand-in — same choice HistoryPage's
 // role-gating tests make.
 const NON_ADMIN = { sub: "u2", role: "Sales" };
+const WORKER = { sub: "u3" };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -374,7 +375,9 @@ describe("ReportsPage production section (renders for every role)", () => {
     fireEvent.click(within(alert).getByRole("button", { name: "retry" }));
 
     await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledTimes(2));
-    expect(mockGetProductionReport.mock.calls[1]).toEqual([firstFrom, firstTo]);
+    expect(mockGetProductionReport).toHaveBeenNthCalledWith(
+      2, firstFrom, firstTo, undefined, expect.any(AbortSignal),
+    );
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -387,7 +390,9 @@ describe("ReportsPage production section (renders for every role)", () => {
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-06-01" } });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-06-30" } });
 
-    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledWith("2026-06-01", "2026-06-30"));
+    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledWith(
+      "2026-06-01", "2026-06-30", undefined, expect.any(AbortSignal),
+    ));
   });
 });
 
@@ -420,9 +425,9 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     expect(screen.getByText(/revenue \$100\.00 − expenses \$65\.00 =/)).toBeInTheDocument();
     expect(screen.getByText("$35.00", { selector: "strong" }).tagName).toBe("STRONG");
 
-    expect(mockGetSalesSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
-    expect(mockGetExpenseSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String));
-    expect(mockGetProfitReport).toHaveBeenCalledWith(expect.any(String), expect.any(String));
+    expect(mockGetSalesSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(AbortSignal));
+    expect(mockGetExpenseSummary).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(AbortSignal));
+    expect(mockGetProfitReport).toHaveBeenCalledWith(expect.any(String), expect.any(String), expect.any(AbortSignal));
   });
 
   it("omits the voided suffix when nothing was voided", async () => {
@@ -467,25 +472,27 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
 
 describe("ReportsPage tabs (#1308)", () => {
   function flockFixture(n: number): ProductionReport {
+    const flockTotals = Array.from({ length: n }, (_, i) => ({
+      ...PRODUCTION.flockTotals[0]!,
+      flockId: `f${i + 1}`,
+      flockName: `Flock ${String(i + 1).padStart(2, "0")}`,
+      eggs: 200 - i * 10,
+      henDayPct: null,
+    })).reverse();
     return {
       ...PRODUCTION,
-      // Descending egg counts: the display order is eggs, highest first.
-      flockTotals: Array.from({ length: n }, (_, i) => ({
-        ...PRODUCTION.flockTotals[0]!,
-        flockId: `f${i + 1}`,
-        flockName: `Flock ${String(i + 1).padStart(2, "0")}`,
-        eggs: 200 - i * 10,
-        henDayPct: null, // keep the >100 flag out of the row names
-      })),
+      flockTotals,
     };
   }
 
-  it("redirects /reports to /reports/production and renders there", async () => {
-    renderReports({ token: NON_ADMIN, route: "/reports" });
+  it("canonicalizes the real /reports alias without dropping its range", async () => {
+    renderReports({ token: NON_ADMIN, route: "/reports?from=2026-06-01&to=2026-06-30" });
 
     expect(await screen.findByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Production", selected: true })).toBeInTheDocument();
-    expect(mockGetProductionReport).toHaveBeenCalled();
+    expect(mockGetProductionReport).toHaveBeenCalledWith(
+      "2026-06-01", "2026-06-30", undefined, expect.any(AbortSignal),
+    );
     expect(mockGetSalesSummary).not.toHaveBeenCalled();
   });
 
@@ -498,24 +505,24 @@ describe("ReportsPage tabs (#1308)", () => {
 
   type Role = NonNullable<Parameters<typeof renderWithProviders>[1]>["token"];
   it.each([
-    ["Sales", NON_ADMIN],
-    ["Worker", { sub: "u3", role: "Worker" }],
-  ])("shows no Money tab for a %s, though the Production tab renders", async (_role: string, token: NonNullable<Role>) => {
-    renderReports({ token, route: "/reports/production" });
+    ["Sales", NON_ADMIN, "/reports/production?from=2026-06-01&to=2026-06-30"],
+    ["Sales", NON_ADMIN, "/reports/money?from=2026-06-01&to=2026-06-30"],
+    ["Worker", WORKER, "/reports/production?from=2026-06-01&to=2026-06-30"],
+    ["Worker", WORKER, "/reports/money?from=2026-06-01&to=2026-06-30"],
+  ])("shows only Production for a %s opening %s", async (
+    _role: string, token: NonNullable<Role>, route: string,
+  ) => {
+    renderReports({ token, route });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByRole("tab", { name: "Money" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Money" })).not.toBeInTheDocument();
+    expect(mockGetProductionReport).toHaveBeenCalledWith(
+      "2026-06-01", "2026-06-30", undefined, expect.any(AbortSignal),
+    );
     expect(mockGetSalesSummary).not.toHaveBeenCalled();
-  });
-
-  it("redirects a non-admin who opens a shared Money-tab link to Production, fetching production data instead", async () => {
-    renderReports({ token: NON_ADMIN, route: "/reports/money" });
-
-    expect(await screen.findByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Money" })).not.toBeInTheDocument();
-    expect(mockGetProductionReport).toHaveBeenCalled();
-    expect(mockGetSalesSummary).not.toHaveBeenCalled();
+    expect(mockGetExpenseSummary).not.toHaveBeenCalled();
+    expect(mockGetProfitReport).not.toHaveBeenCalled();
   });
 
   it("requests only the production report while the Production tab is mounted, even for an admin", async () => {
@@ -550,9 +557,9 @@ describe("ReportsPage tabs (#1308)", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Money" }));
 
     expect(await screen.findByRole("heading", { name: "Money" })).toBeInTheDocument();
-    expect(mockGetSalesSummary).toHaveBeenCalledWith("2026-07-01", "2026-07-31");
-    expect(mockGetExpenseSummary).toHaveBeenCalledWith("2026-07-01", "2026-07-31");
-    expect(mockGetProfitReport).toHaveBeenCalledWith("2026-07-01", "2026-07-31");
+    expect(mockGetSalesSummary).toHaveBeenCalledWith("2026-07-01", "2026-07-31", expect.any(AbortSignal));
+    expect(mockGetExpenseSummary).toHaveBeenCalledWith("2026-07-01", "2026-07-31", expect.any(AbortSignal));
+    expect(mockGetProfitReport).toHaveBeenCalledWith("2026-07-01", "2026-07-31", expect.any(AbortSignal));
     expect(mockGetProductionReport).not.toHaveBeenCalled(); // the switch does not re-fetch Production
   });
 
@@ -560,9 +567,23 @@ describe("ReportsPage tabs (#1308)", () => {
     renderReports({ token: ADMIN, route: "/reports/money?from=2026-06-01&to=2026-06-30" });
 
     await screen.findByRole("heading", { name: "Money" });
-    expect(mockGetSalesSummary).toHaveBeenCalledWith("2026-06-01", "2026-06-30");
-    expect(mockGetProfitReport).toHaveBeenCalledWith("2026-06-01", "2026-06-30");
+    expect(mockGetSalesSummary).toHaveBeenCalledWith("2026-06-01", "2026-06-30", expect.any(AbortSignal));
+    expect(mockGetProfitReport).toHaveBeenCalledWith("2026-06-01", "2026-06-30", expect.any(AbortSignal));
     expect(mockGetProductionReport).not.toHaveBeenCalled();
+  });
+
+  it("stops the Money request chain when the user switches to Production", async () => {
+    let resolveSales!: (sales: SalesSummary) => void;
+    mockGetSalesSummary.mockReturnValue(new Promise((resolve) => { resolveSales = resolve; }));
+    renderReports({ token: ADMIN, route: "/reports/money" });
+    await waitFor(() => expect(mockGetSalesSummary).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Production" }));
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+    await act(async () => resolveSales(SALES));
+
+    expect(mockGetExpenseSummary).not.toHaveBeenCalled();
+    expect(mockGetProfitReport).not.toHaveBeenCalled();
   });
 
   it("shows no Show-all button when the per-flock table fits within ten rows", async () => {

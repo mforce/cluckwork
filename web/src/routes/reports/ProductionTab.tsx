@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Box, Button, LinearProgress, List, ListItem, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Typography } from "@mui/material";
 import { getProductionReport } from "../../api/cluckwork";
@@ -8,6 +8,7 @@ import { HenDayOver100Flag } from "../../components/HenDayOver100Flag";
 import { useFormat } from "../../farm/useFormat";
 import { FarmDate } from "../../components/FarmDate";
 import { ConsoleSubhead, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_PAPER_HEAD_SX, CONSOLE_SPLIT_SX } from "../../components/FieldConsole";
+import { useLatestLoad } from "../../components/useLatestLoad";
 
 // Prevent short values shrinking under auto table layout; free text can wrap.
 const NOWRAP = { whiteSpace: "nowrap" as const };
@@ -18,31 +19,11 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
   const { t } = useTranslation("reports");
   const fmt = useFormat();
   const { t: tc } = useTranslation("common");
-  const [production, setProduction] = useState<ProductionReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  // Monotonic request id: a slow response for an OLD range must neither
-  // overwrite the current range's figures nor clear its loading state
-  // (codex review of #92).
-  const requestSeq = useRef(0);
-
-  const load = useCallback(async () => {
-    const seq = ++requestSeq.current;
-    setLoading(true);
-    setError(null);
-    setProduction(null);
-    try {
-      const prod = await getProductionReport(from, to);
-      if (seq !== requestSeq.current) return;
-      setProduction(prod);
-    } catch (err) {
-      if (seq === requestSeq.current) setError(errText(err));
-    } finally {
-      if (seq === requestSeq.current) setLoading(false);
-    }
-  }, [from, to]);
-
-  useEffect(() => { void load(); }, [load]);
+  const { data, error, loading, retry } = useLatestLoad(
+    [from, to],
+    (signal) => getProductionReport(from, to, undefined, signal),
+  );
+  const production: ProductionReport | null = loading ? null : data;
 
   const [showAllFlocks, setShowAllFlocks] = useState(false);
   const flockRows = production === null ? [] : [...production.flockTotals].sort((a, b) => b.eggs - a.eggs);
@@ -52,18 +33,12 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
 
   return (
     <>
-      {error && (
+      {error !== null && (
         <p className="error" role="alert">
-          {error}{" "}
-          {/* A 429 from the report throttle (#311) is retryable, but a browser
-              reload resets `from`/`to` to the default 7-day window instead of
-              rerunning the chosen range — so offer an in-place retry that
-              reruns load() with state untouched (review of #311/PR #335),
-              same common:retry link pattern DailyEntryPage's prefill-failed
-              banner uses. The range now survives a reload in the URL (#1308),
-              so the retry is belt-and-braces — kept because the error state
-              itself is what a reload clears. */}
-          <button type="button" className="link" onClick={() => void load()}>
+          {errText(error)}{" "}
+          {/* A 429 from the report throttle (#311) is retryable in place without
+              making the user reload the page. */}
+          <button type="button" className="link" onClick={retry}>
             {tc("retry")}
           </button>
         </p>

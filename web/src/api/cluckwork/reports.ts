@@ -147,9 +147,9 @@ const rangeQuery = (from: string, to: string) => `?from=${from}&to=${to}`;
 // covers every flock the caller can see, exactly as before.
 export const getProductionReport = (from: string, to: string, flockId?: string, signal?: AbortSignal) =>
   apiGet<ProductionReport>(`/reports/production${rangeQuery(from, to)}${flockId ? `&flockId=${flockId}` : ""}`, signal);
-export const getSalesSummary = (from: string, to: string) =>
-  apiGet<SalesSummary>(`/reports/sales${rangeQuery(from, to)}`);
-export const getExpenseSummary = (from: string, to: string) =>
-  apiGet<ExpenseSummaryReport>(`/reports/expenses${rangeQuery(from, to)}`);
-export const getProfitReport = (from: string, to: string) =>
-  apiGet<ProfitReport>(`/reports/profit${rangeQuery(from, to)}`);
+export const getSalesSummary = (from: string, to: string, signal?: AbortSignal) =>
+  apiGet<SalesSummary>(`/reports/sales${rangeQuery(from, to)}`, signal);
+export const getExpenseSummary = (from: string, to: string, signal?: AbortSignal) =>
+  apiGet<ExpenseSummaryReport>(`/reports/expenses${rangeQuery(from, to)}`, signal);
+export const getProfitReport = (from: string, to: string, signal?: AbortSignal) =>
+  apiGet<ProfitReport>(`/reports/profit${rangeQuery(from, to)}`, signal);

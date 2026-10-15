@@ -85,7 +85,7 @@ export function App() {
                 <Route path="feed" element={<FeedPage />} />
                 <Route path="water" element={<WaterPage />} />
                 <Route path="expenses" element={<ExpensesPage />} />
-                <Route path="reports" element={<Navigate to="/reports/production" replace />} />
+                <Route path="reports" element={<ReportsPage />} />
                 <Route path="reports/:tab" element={<ReportsPage />} />
                 <Route path="audit" element={<AuditPage />} />
                 <Route path="export" element={<ExportPage />} />
