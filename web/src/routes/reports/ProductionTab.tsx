@@ -30,14 +30,6 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
   const previous = usePreviousPeriod(from, to, production,
     (start, end, signal) => getProductionReport(start, end, undefined, signal));
   const days = inclusiveDays(from, to);
-  const changes = production === null ? [] : [
-    <PeriodChange current={production.totalEggs} previous={previous?.totalEggs} days={days} />,
-    <PeriodChange current={production.totalSellable} previous={previous?.totalSellable} days={days} />,
-    <PeriodChange current={production.periodHenDayPct} previous={previous?.periodHenDayPct} days={days} rate />,
-    <PeriodChange current={production.totalLosses} previous={previous?.totalLosses} days={days} />,
-    <PeriodChange current={production.periodSellablePct} previous={previous?.periodSellablePct} days={days} rate />,
-    <PeriodChange current={production.periodLossPct} previous={previous?.periodLossPct} days={days} rate />,
-  ];
 
   const [showAllFlocks, setShowAllFlocks] = useState(false);
   const flockRows = production === null ? [] : [...production.flockTotals].sort((a, b) => b.eggs - a.eggs);
@@ -63,16 +55,16 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
         <>
           <Box component="dl" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridAutoFlow: { xs: "column" }, gridAutoColumns: { xs: "115px", md: "minmax(0, 1fr)" }, overflowX: "auto", borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
             {[
-              [t("eggsHeader"), fmt.count(production.totalEggs)],
-              [t("sellableHeader"), fmt.count(production.totalSellable)],
-              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></>],
+              [t("eggsHeader"), fmt.count(production.totalEggs), <PeriodChange current={production.totalEggs} previous={previous?.totalEggs} days={days} />],
+              [t("sellableHeader"), fmt.count(production.totalSellable), <PeriodChange current={production.totalSellable} previous={previous?.totalSellable} days={days} />],
+              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></>, <PeriodChange current={production.periodHenDayPct} previous={previous?.periodHenDayPct} days={days} rate />],
               // #1297 — server totals and rates, not sums over `days` in the browser.
-              [t("lossesHeader"), fmt.count(production.totalLosses)],
-              [t("sellablePctHeader"), production.periodSellablePct === null ? "—" : <>{fmt.count(production.periodSellablePct, 1)}%</>],
-              [t("lossPctHeader"), production.periodLossPct === null ? "—" : <>{fmt.count(production.periodLossPct, 1)}%</>],
-            ].map(([label, value], index) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
+              [t("lossesHeader"), fmt.count(production.totalLosses), <PeriodChange current={production.totalLosses} previous={previous?.totalLosses} days={days} />],
+              [t("sellablePctHeader"), production.periodSellablePct === null ? "—" : <>{fmt.count(production.periodSellablePct, 1)}%</>, <PeriodChange current={production.periodSellablePct} previous={previous?.periodSellablePct} days={days} rate />],
+              [t("lossPctHeader"), production.periodLossPct === null ? "—" : <>{fmt.count(production.periodLossPct, 1)}%</>, <PeriodChange current={production.periodLossPct} previous={previous?.periodLossPct} days={days} rate />],
+            ].map(([label, value, change]) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
               <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
-              <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}{changes[index]}</Typography>
+              <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}{change}</Typography>
             </Box>)}
           </Box>
           <ConsoleSubhead title={t("productionHeading")} caption={t("productionCaption")} />

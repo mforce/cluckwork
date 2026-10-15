@@ -97,7 +97,7 @@ export function MoneyTab({ from, to }: { from: string; to: string }) {
                 {reports.profit.feedCostPerDozenMinorUnits === null
                   ? "—"
                   : fmt.money(reports.profit.feedCostPerDozenMinorUnits, reports.profit.currencyCode, reports.profit.currencyMinorUnit)}
-                  <PeriodChange current={reports.profit.feedCostPerDozenMinorUnits} previous={previous?.profit.feedCostPerDozenMinorUnits} days={days} />
+                <PeriodChange current={reports.profit.feedCostPerDozenMinorUnits} previous={previous?.profit.feedCostPerDozenMinorUnits} days={days} />
               </Typography>
               {/* {{total}} is profit.feedCostMinorUnits, pre-formatted (DATA). */}
               <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
