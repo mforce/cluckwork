@@ -3090,7 +3090,7 @@ export const tl = {
       + "nakatalang gastos, walang cost-of-goods.",
     reportsComparison: "Inihahambing ang mga pangunahing bilang sa kasin-habang panahong kaagad na nauna. Percentage points (pp) ang gamit sa mga rate; porsiyento ng pagbabago sa bilang at pera. Walang pagbabago kung zero o walang dating halaga, o nabigo ang paghahambing na pagbasa.",
     glossaryPreviousPeriodTerm: "Nakaraang panahon",
-    glossaryPreviousPeriodDef: "Ang kaparehong bilang ng araw kaagad bago ang napiling report range. Percentage points ang paghahambing ng rate; sa bilang at pera, (kasalukuyan bawas dati) hinati sa absolute value ng dati. Walang pagbabago kung zero o walang dating halaga.",
+    glossaryPreviousPeriodDef: "Ang kaparehong bilang ng araw kaagad bago ang napiling report range. Percentage points ang paghahambing ng rate; sa bilang at pera, (kasalukuyan bawas dati) hinati sa absolute value ng dati, saka minultiplika sa 100. Walang pagbabago kung zero o walang dating halaga.",
     reportsThrottle:
       "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
       + "sabay, para hindi mapabagal ng isang abalang screen ang app para sa lahat. Ang paghingi ng marami "

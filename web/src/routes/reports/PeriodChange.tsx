@@ -13,7 +13,7 @@ export function PeriodChange({ current, previous, days, rate = false }: {
   const fmt = useFormat();
   const change = periodChange(current, previous, rate);
   if (change === null) return null;
-  const rounded = Math.round(change * 10) / 10;
+  const rounded = Math.round(change * 10) / 10 || 0;
   const value = `${rounded > 0 ? "+" : ""}${fmt.count(rounded, 1)}`;
   return (
     <Typography component="span" sx={{ display: "block", fontSize: ".7rem", color: "text.secondary", fontWeight: 400 }}>

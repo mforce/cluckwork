@@ -3691,7 +3691,7 @@ export const en = {
       + "confirmed revenue minus recorded expenses, no cost-of-goods.",
     reportsComparison: "Headline figures compare with the immediately preceding period of the same length. Rates use percentage points (pp); counts and money use percent change. A zero or missing previous value, or a failed comparison read, shows no change.",
     glossaryPreviousPeriodTerm: "Previous period",
-    glossaryPreviousPeriodDef: "The same number of days immediately before the selected report range. Rates compare in percentage points; counts and money compare as (current minus previous) divided by the absolute previous value. A zero or missing previous value shows no change.",
+    glossaryPreviousPeriodDef: "The same number of days immediately before the selected report range. Rates compare in percentage points; counts and money compare as (current minus previous) divided by the absolute previous value, then multiplied by 100. A zero or missing previous value shows no change.",
     reportsThrottle:
       "<strong>If a report is refused</strong>: the farm runs only a few reports at a time, so one "
       + "busy screen cannot slow the app for everyone else. Asking for several at once — a few people "

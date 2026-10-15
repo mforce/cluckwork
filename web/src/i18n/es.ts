@@ -2975,7 +2975,7 @@ export const es = {
       + "registrados, sin costo de bienes vendidos.",
     reportsComparison: "Las cifras principales se comparan con el período inmediatamente anterior de igual duración. Las tasas usan puntos porcentuales (pp); los recuentos y el dinero, el cambio porcentual. Si el valor anterior es cero, falta o falla la consulta, no se muestra el cambio.",
     glossaryPreviousPeriodTerm: "Período anterior",
-    glossaryPreviousPeriodDef: "El mismo número de días inmediatamente antes del rango del informe. Las tasas se comparan en puntos porcentuales; los recuentos y el dinero, como (actual menos anterior) dividido entre el valor absoluto anterior. Si el valor anterior es cero o falta, no se muestra el cambio.",
+    glossaryPreviousPeriodDef: "El mismo número de días inmediatamente antes del rango del informe. Las tasas se comparan en puntos porcentuales; los recuentos y el dinero, como (actual menos anterior) dividido entre el valor absoluto anterior y multiplicado por 100. Si el valor anterior es cero o falta, no se muestra el cambio.",
     reportsThrottle:
       "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
       + "que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo tiempo — "
