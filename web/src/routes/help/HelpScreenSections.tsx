@@ -166,6 +166,7 @@ export function HelpScreenSections({ openLink }: { openLink: (sectionId: string)
         <li>
           <Trans ns="help" i18nKey="reportsMoney" components={{ strong: <strong /> }} />
         </li>
+        <li>{t("reportsComparison")}</li>
         <li>
           <Trans ns="help" i18nKey="reportsThrottle" components={{ strong: <strong /> }} />
         </li>

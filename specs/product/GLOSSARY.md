@@ -487,6 +487,12 @@ fetched quantity or price differs from the edit-start values, Save is blocked.
 editing again. This reacts to observed data, not changes made after the last
 fetch; it does not add server-side concurrent-edit detection (#713).
 
+**Previous period (#1300)** — the same number of calendar days immediately before
+the selected report range, ending the day before it starts. Headline rates show
+percentage-point differences; counts and money show (current − previous) ÷
+|previous| × 100. Zero or missing previous values show no comparison. A failed
+previous-period read leaves current figures visible without changes.
+
 **Eggs sold (#1296)** — individual eggs on the period's **confirmed** orders:
 the sum of each **Sales line**'s `quantity_base`, where
 `quantity_base = quantity × base_unit_factor`, on egg lines only. The Reports

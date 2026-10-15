@@ -9,6 +9,9 @@ import { useFormat } from "../../farm/useFormat";
 import { FarmDate } from "../../components/FarmDate";
 import { ConsoleSubhead, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_PAPER_HEAD_SX, CONSOLE_SPLIT_SX } from "../../components/FieldConsole";
 import { useLatestLoad } from "../../components/useLatestLoad";
+import { inclusiveDays } from "../../lib/dates";
+import { usePreviousPeriod } from "./periodComparison";
+import { PeriodChange } from "./PeriodChange";
 
 // Prevent short values shrinking under auto table layout; free text can wrap.
 const NOWRAP = { whiteSpace: "nowrap" as const };
@@ -24,6 +27,17 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
     (signal) => getProductionReport(from, to, undefined, signal),
   );
   const production: ProductionReport | null = loading ? null : data;
+  const previous = usePreviousPeriod(from, to, production,
+    (start, end, signal) => getProductionReport(start, end, undefined, signal));
+  const days = inclusiveDays(from, to);
+  const changes = production === null ? [] : [
+    <PeriodChange current={production.totalEggs} previous={previous?.totalEggs} days={days} />,
+    <PeriodChange current={production.totalSellable} previous={previous?.totalSellable} days={days} />,
+    <PeriodChange current={production.periodHenDayPct} previous={previous?.periodHenDayPct} days={days} rate />,
+    <PeriodChange current={production.totalLosses} previous={previous?.totalLosses} days={days} />,
+    <PeriodChange current={production.periodSellablePct} previous={previous?.periodSellablePct} days={days} rate />,
+    <PeriodChange current={production.periodLossPct} previous={previous?.periodLossPct} days={days} rate />,
+  ];
 
   const [showAllFlocks, setShowAllFlocks] = useState(false);
   const flockRows = production === null ? [] : [...production.flockTotals].sort((a, b) => b.eggs - a.eggs);
@@ -56,9 +70,9 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
               [t("lossesHeader"), fmt.count(production.totalLosses)],
               [t("sellablePctHeader"), production.periodSellablePct === null ? "—" : <>{fmt.count(production.periodSellablePct, 1)}%</>],
               [t("lossPctHeader"), production.periodLossPct === null ? "—" : <>{fmt.count(production.periodLossPct, 1)}%</>],
-            ].map(([label, value]) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
+            ].map(([label, value], index) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
               <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
-              <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
+              <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}{changes[index]}</Typography>
             </Box>)}
           </Box>
           <ConsoleSubhead title={t("productionHeading")} caption={t("productionCaption")} />

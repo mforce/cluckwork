@@ -2606,6 +2606,10 @@ export const en = {
   // interpolated into the templates below as pre-formatted DATA, same
   // pattern as sales:orderTotal).
   reports: {
+    previousPercent_one: "{{value}}% vs previous {{days}} day",
+    previousPercent_other: "{{value}}% vs previous {{days}} days",
+    previousPoints_one: "{{value}} pp vs previous {{days}} day",
+    previousPoints_other: "{{value}} pp vs previous {{days}} days",
     revenueRowLabel: "Revenue",
     // #1296 — individual eggs on the range's confirmed egg lines (QuantityBase);
     // the secondary line is the per-grade split, DATA like the expenses row's.
@@ -3685,6 +3689,9 @@ export const en = {
       + "dozens collected (official eggs ÷ 12; a range with no eggs shows a dash). Feed taken from a lot "
       + "with no unit cost adds zero, so the figure can read low — and <strong>basic profit</strong> — "
       + "confirmed revenue minus recorded expenses, no cost-of-goods.",
+    reportsComparison: "Headline figures compare with the immediately preceding period of the same length. Rates use percentage points (pp); counts and money use percent change. A zero or missing previous value, or a failed comparison read, shows no change.",
+    glossaryPreviousPeriodTerm: "Previous period",
+    glossaryPreviousPeriodDef: "The same number of days immediately before the selected report range. Rates compare in percentage points; counts and money compare as (current minus previous) divided by the absolute previous value. A zero or missing previous value shows no change.",
     reportsThrottle:
       "<strong>If a report is refused</strong>: the farm runs only a few reports at a time, so one "
       + "busy screen cannot slow the app for everyone else. Asking for several at once — a few people "

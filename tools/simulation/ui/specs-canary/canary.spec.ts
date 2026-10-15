@@ -101,6 +101,9 @@ const SCREENS = [
     interact: async (page: CanaryPage, timeZoneId: string) => {
       const today = farmToday(timeZoneId);
       const from = page.getByLabel(tEn("reports:fromLabel"), { exact: true });
+      const previous = page.waitForResponse((res) =>
+        res.url().includes("/api/v1/reports/production")
+        && new URL(res.url()).searchParams.get("from") === daysBefore(today, 61));
       // CLICK the field before filling it. `fill()` alone sets the value through
       // a synthetic path that produces NO Event Timing entry, so the interaction
       // metric would stay null while the spec looked like it interacted —
@@ -108,6 +111,7 @@ const SCREENS = [
       // click is also the faithful version of this interaction.
       await from.click();
       await from.fill(daysBefore(today, 30));
+      expect((await previous).status()).toBe(200);
       // The production table alone does not prove production: ReportQueries
       // emits a row per calendar day in the range whether or not anything was
       // recorded, so a report of nothing but zeroes satisfies a row count. The
@@ -143,10 +147,11 @@ const SCREENS = [
     interact: async (page: CanaryPage, timeZoneId: string) => {
       const today = farmToday(timeZoneId);
       const from = page.getByLabel(tEn("reports:fromLabel"), { exact: true });
-      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
+      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit")
+        && new URL(res.url()).searchParams.get("from") === daysBefore(today, 61));
       await from.click();
       await from.fill(daysBefore(today, 30));
-      await settled;
+      expect((await settled).status()).toBe(200);
       const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
       await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
     },

@@ -2010,6 +2010,10 @@ export const tl = {
   // "inventory valuation" in profitFootnote kept partially in English for
   // the same reason.
   reports: {
+    previousPercent_one: "{{value}}% kumpara sa nakaraang {{days}} araw",
+    previousPercent_other: "{{value}}% kumpara sa nakaraang {{days}} araw",
+    previousPoints_one: "{{value}} pp kumpara sa nakaraang {{days}} araw",
+    previousPoints_other: "{{value}} pp kumpara sa nakaraang {{days}} araw",
     revenueRowLabel: "Kita",
     eggsSoldRowLabel: "Naibentang itlog",
     title: "Mga Ulat",
@@ -3084,6 +3088,9 @@ export const tl = {
       + "itlog ay nagpapakita ng gitling). Ang pakain mula sa lot na walang unit cost ay nagdaragdag ng zero, "
       + "kaya maaaring mababa ang bilang — at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
       + "nakatalang gastos, walang cost-of-goods.",
+    reportsComparison: "Inihahambing ang mga pangunahing bilang sa kasin-habang panahong kaagad na nauna. Percentage points (pp) ang gamit sa mga rate; porsiyento ng pagbabago sa bilang at pera. Walang pagbabago kung zero o walang dating halaga, o nabigo ang paghahambing na pagbasa.",
+    glossaryPreviousPeriodTerm: "Nakaraang panahon",
+    glossaryPreviousPeriodDef: "Ang kaparehong bilang ng araw kaagad bago ang napiling report range. Percentage points ang paghahambing ng rate; sa bilang at pera, (kasalukuyan bawas dati) hinati sa absolute value ng dati. Walang pagbabago kung zero o walang dating halaga.",
     reportsThrottle:
       "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
       + "sabay, para hindi mapabagal ng isang abalang screen ang app para sa lahat. Ang paghingi ng marami "

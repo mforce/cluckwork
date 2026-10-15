@@ -72,6 +72,7 @@ const ENTRIES = [
   { key: "PackedUnit", group: "eggsStock", spec: "Packed unit" },
   { key: "CountingUnit", group: "eggsStock", spec: "Stepper counting unit" },
   // Sales & money
+  { key: "PreviousPeriod", group: "salesMoney", spec: "Previous period" },
   { key: "SalesLine", group: "salesMoney", spec: "Sales line" },
   { key: "EggsSold", group: "salesMoney", spec: "Eggs sold" },
   { key: "FeedCostPerDozen", group: "salesMoney", spec: "Feed cost per dozen" },

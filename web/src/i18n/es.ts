@@ -1941,6 +1941,10 @@ export const es = {
   // {{count}}/{{revenue}}/{{paid}}/{{outstanding}}/{{total}}/{{expenses}}/
   // {{profit}} placeholders and the <strong> tag in profitLine.
   reports: {
+    previousPercent_one: "{{value}}% frente al {{days}} día anterior",
+    previousPercent_other: "{{value}}% frente a los {{days}} días anteriores",
+    previousPoints_one: "{{value}} pp frente al {{days}} día anterior",
+    previousPoints_other: "{{value}} pp frente a los {{days}} días anteriores",
     revenueRowLabel: "Ingresos",
     eggsSoldRowLabel: "Huevos vendidos",
     title: "Informes",
@@ -2969,6 +2973,9 @@ export const es = {
       + "sin huevos muestra un guion). El alimento tomado de un lote sin costo unitario suma cero, así que la "
       + "cifra puede leerse baja — y <strong>ganancia básica</strong> — ingresos confirmados menos gastos "
       + "registrados, sin costo de bienes vendidos.",
+    reportsComparison: "Las cifras principales se comparan con el período inmediatamente anterior de igual duración. Las tasas usan puntos porcentuales (pp); los recuentos y el dinero, el cambio porcentual. Si el valor anterior es cero, falta o falla la consulta, no se muestra el cambio.",
+    glossaryPreviousPeriodTerm: "Período anterior",
+    glossaryPreviousPeriodDef: "El mismo número de días inmediatamente antes del rango del informe. Las tasas se comparan en puntos porcentuales; los recuentos y el dinero, como (actual menos anterior) dividido entre el valor absoluto anterior. Si el valor anterior es cero o falta, no se muestra el cambio.",
     reportsThrottle:
       "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
       + "que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo tiempo — "

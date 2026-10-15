@@ -529,7 +529,7 @@ describe("ReportsPage tabs (#1308)", () => {
     renderReports({ token: ADMIN, route: "/reports/production" });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ });
-    expect(mockGetProductionReport).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledTimes(2));
     expect(mockGetSalesSummary).not.toHaveBeenCalled();
     expect(mockGetExpenseSummary).not.toHaveBeenCalled();
     expect(mockGetProfitReport).not.toHaveBeenCalled();
@@ -539,9 +539,9 @@ describe("ReportsPage tabs (#1308)", () => {
     renderReports({ token: ADMIN, route: "/reports/money" });
 
     await screen.findByRole("heading", { name: "Money" });
-    expect(mockGetSalesSummary).toHaveBeenCalledTimes(1);
-    expect(mockGetExpenseSummary).toHaveBeenCalledTimes(1);
-    expect(mockGetProfitReport).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockGetProfitReport).toHaveBeenCalledTimes(2));
+    expect(mockGetSalesSummary).toHaveBeenCalledTimes(2);
+    expect(mockGetExpenseSummary).toHaveBeenCalledTimes(2);
     expect(mockGetProductionReport).not.toHaveBeenCalled();
   });
 
@@ -551,7 +551,9 @@ describe("ReportsPage tabs (#1308)", () => {
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
-    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledTimes(3)); // initial + one per picker change
+    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledWith(
+      "2026-05-31", "2026-06-30", undefined, expect.any(AbortSignal),
+    )); // final range's previous period has also started
     mockGetProductionReport.mockClear();
 
     fireEvent.click(screen.getByRole("tab", { name: "Money" }));
