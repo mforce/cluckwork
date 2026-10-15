@@ -3658,8 +3658,8 @@ export const en = {
     reportsMoney:
       "<strong>Money</strong> (admin): sales summary for the range's orders (revenue / paid / outstanding), "
       + "<strong>Eggs sold</strong> — individual eggs on confirmed egg lines, with the by-grade split — "
-      + "expenses by category, <strong>Feed cost per dozen</strong> — feed recorded in the range over the "
-      + "eggs collected (official entries only; a range with no eggs shows a dash). Feed taken from a lot "
+      + "expenses by category, <strong>Feed cost per dozen</strong> — feed cost in the range divided by "
+      + "dozens collected (official eggs ÷ 12; a range with no eggs shows a dash). Feed taken from a lot "
       + "with no unit cost adds zero, so the figure can read low — and <strong>basic profit</strong> — "
       + "confirmed revenue minus recorded expenses, no cost-of-goods.",
     reportsThrottle:

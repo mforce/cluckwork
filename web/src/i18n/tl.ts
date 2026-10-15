@@ -2048,7 +2048,7 @@ export const tl = {
     expensesTotalSuffix: " — kabuuan {{total}}",
     // #1298 — {{total}} is profit.feedCostMinorUnits, pre-formatted (DATA).
     // Machine-drafted, pending native review (#182).
-    feedCostPerDozenRowLabel: "Gastos sa pakain kada dosezena",
+    feedCostPerDozenRowLabel: "Gastos sa pakain kada dosena",
     feedCostLine: "{{total}} ng pakain naitala sa range",
     profitRowLabel: "Kita (payak)",
     profitLine: "kita {{revenue}} − gastos {{expenses}} = <strong>{{profit}}</strong>",
@@ -3054,8 +3054,8 @@ export const tl = {
     reportsMoney:
       "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
       + "natitira), <strong>Naibentang itlog</strong> — mga indibidwal na itlog sa mga kumpirmadong egg line, "
-      + "kasama ang paghahati ayon sa grado — gastos kada kategorya, <strong>Gastos sa pakain kada dosezena</strong> "
-      + "— pakain na naitala sa range kada nakolektang itlog (mga opisyal na entry lamang; ang range na walang "
+      + "kasama ang paghahati ayon sa grado — gastos kada kategorya, <strong>Gastos sa pakain kada dosena</strong> "
+      + "— gastos ng pakain sa range hinati sa mga nakolektang dosena (opisyal na itlog ÷ 12; ang range na walang "
       + "itlog ay nagpapakita ng gitling). Ang pakain mula sa lot na walang unit cost ay nagdaragdag ng zero, "
       + "kaya maaaring mababa ang bilang — at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
       + "nakatalang gastos, walang cost-of-goods.",
@@ -3703,10 +3703,10 @@ export const tl = {
       + "pahina ng Ulat ang kabuuan katabi ng Kita, kasama ang paghahati ayon sa grado.",
 
     // #1298 — machine-drafted, pending native review (#182).
-    glossaryFeedCostPerDozenTerm: "Gastos sa pakain kada dosezena",
+    glossaryFeedCostPerDozenTerm: "Gastos sa pakain kada dosena",
     glossaryFeedCostPerDozenDef:
-      "Ang pakain na naitala sa panahon kada nakolektang itlog, × 12. Mga opisyal na entry lamang — ang mga "
-      + "italog na binibilang ng production report — at ang panahong walang itlog ay nagpapakita ng gitling. "
+      "Ang gastos ng pakain sa panahon kada nakolektang dosena (mga opisyal na itlog ÷ 12). Mga opisyal na "
+      + "entry lamang — ang mga itlog na binibilang ng production report — at ang panahong walang itlog ay nagpapakita ng gitling. "
       + "Ang pakain mula sa lot na walang unit cost ay nagdaragdag ng zero, kaya maaaring mababa ang bilang. "
       + "Ipinapakita sa seksyong Pera ng pahina ng Ulat.",
 

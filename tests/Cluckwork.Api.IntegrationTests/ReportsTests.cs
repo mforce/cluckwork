@@ -1112,20 +1112,27 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         await UsageAsync(client, itemId, flockId, 4m, Today);
         await UsageAsync(client, itemId, flockId, 3m, Today.AddDays(-10));
 
-        // 240 official eggs = 20 dozen → 35_000 × 12 / 240 = 1_750.
+        // 240 official eggs, 24 of them discarded: the denominator is the
+        // production report's TotalEggs, not its sellable eggs (216) — that
+        // wrong denominator would answer 1_944. 240 = 20 dozen →
+        // 35_000 × 12 / 240 = 1_750.
         var entryId = (await (await client.PostWithKeyAsync(
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId, houseId = Guid.NewGuid(), flockId, date = Today,
-                totalEggs = 240, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
-                grades = new[] { new { eggGradeId = grades["Large"], quantity = 240 } }
+                totalEggs = 240, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 24, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 216 } }
             })).Content.ReadFromJsonAsync<Created>())!.Id;
         await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
 
         var profit = await client.GetFromJsonAsync<ProfitDto>(
             $"/api/v1/reports/profit?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
         Assert.Equal(35_000, profit!.FeedCostMinorUnits);
+        var production = await client.GetFromJsonAsync<ProductionDto>(
+            $"/api/v1/reports/production?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+        Assert.Equal(240, production!.TotalEggs);
         Assert.Equal(1_750, profit.FeedCostPerDozenMinorUnits);
+        Assert.Equal(35_000 * 12 / production.TotalEggs, profit.FeedCostPerDozenMinorUnits);
     }
 
     // #1298 — the per-dozen minor units round with the server's default
@@ -1148,8 +1155,8 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
             "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
             {
                 farmId, houseId = Guid.NewGuid(), flockId, date = Today,
-                totalEggs = 240, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
-                grades = new[] { new { eggGradeId = grades["Large"], quantity = 240 } }
+                totalEggs = 240, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 24, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 216 } }
             })).Content.ReadFromJsonAsync<Created>())!.Id;
         await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
 
@@ -1355,12 +1362,15 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         var accountId = await factory.SeedAccountWithUserAsync(adminEmail);
         var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
-        // #1298 — a second non-admin role: the money summaries are AdminOnly,
-        // reads included, and a Manager is not an admin.
+        // #1298 — a denied non-admin role beside the Worker: money summaries
+        // are AdminOnly, reads included.
+        var salesEmail = $"s-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, salesEmail, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Sales);
         var managerEmail = $"m-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, managerEmail, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Manager);
         var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(adminEmail));
         var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        var sales = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(salesEmail));
         var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(managerEmail));
 
         // from > to and >366 days → 400.
@@ -1369,13 +1379,16 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync(
             $"/api/v1/reports/production?from={Today.AddDays(-400):yyyy-MM-dd}&to={Today:yyyy-MM-dd}")).StatusCode);
 
-        // Workers read production, not money. A Manager can: AdminOnly means
-        // Owner + Manager since #103, and the SPA's isAdmin matches, so the
-        // issue's "a Manager cannot read it" does not hold on this endpoint.
+        // Workers and Sales read production, not money. A Manager can:
+        // AdminOnly means Owner + Manager since #103, and the SPA's isAdmin
+        // matches, so the issue's "a Manager cannot read it" does not hold on
+        // this endpoint.
         Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/reports/production")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/sales")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/expenses")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/profit")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sales.GetAsync("/api/v1/reports/production")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await sales.GetAsync("/api/v1/reports/profit")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync("/api/v1/reports/production")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync("/api/v1/reports/profit")).StatusCode);
     }

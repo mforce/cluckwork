@@ -2941,7 +2941,7 @@ export const es = {
       "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
       + "pendiente), <strong>Huevos vendidos</strong> — huevos individuales en líneas de huevo confirmadas, "
       + "con el desglose por clasificación — gastos por categoría, <strong>Costo de alimento por docena</strong> "
-      + "— alimento registrado en el rango sobre los huevos recolectados (solo entradas oficiales; un rango "
+      + "— costo del alimento del rango dividido entre las docenas recolectadas (huevos oficiales ÷ 12; un rango "
       + "sin huevos muestra un guion). El alimento tomado de un lote sin costo unitario suma cero, así que la "
       + "cifra puede leerse baja — y <strong>ganancia básica</strong> — ingresos confirmados menos gastos "
       + "registrados, sin costo de bienes vendidos.",
