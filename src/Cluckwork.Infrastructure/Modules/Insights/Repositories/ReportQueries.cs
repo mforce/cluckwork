@@ -430,7 +430,26 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             .SumAsync(e => e.AmountMinorUnits, ct);
 
         var (code, minor) = await AccountCurrencyAsync(ct);
-        return new ProfitReport(revenue, expenses, revenue - expenses, code, minor);
+
+        // #1298 — spec §19.3. The denominator is the same official eggs the
+        // production report counts (OfficialStatuses above); rounded to a whole
+        // minor unit, midpoint to even; null, not 0, when the range collected
+        // no eggs. No per-row currency filter: every FeedUsage row is in the
+        // account's current currency, because FeedUsageRepository implements
+        // Farm's ICurrencyBoundRowSource, so Account.CurrencyLocked forbids a
+        // currency change while feed rows exist (#1097).
+        var feedCost = await db.FeedUsages
+            .Where(u => u.Date >= from && u.Date <= to)
+            .SumAsync(u => u.EstimatedCost.MinorUnits, ct);
+        var totalEggs = await db.DailyEntries
+            .Where(e => e.Date >= from && e.Date <= to && OfficialStatuses.Contains(e.Status))
+            .SumAsync(e => e.TotalEggs, ct);
+
+        return new ProfitReport(
+            revenue, expenses, revenue - expenses,
+            feedCost,
+            totalEggs > 0 ? (long)Math.Round(feedCost * 12m / totalEggs) : null,
+            code, minor);
     }
 
     private async Task<(string Code, int Minor)> AccountCurrencyAsync(CancellationToken ct)

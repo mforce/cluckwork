@@ -1977,6 +1977,10 @@ export const es = {
     expensesRowLabel: "Gastos",
     expensesNone: "sin registrar",
     expensesTotalSuffix: " — total {{total}}",
+    // #1298 — machine-drafted, pending native review (#182). {{total}} is
+    // profit.feedCostMinorUnits, pre-formatted (DATA).
+    feedCostPerDozenRowLabel: "Costo de alimento por docena",
+    feedCostLine: "{{total}} de alimento registrado en el rango",
     profitRowLabel: "Ganancia (básica)",
     profitLine: "ingresos {{revenue}} − gastos {{expenses}} = <strong>{{profit}}</strong>",
     profitFootnote:
@@ -2936,8 +2940,11 @@ export const es = {
     reportsMoney:
       "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
       + "pendiente), <strong>Huevos vendidos</strong> — huevos individuales en líneas de huevo confirmadas, "
-      + "con el desglose por clasificación — gastos por categoría, y <strong>ganancia básica</strong> — ingresos confirmados menos "
-      + "gastos registrados, sin costo de bienes vendidos.",
+      + "con el desglose por clasificación — gastos por categoría, <strong>Costo de alimento por docena</strong> "
+      + "— alimento registrado en el rango sobre los huevos recolectados (solo entradas oficiales; un rango "
+      + "sin huevos muestra un guion). El alimento tomado de un lote sin costo unitario suma cero, así que la "
+      + "cifra puede leerse baja — y <strong>ganancia básica</strong> — ingresos confirmados menos gastos "
+      + "registrados, sin costo de bienes vendidos.",
     reportsThrottle:
       "<strong>Si se rechaza un informe</strong>: la granja ejecuta solo unos pocos informes a la vez, para "
       + "que una pantalla ocupada no ralentice la aplicación para los demás. Pedir varios al mismo tiempo — "
@@ -3560,6 +3567,14 @@ export const es = {
       "Huevos individuales vendidos en pedidos confirmados del período — líneas de venta en unidades de "
       + "venta × sus huevos por unidad, solo líneas de huevo. La sección Dinero de la página Informes "
       + "muestra el total junto a Ingresos, con el desglose por clasificación.",
+
+    // #1298 — machine-drafted, pending native review (#182).
+    glossaryFeedCostPerDozenTerm: "Costo de alimento por docena",
+    glossaryFeedCostPerDozenDef:
+      "El alimento registrado en el período sobre los huevos recolectados, × 12. Solo entradas oficiales — "
+      + "los mismos huevos que cuenta el informe de producción — y un período sin huevos muestra un guion. "
+      + "El alimento tomado de un lote sin costo unitario suma cero, así que la cifra puede leerse baja. "
+      + "Se muestra en la sección Dinero de la página Informes.",
 
     // #1297 — machine-drafted, pending native review (#182).
     glossarySellablePctTerm: "Vendible %",

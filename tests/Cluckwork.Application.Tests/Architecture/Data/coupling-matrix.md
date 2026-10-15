@@ -11,7 +11,7 @@
 | Commerce | R (1) | R (7) | — | W (8) fk:3 | — | — | — | — | P |
 | GeneralInventory | — | R (6) | R (6) fk:3 | R (4) fk:2 | — | — | — | — | P |
 | Finance | — | R (4) | R (3) fk:1 | — | — | — | — | — | P |
-| Insights | — | R (1) | R (2) | R (2) | R (2) | R (1) | R (2) | — | P |
+| Insights | — | R (1) | R (2) | R (2) | R (2) | R (2) | R (2) | — | P |
 | Platform | A (35) | A (28) | A (26) | A (29) | A (33) | A (18) | A (9) | A (25) | — |
 
 ## Cross-owner foreign keys
@@ -46,7 +46,7 @@
 | Insights | FlockManagement | — | R (2) |
 | Insights | EggOperations | — | R (2) |
 | Insights | Commerce | — | R (2) |
-| Insights | GeneralInventory | — | R (1) |
+| Insights | GeneralInventory | — | R (2) |
 | Insights | Finance | — | R (2) |
 
 ## Cells the generator cannot observe

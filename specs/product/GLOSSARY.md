@@ -493,6 +493,13 @@ the sum of each **Sales line**'s `quantity_base`, where
 page's Money section shows the total next to Revenue and a split by grade;
 voided and draft orders, out-of-range orders, and non-egg lines never count.
 
+**Feed cost per dozen (#1298)** — Σ `FeedUsage.EstimatedCost` with `Date` in
+the report range, over the eggs the production report counts (official entries
+only), × 12. Returned in minor units with the report's currency and rounded to
+a whole minor unit, midpoint to even; a range with no eggs has no value (a
+dash). Feed taken from a lot with no unit cost adds zero, so the figure can
+read low. Shown in the Money section next to Expenses and profit.
+
 **Worker sale allocation policy (#612)** — one farm setting deciding how a
 restricted plain **Worker's** confirmation may draw stock: `AssignedFlocksOnly`
 (default for every farm) tries the worker's own assigned flocks first, and

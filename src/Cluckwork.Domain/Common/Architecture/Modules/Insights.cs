@@ -32,6 +32,7 @@ namespace Cluckwork.Domain.Common.Architecture;
     "Cluckwork.Infrastructure.Modules.Insights.Repositories.ReportQueries")]
 [ModuleEdge(
     "Insights", "GeneralInventory", "R",
-    "ExportQueries streams InventoryItems, InventoryLots, InventoryMovements and FeedUsages as typed CSV rows. No inventory mutation or cross-owner SQL join is introduced.",
-    "Cluckwork.Infrastructure.Modules.Insights.Repositories.ExportQueries")]
+    "ExportQueries streams InventoryItems, InventoryLots, InventoryMovements and FeedUsages as typed CSV rows. ReportQueries aggregates FeedUsages.EstimatedCost for the feed-cost-per-dozen KPI (#1298). No inventory mutation or cross-owner SQL join is introduced.",
+    "Cluckwork.Infrastructure.Modules.Insights.Repositories.ExportQueries",
+    "Cluckwork.Infrastructure.Modules.Insights.Repositories.ReportQueries")]
 internal static class InsightsModuleRules { }

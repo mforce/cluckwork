@@ -106,6 +106,13 @@ export interface ProfitReport {
   revenueMinorUnits: number;
   expensesMinorUnits: number;
   profitMinorUnits: number;
+  /**
+   * #1298 — Σ FeedUsage.EstimatedCost over the range, and that total × 12 over
+   * the official eggs the production report counts, rounded to a whole minor
+   * unit by the server; null per dozen when the range collected no eggs.
+   */
+  feedCostMinorUnits: number;
+  feedCostPerDozenMinorUnits: number | null;
   currencyCode: string;
   currencyMinorUnit: number;
 }

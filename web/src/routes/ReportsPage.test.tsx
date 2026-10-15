@@ -98,7 +98,10 @@ const EXPENSES: ExpenseSummaryReport = {
 const EXPENSES_EMPTY: ExpenseSummaryReport = { ...EXPENSES, categories: [], grandTotalMinorUnits: 0 };
 
 const PROFIT: ProfitReport = {
-  revenueMinorUnits: 10000, expensesMinorUnits: 6500, profitMinorUnits: 3500, currencyCode: "USD", currencyMinorUnit: 2,
+  revenueMinorUnits: 10000, expensesMinorUnits: 6500, profitMinorUnits: 3500,
+  // #1298 — 122_400 minor over 240 eggs = 20 dozen → 6_120/dozen; no-egg range → null.
+  feedCostMinorUnits: 122_400, feedCostPerDozenMinorUnits: 6_120,
+  currencyCode: "USD", currencyMinorUnit: 2,
 };
 
 const ADMIN = { sub: "u1", role: "Admin" };
@@ -318,6 +321,12 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     expect(screen.getByText("360")).toBeInTheDocument();
     expect(screen.getByText("Grade A 240, Grade B 120")).toBeInTheDocument();
     expect(screen.getByText("Feed $50.00, Utilities $15.00 — total $65.00")).toBeInTheDocument();
+    // #1298 — the feed-cost row sits between expenses and profit: the server's
+    // per-dozen figure in the report's currency, the range total as the
+    // secondary DATA line (like the expenses row's).
+    expect(screen.getByText("Feed cost per dozen")).toBeInTheDocument();
+    expect(screen.getByText("$61.20")).toBeInTheDocument();
+    expect(screen.getByText("$1,224.00 of feed recorded in the range")).toBeInTheDocument();
     expect(screen.getByText(/revenue \$100\.00 − expenses \$65\.00 =/)).toBeInTheDocument();
     expect(screen.getByText("$35.00", { selector: "strong" }).tagName).toBe("STRONG");
 
@@ -332,6 +341,19 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
 
     await screen.findByText(/confirmed order\(s\)/);
     expect(screen.queryByText(/voided\)/)).not.toBeInTheDocument();
+  });
+
+  // #1298 — a range with no eggs has no per-dozen value: a dash, never 0 or
+  // infinity. The range total is still shown beneath it.
+  it("shows a dash for the per-dozen figure when the range collected no eggs", async () => {
+    mockGetProfitReport.mockResolvedValue({ ...PROFIT, feedCostPerDozenMinorUnits: null });
+    renderWithProviders(<ReportsPage />, { token: ADMIN });
+
+    await screen.findByText("Feed cost per dozen");
+    // The dash itself, scoped to the Money section (production days render their own).
+    const money = screen.getByRole("region", { name: "Money" });
+    expect(within(money).getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("$1,224.00 of feed recorded in the range")).toBeInTheDocument();
   });
 
   it("shows 'none recorded' plus the (zero) total when there are no expense categories", async () => {

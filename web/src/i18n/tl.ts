@@ -2046,6 +2046,10 @@ export const tl = {
     expensesRowLabel: "Gastos",
     expensesNone: "wala pang naitala",
     expensesTotalSuffix: " — kabuuan {{total}}",
+    // #1298 — {{total}} is profit.feedCostMinorUnits, pre-formatted (DATA).
+    // Machine-drafted, pending native review (#182).
+    feedCostPerDozenRowLabel: "Gastos sa pakain kada dosezena",
+    feedCostLine: "{{total}} ng pakain naitala sa range",
     profitRowLabel: "Kita (payak)",
     profitLine: "kita {{revenue}} − gastos {{expenses}} = <strong>{{profit}}</strong>",
     profitFootnote:
@@ -3050,7 +3054,10 @@ export const tl = {
     reportsMoney:
       "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
       + "natitira), <strong>Naibentang itlog</strong> — mga indibidwal na itlog sa mga kumpirmadong egg line, "
-      + "kasama ang paghahati ayon sa grado — gastos kada kategorya, at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
+      + "kasama ang paghahati ayon sa grado — gastos kada kategorya, <strong>Gastos sa pakain kada dosezena</strong> "
+      + "— pakain na naitala sa range kada nakolektang itlog (mga opisyal na entry lamang; ang range na walang "
+      + "itlog ay nagpapakita ng gitling). Ang pakain mula sa lot na walang unit cost ay nagdaragdag ng zero, "
+      + "kaya maaaring mababa ang bilang — at <strong>basic profit</strong> — nakumpirmang kita bawas ang "
       + "nakatalang gastos, walang cost-of-goods.",
     reportsThrottle:
       "<strong>Kung tinanggihan ang report</strong>: iilan lang ang report na pinapatakbo ng farm nang "
@@ -3694,6 +3701,14 @@ export const tl = {
       "Mga indibidwal na itlog na naibenta sa mga kumpirmadong order sa panahon — mga linya sa selling "
       + "units × ang eggs-per-unit factor nito, mga egg line lamang. Ipinapakita ng seksyong Pera ng "
       + "pahina ng Ulat ang kabuuan katabi ng Kita, kasama ang paghahati ayon sa grado.",
+
+    // #1298 — machine-drafted, pending native review (#182).
+    glossaryFeedCostPerDozenTerm: "Gastos sa pakain kada dosezena",
+    glossaryFeedCostPerDozenDef:
+      "Ang pakain na naitala sa panahon kada nakolektang itlog, × 12. Mga opisyal na entry lamang — ang mga "
+      + "italog na binibilang ng production report — at ang panahong walang itlog ay nagpapakita ng gitling. "
+      + "Ang pakain mula sa lot na walang unit cost ay nagdaragdag ng zero, kaya maaaring mababa ang bilang. "
+      + "Ipinapakita sa seksyong Pera ng pahina ng Ulat.",
 
     // #1297 — machine-drafted, pending native review (#182).
     glossarySellablePctTerm: "Maibebenta %",

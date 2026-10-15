@@ -2655,6 +2655,9 @@ export const en = {
     expensesNone: "none recorded",
     // {{total}} is expenses.grandTotalMinorUnits, pre-formatted (DATA).
     expensesTotalSuffix: " — total {{total}}",
+    // #1298 — {{total}} is profit.feedCostMinorUnits, pre-formatted (DATA).
+    feedCostPerDozenRowLabel: "Feed cost per dozen",
+    feedCostLine: "{{total}} of feed recorded in the range",
     profitRowLabel: "Profit (basic)",
     // <Trans> (not t()) — the only JSX interleaved in this screen's prose is
     // the <strong> around the profit figure, same treatment as
@@ -3655,8 +3658,10 @@ export const en = {
     reportsMoney:
       "<strong>Money</strong> (admin): sales summary for the range's orders (revenue / paid / outstanding), "
       + "<strong>Eggs sold</strong> — individual eggs on confirmed egg lines, with the by-grade split — "
-      + "expenses by category, and <strong>basic profit</strong> — confirmed revenue minus recorded expenses, "
-      + "no cost-of-goods.",
+      + "expenses by category, <strong>Feed cost per dozen</strong> — feed recorded in the range over the "
+      + "eggs collected (official entries only; a range with no eggs shows a dash). Feed taken from a lot "
+      + "with no unit cost adds zero, so the figure can read low — and <strong>basic profit</strong> — "
+      + "confirmed revenue minus recorded expenses, no cost-of-goods.",
     reportsThrottle:
       "<strong>If a report is refused</strong>: the farm runs only a few reports at a time, so one "
       + "busy screen cannot slow the app for everyone else. Asking for several at once — a few people "
@@ -4239,6 +4244,14 @@ export const en = {
       "Individual eggs sold on confirmed orders in the period — order lines in selling units × their "
       + "eggs-per-unit factor, egg lines only. The Reports page's Money section shows the total next to "
       + "Revenue, with the split by grade.",
+
+    // #1298 — the §19.3 feed-cost KPI. Zero-cost lots are said plainly: the
+    // estimate rests on lot unit costs, and a lot without one contributes 0.
+    glossaryFeedCostPerDozenTerm: "Feed cost per dozen",
+    glossaryFeedCostPerDozenDef:
+      "Feed recorded in the period over the eggs collected, × 12. Official entries only — the same eggs "
+      + "the production report counts — and a period with no eggs shows a dash. Feed taken from a lot "
+      + "with no unit cost adds zero, so the figure can read low. Shown in the Reports page's Money section.",
 
     // #1297 — the two period rates. Both follow the Cracked and Dirty grades'
     // saleable setting via FromCounts, captured at submit time.

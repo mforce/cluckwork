@@ -27,6 +27,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         int EggsSold, List<GradeRow> EggsSoldByGrade, string CurrencyCode, int CurrencyMinorUnit);
     private sealed record ProfitDto(
         long RevenueMinorUnits, long ExpensesMinorUnits, long ProfitMinorUnits,
+        long FeedCostMinorUnits, long? FeedCostPerDozenMinorUnits,
         string CurrencyCode, int CurrencyMinorUnit);
 
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
@@ -1088,6 +1089,133 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(3100, profit.ProfitMinorUnits);
     }
 
+    // #1298 — feed cost per dozen (spec §19.3): Σ FeedUsage.EstimatedCost with
+    // Date in the range, over the eggs the production report counts. The range
+    // filter and the official-only denominator are asserted together; the
+    // midpoint rule (to even) has its own test below.
+    [Fact]
+    public async Task Profit_FeedCostPerDozen_SumsInRangeFeed_OverOfficialEggs()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var itemId = await SeedFeedItemAsync(client);
+        // Received before the earliest usage: a backdated feeding cannot
+        // consume a lot that had not arrived yet.
+        await PurchaseAsync(client, itemId, 100m, 2_500, Today.AddDays(-15));
+        // In range: 10 kg + 4 kg @ 2500 = 35_000. Out of range: excluded.
+        await UsageAsync(client, itemId, flockId, 10m, Today);
+        await UsageAsync(client, itemId, flockId, 4m, Today);
+        await UsageAsync(client, itemId, flockId, 3m, Today.AddDays(-10));
+
+        // 240 official eggs = 20 dozen → 35_000 × 12 / 240 = 1_750.
+        var entryId = (await (await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId, date = Today,
+                totalEggs = 240, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 240 } }
+            })).Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        var profit = await client.GetFromJsonAsync<ProfitDto>(
+            $"/api/v1/reports/profit?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+        Assert.Equal(35_000, profit!.FeedCostMinorUnits);
+        Assert.Equal(1_750, profit.FeedCostPerDozenMinorUnits);
+    }
+
+    // #1298 — the per-dozen minor units round with the server's default
+    // midpoint rule, to even: 2_050 × 12 / 240 = 102.5 exactly → 102, not 103.
+    [Fact]
+    public async Task Profit_FeedCostPerDozen_RoundsMidpointToEven()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var itemId = await SeedFeedItemAsync(client);
+        await PurchaseAsync(client, itemId, 100m, 2_050, Today.AddDays(-5));
+        await UsageAsync(client, itemId, flockId, 1m, Today);
+
+        var entryId = (await (await client.PostWithKeyAsync(
+            "/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+            {
+                farmId, houseId = Guid.NewGuid(), flockId, date = Today,
+                totalEggs = 240, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+                grades = new[] { new { eggGradeId = grades["Large"], quantity = 240 } }
+            })).Content.ReadFromJsonAsync<Created>())!.Id;
+        await client.PostWithKeyAsync($"/api/v1/daily-entries/{entryId}/submit", Guid.NewGuid().ToString());
+
+        var profit = await client.GetFromJsonAsync<ProfitDto>(
+            $"/api/v1/reports/profit?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+        Assert.Equal(2_050, profit!.FeedCostMinorUnits);
+        Assert.Equal(102, profit.FeedCostPerDozenMinorUnits);
+    }
+
+    // #1298 — a range with no eggs has no per-dozen value: null, not 0 or
+    // infinity. The feed total is still reported, and a Draft entry's eggs do
+    // not count — only official entries feed the denominator.
+    [Fact]
+    public async Task Profit_ZeroEggRange_NullPerDozen()
+    {
+        var email = $"u-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var farmId = Guid.NewGuid();
+        var grades = await factory.SeedEggGradesAsync(accountId, farmId, "Large");
+        var flockId = await factory.SeedFlockAsync(accountId, farmId);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var itemId = await SeedFeedItemAsync(client);
+        await PurchaseAsync(client, itemId, 100m, 2_500, Today.AddDays(-5));
+        await UsageAsync(client, itemId, flockId, 1m, Today);
+
+        // A Draft in range: its 50 eggs are not official, so still no denominator.
+        await client.PostWithKeyAsync("/api/v1/daily-entries", Guid.NewGuid().ToString(), new
+        {
+            farmId, houseId = Guid.NewGuid(), flockId, date = Today,
+            totalEggs = 50, crackedEggs = 0, dirtyEggs = 0, discardedEggs = 0, mortalityCount = 0,
+            grades = new[] { new { eggGradeId = grades["Large"], quantity = 50 } }
+        });
+
+        var profit = await client.GetFromJsonAsync<ProfitDto>(
+            $"/api/v1/reports/profit?from={Today:yyyy-MM-dd}&to={Today:yyyy-MM-dd}");
+        Assert.Equal(2_500, profit!.FeedCostMinorUnits);
+        Assert.Null(profit.FeedCostPerDozenMinorUnits);
+    }
+
+    private static async Task<Guid> SeedFeedItemAsync(HttpClient client)
+    {
+        var item = await client.PostWithKeyAsync("/api/v1/inventory/items", Guid.NewGuid().ToString(),
+            new { name = "Layer feed", category = "Feed", unit = "kg", defaultUnitCostMinorUnits = 2500 });
+        item.EnsureSuccessStatusCode();
+        return (await item.Content.ReadFromJsonAsync<Created>())!.Id;
+    }
+
+    private static async Task PurchaseAsync(
+        HttpClient client, Guid itemId, decimal quantity, long cost, DateOnly date)
+    {
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/purchases", Guid.NewGuid().ToString(),
+            new { receivedDate = date, quantity, unitCostMinorUnits = cost });
+        response.EnsureSuccessStatusCode();
+    }
+
+    private static async Task UsageAsync(
+        HttpClient client, Guid itemId, Guid flockId, decimal quantity, DateOnly date)
+    {
+        var response = await client.PostWithKeyAsync(
+            $"/api/v1/inventory/items/{itemId}/usage", Guid.NewGuid().ToString(),
+            new { flockId, date, quantity });
+        response.EnsureSuccessStatusCode();
+    }
+
     // #1296 — eggs sold count QuantityBase (selling units × eggs per unit) on
     // CONFIRMED in-range EGG lines of the order set revenue sums: dozens and
     // trays count as eggs; drafts, voided orders, orders outside EITHER date
@@ -1227,8 +1355,13 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         var accountId = await factory.SeedAccountWithUserAsync(adminEmail);
         var workerEmail = $"w-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, workerEmail, asAdmin: false);
+        // #1298 — a second non-admin role: the money summaries are AdminOnly,
+        // reads included, and a Manager is not an admin.
+        var managerEmail = $"m-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, managerEmail, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Manager);
         var admin = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(adminEmail));
         var worker = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(workerEmail));
+        var manager = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(managerEmail));
 
         // from > to and >366 days → 400.
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync(
@@ -1236,11 +1369,15 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, (await admin.GetAsync(
             $"/api/v1/reports/production?from={Today.AddDays(-400):yyyy-MM-dd}&to={Today:yyyy-MM-dd}")).StatusCode);
 
-        // Workers read production, not money.
+        // Workers read production, not money. A Manager can: AdminOnly means
+        // Owner + Manager since #103, and the SPA's isAdmin matches, so the
+        // issue's "a Manager cannot read it" does not hold on this endpoint.
         Assert.Equal(HttpStatusCode.OK, (await worker.GetAsync("/api/v1/reports/production")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/sales")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/expenses")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await worker.GetAsync("/api/v1/reports/profit")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync("/api/v1/reports/production")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await manager.GetAsync("/api/v1/reports/profit")).StatusCode);
     }
 
     // #311 — the exact boundary of the 366-day cap: the widest allowed span

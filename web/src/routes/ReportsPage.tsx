@@ -249,6 +249,19 @@ export function ReportsPage() {
                   })}
                 </Typography>
               </Box>
+              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
+                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("feedCostPerDozenRowLabel")}</Typography>
+                {/* Server figure in the report's currency; a range with no eggs has no rate (—), not 0 (#1298). */}
+                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                  {profit.feedCostPerDozenMinorUnits === null
+                    ? "—"
+                    : fmt.money(profit.feedCostPerDozenMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}
+                </Typography>
+                {/* {{total}} is profit.feedCostMinorUnits, pre-formatted (DATA). */}
+                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
+                  {t("feedCostLine", { total: fmt.money(profit.feedCostMinorUnits, profit.currencyCode, profit.currencyMinorUnit) })}
+                </Typography>
+              </Box>
               <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderTop: "2px solid var(--ink)", fontWeight: 700 }}>
                 <Typography component="dt" sx={{ fontWeight: 700 }}>{t("profitRowLabel")}</Typography>
                 <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}</Typography>
