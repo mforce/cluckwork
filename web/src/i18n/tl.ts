@@ -2015,6 +2015,10 @@ export const tl = {
     title: "Mga Ulat",
     fromLabel: "Mula",
     toLabel: "Hanggang",
+    // #1308 — machine-drafted, pending native review (#182). Ang mga salitang
+    // ginagamit ng tulong at glossary para sa dalawang tab (#688).
+    productionTab: "Produksyon",
+    moneyTab: "Pera",
 
     productionHeading: "Araw-araw na produksyon",
     productionCaption: "Orihinal na detalyeng maa-audit",
@@ -2048,6 +2052,10 @@ export const tl = {
     // #1299 — "Paglagay" is the established word for the placement date
     // (tl.ts placedLabel/placedHeader). Machine-drafted, pending native review (#182).
     flockPlacedLabel: "Paglagay",
+    // #1308 — machine-drafted, pending native review (#182). {{count}} is the
+    // number of flocks that filed in the range; also passed for plural
+    // selection and deliberately not rendered (as salesSummary).
+    showAllFlocksButton: "Ipakita lahat ({{count}})",
 
     moneyHeading: "Pera",
     salesSummary:
@@ -3039,7 +3047,7 @@ export const tl = {
 
     reportsHeading: "Mga Report",
     reportsProduction:
-      "Bukas sa lahat ang <strong>Production</strong>. Pumili ng date range para makita ang itlog kada "
+      "Bukas sa lahat ang <strong>Produksyon</strong> na tab. Pumili ng date range para makita ang itlog kada "
       + "araw, nawala, naibibenta, may depekto, namatay, at <strong>hen-day %</strong>, may kasamang period "
       + "total at breakdown kada grado. Hindi binibilang ang draft at na-void na entry. Ang hen-day % ay "
       + "itlog na nakolekta ÷ hen-days × 100, at hinahati ito sa hen-days ng <strong>mga kawang may tala sa "
@@ -3058,7 +3066,8 @@ export const tl = {
       + "na binilang</strong> at <strong>Hen-day %</strong> — at ang mga row ay sumasama sa period total. "
       + "Sinusunod ng rate ng bawat kawan ang parehong rules: mga hen-day na may tala lang, ang sarili "
       + "nitong itlog ang numerator. Ang kawang walang naitalang exposure ay nagpapakita ng gitling, "
-      + "hindi kailanman 0.",
+      + "hindi kailanman 0. Kapag higit sa sampung kawan, nagsisimula ang talahanayan sa sampung "
+      + "pinakamaraming itlog, at inilalantad ng button na <strong>Ipakita lahat (N)</strong> ang iba.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>May depekto</strong>: basag at maruming itlog na naging stock sa halip na ituring na "
@@ -3068,7 +3077,7 @@ export const tl = {
       + "Settings, at ang mga araw na naitala bago mo ito i-on ay mananatiling 0 — ang pag-on ng grado ay "
       + "hindi kailanman binabago ang nakaraang araw.",
     reportsMoney:
-      "<strong>Pera</strong> (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
+      "Ang <strong>Pera</strong> na tab (admin): buod ng benta para sa mga order ng range (kita / nabayaran / "
       + "natitira), <strong>Naibentang itlog</strong> — mga indibidwal na itlog sa mga kumpirmadong egg line, "
       + "kasama ang paghahati ayon sa grado — gastos kada kategorya, <strong>Gastos sa pakain kada dosena</strong> "
       + "— gastos ng pakain sa range hinati sa mga nakolektang dosena (opisyal na itlog ÷ 12; ang range na walang "
@@ -3715,7 +3724,7 @@ export const tl = {
     glossaryEggsSoldTerm: "Naibentang itlog",
     glossaryEggsSoldDef:
       "Mga indibidwal na itlog na naibenta sa mga kumpirmadong order sa panahon — mga linya sa selling "
-      + "units × ang eggs-per-unit factor nito, mga egg line lamang. Ipinapakita ng seksyong Pera ng "
+      + "units × ang eggs-per-unit factor nito, mga egg line lamang. Ipinapakita ng tab na Pera ng "
       + "pahina ng Ulat ang kabuuan katabi ng Kita, kasama ang paghahati ayon sa grado.",
 
     // #1298 — machine-drafted, pending native review (#182).
@@ -3724,7 +3733,7 @@ export const tl = {
       "Ang gastos ng pakain sa panahon kada nakolektang dosena (mga opisyal na itlog ÷ 12). Mga opisyal na "
       + "entry lamang — ang mga itlog na binibilang ng production report — at ang panahong walang itlog ay nagpapakita ng gitling. "
       + "Ang pakain mula sa lot na walang unit cost ay nagdaragdag ng zero, kaya maaaring mababa ang bilang. "
-      + "Ipinapakita sa seksyong Pera ng pahina ng Ulat.",
+      + "Ipinapakita sa tab na Pera ng pahina ng Ulat.",
 
     // #1297 — machine-drafted, pending native review (#182).
     glossarySellablePctTerm: "Maibebenta %",

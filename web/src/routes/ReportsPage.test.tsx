@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { ReportsPage } from "./ReportsPage";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { Routes, Route } from "react-router";
 import {
   getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
 } from "../api/cluckwork";
@@ -11,6 +12,19 @@ import type {
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
 import { responsiveStyle } from "../test/renderedStyle";
+
+// ReportsPage reads its tab from the URL path (`useParams` under the app's
+// `reports/:tab` route), so the harness's bare MemoryRouter is not enough —
+// mount it under the same route shape App.tsx uses.
+function renderReports(opts: Parameters<typeof renderWithProviders>[1] = {}) {
+  return renderWithProviders(
+    <Routes>
+      <Route path="reports" element={<ReportsPage />} />
+      <Route path="reports/:tab" element={<ReportsPage />} />
+    </Routes>,
+    opts,
+  );
+}
 
 // Keep the REAL formatMoney (the sales/expenses/profit templates under test
 // interpolate its output as pre-formatted DATA — see the `reports` namespace
@@ -130,7 +144,7 @@ beforeEach(() => {
 
 describe("ReportsPage production section (renders for every role)", () => {
   it("renders the production table rows, period totals, and grade-totals line from the mocked report", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     // #780 — Eggs and Rated eggs are equal on an ordinary day, which is the
@@ -167,7 +181,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // page presenting it as a result.
   it("flags a hen-day % above 100 on its day row and on both period figures", async () => {
     mockGetProductionReport.mockResolvedValue(PRODUCTION_OVER_100);
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     within(row1).getByText("104.0");
@@ -180,7 +194,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 
   it("flags an excess that rounds to 100.0 and leaves exact equality unflagged", async () => {
     mockGetProductionReport.mockResolvedValue(PRODUCTION_ROUNDS_TO_100);
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     within(row1).getByText("100.0");
@@ -192,7 +206,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   });
 
   it("shows no flag while every hen-day % is at or under 100", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByLabelText(OVER_100_FLAG)).toBeNull();
   });
@@ -201,7 +215,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // gives day 1 sellable 90 and fromCounts 6, two values that cannot be
   // confused for one another, so a column wired to the wrong field fails.
   it("renders the Condition column beside Sellable, and keeps Sellable unchanged", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const row1 = await screen.findByRole("row", { name: /07\/19\/2026/ });
     within(row1).getByText("90"); // sellable — still the hand-graded remainder
@@ -218,7 +232,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // #1297 — the Losses tile reads the server's total and the two rate tiles
   // sit beside it; the browser never sums days itself.
   it("shows the server's losses total and the two period rates in the tiles", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
     const tiles = await screen.findByLabelText("Period");
     within(tiles).getByText("8"); // (2+3+5)+(1+1+2) − 6, not the raw 14
     within(tiles).getByText("95.9%"); // (181+6)/195
@@ -226,7 +240,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   });
 
   it("shows 0 in the Condition column for a day whose conditions were losses", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     // Day 2 has cracked 1 / dirty 1 but fromCounts 0 — recorded as losses. The
     // column must NOT fall back to the raw counters, which is the mistake that
@@ -241,7 +255,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // entry in the range, carrying the same fields as the period totals, with a
   // dash (never 0) for a flock with no recorded exposure (#780).
   it("renders the per-flock breakdown for every flock that filed, with a dash for a flock with no recorded exposure", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     expect(await screen.findByRole("heading", { name: "By flock" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Flock" })).toBeInTheDocument();
@@ -256,7 +270,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 
   it("omits the per-flock table when no flock filed in the range", async () => {
     mockGetProductionReport.mockResolvedValue({ ...PRODUCTION, flockTotals: [] });
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByRole("heading", { name: "By flock" })).not.toBeInTheDocument();
@@ -274,7 +288,7 @@ describe("ReportsPage production section (renders for every role)", () => {
         { ...PRODUCTION.flockTotals[1]!, flockName: "Layers", placedOn: "2026-06-20" },
       ],
     });
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     await screen.findByRole("heading", { name: "By flock" });
     const placedMay = screen.getByRole("row", { name: /Layers.*05\/01\/2026/ });
@@ -295,7 +309,7 @@ describe("ReportsPage production section (renders for every role)", () => {
         PRODUCTION.flockTotals[1]!,
       ],
     });
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const rowA = await screen.findByRole("row", { name: /House A/ });
     within(rowA).getByLabelText(OVER_100_FLAG);
@@ -305,7 +319,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 
   it("falls back to the em dash for a null periodHenDayPct in the Period row too, not just per-day", async () => {
     mockGetProductionReport.mockResolvedValue({ ...PRODUCTION, periodHenDayPct: null });
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const periodRow = await screen.findByRole("row", { name: /Period/ });
     within(periodRow).getByText("—");
@@ -313,7 +327,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 
   it("omits the grade-totals line when the report carries no graded totals", async () => {
     mockGetProductionReport.mockResolvedValue(PRODUCTION_NO_GRADES);
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
@@ -321,7 +335,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 
   it("shows the shared common:loading copy while the initial fetch is in flight, not a duplicated literal", () => {
     mockGetProductionReport.mockReturnValue(new Promise(() => {})); // never resolves in this test
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
     // Asserted via i18n.t(), not the literal "Loading…" — proves the screen
     // reuses `common:loading` rather than a reports-local duplicate.
     expect(screen.getByText(i18n.t("common:loading"))).toBeInTheDocument();
@@ -329,7 +343,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 
   it("shows the error message when the production report fails to load", async () => {
     mockGetProductionReport.mockRejectedValue(new Error("boom"));
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
     expect(await screen.findByRole("alert")).toHaveTextContent("boom");
   });
 
@@ -339,7 +353,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // Error/String(err) path.
   it("shows the ApiError's own message when the production report fails with one", async () => {
     mockGetProductionReport.mockRejectedValue(new ApiError(403, "Forbidden", "not allowed here"));
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
     expect(await screen.findByRole("alert")).toHaveTextContent("not allowed here");
   });
 
@@ -350,7 +364,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   // `from`/`to` untouched while re-issuing the same request.
   it("re-issues the production report with the SAME range when retry is clicked after a failure, and clears the error on success", async () => {
     mockGetProductionReport.mockRejectedValueOnce(new Error("boom"));
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("boom");
@@ -366,7 +380,7 @@ describe("ReportsPage production section (renders for every role)", () => {
   });
 
   it("re-fetches the production report for a newly picked From/To range", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     mockGetProductionReport.mockClear();
 
@@ -385,7 +399,7 @@ describe("ReportsPage production section (renders for every role)", () => {
 // the screen shouldn't even try).
 describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
   it("renders Sales/Expenses/Profit for an Admin, with the voided-count suffix", async () => {
-    renderWithProviders(<ReportsPage />, { token: ADMIN });
+    renderReports({ token: ADMIN, route: "/reports/money" });
 
     expect(await screen.findByRole("heading", { name: "Money" })).toBeInTheDocument();
     expect(screen.getByText(
@@ -413,7 +427,7 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
 
   it("omits the voided suffix when nothing was voided", async () => {
     mockGetSalesSummary.mockResolvedValue(SALES_NO_VOIDED);
-    renderWithProviders(<ReportsPage />, { token: ADMIN });
+    renderReports({ token: ADMIN, route: "/reports/money" });
 
     await screen.findByText(/confirmed order\(s\)/);
     expect(screen.queryByText(/voided\)/)).not.toBeInTheDocument();
@@ -423,7 +437,7 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
   // infinity. The range total is still shown beneath it.
   it("shows a dash for the per-dozen figure when the range collected no eggs", async () => {
     mockGetProfitReport.mockResolvedValue({ ...PROFIT, feedCostPerDozenMinorUnits: null });
-    renderWithProviders(<ReportsPage />, { token: ADMIN });
+    renderReports({ token: ADMIN, route: "/reports/money" });
 
     await screen.findByText("Feed cost per dozen");
     // The dash itself, scoped to the Money section (production days render their own).
@@ -434,13 +448,13 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
 
   it("shows 'none recorded' plus the (zero) total when there are no expense categories", async () => {
     mockGetExpenseSummary.mockResolvedValue(EXPENSES_EMPTY);
-    renderWithProviders(<ReportsPage />, { token: ADMIN });
+    renderReports({ token: ADMIN, route: "/reports/money" });
 
     expect(await screen.findByText("none recorded — total $0.00")).toBeInTheDocument();
   });
 
   it("hides the Money section and never fetches sales/expense/profit data for a non-admin role", async () => {
-    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
 
     await screen.findByRole("row", { name: /07\/19\/2026/ }); // production loaded, so the mount effects settled
     expect(screen.queryByRole("heading", { name: "Money" })).not.toBeInTheDocument();
@@ -448,6 +462,136 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
     expect(mockGetSalesSummary).not.toHaveBeenCalled();
     expect(mockGetExpenseSummary).not.toHaveBeenCalled();
     expect(mockGetProfitReport).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #1308 — the Reports split: two tabs in the URL.
+// ---------------------------------------------------------------------------
+
+describe("ReportsPage tabs (#1308)", () => {
+  function flockFixture(n: number): ProductionReport {
+    return {
+      ...PRODUCTION,
+      // Descending egg counts: the display order is eggs, highest first.
+      flockTotals: Array.from({ length: n }, (_, i) => ({
+        ...PRODUCTION.flockTotals[0]!,
+        flockId: `f${i + 1}`,
+        flockName: `Flock ${String(i + 1).padStart(2, "0")}`,
+        eggs: 200 - i * 10,
+        henDayPct: null, // keep the >100 flag out of the row names
+      })),
+    };
+  }
+
+  it("redirects /reports to /reports/production and renders there", async () => {
+    renderReports({ token: NON_ADMIN, route: "/reports" });
+
+    expect(await screen.findByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Production", selected: true })).toBeInTheDocument();
+    expect(mockGetProductionReport).toHaveBeenCalled();
+    expect(mockGetSalesSummary).not.toHaveBeenCalled();
+  });
+
+  it("shows both tabs for an admin landing on /reports", async () => {
+    renderReports({ token: ADMIN, route: "/reports" });
+
+    expect(await screen.findByRole("tab", { name: "Production", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Money" })).toBeInTheDocument();
+  });
+
+  type Role = NonNullable<Parameters<typeof renderWithProviders>[1]>["token"];
+  it.each([
+    ["Sales", NON_ADMIN],
+    ["Worker", { sub: "u3", role: "Worker" }],
+  ])("shows no Money tab for a %s, though the Production tab renders", async (_role: string, token: NonNullable<Role>) => {
+    renderReports({ token, route: "/reports/production" });
+
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+    expect(screen.queryByRole("tab", { name: "Money" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Money" })).not.toBeInTheDocument();
+    expect(mockGetSalesSummary).not.toHaveBeenCalled();
+  });
+
+  it("redirects a non-admin who opens a shared Money-tab link to Production, fetching production data instead", async () => {
+    renderReports({ token: NON_ADMIN, route: "/reports/money" });
+
+    expect(await screen.findByRole("row", { name: /07\/19\/2026/ })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Money" })).not.toBeInTheDocument();
+    expect(mockGetProductionReport).toHaveBeenCalled();
+    expect(mockGetSalesSummary).not.toHaveBeenCalled();
+  });
+
+  it("requests only the production report while the Production tab is mounted, even for an admin", async () => {
+    renderReports({ token: ADMIN, route: "/reports/production" });
+
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+    expect(mockGetProductionReport).toHaveBeenCalledTimes(1);
+    expect(mockGetSalesSummary).not.toHaveBeenCalled();
+    expect(mockGetExpenseSummary).not.toHaveBeenCalled();
+    expect(mockGetProfitReport).not.toHaveBeenCalled();
+  });
+
+  it("requests only the three money reports while the Money tab is mounted", async () => {
+    renderReports({ token: ADMIN, route: "/reports/money" });
+
+    await screen.findByRole("heading", { name: "Money" });
+    expect(mockGetSalesSummary).toHaveBeenCalledTimes(1);
+    expect(mockGetExpenseSummary).toHaveBeenCalledTimes(1);
+    expect(mockGetProfitReport).toHaveBeenCalledTimes(1);
+    expect(mockGetProductionReport).not.toHaveBeenCalled();
+  });
+
+  it("carries a picked range into the URL and through a tab switch", async () => {
+    renderReports({ token: ADMIN, route: "/reports/production?from=2026-06-01&to=2026-06-30" });
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-07-01" } });
+    fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-07-31" } });
+    await waitFor(() => expect(mockGetProductionReport).toHaveBeenCalledTimes(3)); // initial + one per picker change
+    mockGetProductionReport.mockClear();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Money" }));
+
+    expect(await screen.findByRole("heading", { name: "Money" })).toBeInTheDocument();
+    expect(mockGetSalesSummary).toHaveBeenCalledWith("2026-07-01", "2026-07-31");
+    expect(mockGetExpenseSummary).toHaveBeenCalledWith("2026-07-01", "2026-07-31");
+    expect(mockGetProfitReport).toHaveBeenCalledWith("2026-07-01", "2026-07-31");
+    expect(mockGetProductionReport).not.toHaveBeenCalled(); // the switch does not re-fetch Production
+  });
+
+  it("re-opens a shared link's range after a fresh mount of the Money tab", async () => {
+    renderReports({ token: ADMIN, route: "/reports/money?from=2026-06-01&to=2026-06-30" });
+
+    await screen.findByRole("heading", { name: "Money" });
+    expect(mockGetSalesSummary).toHaveBeenCalledWith("2026-06-01", "2026-06-30");
+    expect(mockGetProfitReport).toHaveBeenCalledWith("2026-06-01", "2026-06-30");
+    expect(mockGetProductionReport).not.toHaveBeenCalled();
+  });
+
+  it("shows no Show-all button when the per-flock table fits within ten rows", async () => {
+    mockGetProductionReport.mockResolvedValue(flockFixture(10));
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
+
+    expect(await screen.findByRole("row", { name: /Flock 10/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Show all/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("row", { name: /Flock \d/ })).toHaveLength(10);
+  });
+
+  it("caps the per-flock table at the ten highest-egg flocks, with a Show all button revealing the rest", async () => {
+    mockGetProductionReport.mockResolvedValue(flockFixture(11));
+    renderReports({ token: NON_ADMIN, route: "/reports/production" });
+
+    const rows = await screen.findAllByRole("row", { name: /Flock \d/ });
+    expect(rows).toHaveLength(10); // Flock 01 … Flock 10, highest eggs first
+    expect(rows[0]).toHaveTextContent("Flock 01");
+    expect(rows[9]).toHaveTextContent("Flock 10");
+    expect(screen.queryByRole("row", { name: /Flock 11/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all (11)" }));
+
+    expect(await screen.findByRole("row", { name: /Flock 11/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("row", { name: /Flock \d/ })).toHaveLength(11);
   });
 });
 
@@ -474,7 +618,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("title", "TITLE-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByRole("heading", { name: "TITLE-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Reports" })).not.toBeInTheDocument();
     });
@@ -482,7 +626,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the From filter label from the catalog, not a hardcoded literal", async () => {
     await withOverride("fromLabel", "FROM-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByLabelText("FROM-MARKER")).toBeInTheDocument();
       expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
     });
@@ -490,7 +634,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the To filter label from the catalog, not a hardcoded literal", async () => {
     await withOverride("toLabel", "TO-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByLabelText("TO-MARKER")).toBeInTheDocument();
       expect(screen.queryByLabelText("To")).not.toBeInTheDocument();
     });
@@ -498,7 +642,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the Production heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("productionHeading", "PRODUCTION-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByRole("heading", { name: "PRODUCTION-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Production" })).not.toBeInTheDocument();
     });
@@ -516,7 +660,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     // The per-flock table (#1299) repeats eggs/sellable/deaths/hen-day, so a
     // shared header may match MORE than once — assert at least one.
     await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       const markers = await screen.findAllByRole("columnheader", { name: `${key.toUpperCase()}-MARKER` });
       expect(markers.length).toBeGreaterThan(0);
       expect(screen.queryByRole("columnheader", { name: original })).not.toBeInTheDocument();
@@ -525,7 +669,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the period row label from the catalog, not a hardcoded literal", async () => {
     await withOverride("periodRowLabel", "PERIOD-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByText("PERIOD-MARKER")).toBeInTheDocument();
       expect(screen.queryByText("Period")).not.toBeInTheDocument();
     });
@@ -533,7 +677,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the grade-totals prefix from the catalog, not a hardcoded literal", async () => {
     await withOverride("gradeTotalsLabel", "GRADE-TOTALS-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByRole("list", { name: "GRADE-TOTALS-MARKER" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
       expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
     });
@@ -549,7 +693,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     ["flockLossesHeader", "Losses"],
   ])("reads the %s per-flock label from the catalog, not a hardcoded literal", async (key: string, original: string) => {
     await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       expect(await screen.findByText(`${key.toUpperCase()}-MARKER`)).toBeInTheDocument();
       expect(screen.queryByText(original)).not.toBeInTheDocument();
     });
@@ -557,7 +701,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("reads the Money heading from the catalog, not a hardcoded literal", async () => {
     await withOverride("moneyHeading", "MONEY-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect(await screen.findByRole("heading", { name: "MONEY-MARKER" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Money" })).not.toBeInTheDocument();
     });
@@ -570,7 +714,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     ["profitRowLabel", "Profit (basic)"],
   ])("reads the %s row label from the catalog, not a hardcoded literal", async (key, original) => {
     await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect((await screen.findAllByText(`${key.toUpperCase()}-MARKER`)).length).toBeGreaterThan(0);
       expect(screen.queryByText(original)).not.toBeInTheDocument();
     });
@@ -583,7 +727,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
       "salesSummary",
       "SALES-MARKER count={{count}} rev={{revenue}} paid={{paid}} out={{outstanding}} END",
       async () => {
-        renderWithProviders(<ReportsPage />, { token: ADMIN });
+        renderReports({ token: ADMIN, route: "/reports/money" });
         // The voided suffix (a separate text node) trails this one in the
         // same <td>, so match the marker text as a substring, not exactly.
         expect(await screen.findByText(
@@ -598,7 +742,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   // interpolation isn't hardwired to `confirmedCount` alone.
   it("interpolates {{count}} (voidedCount) into the voided-orders suffix from the catalog", async () => {
     await withOverride("salesVoidedSuffix", " [[{{count}} VOIDED-MARKER]]", async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect(await screen.findByText(/\[\[2 VOIDED-MARKER\]\]/)).toBeInTheDocument();
     });
   });
@@ -606,7 +750,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   it("reads the expenses-none copy from the catalog, not a hardcoded literal", async () => {
     mockGetExpenseSummary.mockResolvedValue(EXPENSES_EMPTY);
     await withOverride("expensesNone", "EXPENSES-NONE-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect(await screen.findByText(/EXPENSES-NONE-MARKER/)).toBeInTheDocument();
       expect(screen.queryByText(/none recorded/)).not.toBeInTheDocument();
     });
@@ -614,7 +758,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 
   it("interpolates {{total}} into the expenses total suffix from the catalog", async () => {
     await withOverride("expensesTotalSuffix", " ((TOTAL={{total}}))", async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect(await screen.findByText(/\(\(TOTAL=\$65\.00\)\)/)).toBeInTheDocument();
     });
   });
@@ -624,7 +768,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   // same technique as AccountPage's roleLine wiring test.
   it("reads the profit line template from the catalog via <Trans>, not a hardcoded literal", async () => {
     await withOverride("profitLine", "PROFIT-MARKER {{revenue}}/{{expenses}}/{{profit}} END", async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect(await screen.findByText(
         "PROFIT-MARKER $100.00/$65.00/$35.00 END",
       )).toBeInTheDocument();
@@ -641,13 +785,13 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
   // a hardcoded template (or one that dropped the tag) could still render the
   // right number but never inside a real <strong>.
   it("wraps the profit figure in a real <strong> element via the <Trans> components mapping", async () => {
-    renderWithProviders(<ReportsPage />, { token: ADMIN });
+    renderReports({ token: ADMIN, route: "/reports/money" });
     expect(await screen.findByText("$35.00", { selector: "strong" })).toHaveProperty("tagName", "STRONG");
   });
 
   it("reads the profit footnote from the catalog, not a hardcoded literal", async () => {
     await withOverride("profitFootnote", "FOOTNOTE-MARKER", async () => {
-      renderWithProviders(<ReportsPage />, { token: ADMIN });
+      renderReports({ token: ADMIN, route: "/reports/money" });
       expect(await screen.findByText("FOOTNOTE-MARKER")).toBeInTheDocument();
       expect(screen.queryByText(/no cost-of-goods/)).not.toBeInTheDocument();
     });
@@ -661,7 +805,7 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     i18n.addResource("en", "common", "retry", "RETRY-MARKER");
     try {
       mockGetProductionReport.mockRejectedValueOnce(new Error("boom"));
-      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      renderReports({ token: NON_ADMIN, route: "/reports/production" });
       const alert = await screen.findByRole("alert");
       expect(within(alert).getByRole("button", { name: "RETRY-MARKER" })).toBeInTheDocument();
       expect(within(alert).queryByRole("button", { name: "retry" })).not.toBeInTheDocument();
@@ -672,11 +816,17 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
 });
 
 
-it("keeps period KPIs in one phone strip and aligns primary Money amounts", async () => {
-  renderWithProviders(<ReportsPage />, { token: ADMIN });
-  const money = await screen.findByRole("region", { name: "Money" });
-  const strip = screen.getByLabelText("Period");
+// Split by tab with the #1308 split: the phone strip is the Production tab's
+// period tiles; the amount alignment belongs to the Money tab.
+it("keeps period KPIs in one phone strip on the Production tab", async () => {
+  renderReports({ token: NON_ADMIN, route: "/reports/production" });
+  const strip = await screen.findByLabelText("Period");
   expect(responsiveStyle(strip, "(min-width:0px)", "grid-auto-flow")).toBe("column");
+});
+
+it("aligns primary Money amounts on the Money tab", async () => {
+  renderReports({ token: ADMIN, route: "/reports/money" });
+  const money = await screen.findByRole("region", { name: "Money" });
   for (const [label, amount] of [["Revenue", "$100.00"], ["Expenses", "$65.00"], ["Profit (basic)", "$35.00"]]) {
     const row = within(money).getByText(label, { selector: "dt" }).parentElement!;
     expect(within(row).getByText(amount, { selector: "dd" })).toHaveStyle({ textAlign: "right" });
@@ -684,8 +834,8 @@ it("keeps period KPIs in one phone strip and aligns primary Money amounts", asyn
 });
 
 it("restores the default report window and labels the auditable detail and grade units", async () => {
-  renderWithProviders(<ReportsPage />, { token: ADMIN });
-  await screen.findByRole("region", { name: "Money" });
+  renderReports({ token: ADMIN, route: "/reports/production" });
+  await screen.findByRole("heading", { name: "Daily production" });
   const from = screen.getByLabelText("From");
   const to = screen.getByLabelText("To");
   const initialFrom = from.getAttribute("value");
@@ -702,7 +852,7 @@ it("restores the default report window and labels the auditable detail and grade
 
 
 it("emphasises every Period total cell in ink at semibold weight", async () => {
-  renderWithProviders(<ReportsPage />, { token: ADMIN });
+  renderReports({ token: ADMIN, route: "/reports/production" });
   const row = await screen.findByRole("row", { name: /Period/ });
   const cells = within(row).getAllByRole("columnheader");
   expect(cells).toHaveLength(10);

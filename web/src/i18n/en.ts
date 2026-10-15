@@ -2591,8 +2591,8 @@ export const en = {
   },
   // Task 28 (#182, B5) — ReportsPage. `reports` is in TRANSLATED_NAMESPACES,
   // same as `history`/`nav`: es/tl are machine-drafted (#182), pending
-  // native review. Production renders for everyone; the Money section
-  // (sales/expenses/profit) is admin-gated — isAdmin is checked by the
+  // native review. Production renders for everyone as its own tab; the Money
+  // tab (sales/expenses/profit) is admin-gated — isAdmin is checked by the
   // component, not this catalog.
   // DATA left raw, never routed through this catalog: every date
   // (d.date/from/to), every numeric count/total (totalEggs, cracked/dirty/
@@ -2613,6 +2613,10 @@ export const en = {
     title: "Reports",
     fromLabel: "From",
     toLabel: "To",
+    // #1308 — the two tab labels. Help prose and the glossary name the tabs
+    // with these same words, per locale (#688).
+    productionTab: "Production",
+    moneyTab: "Money",
 
     productionHeading: "Daily production",
     productionCaption: "Raw auditable detail",
@@ -2651,6 +2655,9 @@ export const en = {
     // #1299 — the placement date rides under the flock's name (names are not
     // unique); "Placed" is the flocks page's established word (en.ts placedLabel).
     flockPlacedLabel: "Placed",
+    // #1308 — {{count}} is the number of flocks that filed in the range; also
+    // passed for plural selection and deliberately not rendered (as salesSummary).
+    showAllFlocksButton: "Show all ({{count}})",
 
     moneyHeading: "Money",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
@@ -3643,7 +3650,7 @@ export const en = {
     // Reports
     reportsHeading: "Reports",
     reportsProduction:
-      "<strong>Production</strong> is open to everyone. Pick a date range to see per-day eggs, losses, "
+      "The <strong>Production</strong> tab is open to everyone. Pick a date range to see per-day eggs, losses, "
       + "sellable, condition, deaths, and <strong>hen-day %</strong>, with period totals and a by-grade "
       + "breakdown. Draft and voided entries don't count. Hen-day % is eggs collected ÷ hen-days × 100, and "
       + "it divides by the hen-days of the <strong>flocks that recorded that day</strong>. A flock that "
@@ -3658,7 +3665,9 @@ export const en = {
       + "every flock that filed in the range, with eggs, <strong>Losses</strong>, <strong>Sellable</strong>, "
       + "deaths, <strong>Recorded</strong>, <strong>Rated eggs</strong> and <strong>Hen-day %</strong> — and the rows "
       + "add up to the period totals. Each flock's rate follows the same rules: recorded hen-days only, "
-      + "its own eggs as the numerator. A flock with no recorded exposure shows a dash, never 0.",
+      + "its own eggs as the numerator. A flock with no recorded exposure shows a dash, never 0. With "
+      + "more than ten flocks the table starts with the ten highest-egg flocks, and a "
+      + "<strong>Show all (N)</strong> button reveals the rest.",
     // #396 — the new column needs explaining because two of its neighbours look
     // like they should already cover it: Losses shows the same cracked/dirty
     // numbers (as counts, whether sold or not), and Sellable is the graded
@@ -3670,7 +3679,7 @@ export const en = {
       + "sell. A day shows 0 here if you have those grades switched off in Settings, and days recorded "
       + "before you switched them on keep showing 0 — turning a grade on never rewrites a past day.",
     reportsMoney:
-      "<strong>Money</strong> (admin): sales summary for the range's orders (revenue / paid / outstanding), "
+      "The <strong>Money</strong> tab (admin): sales summary for the range's orders (revenue / paid / outstanding), "
       + "<strong>Eggs sold</strong> — individual eggs on confirmed egg lines, with the by-grade split — "
       + "expenses by category, <strong>Feed cost per dozen</strong> — feed cost in the range divided by "
       + "dozens collected (official eggs ÷ 12; a range with no eggs shows a dash). Feed taken from a lot "
@@ -4256,7 +4265,7 @@ export const en = {
     glossaryEggsSoldTerm: "Eggs sold",
     glossaryEggsSoldDef:
       "Individual eggs sold on confirmed orders in the period — order lines in selling units × their "
-      + "eggs-per-unit factor, egg lines only. The Reports page's Money section shows the total next to "
+      + "eggs-per-unit factor, egg lines only. The Reports page's Money tab shows the total next to "
       + "Revenue, with the split by grade.",
 
     // #1298 — the §19.3 feed-cost KPI. Zero-cost lots are said plainly: the
@@ -4265,7 +4274,7 @@ export const en = {
     glossaryFeedCostPerDozenDef:
       "Feed recorded in the period over the eggs collected, × 12. Official entries only — the same eggs "
       + "the production report counts — and a period with no eggs shows a dash. Feed taken from a lot "
-      + "with no unit cost adds zero, so the figure can read low. Shown in the Reports page's Money section.",
+      + "with no unit cost adds zero, so the figure can read low. Shown in the Reports page's Money tab.",
 
     // #1297 — the two period rates. Both follow the Cracked and Dirty grades'
     // saleable setting via FromCounts, captured at submit time.

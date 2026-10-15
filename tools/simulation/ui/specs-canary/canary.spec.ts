@@ -101,11 +101,6 @@ const SCREENS = [
     interact: async (page: CanaryPage, timeZoneId: string) => {
       const today = farmToday(timeZoneId);
       const from = page.getByLabel(tEn("reports:fromLabel"), { exact: true });
-      // ReportsPage loads production first and the three money reports after it,
-      // so the table is on the glass while they are still in flight. Waiting for
-      // the last of them is what stops the post-interaction check passing just
-      // before a 500 lands (#841). Registered BEFORE the fill that triggers it.
-      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
       // CLICK the field before filling it. `fill()` alone sets the value through
       // a synthetic path that produces NO Event Timing entry, so the interaction
       // metric would stay null while the spec looked like it interacted —
@@ -113,12 +108,6 @@ const SCREENS = [
       // click is also the faithful version of this interaction.
       await from.click();
       await from.fill(daysBefore(today, 30));
-      await settled;
-      // A POSITIVE check, because the money section renders only once all three
-      // of its reads land. Asserting the ABSENCE of an error here would pass in
-      // the gap between a 500 arriving and React rendering it (#841).
-      const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
-      await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
       // The production table alone does not prove production: ReportQueries
       // emits a row per calendar day in the range whether or not anything was
       // recorded, so a report of nothing but zeroes satisfies a row count. The
@@ -134,6 +123,18 @@ const SCREENS = [
         Number(total.replaceAll(",", "")),
         "the widened report must contain a positive production total",
       ).toBeGreaterThan(0);
+      // #1308 — the money reports load on their own tab now, so the profit
+      // read is triggered by the tab switch (which keeps the range). Waiting
+      // for it is what stops the post-interaction check passing just before a
+      // 500 lands (#841). Registered BEFORE the click that triggers it.
+      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
+      await page.getByRole("tab", { name: tEn("reports:moneyTab") }).click();
+      await settled;
+      // A POSITIVE check, because the money tab renders only once all three
+      // of its reads land. Asserting the ABSENCE of an error here would pass in
+      // the gap between a 500 arriving and React rendering it (#841).
+      const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
+      await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
     },
     // MEASURED, and it does not: a `<input type="date">` produces no Event
     // Timing entry for a programmatic click+fill, so this screen's interaction

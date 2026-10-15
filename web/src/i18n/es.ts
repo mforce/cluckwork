@@ -1946,6 +1946,10 @@ export const es = {
     title: "Informes",
     fromLabel: "Desde",
     toLabel: "Hasta",
+    // #1308 — machine-drafted, pending native review (#182). Las palabras que
+    // usan la ayuda y el glosario para las dos pestañas (#688).
+    productionTab: "Producción",
+    moneyTab: "Dinero",
 
     productionHeading: "Producción diaria",
     productionCaption: "Detalle auditable sin procesar",
@@ -1979,6 +1983,10 @@ export const es = {
     // #1299 — "Colocación" is the established word for the placement date
     // (es.ts placedLabel/placedHeader).
     flockPlacedLabel: "Colocación",
+    // #1308 — machine-drafted, pending native review (#182). {{count}} is the
+    // number of flocks that filed in the range; also passed for plural
+    // selection and deliberately not rendered (as salesSummary).
+    showAllFlocksButton: "Mostrar todos ({{count}})",
 
     moneyHeading: "Dinero",
     salesSummary:
@@ -2925,7 +2933,7 @@ export const es = {
 
     reportsHeading: "Informes",
     reportsProduction:
-      "El informe <strong>Producción</strong> está disponible para todos. Elija un rango de fechas para "
+      "La pestaña <strong>Producción</strong> está disponible para todos. Elija un rango de fechas para "
       + "ver huevos por día, pérdidas, vendibles, con defecto, muertes, y <strong>% de puesta "
       + "diaria</strong>, con totales del período y un desglose por grado. Las entradas en borrador y "
       + "anuladas no cuentan. El % de puesta diaria es huevos recolectados ÷ días-gallina × 100, y divide "
@@ -2943,7 +2951,8 @@ export const es = {
       + "muertes, <strong>Registrados</strong>, <strong>Huevos contados</strong> y <strong>% días-gallina</strong> "
       + "— y las filas suman los totales del período. La tasa de cada lote sigue las mismas reglas: solo "
       + "días-gallina registrados, sus propios huevos como numerador. Un lote sin exposición registrada "
-      + "muestra un guion, nunca 0.",
+      + "muestra un guion, nunca 0. Con más de diez lotes, la tabla comienza con los diez de más huevos "
+      + "y un botón <strong>Mostrar todos (N)</strong> revela el resto.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "
@@ -2953,7 +2962,7 @@ export const es = {
       + "Ajustes, y los días registrados antes de activarlos siguen mostrando 0: activar un grado nunca "
       + "reescribe un día pasado.",
     reportsMoney:
-      "<strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
+      "La pestaña <strong>Dinero</strong> (admin): resumen de ventas de los pedidos del rango (ingresos / pagado / "
       + "pendiente), <strong>Huevos vendidos</strong> — huevos individuales en líneas de huevo confirmadas, "
       + "con el desglose por clasificación — gastos por categoría, <strong>Costo de alimento por docena</strong> "
       + "— costo del alimento del rango dividido entre las docenas recolectadas (huevos oficiales ÷ 12; un rango "
@@ -3580,7 +3589,7 @@ export const es = {
     glossaryEggsSoldTerm: "Huevos vendidos",
     glossaryEggsSoldDef:
       "Huevos individuales vendidos en pedidos confirmados del período — líneas de venta en unidades de "
-      + "venta × sus huevos por unidad, solo líneas de huevo. La sección Dinero de la página Informes "
+      + "venta × sus huevos por unidad, solo líneas de huevo. La pestaña Dinero de la página Informes "
       + "muestra el total junto a Ingresos, con el desglose por clasificación.",
 
     // #1298 — machine-drafted, pending native review (#182).
@@ -3589,7 +3598,7 @@ export const es = {
       "El alimento registrado en el período sobre los huevos recolectados, × 12. Solo entradas oficiales — "
       + "los mismos huevos que cuenta el informe de producción — y un período sin huevos muestra un guion. "
       + "El alimento tomado de un lote sin costo unitario suma cero, así que la cifra puede leerse baja. "
-      + "Se muestra en la sección Dinero de la página Informes.",
+      + "Se muestra en la pestaña Dinero de la página Informes.",
 
     // #1297 — machine-drafted, pending native review (#182).
     glossarySellablePctTerm: "Vendible %",

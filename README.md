@@ -105,13 +105,16 @@ link to its audit history.
 
 ![Sales page with status and customer filters, an Unpaid only checkbox, and draft and confirmed orders with totals, outstanding balances, and audit history links](docs/images/sales.png)
 
-Reports show daily production for a selected date range, grade totals, and a
-Money summary of revenue, expenses, and basic profit.
+Reports split into two tabs: the Production tab (everyone) shows daily
+production for a selected date range and grade totals, and the Money tab
+(admin) shows a summary of revenue, expenses, and basic profit.
 
-![Reports page with a seven-day production table, reported grade totals, and a Money summary of revenue, expenses, and basic profit](docs/images/reports.png)
+![Reports page's Production tab with a seven-day production table and reported grade totals](docs/images/reports-production.png)
+
+![Reports page's Money tab with a sales summary of revenue, expenses, and basic profit](docs/images/reports-money.png)
 
 The Dashboard and Sales images use the demo-seeded `readme-farm`; Daily entry
-and Reports use the simulation fixture. All four come from the built SPA via
+and Reports use the simulation fixture. All five come from the built SPA via
 [`tools/simulation/ui/specs-screenshots/`](tools/simulation/ui/specs-screenshots/)
 and are refreshed with `npm run screenshots`.
 

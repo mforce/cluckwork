@@ -208,6 +208,9 @@ test.describe("Owner", () => {
     // tbody, not getByRole("row") — see the dashboard test above.
     await expect(production.locator("tbody tr")).not.toHaveCount(0);
 
+    // #1308 — Money is its own admin-only tab; the range rides in the URL, so
+    // the switch reopens the same window.
+    await page.getByRole("tab", { name: tEn("reports:moneyTab") }).click();
     // Admin-only (isAdmin && sales && expenses && profit all present). Its
     // absence for this persona would mean either the gate is wrong or the money
     // fetches failed — both worth failing on.

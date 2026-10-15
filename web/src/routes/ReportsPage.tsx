@@ -1,88 +1,50 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
-import {
-  Box, Button, List, ListItem, LinearProgress, Table, TableBody, TableCell, TableFooter, TableHead, TableRow, Typography,
-} from "@mui/material";
-import {
-  getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
-} from "../api/cluckwork";
-import type {
-  ExpenseSummaryReport, ProductionReport, ProfitReport, SalesSummary,
-} from "../api/cluckwork";
-import { ApiError } from "../api/client";
-import { HenDayOver100Flag } from "../components/HenDayOver100Flag";
-import { useFormat } from "../farm/useFormat";
-import { FarmDate } from "../components/FarmDate";
+import { useTranslation } from "react-i18next";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
+import { Box, Button, Tab, Tabs, Typography } from "@mui/material";
 import { FilterBar, FilterDateField } from "../components/FilterBar";
-import { FieldConsole, ConsoleSubhead, CONSOLE_PAPER_HEAD_SX, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_SPLIT_SX } from "../components/FieldConsole";
+import { FieldConsole } from "../components/FieldConsole";
 import { daysBefore } from "../lib/dates";
 import { useFarmToday } from "../farm/useFarm";
 import { useAuth } from "../auth/useAuth";
-
-// Prevent short values shrinking under auto table layout; free text can wrap.
-const NOWRAP = { whiteSpace: "nowrap" as const };
-
-function errText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
+import { MoneyTab } from "./reports/MoneyTab";
+import { ProductionTab } from "./reports/ProductionTab";
 
 // #91 — core reports. Production renders for everyone (workers record it,
-// workers read it); the money cards are admin-only and the API refuses
+// workers read it); Money is its own admin-only tab and the API refuses
 // workers on those routes regardless.
 export function ReportsPage() {
   const { t } = useTranslation("reports");
-  const fmt = useFormat();
   const { t: tc } = useTranslation("common");
+  const { isAdmin } = useAuth();
   // Farm-local, not browser-local: since #35 the API judges "is this date in
   // the future?" against the FARM's day, so the pickers must agree (#123).
   const today = useFarmToday();
-  const { isAdmin } = useAuth();
-  const [from, setFrom] = useState(daysBefore(today, 6));
-  const [to, setTo] = useState(today);
-  const [production, setProduction] = useState<ProductionReport | null>(null);
-  const [sales, setSales] = useState<SalesSummary | null>(null);
-  const [expenses, setExpenses] = useState<ExpenseSummaryReport | null>(null);
-  const [profit, setProfit] = useState<ProfitReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  // Monotonic request id: a slow response for an OLD range must neither
-  // overwrite the current range's figures nor clear its loading state
-  // (codex review of #92).
-  const requestSeq = useRef(0);
+  const { tab: urlTab } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  const load = useCallback(async () => {
-    const seq = ++requestSeq.current;
-    setLoading(true);
-    setError(null);
-    // All four sections clear together — a partial failure must not leave the
-    // new production table next to the previous range's money figures.
-    setProduction(null);
-    setSales(null);
-    setExpenses(null);
-    setProfit(null);
-    try {
-      const prod = await getProductionReport(from, to);
-      if (seq !== requestSeq.current) return;
-      setProduction(prod);
-      if (isAdmin) {
-        // Sequential, not racing: each money card is one cheap aggregate.
-        const s = await getSalesSummary(from, to);
-        const e = await getExpenseSummary(from, to);
-        const p = await getProfitReport(from, to);
-        if (seq !== requestSeq.current) return;
-        setSales(s);
-        setExpenses(e);
-        setProfit(p);
-      }
-    } catch (err) {
-      if (seq === requestSeq.current) setError(errText(err));
-    } finally {
-      if (seq === requestSeq.current) setLoading(false);
-    }
-  }, [from, to, isAdmin]);
+  // #1308 — the date range lives in the URL, so a tab switch, a reload and a
+  // shared link all reopen the same view. Absent params mean the default
+  // trailing 7-day window; Clear restores it by dropping the params.
+  const from = searchParams.get("from") ?? daysBefore(today, 6);
+  const to = searchParams.get("to") ?? today;
+  const setRange = (nextFrom: string, nextTo: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("from", nextFrom);
+    next.set("to", nextTo);
+    setSearchParams(next);
+  };
 
-  useEffect(() => { void load(); }, [load]);
+  // The tab is the URL's path segment. A Worker who opens a shared
+  // /reports/money link — or anyone an unknown segment — is redirected to
+  // Production with the range kept: the Money tab does not exist for their
+  // role, never as an empty panel.
+  if (urlTab !== "production" && (urlTab !== "money" || !isAdmin)) {
+    return <Navigate to={`/reports/production?${searchParams.toString()}`} replace />;
+  }
+
+  // A tab switch keeps the range: the query string rides along.
+  const switchTab = (next: "production" | "money") => navigate(`/reports/${next}?${searchParams.toString()}`);
 
   return (
     <FieldConsole>
@@ -93,246 +55,31 @@ export function ReportsPage() {
           label={t("fromLabel")}
           value={from}
           slotProps={{ htmlInput: { max: to } }}
-          onChange={(e) => setFrom(e.target.value)}
+          onChange={(e) => setRange(e.target.value, to)}
         />
         <FilterDateField
           label={t("toLabel")}
           value={to}
           slotProps={{ htmlInput: { max: today } }}
-          onChange={(e) => setTo(e.target.value)}
+          onChange={(e) => setRange(from, e.target.value)}
         />
-        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => { setFrom(daysBefore(today, 6)); setTo(today); }}>{tc("clearFiltersButton")}</Button>
+        <Button variant="outlined" color="inherit" sx={{ borderRadius: "4px" }} onClick={() => setSearchParams({})}>{tc("clearFiltersButton")}</Button>
       </FilterBar>
 
-      {error && (
-        <p className="error" role="alert">
-          {error}{" "}
-          {/* A 429 from the report throttle (#311) is retryable, but a browser
-              reload resets `from`/`to` to the default 7-day window instead of
-              rerunning the chosen range — so offer an in-place retry that
-              reruns load() with state untouched (review of #311/PR #335),
-              same common:retry link pattern DailyEntryPage's prefill-failed
-              banner uses. */}
-          <button type="button" className="link" onClick={() => void load()}>
-            {tc("retry")}
-          </button>
-        </p>
-      )}
-      {loading && <p className="muted">{tc("loading")}</p>}
+      {/* The explicit-Tabs idiom (ProductsPage, #908): one <Tabs> strip with
+          catalog labels. Each tab is its own route and loads only its own
+          reports (#1308), so exactly one panel renders — there is no hidden
+          second panel to keep alive. */}
+      <Tabs value={urlTab}
+        onChange={(_, value: "production" | "money") => switchTab(value)}
+        aria-label={t("title")} sx={{ borderBottom: "1px solid var(--rule)", mb: 2 }}>
+        <Tab id="reports-tab-production" aria-controls="reports-tabpanel-production" value="production" label={t("productionTab")} />
+        {isAdmin && <Tab id="reports-tab-money" aria-controls="reports-tabpanel-money" value="money" label={t("moneyTab")} />}
+      </Tabs>
 
-      {production && (
-        <>
-          <Box component="dl" aria-label={t("periodRowLabel")} sx={{ display: "grid", gridAutoFlow: { xs: "column" }, gridAutoColumns: { xs: "115px", md: "minmax(0, 1fr)" }, overflowX: "auto", borderTop: "2px solid var(--ink)", borderBottom: "1px solid var(--rule)", my: 2 }}>
-            {[
-              [t("eggsHeader"), fmt.count(production.totalEggs)],
-              [t("sellableHeader"), fmt.count(production.totalSellable)],
-              [t("henDayPctHeader"), production.periodHenDayPct === null ? "—" : <>{fmt.count(production.periodHenDayPct, 1)}%<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></>],
-              ...(isAdmin && profit ? [[t("profitRowLabel"), fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)]] : []),
-              // #1297 — server totals and rates, not sums over `days` in the browser.
-              [t("lossesHeader"), fmt.count(production.totalLosses)],
-              [t("sellablePctHeader"), production.periodSellablePct === null ? "—" : <>{fmt.count(production.periodSellablePct, 1)}%</>],
-              [t("lossPctHeader"), production.periodLossPct === null ? "—" : <>{fmt.count(production.periodLossPct, 1)}%</>],
-            ].map(([label, value]) => <Box key={String(label)} sx={{ p: 1.5, borderRight: "1px solid var(--rule)" }}>
-              <Typography component="dt" variant="body2" sx={{ fontSize: ".7rem", color: "text.secondary" }}>{label}</Typography>
-              <Typography component="dd" variant="body2" sx={{ m: 0, mt: .5, fontFamily: "Georgia, serif", fontSize: "1.4rem", fontVariantNumeric: "tabular-nums" }}>{value}</Typography>
-            </Box>)}
-          </Box>
-          <ConsoleSubhead title={t("productionHeading")} caption={t("productionCaption")} />
-          <LedgerTableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t("dateHeader")}</TableCell>
-                  <TableCell align="right">{t("eggsHeader")}</TableCell>
-                  <TableCell align="right">{t("lossesHeader")}</TableCell>
-                  <TableCell align="right">{t("sellableHeader")}</TableCell>
-                  {/* Condition is loss stock, separate from the hand-graded Sellable remainder. */}
-                  <TableCell align="right">{t("conditionHeader")}</TableCell>
-                  <TableCell align="right">{t("deathsHeader")}</TableCell>
-                  <TableCell align="right">{t("henDaysHeader")}</TableCell>
-                  {/* The rate uses only flocks that recorded; Hen-days includes every live bird. */}
-                  <TableCell align="right">{t("recordedHenDaysHeader")}</TableCell>
-                  <TableCell align="right">{t("ratedEggsHeader")}</TableCell>
-                  <TableCell align="right">{t("henDayPctHeader")}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {production.days.map((d) => (
-                  <TableRow key={d.date}>
-                    <TableCell sx={NOWRAP}><FarmDate iso={d.date} /></TableCell>
-                    <TableCell align="right">{fmt.count(d.totalEggs)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.cracked)}/{fmt.count(d.dirty)}/{fmt.count(d.discarded)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.sellable)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.fromCounts)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.deaths)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.henDays)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.recordedHenDays)}</TableCell>
-                    <TableCell align="right">{fmt.count(d.ratedEggs)}</TableCell>
-                    <TableCell align="right">{d.henDayPct === null ? "—" : fmt.count(d.henDayPct, 1)}<HenDayOver100Flag ratedEggs={d.ratedEggs} recordedHenDays={d.recordedHenDays} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TableCell component="th">{t("periodRowLabel")}</TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalEggs)}</TableCell>
-                  <TableCell component="th"></TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalSellable)}</TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalFromCounts)}</TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalDeaths)}</TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalHenDays)}</TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalRecordedHenDays)}</TableCell>
-                  <TableCell component="th" align="right">{fmt.count(production.totalRatedEggs)}</TableCell>
-                  <TableCell component="th" align="right">{production.periodHenDayPct === null ? "—" : fmt.count(production.periodHenDayPct, 1)}<HenDayOver100Flag ratedEggs={production.totalRatedEggs} recordedHenDays={production.totalRecordedHenDays} /></TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-          </LedgerTableContainer>
-
-          {/* #1299 — the same period broken down by flock, one row per flock
-              that filed an official entry in the range. Server-computed from
-              the same walk as the totals above, never summed in the browser. */}
-          {production.flockTotals.length > 0 && (
-            <>
-              <ConsoleSubhead title={t("flockHeading")} caption={t("flockCaption")} />
-              <LedgerTableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>{t("flockHeader")}</TableCell>
-                      <TableCell align="right">{t("eggsHeader")}</TableCell>
-                      <TableCell align="right">{t("flockLossesHeader")}</TableCell>
-                      <TableCell align="right">{t("sellableHeader")}</TableCell>
-                      <TableCell align="right">{t("deathsHeader")}</TableCell>
-                      <TableCell align="right">{t("recordedHenDaysHeader")}</TableCell>
-                      <TableCell align="right">{t("ratedEggsHeader")}</TableCell>
-                      {/* The rate uses only the flocks that recorded; null, not 0, for one with no exposure. */}
-                      <TableCell align="right">{t("henDayPctHeader")}</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {production.flockTotals.map((f) => (
-                      <TableRow key={f.flockId}>
-                        {/* Flock names are NOT unique — the placement date rides
-                            beside the name so two same-named rows stay apart. */}
-                        <TableCell sx={NOWRAP}>
-                          {f.flockName}
-                          {/* Secondary line: a step below the ledger cell's own
-                              .75rem (FieldConsole's small size), muted, on its
-                              own line — the name stays the main text. */}
-                          <Box component="span" sx={{ display: "block", fontSize: ".625rem", color: "text.secondary" }}>
-                            {t("flockPlacedLabel")}: <FarmDate iso={f.placedOn} />
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right">{fmt.count(f.eggs)}</TableCell>
-                        <TableCell align="right">{fmt.count(f.losses)}</TableCell>
-                        <TableCell align="right">{fmt.count(f.sellable)}</TableCell>
-                        <TableCell align="right">{fmt.count(f.deaths)}</TableCell>
-                        <TableCell align="right">{fmt.count(f.recordedHenDays)}</TableCell>
-                        <TableCell align="right">{fmt.count(f.ratedEggs)}</TableCell>
-                        <TableCell align="right">{f.henDayPct === null ? "—" : fmt.count(f.henDayPct, 1)}<HenDayOver100Flag ratedEggs={f.ratedEggs} recordedHenDays={f.recordedHenDays} /></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </LedgerTableContainer>
-            </>
-          )}
-
-        </>
-      )}
-
-      <Box sx={CONSOLE_SPLIT_SX}>
-        {production && production.gradeTotals.length > 0 && (
-          <Box sx={CONSOLE_PANEL_SX}>
-            <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}><h3>{t("gradeTotalsLabel")}</h3></Box>
-            <List aria-label={t("gradeTotalsLabel")} disablePadding>
-              {production.gradeTotals.map((grade) => (
-                <ListItem key={grade.name} sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(50px, 1fr) auto", gap: 2, px: 0, py: 1.5, borderBottom: "1px solid var(--rule)" }}>
-                  <Typography component="span" sx={{ fontFamily: "Georgia, serif", fontWeight: 600 }}>{grade.name}</Typography>
-                  <strong>{fmt.count(grade.quantity)}</strong>
-                  <LinearProgress variant="determinate" value={100 * grade.quantity / Math.max(1, ...production.gradeTotals.map((g) => g.quantity))} aria-label={grade.name} sx={{ height: 8, borderRadius: "var(--r-pill)", bgcolor: "var(--surface-2)", "& .MuiLinearProgress-bar": { bgcolor: "var(--stat-accent)" } }} />
-                  <Typography component="span" sx={{ fontSize: ".75rem", color: "text.secondary" }}>{t("gradeUnit")}</Typography>
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        )}
-        {isAdmin && sales && expenses && profit && (
-          <Box component="section" aria-labelledby="reports-money-heading" sx={CONSOLE_PANEL_SX}>
-            <Box component="header" sx={CONSOLE_PAPER_HEAD_SX}><h3 id="reports-money-heading">{t("moneyHeading")}</h3></Box>
-            <Box component="dl" sx={{ m: 0 }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("revenueRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit)}</Typography>
-                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
-                  {t("salesSummary", {
-                    count: sales.confirmedCount,
-                    confirmed: fmt.count(sales.confirmedCount),
-                    revenue: fmt.money(sales.revenueMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                    paid: fmt.money(sales.paidMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                    outstanding: fmt.money(sales.outstandingMinorUnits, sales.currencyCode, sales.currencyMinorUnit),
-                  })}
-                  {sales.voidedCount > 0 ? t("salesVoidedSuffix", { count: sales.voidedCount, voided: fmt.count(sales.voidedCount) }) : ""}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("eggsSoldRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.count(sales.eggsSold)}</Typography>
-                {sales.eggsSoldByGrade.length > 0 && (
-                  <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
-                    {sales.eggsSoldByGrade.map((g) => `${g.name} ${fmt.count(g.quantity)}`).join(", ")}
-                  </Typography>
-                )}
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("expensesRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}</Typography>
-                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
-                  {expenses.categories.length === 0
-                    ? t("expensesNone")
-                    : expenses.categories
-                        .map((c) => `${c.name} ${fmt.money(c.totalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit)}`)
-                        .join(", ")}
-                  {t("expensesTotalSuffix", {
-                    total: fmt.money(expenses.grandTotalMinorUnits, expenses.currencyCode, expenses.currencyMinorUnit),
-                  })}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderBottom: "1px solid var(--rule)" }}>
-                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("feedCostPerDozenRowLabel")}</Typography>
-                {/* Server figure in the report's currency; a range with no eggs has no rate (—), not 0 (#1298). */}
-                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                  {profit.feedCostPerDozenMinorUnits === null
-                    ? "—"
-                    : fmt.money(profit.feedCostPerDozenMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}
-                </Typography>
-                {/* {{total}} is profit.feedCostMinorUnits, pre-formatted (DATA). */}
-                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
-                  {t("feedCostLine", { total: fmt.money(profit.feedCostMinorUnits, profit.currencyCode, profit.currencyMinorUnit) })}
-                </Typography>
-              </Box>
-              <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: .5, py: 1, borderTop: "2px solid var(--ink)", fontWeight: 700 }}>
-                <Typography component="dt" sx={{ fontWeight: 700 }}>{t("profitRowLabel")}</Typography>
-                <Typography component="dd" sx={{ m: 0, textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit)}</Typography>
-                <Typography component="dd" sx={{ m: 0, gridColumn: "1 / -1", fontSize: ".8rem", color: "text.secondary" }}>
-                  <Trans ns="reports" i18nKey="profitLine"
-                    values={{
-                      revenue: fmt.money(profit.revenueMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                      expenses: fmt.money(profit.expensesMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                      profit: fmt.money(profit.profitMinorUnits, profit.currencyCode, profit.currencyMinorUnit),
-                    }}
-                    components={{ strong: <strong /> }}
-                  />
-                </Typography>
-              </Box>
-            </Box>
-            <p className="muted">
-              {t("profitFootnote")}
-            </p>
-          </Box>
-        )}
-      </Box>
+      {urlTab === "production"
+        ? <Box role="tabpanel" id="reports-tabpanel-production" aria-labelledby="reports-tab-production"><ProductionTab from={from} to={to} /></Box>
+        : <Box role="tabpanel" id="reports-tabpanel-money" aria-labelledby="reports-tab-money"><MoneyTab from={from} to={to} /></Box>}
     </FieldConsole>
   );
 }

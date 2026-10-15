@@ -252,10 +252,9 @@ test.describe("README screenshots", () => {
     await page.getByLabel(tEn("reports:toLabel"), { exact: true }).fill(daysBefore(today, 3));
 
     await expect(page.getByRole("heading", { name: tEn("reports:productionHeading") })).toBeVisible();
-    await expect(page.getByRole("heading", { name: tEn("reports:moneyHeading") })).toBeVisible();
 
-    // Renders only when the period produced something (ReportsPage guards on
-    // `gradeTotals.length > 0`), so it proves the window is not empty.
+    // Renders only when the period produced something (the Production tab
+    // guards on `gradeTotals.length > 0`), so it proves the window is not empty.
     await expect(page.getByText(tEn("reports:gradeTotalsLabel"))).toBeVisible();
 
     // ...but a non-empty PERIOD can still end in zero rows, which is exactly
@@ -264,7 +263,13 @@ test.describe("README screenshots", () => {
     const lastRow = page.getByRole("table").first().locator("tbody tr").last();
     await expect(lastRow.locator("td").nth(1)).not.toHaveText("0");
 
-    await capture(page, "reports.png");
+    await capture(page, "reports-production.png");
+
+    // #1308 — Money is a separate tab; the range rides in the URL, so the
+    // capture shows the same window's sales/expenses/profit.
+    await page.getByRole("tab", { name: tEn("reports:moneyTab") }).click();
+    await expect(page.getByRole("heading", { name: tEn("reports:moneyHeading") })).toBeVisible();
+    await capture(page, "reports-money.png");
   });
 
   test("sales — orders across their lifecycle", async ({ page, signIn }) => {
