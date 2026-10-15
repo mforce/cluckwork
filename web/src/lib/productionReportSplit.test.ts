@@ -20,6 +20,7 @@ const report = (days: ProductionDay[]): ProductionReport => ({
   periodHenDayPct: null, // irrelevant: the split recomputes its own from `days`, never trusts this
   totalLosses: 0, periodSellablePct: null, periodLossPct: null, // recomputed too (#1297)
   gradeTotals: [{ eggGradeId: "g1", name: "Grade A", quantity: 999 }],
+  flockTotals: [], // same deliberate gap as the dashboard split's (#1299)
 });
 
 describe("splitProductionReport (#918 — folds two adjacent trend windows into one request)", () => {

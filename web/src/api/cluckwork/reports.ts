@@ -80,6 +80,26 @@ export interface ProductionReport {
   periodSellablePct: number | null;
   periodLossPct: number | null;
   gradeTotals: { eggGradeId: string; name: string; quantity: number }[];
+  /**
+   * #1299 — per-flock breakdown: one row per flock that filed an official
+   * entry in the range, computed server-side by the same walk as the period
+   * totals, so its columns sum to them. `henDayPct` follows the #780 rules at
+   * flock grain (recorded hen-days only, numerator limited to the flock) and
+   * is null — never 0 — for a flock with no recorded exposure. `houseId` is
+   * the flock's house; houses have no aggregate yet, so there is no house name.
+   */
+  flockTotals: {
+    flockId: string;
+    flockName: string;
+    houseId: string;
+    eggs: number;
+    sellable: number;
+    losses: number;
+    deaths: number;
+    recordedHenDays: number;
+    ratedEggs: number;
+    henDayPct: number | null;
+  }[];
 }
 
 export interface SalesSummary {

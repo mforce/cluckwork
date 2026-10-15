@@ -2038,6 +2038,13 @@ export const tl = {
     henDayOver100: "Lampas sa 100%: mas maraming itlog ang naitala kaysa sa mga ibon sa talaan ng ibon. Suriin ang bilang ng ibon ng mga kawan.",
     periodRowLabel: "Panahon",
     gradeTotalsLabel: "Naitalang kabuuan ayon sa grado",
+    // #1299 — machine-drafted, pending native review (#182). Reuses the page's
+    // own words: "kawan" is the established flocks word, "Nasira" the losses
+    // column's.
+    flockHeading: "Ayon sa kawan",
+    flockCaption: "Mga kawang may tala sa range",
+    flockHeader: "Kawan",
+    flockLossesHeader: "Nasira",
 
     moneyHeading: "Pera",
     salesSummary:
@@ -3042,7 +3049,13 @@ export const tl = {
       + "nangangahulugang hindi magkatugma ang entry at ang talaan ng ibon, at kailangang suriin ang "
       + "bilang ng ibon ng kawang iyon. Hinahati ng mga <strong>Maibebenta %</strong> at <strong>Nasira "
       + "%</strong> na tile ang mga itlog ng panahon sa stock at lugi, batay sa saleable setting ng mga "
-      + "gradong Basag at Marumi, at 100 ang kabuuan ng dalawa.",
+      + "gradong Basag at Marumi, at 100 ang kabuuan ng dalawa. Ang talahanayan na <strong>Ayon sa kawan</strong> "
+      + "ay nagbibigay ng parehong panahon kada kawan: isang row bawat kawang nag-file sa range, may itlog, "
+      + "<strong>Nasira</strong>, <strong>Maibebenta</strong>, namatay, <strong>May tala</strong>, <strong>Itlog "
+      + "na binilang</strong> at <strong>Hen-day %</strong> — at ang mga row ay sumasama sa period total. "
+      + "Sinusunod ng rate ng bawat kawan ang parehong rules: mga hen-day na may tala lang, ang sarili "
+      + "nitong itlog ang numerator. Ang kawang walang naitalang exposure ay nagpapakita ng gitling, "
+      + "hindi kailanman 0.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>May depekto</strong>: basag at maruming itlog na naging stock sa halip na ituring na "

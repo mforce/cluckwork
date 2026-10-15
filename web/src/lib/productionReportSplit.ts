@@ -26,6 +26,9 @@ import type { ProductionDay, ProductionReport } from "../api/cluckwork";
 // half of the split is ever rendered with a grade breakdown (the Dashboard's
 // trend consumers, `dayStrip`/`henDayTrend`, read only `days` and
 // `periodHenDayPct`), so this is a deliberate, harmless gap, not a guess.
+// `flockTotals` (#1299) is the same shape of gap: a per-flock period
+// breakdown the per-day rows do not carry, and the trend consumers never
+// read it.
 export function splitProductionReport(report: ProductionReport, cutoffDate: string): {
   earlier: ProductionReport;
   later: ProductionReport;
@@ -71,5 +74,8 @@ function summarize(days: ProductionDay[]): ProductionReport {
     periodSellablePct: totalEggs > 0 ? roundToTenth((totalSellable + totalFromCounts) * 100, totalEggs) : null,
     periodLossPct: totalEggs > 0 ? roundToTenth(totalLosses * 100, totalEggs) : null,
     gradeTotals: [],
+    // Same deliberate gap as gradeTotals: the trend consumers never read the
+    // per-flock breakdown, and it cannot be re-aggregated from days (#1299).
+    flockTotals: [],
   };
 }

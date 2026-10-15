@@ -21,7 +21,7 @@ public static class ReportEndpoints
 
         group.MapGet("/production", Production)
             .WithName("ProductionReport")
-            .WithSummary("Per-day production across the range: eggs, losses, sellable, deaths, hen-day % (spec §19.3), plus period totals and grade breakdown. Optional flockId narrows every figure to one flock.");
+            .WithSummary("Per-day production across the range: eggs, losses, sellable, deaths, hen-day % (spec §19.3), plus period totals, grade breakdown and the #1299 per-flock breakdown. Optional flockId narrows every figure to one flock.");
 
         group.MapGet("/sales", Sales)
             .WithName("SalesSummaryReport")

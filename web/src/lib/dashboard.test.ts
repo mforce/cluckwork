@@ -36,6 +36,7 @@ const partly = (date: string, totalEggs: number, recorded = 1, expected = 3) =>
 const report = (periodHenDayPct: number | null, days: ProductionDay[] = []): ProductionReport => ({
   days, totalEggs: 0, totalSellable: 0, totalFromCounts: 0, totalLosses: 0, totalDeaths: 0, totalHenDays: 0,
   totalRecordedHenDays: 0, totalRatedEggs: 0, periodHenDayPct, periodSellablePct: null, periodLossPct: null, gradeTotals: [],
+  flockTotals: [], // #1299 — a dashboard split never carries the per-flock breakdown
 });
 
 describe("captureTiles (#654, INV-3, INV-9)", () => {

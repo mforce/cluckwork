@@ -2641,6 +2641,13 @@ export const en = {
     henDayOver100: "Above 100%: more eggs were recorded than birds on the ledger. Check the flocks' bird counts.",
     periodRowLabel: "Period",
     gradeTotalsLabel: "Reported grade totals",
+    // #1299 — the per-flock breakdown reuses the page's own column words
+    // (eggs/sellable/deaths/recorded/rated/hen-day %); only the heading and
+    // the two columns this table names differently are new.
+    flockHeading: "By flock",
+    flockCaption: "Flocks that filed in the range",
+    flockHeader: "Flock",
+    flockLossesHeader: "Losses",
 
     moneyHeading: "Money",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
@@ -3644,7 +3651,11 @@ export const en = {
       + "hen-days means a filing and the bird ledger disagree, and that flock's bird count needs checking. "
       + "The <strong>Sellable %</strong> and <strong>Loss %</strong> tiles split the period's eggs into "
       + "stock and losses, following the Cracked and Dirty grades' saleable setting, and together they "
-      + "add up to 100.",
+      + "add up to 100. The <strong>By flock</strong> table gives the same period per flock: one row for "
+      + "every flock that filed in the range, with eggs, <strong>Losses</strong>, <strong>Sellable</strong>, "
+      + "deaths, <strong>Recorded</strong>, <strong>Rated eggs</strong> and <strong>Hen-day %</strong> — and the rows "
+      + "add up to the period totals. Each flock's rate follows the same rules: recorded hen-days only, "
+      + "its own eggs as the numerator. A flock with no recorded exposure shows a dash, never 0.",
     // #396 — the new column needs explaining because two of its neighbours look
     // like they should already cover it: Losses shows the same cracked/dirty
     // numbers (as counts, whether sold or not), and Sellable is the graded

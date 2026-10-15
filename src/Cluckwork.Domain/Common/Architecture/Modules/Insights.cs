@@ -27,7 +27,7 @@ namespace Cluckwork.Domain.Common.Architecture;
     "Cluckwork.Infrastructure.Modules.Insights.Repositories.ReportQueries")]
 [ModuleEdge(
     "Insights", "FlockManagement", "R",
-    "ExportQueries streams Flock and BirdMovement records; ReportQueries reads flock lifecycle and bird movements to calculate hen-day exposure. These are read-only owner-table queries composed in C#.",
+    "ExportQueries streams Flock and BirdMovement records; ReportQueries reads flock lifecycle and bird movements to calculate hen-day exposure, and resolves Flock.Name and Flock.HouseId for the production report's per-flock breakdown (#1299). These are read-only owner-table queries composed in C#.",
     "Cluckwork.Infrastructure.Modules.Insights.Repositories.ExportQueries",
     "Cluckwork.Infrastructure.Modules.Insights.Repositories.ReportQueries")]
 [ModuleEdge(

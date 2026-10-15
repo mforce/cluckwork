@@ -1969,6 +1969,13 @@ export const es = {
     henDayOver100: "Más del 100 %: se registraron más huevos que aves en el registro de aves. Revise el recuento de aves de los lotes.",
     periodRowLabel: "Período",
     gradeTotalsLabel: "Totales por clasificación registrados",
+    // #1299 — machine-drafted, pending native review (#182). Reuses the page's
+    // own words: "lote" is the established nav/dailyEntry word, "Pérdidas" the
+    // losses tile's.
+    flockHeading: "Por lote",
+    flockCaption: "Lotes que registraron en el rango",
+    flockHeader: "Lote",
+    flockLossesHeader: "Pérdidas",
 
     moneyHeading: "Dinero",
     salesSummary:
@@ -2928,7 +2935,12 @@ export const es = {
       + "aves no coinciden, y hay que revisar el recuento de aves de ese lote. Los mosaicos "
       + "<strong>Vendible %</strong> y <strong>Pérdidas %</strong> dividen los huevos del período en "
       + "inventario y pérdidas, según la opción de venta de los grados Rajado y Sucio, y juntos suman "
-      + "100 %.",
+      + "100 %. La tabla <strong>Por lote</strong> da el mismo período por lote: una fila por cada lote "
+      + "que registró en el rango, con huevos, <strong>Pérdidas</strong>, <strong>Vendible</strong>, "
+      + "muertes, <strong>Registrados</strong>, <strong>Huevos contados</strong> y <strong>% días-gallina</strong> "
+      + "— y las filas suman los totales del período. La tasa de cada lote sigue las mismas reglas: solo "
+      + "días-gallina registrados, sus propios huevos como numerador. Un lote sin exposición registrada "
+      + "muestra un guion, nunca 0.",
     // #396 — machine-drafted, pending native review (#182).
     reportsCondition:
       "<strong>Con defecto</strong>: huevos rajados y sucios que pasaron a inventario en vez de "

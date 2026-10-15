@@ -53,6 +53,14 @@ const PRODUCTION: ProductionReport = {
     { eggGradeId: "gr1", name: "Grade A", quantity: 60 },
     { eggGradeId: "gr2", name: "Grade B", quantity: 30 },
   ],
+  // #1299 — the per-flock breakdown: two rows that reconcile with the totals
+  // above (140+55 = 195 eggs, 130+51 = 181 sellable, 5+3 = 8 losses, 1+0 = 1
+  // death, 140+55 = 195 rated). House B sat outside its recorded window, so
+  // it carries no recorded exposure and a dash — not 0 — under Hen-day %.
+  flockTotals: [
+    { flockId: "f1", flockName: "House A", houseId: "h1", eggs: 140, sellable: 130, losses: 5, deaths: 1, recordedHenDays: 200, ratedEggs: 140, henDayPct: 70.0 },
+    { flockId: "f2", flockName: "House B", houseId: "h2", eggs: 55, sellable: 51, losses: 3, deaths: 0, recordedHenDays: 0, ratedEggs: 0, henDayPct: null },
+  ],
 };
 const PRODUCTION_NO_GRADES: ProductionReport = { ...PRODUCTION, gradeTotals: [] };
 // #943 — a rate above 100% (a hen lays at most one egg a day). Day 1 rates
@@ -137,7 +145,8 @@ describe("ReportsPage production section (renders for every role)", () => {
     within(row1).getByText("91.7"); // henDayPct
     for (const cell of within(row1).getAllByText("100")) expect(cell).toHaveStyle({ textAlign: "right" });
     expect(within(row1).getByText("07/19/2026")).not.toHaveStyle({ textAlign: "right" });
-    expect(screen.getByRole("columnheader", { name: "Eggs" })).toHaveStyle({ textAlign: "right" });
+    // The per-flock table repeats the Eggs header, so assert the FIRST match.
+    expect(screen.getAllByRole("columnheader", { name: "Eggs" })[0]).toHaveStyle({ textAlign: "right" });
 
     const row2 = screen.getByRole("row", { name: /07\/18\/2026/ });
     within(row2).getByText("—"); // null henDayPct falls back to the em dash
@@ -225,6 +234,51 @@ describe("ReportsPage production section (renders for every role)", () => {
     // Indexed: day 2 has a 0 in deaths too, so a text match proves nothing.
     const row2 = await screen.findByRole("row", { name: /07\/18\/2026/ });
     expect(within(row2).getAllByRole("cell")[4]).toHaveTextContent("0");
+  });
+
+  // #1299 — the By-flock table: one row per flock that filed an official
+  // entry in the range, carrying the same fields as the period totals, with a
+  // dash (never 0) for a flock with no recorded exposure (#780).
+  it("renders the per-flock breakdown for every flock that filed, with a dash for a flock with no recorded exposure", async () => {
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    expect(await screen.findByRole("heading", { name: "By flock" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Flock" })).toBeInTheDocument();
+
+    const houseA = screen.getByRole("row", { name: /House A/ });
+    expect(within(houseA).getAllByRole("cell")[1]).toHaveTextContent("140"); // eggs
+    within(houseA).getByText("70.0");
+    const houseB = screen.getByRole("row", { name: /House B/ });
+    expect(within(houseB).getAllByRole("cell")[1]).toHaveTextContent("55");
+    within(houseB).getByText("—"); // null henDayPct, not 0
+  });
+
+  it("omits the per-flock table when no flock filed in the range", async () => {
+    mockGetProductionReport.mockResolvedValue({ ...PRODUCTION, flockTotals: [] });
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    await screen.findByRole("row", { name: /07\/19\/2026/ });
+    expect(screen.queryByRole("heading", { name: "By flock" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Flock" })).not.toBeInTheDocument();
+  });
+
+  // #1299 — the over-100 flag applies per flock too: a single flock whose
+  // rated eggs exceed its recorded hen-days is the same disagreement, one row
+  // down, while the other flock row stays unflagged.
+  it("flags a flock row whose rated eggs exceed its recorded hen-days", async () => {
+    mockGetProductionReport.mockResolvedValue({
+      ...PRODUCTION,
+      flockTotals: [
+        { ...PRODUCTION.flockTotals[0]!, ratedEggs: 201, henDayPct: 100.5 },
+        PRODUCTION.flockTotals[1]!,
+      ],
+    });
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    const rowA = await screen.findByRole("row", { name: /House A/ });
+    within(rowA).getByLabelText(OVER_100_FLAG);
+    const rowB = screen.getByRole("row", { name: /House B/ });
+    expect(within(rowB).queryByLabelText(OVER_100_FLAG)).toBeNull();
   });
 
   it("falls back to the em dash for a null periodHenDayPct in the Period row too, not just per-day", async () => {
@@ -437,9 +491,12 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     ["henDaysHeader", "Hen-days"],
     ["henDayPctHeader", "Hen-day %"],
   ])("reads the %s production column header from the catalog, not a hardcoded literal", async (key, original) => {
+    // The per-flock table (#1299) repeats eggs/sellable/deaths/hen-day, so a
+    // shared header may match MORE than once — assert at least one.
     await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
       renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
-      expect(await screen.findByRole("columnheader", { name: `${key.toUpperCase()}-MARKER` })).toBeInTheDocument();
+      const markers = await screen.findAllByRole("columnheader", { name: `${key.toUpperCase()}-MARKER` });
+      expect(markers.length).toBeGreaterThan(0);
       expect(screen.queryByRole("columnheader", { name: original })).not.toBeInTheDocument();
     });
   });
@@ -457,6 +514,22 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
       renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
       expect(await screen.findByRole("list", { name: "GRADE-TOTALS-MARKER" })).toHaveTextContent("Grade A60eggsGrade B30eggs");
       expect(screen.queryByText(/Reported grade totals/)).not.toBeInTheDocument();
+    });
+  });
+
+  // #1299 — the per-flock table's own labels follow the same rule. The daily
+  // table's losses header is the compound "Losses (cr/di/ds)", so the plain
+  // "Losses" original here is uniquely the per-flock column's.
+  it.each([
+    ["flockHeading", "By flock"],
+    ["flockCaption", "Flocks that filed in the range"],
+    ["flockHeader", "Flock"],
+    ["flockLossesHeader", "Losses"],
+  ])("reads the %s per-flock label from the catalog, not a hardcoded literal", async (key: string, original: string) => {
+    await withOverride(key, `${key.toUpperCase()}-MARKER`, async () => {
+      renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+      expect(await screen.findByText(`${key.toUpperCase()}-MARKER`)).toBeInTheDocument();
+      expect(screen.queryByText(original)).not.toBeInTheDocument();
     });
   });
 

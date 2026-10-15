@@ -16,9 +16,15 @@ namespace Cluckwork.Application.Modules.Insights.Contracts;
 //
 // add up to 100. Null, not 0, for a period with no eggs — the way
 // `PeriodHenDayPct` treats a period with no recorded exposure.
+//
+// `FlockTotals` — the per-flock breakdown (#1299): one row per flock that
+// filed an official entry in the range, each computed by the same walk as
+// the period totals, so its columns sum to them exactly. `FlockName` is
+// resolved from the flock the row belongs to (Insights → FlockManagement R).
 public sealed record ProductionReport(
     IReadOnlyList<ProductionDay> Days,
     int TotalEggs, int TotalSellable, int TotalFromCounts, int TotalLosses, int TotalDeaths,
     long TotalHenDays, long TotalRecordedHenDays, int TotalRatedEggs,
     decimal? PeriodHenDayPct, decimal? PeriodSellablePct, decimal? PeriodLossPct,
-    IReadOnlyList<GradeTotal> GradeTotals);
+    IReadOnlyList<GradeTotal> GradeTotals,
+    IReadOnlyList<FlockTotal> FlockTotals);

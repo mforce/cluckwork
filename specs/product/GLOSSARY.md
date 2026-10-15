@@ -814,7 +814,8 @@ because of a permission appears once the person reconnects and allows it.
 (spec §19.3, amended by #780). A hen-day is one bird alive for one day; the
 day's bird count comes from the bird ledger (placements + movements); every
 movement takes effect from the next day. The
-production report shows it per day and for the whole period (period eggs ÷
+production report shows it per day, per flock (#1299 — each flock's rows over
+its own recorded hen-days), and for the whole period (period eggs ÷
 period recorded hen-days — not an average of daily percentages).
 
 The denominator counts only the houses that **recorded** the day (#780). A

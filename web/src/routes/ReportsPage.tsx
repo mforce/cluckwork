@@ -189,6 +189,46 @@ export function ReportsPage() {
             </Table>
           </LedgerTableContainer>
 
+          {/* #1299 — the same period broken down by flock, one row per flock
+              that filed an official entry in the range. Server-computed from
+              the same walk as the totals above, never summed in the browser. */}
+          {production.flockTotals.length > 0 && (
+            <>
+              <ConsoleSubhead title={t("flockHeading")} caption={t("flockCaption")} />
+              <LedgerTableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>{t("flockHeader")}</TableCell>
+                      <TableCell align="right">{t("eggsHeader")}</TableCell>
+                      <TableCell align="right">{t("flockLossesHeader")}</TableCell>
+                      <TableCell align="right">{t("sellableHeader")}</TableCell>
+                      <TableCell align="right">{t("deathsHeader")}</TableCell>
+                      {/* The rate uses only the flocks that recorded; null, not 0, for one with no exposure. */}
+                      <TableCell align="right">{t("recordedHenDaysHeader")}</TableCell>
+                      <TableCell align="right">{t("ratedEggsHeader")}</TableCell>
+                      <TableCell align="right">{t("henDayPctHeader")}</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {production.flockTotals.map((f) => (
+                      <TableRow key={f.flockId}>
+                        <TableCell sx={NOWRAP}>{f.flockName}</TableCell>
+                        <TableCell align="right">{fmt.count(f.eggs)}</TableCell>
+                        <TableCell align="right">{fmt.count(f.losses)}</TableCell>
+                        <TableCell align="right">{fmt.count(f.sellable)}</TableCell>
+                        <TableCell align="right">{fmt.count(f.deaths)}</TableCell>
+                        <TableCell align="right">{fmt.count(f.recordedHenDays)}</TableCell>
+                        <TableCell align="right">{fmt.count(f.ratedEggs)}</TableCell>
+                        <TableCell align="right">{f.henDayPct === null ? "—" : fmt.count(f.henDayPct, 1)}<HenDayOver100Flag ratedEggs={f.ratedEggs} recordedHenDays={f.recordedHenDays} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </LedgerTableContainer>
+            </>
+          )}
+
         </>
       )}
 

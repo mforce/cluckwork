@@ -202,6 +202,17 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         // period totals because it must come from the same flock set as
         // `totalRecordedHenDays`, and nothing downstream can reconstruct it.
         var totalRatedEggs = 0;
+        // #1299 — per-flock accumulation for the breakdown, fed by the SAME
+        // walk that builds the period totals (never a second pass over the
+        // tables, and never one query per flock). `flockAgg` holds the
+        // entry-derived figures for every flock that FILED (its keys are the
+        // breakdown's row set); `flockRecordedHenDays`/`flockRatedEggs` hold
+        // the #780 exposure and numerator, which only the lifecycle walk can
+        // attribute — a flock outside its own window keeps its eggs here and
+        // out of its rate, exactly as the period rule does.
+        var flockAgg = new Dictionary<Guid, (int Eggs, int Sellable, int Losses, int Deaths)>();
+        var flockRecordedHenDays = new Dictionary<Guid, long>();
+        var flockRatedEggs = new Dictionary<Guid, int>();
         for (var d = from; d <= to; d = d.AddDays(1))
         {
             var units = unitsByDay.GetValueOrDefault(d) ?? [];
@@ -260,6 +271,10 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                         {
                             recordedHenDays += birds;
                             rated.Add(f.Id);
+                            // #1299 — the flock's share of the period's
+                            // recorded exposure, attributed by this same walk.
+                            flockRecordedHenDays[f.Id] =
+                                flockRecordedHenDays.GetValueOrDefault(f.Id) + birds;
                         }
                     }
                     else
@@ -281,6 +296,19 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             // two can legitimately disagree.
             var recordedFlocks = filed.Count;
 
+            // #1299 — the day's figures per flock, grouped once and reused by
+            // both consumers below: the breakdown's entry-derived columns and
+            // the rated numerator, which must stay flock-exact (#780).
+            var perFlockDay = units
+                .GroupBy(u => u.FlockId)
+                .ToDictionary(g => g.Key, g => (
+                    Total: g.Sum(u => u.Total),
+                    Cracked: g.Sum(u => u.Cracked),
+                    Dirty: g.Sum(u => u.Dirty),
+                    Discarded: g.Sum(u => u.Discarded),
+                    FromCounts: g.Sum(u => u.FromCounts),
+                    Deaths: g.Sum(u => u.Deaths)));
+
             // Every official egg of the day, whatever filed it — the report's
             // egg column must not silently drop a row.
             var total = units.Sum(u => u.Total);
@@ -296,6 +324,25 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
             // `total` above and out of the rate.
             var ratedEggs = units.Where(u => rated.Contains(u.FlockId)).Sum(u => u.Total);
             totalRatedEggs += ratedEggs;
+
+            // Same attribution for the breakdown: every filed flock's eggs,
+            // sellable remainder, losses (raw counters minus what resolved to a
+            // grade — the #1297 rule at flock grain) and deaths; and, for the
+            // flocks the walk just rated, their share of the numerator and the
+            // exposure. Sums over these are the period totals by construction.
+            foreach (var (id, x) in perFlockDay)
+            {
+                var cur = flockAgg.GetValueOrDefault(id);
+                flockAgg[id] = (
+                    cur.Eggs + x.Total,
+                    cur.Sellable + x.Total - x.Cracked - x.Dirty - x.Discarded,
+                    cur.Losses + (x.Cracked + x.Dirty + x.Discarded - x.FromCounts),
+                    cur.Deaths + x.Deaths);
+            }
+            foreach (var id in rated)
+            {
+                flockRatedEggs[id] = flockRatedEggs.GetValueOrDefault(id) + perFlockDay[id].Total;
+            }
 
             days.Add(new ProductionDay(
                 d, total, cracked, dirty, discarded,
@@ -317,6 +364,39 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
         var totalLosses = days.Sum(x => x.Cracked + x.Dirty + x.Discarded) - totalFromCounts;
         var totalHenDays = days.Sum(x => x.HenDays);
         var totalRecordedHenDays = days.Sum(x => x.RecordedHenDays);
+
+        // #1299 — names and houses for the breakdown's row set, ONE query over
+        // the flock ids the walk already produced (never one per flock). A
+        // name that no longer resolves falls back to "?" the way the grade
+        // breakdown's does; `HouseId` is the flock's house — houses have no
+        // aggregate yet, so no house name exists to resolve (#780).
+        var flockNames = flockAgg.Count == 0
+            ? new Dictionary<Guid, (string Name, Guid HouseId)>()
+            : (await db.Flocks
+                .Where(f => flockAgg.Keys.Contains(f.Id))
+                .Select(f => new { f.Id, f.Name, f.HouseId })
+                .ToListAsync(ct))
+                .ToDictionary(f => f.Id, f => (f.Name, f.HouseId));
+        var flockTotals = flockAgg
+            .Select(kvp =>
+            {
+                var recorded = flockRecordedHenDays.GetValueOrDefault(kvp.Key);
+                var rated = flockRatedEggs.GetValueOrDefault(kvp.Key);
+                var (name, houseId) = flockNames.GetValueOrDefault(kvp.Key, ("?", Guid.Empty));
+                return new FlockTotal(
+                    kvp.Key, name, houseId,
+                    kvp.Value.Eggs, kvp.Value.Sellable, kvp.Value.Losses, kvp.Value.Deaths,
+                    recorded, rated,
+                    // Same rule as the period figure, at flock grain: the
+                    // numerator over THIS flock's exposure; null — not 0 — when
+                    // the flock has none (its filings all sit outside its
+                    // lifecycle window, or its birds were gone from the ledger).
+                    recorded > 0 ? Math.Round(rated * 100m / recorded, 1) : null);
+            })
+            .OrderBy(f => f.FlockName, StringComparer.Ordinal)
+            .ThenBy(f => f.FlockId)
+            .ToList();
+
         return new ProductionReport(
             days,
             totalEggs,
@@ -340,7 +420,8 @@ public sealed class ReportQueries(AppDbContext db) : IReportQueries
                 .Select(t => new GradeTotal(
                     t.Key, gradeNames.GetValueOrDefault(t.Key, "?"), t.Value))
                 .OrderByDescending(t => t.Quantity)
-                .ToList());
+                .ToList(),
+            flockTotals);
     }
 
 
