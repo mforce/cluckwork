@@ -229,7 +229,7 @@ test.describe("README screenshots", () => {
     await capture(page, "daily-entry.png");
   });
 
-  test("reports — production and money over the seeded period", async ({ page, signIn, farm }) => {
+  test("reports — production over the seeded period", async ({ page, signIn, farm }) => {
     await signIn(castMember("Owner"));
     await page.setViewportSize({ width: 1280, height: 1100 });
     await page.goto("/reports");
@@ -253,7 +253,7 @@ test.describe("README screenshots", () => {
 
     await expect(page.getByRole("heading", { name: tEn("reports:productionHeading") })).toBeVisible();
 
-    // Renders only when the period produced something (ReportsPage guards on
+    // Renders only when the period produced something (ProductionTab guards on
     // `gradeTotals.length > 0`), so it proves the window is not empty.
     await expect(page.getByText(tEn("reports:gradeTotalsLabel"))).toBeVisible();
 

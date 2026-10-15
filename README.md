@@ -105,10 +105,13 @@ link to its audit history.
 
 ![Sales page with status and customer filters, an Unpaid only checkbox, and draft and confirmed orders with totals, outstanding balances, and audit history links](docs/images/sales.png)
 
-Reports show daily production for a selected date range, grade totals, and a
-Money summary of revenue, expenses, and basic profit.
+Reports open on the Production tab, which shows daily production for a selected
+date range plus grade and flock totals. Owners and Managers can switch to the
+Money tab for revenue, expenses, and basic profit; Workers and Sales users see
+Production only. The image below shows the earlier combined layout and remains
+in place until the split Production view is recaptured.
 
-![Reports page with a seven-day production table, reported grade totals, and a Money summary of revenue, expenses, and basic profit](docs/images/reports.png)
+![Reports Production view with a seven-day production table and reported grade totals](docs/images/reports.png)
 
 The Dashboard and Sales images use the demo-seeded `readme-farm`; Daily entry
 and Reports use the simulation fixture. All four come from the built SPA via
