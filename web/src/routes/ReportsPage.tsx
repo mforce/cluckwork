@@ -217,9 +217,12 @@ export function ReportsPage() {
                             beside the name so two same-named rows stay apart. */}
                         <TableCell sx={NOWRAP}>
                           {f.flockName}
-                          <Typography variant="body2" color="text.secondary">
+                          {/* Secondary line: a step below the ledger cell's own
+                              .75rem (FieldConsole's small size), muted, on its
+                              own line — the name stays the main text. */}
+                          <Box component="span" sx={{ display: "block", fontSize: ".625rem", color: "text.secondary" }}>
                             {t("flockPlacedLabel")}: <FarmDate iso={f.placedOn} />
-                          </Typography>
+                          </Box>
                         </TableCell>
                         <TableCell align="right">{fmt.count(f.eggs)}</TableCell>
                         <TableCell align="right">{fmt.count(f.losses)}</TableCell>
