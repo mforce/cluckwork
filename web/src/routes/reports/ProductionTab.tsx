@@ -12,12 +12,8 @@ import { ConsoleSubhead, LedgerTableContainer, CONSOLE_PANEL_SX, CONSOLE_PAPER_H
 // Prevent short values shrinking under auto table layout; free text can wrap.
 const NOWRAP = { whiteSpace: "nowrap" as const };
 
-// #1308 — the per-flock table caps at ten rows; "Show all (N)" reveals the rest.
 const FLOCK_CAP = 10;
 
-// The Production tab: period tiles, the daily table, the per-flock table and
-// the grade totals. It requests ONLY /reports/production — the money figures
-// live on the Money tab, which loads its own reports (#1308).
 export function ProductionTab({ from, to }: { from: string; to: string }) {
   const { t } = useTranslation("reports");
   const fmt = useFormat();
@@ -48,8 +44,6 @@ export function ProductionTab({ from, to }: { from: string; to: string }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  // #1308 — eggs, highest first: the order of the capped first ten (and of the
-  // revealed remainder). A copy, never the report object itself.
   const [showAllFlocks, setShowAllFlocks] = useState(false);
   const flockRows = production === null ? [] : [...production.flockTotals].sort((a, b) => b.eggs - a.eggs);
   const visibleFlocks = showAllFlocks || flockRows.length <= FLOCK_CAP

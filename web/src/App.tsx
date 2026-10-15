@@ -85,8 +85,6 @@ export function App() {
                 <Route path="feed" element={<FeedPage />} />
                 <Route path="water" element={<WaterPage />} />
                 <Route path="expenses" element={<ExpensesPage />} />
-                {/* #1308 — /reports alone opens Production; each tab is its own
-                    path so the range and the tab share the URL. */}
                 <Route path="reports" element={<Navigate to="/reports/production" replace />} />
                 <Route path="reports/:tab" element={<ReportsPage />} />
                 <Route path="audit" element={<AuditPage />} />

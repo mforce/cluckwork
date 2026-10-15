@@ -465,10 +465,6 @@ describe("ReportsPage money section is admin-gated (#182, Task 28)", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// #1308 — the Reports split: two tabs in the URL.
-// ---------------------------------------------------------------------------
-
 describe("ReportsPage tabs (#1308)", () => {
   function flockFixture(n: number): ProductionReport {
     return {
@@ -814,10 +810,6 @@ describe("ReportsPage i18n wiring (#182, Task 28)", () => {
     }
   });
 });
-
-
-// Split by tab with the #1308 split: the phone strip is the Production tab's
-// period tiles; the amount alignment belongs to the Money tab.
 it("keeps period KPIs in one phone strip on the Production tab", async () => {
   renderReports({ token: NON_ADMIN, route: "/reports/production" });
   const strip = await screen.findByLabelText("Period");

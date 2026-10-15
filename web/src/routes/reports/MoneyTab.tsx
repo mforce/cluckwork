@@ -7,10 +7,8 @@ import { errText } from "../../lib/errText";
 import { useFormat } from "../../farm/useFormat";
 import { CONSOLE_PANEL_SX, CONSOLE_PAPER_HEAD_SX } from "../../components/FieldConsole";
 
-// The Money tab (Owner and Manager only — the shell never mounts it for other
-// roles, and the API refuses workers on these routes regardless). It requests
-// ONLY its own three reports — never /reports/production, whose figures live
-// on the Production tab (#1308).
+// Only Owner and Manager mount this tab; the API refuses other roles on these
+// routes regardless.
 export function MoneyTab({ from, to }: { from: string; to: string }) {
   const { t } = useTranslation("reports");
   const { t: tc } = useTranslation("common");
