@@ -17,7 +17,7 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         long HenDays, long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
     private sealed record GradeRow(Guid EggGradeId, string Name, int Quantity);
     private sealed record FlockRow(
-        Guid FlockId, string FlockName, Guid HouseId,
+        Guid FlockId, string FlockName, DateOnly PlacedOn, Guid HouseId,
         int Eggs, int Sellable, int Losses, int Deaths,
         long RecordedHenDays, int RatedEggs, decimal? HenDayPct);
     private sealed record ProductionDto(
@@ -1094,6 +1094,9 @@ public sealed class ReportsTests(CluckworkWebApplicationFactory factory)
         var rowA = report.FlockTotals.Single(f => f.FlockId == flockA);
         Assert.Equal($"Flock-{flockA.ToString()[..8]}", rowA.FlockName);
         Assert.Equal(houseA, rowA.HouseId);
+        // SeedFlockAsync places 30 days before today — the row carries it, so
+        // two same-named flocks stay distinguishable (names are not unique).
+        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow.Date).AddDays(-30), rowA.PlacedOn);
         Assert.Equal((140, 140, 0, 3), (rowA.Eggs, rowA.Sellable, rowA.Losses, rowA.Deaths));
         // 100 day-1 birds + 97 day-2 birds, over both of A's filings.
         Assert.Equal(197L, rowA.RecordedHenDays);

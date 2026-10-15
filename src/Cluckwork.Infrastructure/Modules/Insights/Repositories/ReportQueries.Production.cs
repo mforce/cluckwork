@@ -364,26 +364,30 @@ public sealed partial class ReportQueries
         var totalHenDays = days.Sum(x => x.HenDays);
         var totalRecordedHenDays = days.Sum(x => x.RecordedHenDays);
 
-        // #1299 — names and houses for the breakdown's row set, ONE query over
-        // the flock ids the walk already produced (never one per flock). A
-        // name that no longer resolves falls back to "?" the way the grade
-        // breakdown's does; `HouseId` is the flock's house — houses have no
-        // aggregate yet, so no house name exists to resolve (#780).
+        // #1299 — names, placement dates and houses for the breakdown's row
+        // set, ONE query over the flock ids the walk already produced (never
+        // one per flock). A name that no longer resolves falls back to "?" the
+        // way the grade breakdown's does; `HouseId` is the flock's house —
+        // houses have no aggregate yet, so no house name exists to resolve
+        // (#780). `PlacementDate` rides along because flock names are not
+        // unique: the row needs a second human-readable detail to keep two
+        // same-named flocks apart.
         var flockNames = flockAgg.Count == 0
-            ? new Dictionary<Guid, (string Name, Guid HouseId)>()
+            ? new Dictionary<Guid, (string Name, DateOnly PlacedOn, Guid HouseId)>()
             : (await db.Flocks
                 .Where(f => flockAgg.Keys.Contains(f.Id))
-                .Select(f => new { f.Id, f.Name, f.HouseId })
+                .Select(f => new { f.Id, f.Name, f.PlacementDate, f.HouseId })
                 .ToListAsync(ct))
-                .ToDictionary(f => f.Id, f => (f.Name, f.HouseId));
+                .ToDictionary(f => f.Id, f => (f.Name, f.PlacementDate, f.HouseId));
         var flockTotals = flockAgg
             .Select(kvp =>
             {
                 var recorded = flockRecordedHenDays.GetValueOrDefault(kvp.Key);
                 var rated = flockRatedEggs.GetValueOrDefault(kvp.Key);
-                var (name, houseId) = flockNames.GetValueOrDefault(kvp.Key, ("?", Guid.Empty));
+                var (name, placedOn, houseId) =
+                    flockNames.GetValueOrDefault(kvp.Key, ("?", DateOnly.MinValue, Guid.Empty));
                 return new FlockTotal(
-                    kvp.Key, name, houseId,
+                    kvp.Key, name, placedOn, houseId,
                     kvp.Value.Eggs, kvp.Value.Sellable, kvp.Value.Losses, kvp.Value.Deaths,
                     recorded, rated,
                     // Same rule as the period figure, at flock grain: the

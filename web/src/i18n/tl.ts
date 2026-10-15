@@ -2045,6 +2045,9 @@ export const tl = {
     flockCaption: "Mga kawang may tala sa range",
     flockHeader: "Kawan",
     flockLossesHeader: "Nasira",
+    // #1299 — "Paglagay" is the established word for the placement date
+    // (tl.ts placedLabel/placedHeader). Machine-drafted, pending native review (#182).
+    flockPlacedLabel: "Paglagay",
 
     moneyHeading: "Pera",
     salesSummary:
@@ -3738,6 +3741,18 @@ export const tl = {
       + "sa saleable setting ng mga gradong Basag at Marumi na nakuha sa pag-submit: ang pagpalit ng "
       + "checkbox ay hindi kailanman binabago ang nakaraang araw. Kasama ng Maibebenta %, 100 ang kabuuan "
       + "ng dalawa; ang panahong walang itlog ay nagpapakita ng gitling.",
+    // #1299 round-1 review — ang entry ng Hen-day % column; ang termino ay ang
+    // label ng column at binabanggit ito ng definition. Machine-drafted,
+    // pending native review (#182).
+    glossaryHenDayPctTerm: "Hen-day %",
+    glossaryHenDayPctDef:
+      "Mga itlog na nakolekta ÷ naitalang hen-day × 100 (spec §19.3, may amiyenda mula sa #780). Ang "
+      + "hen-day ay isang ibon na buhay sa isang araw, binibilang mula sa bird ledger, at bawat paglipat "
+      + "ay may epekto mula sa susunod na araw. Ang denominator ay binibilang lamang sa mga kawang "
+      + "nagtala ng araw, kaya ang Hen-day % column ay nagpapakita ng gitling — hindi 0 — kapag walang "
+      + "nag-tala. Ipinapakita ito ng ulat ng produksiyon kada araw at kada kawan (mga itlog ng bawat "
+      + "kawan sa sarili nitong naitalang hen-day), at para sa buong panahon bilang itlog ng panahon ÷ "
+      + "naitalang hen-day ng panahon — hindi average ng mga porsyento kada araw.",
 
     glossaryInventoryItemTerm: "Item sa imbentaryo",
     glossaryInventoryItemDef:

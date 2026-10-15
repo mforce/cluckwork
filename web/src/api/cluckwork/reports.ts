@@ -91,6 +91,8 @@ export interface ProductionReport {
   flockTotals: {
     flockId: string;
     flockName: string;
+    /** The flock's placement date (names are not unique — the row needs a second detail). */
+    placedOn: string;
     houseId: string;
     eggs: number;
     sellable: number;

@@ -58,8 +58,9 @@ const PRODUCTION: ProductionReport = {
   // death, 140+55 = 195 rated). House B sat outside its recorded window, so
   // it carries no recorded exposure and a dash — not 0 — under Hen-day %.
   flockTotals: [
-    { flockId: "f1", flockName: "House A", houseId: "h1", eggs: 140, sellable: 130, losses: 5, deaths: 1, recordedHenDays: 200, ratedEggs: 140, henDayPct: 70.0 },
-    { flockId: "f2", flockName: "House B", houseId: "h2", eggs: 55, sellable: 51, losses: 3, deaths: 0, recordedHenDays: 0, ratedEggs: 0, henDayPct: null },
+    // placedOn — placement dates; names are not unique, the date keeps rows apart.
+    { flockId: "f1", flockName: "House A", placedOn: "2026-06-01", houseId: "h1", eggs: 140, sellable: 130, losses: 5, deaths: 1, recordedHenDays: 200, ratedEggs: 140, henDayPct: 70.0 },
+    { flockId: "f2", flockName: "House B", placedOn: "2026-07-15", houseId: "h2", eggs: 55, sellable: 51, losses: 3, deaths: 0, recordedHenDays: 0, ratedEggs: 0, henDayPct: null },
   ],
 };
 const PRODUCTION_NO_GRADES: ProductionReport = { ...PRODUCTION, gradeTotals: [] };
@@ -260,6 +261,27 @@ describe("ReportsPage production section (renders for every role)", () => {
     await screen.findByRole("row", { name: /07\/19\/2026/ });
     expect(screen.queryByRole("heading", { name: "By flock" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Flock" })).not.toBeInTheDocument();
+  });
+
+  // #1299 round-1 review — flock names are NOT unique: two flocks can share a
+  // name, so the row must carry a second human-readable detail (the placement
+  // date) and each row must be addressable by it.
+  it("keeps two same-named flocks apart by their placement dates", async () => {
+    mockGetProductionReport.mockResolvedValue({
+      ...PRODUCTION,
+      flockTotals: [
+        { ...PRODUCTION.flockTotals[0]!, flockName: "Layers", placedOn: "2026-05-01" },
+        { ...PRODUCTION.flockTotals[1]!, flockName: "Layers", placedOn: "2026-06-20" },
+      ],
+    });
+    renderWithProviders(<ReportsPage />, { token: NON_ADMIN });
+
+    await screen.findByRole("heading", { name: "By flock" });
+    const placedMay = screen.getByRole("row", { name: /Layers.*05\/01\/2026/ });
+    const placedJune = screen.getByRole("row", { name: /Layers.*06\/20\/2026/ });
+    // Same name, different rows — the eggs column tells them apart.
+    expect(within(placedMay).getAllByRole("cell")[1]).toHaveTextContent("140");
+    expect(within(placedJune).getAllByRole("cell")[1]).toHaveTextContent("55");
   });
 
   // #1299 — the over-100 flag applies per flock too: a single flock whose

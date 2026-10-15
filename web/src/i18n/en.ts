@@ -2648,6 +2648,9 @@ export const en = {
     flockCaption: "Flocks that filed in the range",
     flockHeader: "Flock",
     flockLossesHeader: "Losses",
+    // #1299 — the placement date rides under the flock's name (names are not
+    // unique); "Placed" is the flocks page's established word (en.ts placedLabel).
+    flockPlacedLabel: "Placed",
 
     moneyHeading: "Money",
     // {{count}} is confirmedCount; {{revenue}}/{{paid}}/{{outstanding}} are
@@ -4278,6 +4281,17 @@ export const en = {
       + "dirty eggs that resolved to a grade — over total eggs collected, × 100. It follows the Cracked "
       + "and Dirty grades' saleable setting, captured at submit time, so changing the checkbox never "
       + "rewrites a past day. Together with Sellable % it adds up to 100; a period with no eggs shows a dash.",
+    // #1299 round-1 review — the in-app entry for the Hen-day % column, from
+    // the GLOSSARY's Hen-day % section. Per #688 the term is the column's
+    // label, and the definition names the label too.
+    glossaryHenDayPctTerm: "Hen-day %",
+    glossaryHenDayPctDef:
+      "Eggs collected ÷ recorded hen-days × 100 (spec §19.3, amended by #780). A hen-day is one bird "
+      + "alive for one day, counted from the bird ledger, with every movement taking effect from the next "
+      + "day. The denominator counts only flocks that recorded the day, so the Hen-day % column shows a "
+      + "dash — not 0 — when nobody recorded. The production report shows it per day and per flock (each "
+      + "flock's eggs over its own recorded hen-days), and for the whole period as period eggs ÷ period "
+      + "recorded hen-days — not an average of the daily percentages.",
 
     glossaryInventoryItemTerm: "Inventory item",
     glossaryInventoryItemDef:

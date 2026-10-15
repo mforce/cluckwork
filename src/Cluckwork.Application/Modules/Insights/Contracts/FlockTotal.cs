@@ -14,8 +14,10 @@ namespace Cluckwork.Application.Modules.Insights.Contracts;
 // that owed a filing but never filed one appears in no column here — the
 // daily table's Missing column is the record of that. `HouseId` is the house
 // the flock belongs to; houses have no aggregate yet (phantom ids, #780), so
-// this is the id, not a name.
+// this is the id, not a name. `PlacedOn` is the flock's placement date —
+// flock names are NOT unique, so the row carries a second human-readable
+// detail from the same batched query to keep two same-named rows apart.
 public sealed record FlockTotal(
-    Guid FlockId, string FlockName, Guid HouseId,
+    Guid FlockId, string FlockName, DateOnly PlacedOn, Guid HouseId,
     int Eggs, int Sellable, int Losses, int Deaths,
     long RecordedHenDays, int RatedEggs, decimal? HenDayPct);

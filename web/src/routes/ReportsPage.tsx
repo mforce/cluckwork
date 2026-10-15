@@ -213,7 +213,14 @@ export function ReportsPage() {
                   <TableBody>
                     {production.flockTotals.map((f) => (
                       <TableRow key={f.flockId}>
-                        <TableCell sx={NOWRAP}>{f.flockName}</TableCell>
+                        {/* Flock names are NOT unique — the placement date rides
+                            beside the name so two same-named rows stay apart. */}
+                        <TableCell sx={NOWRAP}>
+                          {f.flockName}
+                          <Typography variant="body2" color="text.secondary">
+                            {t("flockPlacedLabel")}: <FarmDate iso={f.placedOn} />
+                          </Typography>
+                        </TableCell>
                         <TableCell align="right">{fmt.count(f.eggs)}</TableCell>
                         <TableCell align="right">{fmt.count(f.losses)}</TableCell>
                         <TableCell align="right">{fmt.count(f.sellable)}</TableCell>
