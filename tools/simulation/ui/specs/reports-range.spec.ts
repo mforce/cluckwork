@@ -45,9 +45,7 @@ test.describe("#311 report range", () => {
     const to = farmToday(farm.timeZoneId);
     const from = daysBefore(to, LARGEST_ACCEPTED_SPAN);
 
-    // Collect every report response the screen makes — ReportsPage fans out to
-    // production, sales, expenses and profit, so a single waitForResponse would
-    // time one of four and call it "the" latency.
+    // Collect the Production tab's report response for the selected range.
     const timings: Array<{ path: string; status: number; ms: number }> = [];
     page.on("response", (res) => {
       if (!REPORT_PATH.test(res.url())) return;

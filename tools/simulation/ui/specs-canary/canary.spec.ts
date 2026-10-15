@@ -87,8 +87,8 @@ const SCREENS = [
     yieldsEventTiming: true,
   },
   {
-    name: "reports",
-    path: "/reports",
+    name: "reports-production",
+    path: "/reports/production",
     ready: (page: CanaryPage) =>
       page.getByRole("table").filter({
         has: page.getByRole("columnheader", { name: tEn("reports:dateHeader") }),
@@ -123,18 +123,6 @@ const SCREENS = [
         Number(total.replaceAll(",", "")),
         "the widened report must contain a positive production total",
       ).toBeGreaterThan(0);
-      // #1308 — the money reports load on their own tab now, so the profit
-      // read is triggered by the tab switch (which keeps the range). Waiting
-      // for it is what stops the post-interaction check passing just before a
-      // 500 lands (#841). Registered BEFORE the click that triggers it.
-      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
-      await page.getByRole("tab", { name: tEn("reports:moneyTab") }).click();
-      await settled;
-      // A POSITIVE check, because the money tab renders only once all three
-      // of its reads land. Asserting the ABSENCE of an error here would pass in
-      // the gap between a 500 arriving and React rendering it (#841).
-      const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
-      await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
     },
     // MEASURED, and it does not: a `<input type="date">` produces no Event
     // Timing entry for a programmatic click+fill, so this screen's interaction
@@ -143,6 +131,25 @@ const SCREENS = [
     // be exercised under load — but the spec does not pretend the interaction
     // metric covers it. Found by the instrument-validation assertion below,
     // which is the point of having one.
+    yieldsEventTiming: false,
+  },
+  {
+    name: "reports-money",
+    path: "/reports/money",
+    ready: (page: CanaryPage) =>
+      page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true }),
+    rows: (ready: CanaryLocator) => ready.locator("dt"),
+    emptyMessageKeys: [],
+    interact: async (page: CanaryPage, timeZoneId: string) => {
+      const today = farmToday(timeZoneId);
+      const from = page.getByLabel(tEn("reports:fromLabel"), { exact: true });
+      const settled = page.waitForResponse((res) => res.url().includes("/api/v1/reports/profit"));
+      await from.click();
+      await from.fill(daysBefore(today, 30));
+      await settled;
+      const money = page.getByRole("region", { name: tEn("reports:moneyHeading"), exact: true });
+      await expect(money.getByText(tEn("reports:profitRowLabel"), { exact: true })).toBeVisible();
+    },
     yieldsEventTiming: false,
   },
   {
