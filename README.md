@@ -110,9 +110,9 @@ date range plus grade and flock totals. Owners and Managers can switch to the
 Money tab for revenue, expenses, and basic profit; Workers and Sales users see
 Production only.
 
-![Reports Production tab for a seven-day submitted period with summary metrics, daily production and by-flock tables, and Large, Medium, and Small grade totals](docs/images/reports-production.png)
+![Reports Production tab for a seven-day submitted period with summary metrics showing changes vs the previous 7 days, daily production and by-flock tables, and Large, Medium, and Small grade totals](docs/images/reports-production.png)
 
-![Reports Money tab for a 31-day period with non-zero revenue and expenses, eggs sold, feed cost per dozen, and negative basic profit](docs/images/reports-money.png)
+![Reports Money tab for a 31-day period with revenue, eggs sold, expenses and basic profit, each with its change vs the previous 31 days, and feed cost per dozen](docs/images/reports-money.png)
 
 The Dashboard and Sales images use the demo-seeded `readme-farm`; Daily entry
 and Reports use the simulation fixture. All five come from the built SPA via
