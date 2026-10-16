@@ -14,6 +14,8 @@
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Redis" />
+    <!-- Pin patched MessagePack: transitive 2.5.302 has GHSA-qhrr-8q5h-9q3h (NU1902) -->
+    <PackageReference Include="MessagePack" />
   </ItemGroup>
 
   <ItemGroup>
