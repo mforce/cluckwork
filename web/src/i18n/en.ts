@@ -4354,18 +4354,20 @@ export const en = {
 
     glossaryLockedEntryTerm: "Locked (entry)",
     glossaryLockedEntryDef:
-      "A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works.",
+      "A submitted entry older than 7 days — closed to routine edits; admin adjust/void still works, except "
+      + "while the flock is Archived or was Depleted before the entry's date.",
 
     glossaryAdjustEntryTerm: "Adjust (entry)",
     glossaryAdjustEntryDef:
       "Admin correction of a submitted entry. The corrected grades must add up to the corrected sellable count "
       + "exactly, the same rule Submit uses — an adjustment has no draft state to leave partly graded. Stock "
-      + "and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible.",
+      + "and bird ledger reconcile automatically; sold eggs are untouchable; previous values stay visible. "
+      + "Refused while the flock is Archived or was Depleted before the entry's date.",
 
     glossaryVoidEntryTerm: "Void (entry)",
     glossaryVoidEntryDef:
       "Admin undo of a whole submitted entry — lots empty, deaths reverse, entry preserved as Voided. "
-      + "Refused once its eggs are sold.",
+      + "Refused once its eggs are sold, or while the flock is Archived or was Depleted before the entry's date.",
 
     glossaryFarmSettingsTerm: "Farm settings",
     glossaryFarmSettingsDef:

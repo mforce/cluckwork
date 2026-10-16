@@ -247,7 +247,9 @@ themselves:
   movement** if the count is > 0.
 - **Locked** — stamped automatically once a submitted entry is strictly
   older than 7 farm-local days (spec §8.1 default; background sweep).
-  Locked ≠ untouchable: admins can still adjust or void.
+  Locked ≠ untouchable: Owners and Managers can still adjust or void it,
+  unless its flock no longer accepts records for that date (archived, or
+  depleted before it). Reactivating the flock allows corrections again.
 - **ManagerAdjusted** — an admin corrected the totals/grades of a
   submitted or locked entry (reason required). The correction is made in
   the **Daily entry** two-step form itself (#403) — the same panes, chip

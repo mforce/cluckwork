@@ -696,7 +696,7 @@ user_role_assignments
 - Workers may create daily entries only for assigned houses/flocks.
 - Sales users may create sales but cannot edit medication records.
 - Vet users may create health/medication notes but cannot sell eggs or edit expenses.
-- Owners may override locked records with audit reason.
+- Owners and Managers may adjust or void locked records with an audit reason.
 - Financial reports are hidden unless the role allows them.
 
 ---
@@ -928,7 +928,7 @@ voided
 |---|---|---|
 | draft | Incomplete or copied from previous day | creator, manager |
 | submitted | Official daily record | worker until cutoff, manager |
-| locked | Closed after configured days | owner/admin only |
+| locked | Closed after configured days | owner, manager (adjust or void) |
 | manager_adjusted | Submitted record adjusted after review | manager/owner |
 | voided | Cancelled but preserved | owner/admin |
 
