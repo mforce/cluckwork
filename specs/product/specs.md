@@ -928,7 +928,7 @@ voided
 |---|---|---|
 | draft | Incomplete or copied from previous day | creator, manager |
 | submitted | Official daily record | worker until cutoff, manager |
-| locked | Closed after configured days | owner/admin only |
+| locked | Closed after configured days | owner, manager (adjust or void) |
 | manager_adjusted | Submitted record adjusted after review | manager/owner |
 | voided | Cancelled but preserved | owner/admin |
 
