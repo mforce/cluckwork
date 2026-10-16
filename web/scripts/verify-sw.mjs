@@ -440,7 +440,7 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // base ceiling was 1,665 KiB; this branch measures 1,665.81 KiB.
 //
 // 2026-10-16, raised to 1,680 KiB for #1316 (@mui/material 9.5.0, i18next
-// 26.4.4, lucide-react 1.55.0), approved by the maintainer: the base ceiling
+// 26.4.4, lucide-react 1.56.0), approved by the maintainer: the base ceiling
 // was 1,675 KiB and the branch measures 1,677.86 KiB. The delta is all
 // dependency code; no app code changed.
 const PRECACHE_CEILING_KIB = 1680;
