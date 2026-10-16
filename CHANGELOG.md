@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.2.0) (2026-10-16)
+
+
+### Bug fixes
+
+* **deps:** pin MessagePack 2.5.303 for GHSA-qhrr-8q5h-9q3h ([#1321](https://github.com/mforce/cluckwork/issues/1321)) ([60f7e70](https://github.com/mforce/cluckwork/commit/60f7e70b60ea1c9fa1ae310277e066eb71ff4d02))
+
+
+### Documentation
+
+* **specs:** say who corrects locked daily entries and when archiving blocks it ([#1312](https://github.com/mforce/cluckwork/issues/1312)) ([1683ce6](https://github.com/mforce/cluckwork/commit/1683ce688941efde5b3f0e76934d040056e1a1ff))
+
 ## [1.1.1](https://github.com/mforce/cluckwork/compare/v1.1.0...v1.1.1) (2026-10-15)
 
 
