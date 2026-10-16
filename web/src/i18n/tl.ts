@@ -3823,7 +3823,8 @@ export const tl = {
     glossaryLockedEntryTerm: "Naka-lock (entry)",
     glossaryLockedEntryDef:
       "Isang naisumiteng entry na mas matanda sa 7 araw — sarado sa mga karaniwang edit; gumagana pa rin "
-      + "ang pag-adjust/void ng admin.",
+      + "ang pag-adjust/void ng admin, maliban kung Naka-archive ang kawan o Naubos ito bago ang petsa ng "
+      + "entry.",
 
     glossaryAdjustEntryTerm: "I-adjust (entry)",
     glossaryAdjustEntryDef:
@@ -3831,12 +3832,14 @@ export const tl = {
       + "naitamang naibibentang bilang, ang parehong panuntunan na ginagamit ng Isumite — walang draft "
       + "state ang isang pagsasaayos na maiiwan itong bahagyang na-grade. Awtomatikong nagtutugma ang "
       + "stock at ang talaan ng ibon; hindi na magagalaw ang mga naibentang itlog; nananatiling nakikita "
-      + "ang mga naunang value.",
+      + "ang mga naunang value. Tinatanggihan kung Naka-archive ang kawan o Naubos ito bago ang petsa ng "
+      + "entry.",
 
     glossaryVoidEntryTerm: "I-void (entry)",
     glossaryVoidEntryDef:
       "Pag-undo ng admin sa buong naisumiteng entry — nauubusan ang mga lote, nire-reverse ang mga "
-      + "kamatayan, at nananatiling Na-void ang entry. Tinatanggihan kapag naibenta na ang mga itlog nito.",
+      + "kamatayan, at nananatiling Na-void ang entry. Tinatanggihan kapag naibenta na ang mga itlog nito, "
+      + "o kung Naka-archive ang kawan o Naubos ito bago ang petsa ng entry.",
 
     glossaryFarmSettingsTerm: "Mga Setting ng Bukid",
     glossaryFarmSettingsDef:

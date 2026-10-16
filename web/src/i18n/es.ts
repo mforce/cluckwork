@@ -3685,7 +3685,7 @@ export const es = {
     glossaryLockedEntryTerm: "Bloqueada (entrada)",
     glossaryLockedEntryDef:
       "Una entrada enviada de más de 7 días — cerrada a ediciones rutinarias; el ajuste/anulación de admin "
-      + "sigue funcionando.",
+      + "sigue funcionando, salvo si el lote está Archivado o estaba Agotado antes de la fecha de la entrada.",
 
     glossaryAdjustEntryTerm: "Ajustar (entrada)",
     glossaryAdjustEntryDef:
@@ -3693,12 +3693,13 @@ export const es = {
       + "cantidad vendible corregida, la misma regla que usa Enviar — un ajuste no tiene estado de borrador "
       + "para dejarlo parcialmente clasificado. Las existencias y el libro mayor de aves se concilian "
       + "automáticamente; los huevos vendidos son intocables; los valores anteriores permanecen "
-      + "visibles.",
+      + "visibles. Se rechaza si el lote está Archivado o estaba Agotado antes de la fecha de la entrada.",
 
     glossaryVoidEntryTerm: "Anular (entrada)",
     glossaryVoidEntryDef:
       "Deshacer de admin de toda una entrada enviada — los lotes quedan vacíos, las muertes se revierten, "
-      + "la entrada se conserva como Anulada. Se rechaza una vez que sus huevos están vendidos.",
+      + "la entrada se conserva como Anulada. Se rechaza una vez que sus huevos están "
+      + "vendidos, o si el lote está Archivado o estaba Agotado antes de la fecha de la entrada.",
 
     glossaryFarmSettingsTerm: "Configuración de la granja",
     glossaryFarmSettingsDef:
