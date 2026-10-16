@@ -20,6 +20,10 @@
     <PackageVersion Include="coverlet.collector" Version="10.*" />
     <PackageVersion Include="FluentValidation" Version="12.*" />
     <PackageVersion Include="Google.Protobuf" Version="3.*" />
+    <!-- Pinned: Aspire.Hosting 13.6.1 and StreamJsonRpc bring 2.5.302, which has
+         GHSA-qhrr-8q5h-9q3h (NU1902). Drop when Aspire ships a patched dependency.
+         Reason also noted at the reference in Cluckwork.AppHost.csproj. -->
+    <PackageVersion Include="MessagePack" Version="2.5.303" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
     <PackageVersion Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="10.*" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.*" />
