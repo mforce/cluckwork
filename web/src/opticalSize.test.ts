@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { CURRENCY_UNICODE_RANGE } from "../scripts/subset-inter-currency.mjs";
 
 // #835 — display text gets an optical size only if the face the app LOADS
 // carries Inter's `opsz` axis, and `@fontsource-variable/inter` ships two sets
@@ -112,16 +114,34 @@ describe("#835 nothing flattens display and body onto one cut", () => {
 });
 
 // The precache is where the cost of this axis lands (#825), and dropping the
-// Latin faces would "save" 71 KiB by unloading the app's own typeface offline.
+// Latin face would "save" 71 KiB by unloading the app's own typeface offline.
 // verify-sw.mjs checks the built manifest; this checks the input that produces
 // it, so a pattern edit fails in the unit suite rather than only after a build.
 describe("#835 precache keeps the faces the app renders", () => {
   const config = source("vite.config.ts");
   const ignores = /globIgnores:\s*\[([^\]]*)\]/.exec(config)?.[1] ?? "";
 
-  it("drops only subsets outside the app's locales", () => {
+  // #1322: latin-ext may go (no catalog string uses it); the currency face
+  // keeps its money symbols offline.
+  it("drops only faces the app can load on demand", () => {
     expect(ignores, "vite.config.ts declares no globIgnores").not.toBe("");
-    expect(ignores).not.toMatch(/\blatin\b/);
+    expect(ignores).not.toMatch(/\blatin\b(?!-ext)/);
+    expect(ignores).not.toMatch(/currency/);
     for (const subset of ["cyrillic", "greek", "vietnamese"]) expect(ignores).toContain(subset);
+  });
+});
+
+// #1322 — the committed currency face is cut from the installed fontsource
+// file. A fontsource bump changes the source, and this fails until
+// `npm run fonts:subset` regenerates the face. A child process because the
+// wasm subsetter rejects jsdom's byte arrays.
+describe("#1322 currency face", () => {
+  it("is byte-identical to a fresh subset of the installed latin-ext face", () => {
+    expect(() => execFileSync(process.execPath, ["scripts/subset-inter-currency.mjs", "--check"], { stdio: "pipe" }))
+      .not.toThrow();
+  });
+
+  it("is declared for the range it was cut to", () => {
+    expect(source("src/styles/fonts.css")).toContain(`unicode-range: ${CURRENCY_UNICODE_RANGE};`);
   });
 });

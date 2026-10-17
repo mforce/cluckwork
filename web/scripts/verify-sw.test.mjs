@@ -43,10 +43,10 @@ const LANGUAGE_PACKS = ["es-deadbeef.js", "tl-deadbeef.js"];
 const RUNTIME_ROUTE_REGEX_ROUND_1 =
   "/\\/inter-(cyrillic-ext|cyrillic|greek-ext|greek|vietnamese)-opsz-normal-[^/]+\\.woff2$/";
 
-// #835 added check 5: the Inter latin/latin-ext opsz faces must be precached.
-// Zero-byte stubs so they satisfy that check without moving the byte totals
-// this suite asserts on — `assetByteSize` stays the only KiB in play.
-const OPSZ_FONTS = ["inter-latin-opsz-normal.woff2", "inter-latin-ext-opsz-normal.woff2"];
+// #835 added check 5: the Inter latin and (#1322) currency opsz faces must be
+// precached. Zero-byte stubs so they satisfy that check without moving the byte
+// totals this suite asserts on — `assetByteSize` stays the only KiB in play.
+const OPSZ_FONTS = ["inter-latin-opsz-normal.woff2", "inter-currency-opsz-normal.woff2"];
 
 /** Builds a minimal dist/ that satisfies every OTHER verify-sw.mjs check, so a test only exercises the guard it mutates. */
 function buildFixture(assetByteSize, runtimeRoute = RUNTIME_ROUTE_FN,

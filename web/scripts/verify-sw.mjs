@@ -222,7 +222,7 @@ if (denylist) {
 }
 
 // 2. Exactly two runtime caching routes may exist beyond the navigation route:
-//    #948's CacheFirst cache for the five Inter subsets `globIgnores` drops
+//    #948's CacheFirst cache for the Inter subsets `globIgnores` drops
 //    from the precache (check 5), and #1149's for the es/tl catalog chunks
 //    (check 3). #948 review round 2: a RegExp `urlPattern`
 //    is tested against the request's full href, UNANCHORED, so round 1's
@@ -448,7 +448,14 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // precache, and theme-init.js is precached minified. `main` measured
 // 1,677.86 KiB; the branch measures 1,644.33 KiB, 33.53 KiB less. The ceiling
 // keeps about 15 KiB of margin over that measurement.
-const PRECACHE_CEILING_KIB = 1659;
+//
+// 2026-10-17, set to a fixed 1,600 KiB by the maintainer (#1322): the 130 KiB
+// Inter latin-ext face left the precache, and a 12.9 KiB face holding only its
+// currency symbols took its place (check 5). `main` measured 1,677.86 KiB;
+// this branch measures 1,526.93 KiB. The limit stays at 1,600 KiB so Help and
+// glossary additions and dependency bumps fit without a raise per PR. Raising
+// it above 1,600 KiB still needs a maintainer decision.
+const PRECACHE_CEILING_KIB = 1600;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
@@ -467,13 +474,16 @@ check(precacheKiB <= PRECACHE_CEILING_KIB,
 
 // 5. The app's own typeface must still be in the precache, on the face that
 // carries the optical-size axis (#835). `globIgnores` in vite.config.ts drops
-// the five Inter subsets no locale renders; widening it to the Latin ones, or
-// reverting to the wght-only entry, would both pass check 4 by getting SMALLER
-// — a saving that costs the app its typeface offline, or its display cut.
+// every Inter subset except latin; widening it to latin, dropping the currency
+// face, or reverting to the wght-only entry would all pass check 4 by getting
+// SMALLER — a saving that costs the app its typeface offline, its money
+// symbols offline, or its display cut. #1322: the latin-ext face may be absent
+// because the catalogs use none of its letters; its currency symbols ship in
+// the `currency` face (src/styles/fonts.css).
 const interFaces = precached.filter((url) => /inter-[a-z-]+-(opsz|wght|standard)-normal/.test(url));
-for (const subset of ["latin", "latin-ext"])
+for (const [subset, renders] of [["latin", "every en/es/tl string"], ["currency", "₱ ₹ ₫ ₩ ₪ in money cells"]])
   check(interFaces.some((url) => new RegExp(`inter-${subset}-opsz-normal`).test(url)),
-    `the Inter ${subset} opsz face is not precached — the app ships en/es/tl and renders both subsets`);
+    `the Inter ${subset} opsz face is not precached — it draws ${renders}, which must render offline`);
 const nonVariable = interFaces.filter((url) => !/-opsz-normal/.test(url));
 check(nonVariable.length === 0,
   `precached Inter faces without the opsz axis: ${nonVariable.join(", ")} — ` +

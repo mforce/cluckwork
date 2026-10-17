@@ -141,8 +141,14 @@ export default defineConfig(({ mode }) => {
           //
           // #1322 — the install icons (31 KiB) leave too: the browser fetches
           // them from the manifest when the app is installed, never offline.
+          //
+          // #1322 — so does the latin-ext face (130 KiB). The catalogs use no
+          // latin-ext character; it draws currency symbols and typed names
+          // (ł, ő, ș). The symbols come from the small precached face in
+          // styles/fonts.css instead; the names load latin-ext on demand,
+          // like the subsets above.
           globIgnores: [
-            "**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2",
+            "**/inter-{latin-ext,cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2",
             "**/assets/{es,tl}-*.js",
             "{icon-*,apple-touch-icon}.png",
           ],
@@ -163,11 +169,12 @@ export default defineConfig(({ mode }) => {
           // stale shared response here would be a correctness bug, not a
           // performance win. #50 adds an explicit, deliberate offline path.
           //
-          // #948 review — the five subsets `globIgnores` drops still need to
-          // work offline after a first successful fetch (a Cyrillic/Greek/
-          // Vietnamese farm or customer name, `unicode-range` fetches them on
-          // demand). Round 1 shipped a bare RegExp `urlPattern`: Workbox
-          // tests a RegExp against the request's FULL href, unanchored, so
+          // #948 review — the subsets `globIgnores` drops still need to work
+          // offline after a first successful fetch (a Cyrillic/Greek/
+          // Vietnamese or, since #1322, Central-European farm or customer
+          // name; `unicode-range` fetches them on demand). Round 1 shipped a
+          // bare RegExp `urlPattern`: Workbox tests a RegExp against the
+          // request's FULL href, unanchored, so
           // an unrelated same-origin path ending in the right suffix — e.g.
           // an /api/ route that happened to echo a filename like this one —
           // would also match, and a regex has no way to see

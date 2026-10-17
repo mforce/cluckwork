@@ -1,0 +1,12 @@
+/* #1322 — Inter's currency symbols (₱ ₹ ₫ ₩ ₪ …) from a small precached face,
+   so the 130 KiB latin-ext face can load on demand. Declared after fontsource's
+   faces (main.tsx imports them first), so it wins the range latin-ext also
+   claims. Regenerate with `npm run fonts:subset`. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../assets/fonts/inter-currency-opsz-normal.woff2) format("woff2-variations");
+  unicode-range: U+20A0-20AB,U+20AD-20C0;
+}
