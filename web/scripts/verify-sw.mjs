@@ -443,7 +443,12 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // 26.4.4, lucide-react 1.56.0), approved by the maintainer: the base ceiling
 // was 1,675 KiB and the branch measures 1,677.86 KiB. The delta is all
 // dependency code; no app code changed.
-const PRECACHE_CEILING_KIB = 1680;
+//
+// 2026-10-17, lowered to 1,659 KiB by #1322: the five install icons left the
+// precache, and theme-init.js is precached minified. `main` measured
+// 1,677.86 KiB; the branch measures 1,644.33 KiB, 33.53 KiB less. The ceiling
+// keeps about 15 KiB of margin over that measurement.
+const PRECACHE_CEILING_KIB = 1659;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
