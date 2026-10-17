@@ -449,12 +449,13 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // 1,677.86 KiB; the branch measures 1,644.33 KiB, 33.53 KiB less. The ceiling
 // keeps about 15 KiB of margin over that measurement.
 //
-// 2026-10-17, lowered to 1,541 KiB by #1322: the 130 KiB Inter latin-ext face
-// left the precache, and a 12.9 KiB face holding only its currency symbols
-// took its place (check 5). The base measured 1,644.33 KiB; the branch
-// measures 1,526.93 KiB, 117.40 KiB less. The ceiling keeps about 14 KiB of
-// margin over that measurement.
-const PRECACHE_CEILING_KIB = 1541;
+// 2026-10-17, set to a fixed 1,600 KiB by the maintainer (#1322): the 130 KiB
+// Inter latin-ext face left the precache, and a 12.9 KiB face holding only its
+// currency symbols took its place (check 5). `main` measured 1,677.86 KiB;
+// this branch measures 1,526.93 KiB. The limit stays at 1,600 KiB so Help and
+// glossary additions and dependency bumps fit without a raise per PR. Raising
+// it above 1,600 KiB still needs a maintainer decision.
+const PRECACHE_CEILING_KIB = 1600;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
