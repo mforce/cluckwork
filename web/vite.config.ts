@@ -172,8 +172,9 @@ export default defineConfig(({ mode }) => {
           // #948 review — the subsets `globIgnores` drops still need to work
           // offline after a first successful fetch (a Cyrillic/Greek/
           // Vietnamese or, since #1322, Central-European farm or customer
-          // name; `unicode-range` fetches them on demand). Round 1 shipped a bare RegExp `urlPattern`: Workbox
-          // tests a RegExp against the request's FULL href, unanchored, so
+          // name; `unicode-range` fetches them on demand). Round 1 shipped a
+          // bare RegExp `urlPattern`: Workbox tests a RegExp against the
+          // request's FULL href, unanchored, so
           // an unrelated same-origin path ending in the right suffix — e.g.
           // an /api/ route that happened to echo a filename like this one —
           // would also match, and a regex has no way to see
