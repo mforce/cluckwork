@@ -1,6 +1,8 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vitest/config";
-import { loadEnv } from "vite";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { loadEnv, minifySync } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
@@ -26,6 +28,24 @@ function versionManifest(version: string | undefined): Plugin {
         fileName: "version.json",
         source: JSON.stringify({ version: version ?? null }),
       });
+    },
+  };
+}
+
+// #1322 — public/ is copied verbatim, so the pre-paint script would ship and be
+// precached with all its comments. Minify the copy in dist; the source stays
+// readable for review and for themeInit.test.ts. writeBundle runs before the
+// PWA plugin's closeBundle, so the precache revision hashes the minified bytes.
+// Script mode (the default) keeps top-level names, as a classic <script> needs.
+function minifyThemeInit(): Plugin {
+  return {
+    name: "cluckwork-minify-theme-init",
+    apply: "build",
+    writeBundle({ dir }) {
+      const path = join(dir!, "theme-init.js");
+      const { code, errors } = minifySync(path, readFileSync(path, "utf8"));
+      if (errors.length) throw new Error(`theme-init.js: ${errors[0].message}`);
+      writeFileSync(path, code);
     },
   };
 }
@@ -67,6 +87,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       versionManifest(env.VITE_APP_VERSION),
+      minifyThemeInit(),
       // #142 — installable PWA. Scope is the app SHELL only: the service worker
       // makes the SPA launchable from a home screen and survivable on a bad
       // connection. It caches no application data — offline capture is #50.
@@ -80,8 +101,8 @@ export default defineConfig(({ mode }) => {
         // guarded on a secure context; the plugin's auto-injected snippet has no
         // such guard.
         injectRegister: null,
-        // Workbox already sweeps the manifest icons from public/. The plugin's
-        // default icon injection would put each one in the precache twice.
+        // #1322 — the install icons stay out of the precache (see `globIgnores`);
+        // the plugin's default icon injection would add them back.
         includeManifestIcons: false,
         manifest: {
           name: "Cluckwork",
@@ -117,9 +138,13 @@ export default defineConfig(({ mode }) => {
           // too: a device uses one language, and English ships in the bundle as
           // every pack's fallback. The `language-packs` route below caches the
           // one a device loads.
+          //
+          // #1322 — the install icons (31 KiB) leave too: the browser fetches
+          // them from the manifest when the app is installed, never offline.
           globIgnores: [
             "**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2",
             "**/assets/{es,tl}-*.js",
+            "{icon-*,apple-touch-icon}.png",
           ],
           // An unknown route serves index.html from the cache, EXCEPT the
           // server's own namespaces, which must always reach the network.
