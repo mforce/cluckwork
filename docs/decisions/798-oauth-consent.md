@@ -86,12 +86,15 @@ cancel stay on the GET authorize endpoint because #796 refuses any other method 
   exactly as the user-administration handlers do. `IStepUpGrantService` stays internal to
   Access (#857).
 - **Every code costs the password.** No path issues a code without a spent step-up
-  grant, a reconnect included. Approval creates a *permanent* authorization holding the
-  requested scopes. When one valid permanent authorization of this user for this app
-  already holds every requested scope, the payload says `alreadyApproved`, the SPA asks
-  for the password only, and the approval reuses that authorization. A request for more
-  sets `alreadyApproved` to false and shows the permissions again, with `alreadyAllowed`
-  naming what an earlier approval covered.
+  grant, a reconnect included (why: "A reconnect skips the permissions, never the
+  password" below). Updated 2026-10-18 by #1326: approval creates a *permanent*
+  authorization holding the granted scopes G, or reuses a valid permanent authorization
+  of this user for this app whose scopes equal G exactly. `alreadyApproved` says one
+  such authorization already holds every requested scope; it only picks the screen's
+  headline, and the permissions always show. `alreadyAllowed` names the requested scopes
+  any earlier approval holds. Before #1326 the approval stored every requested scope and
+  reused any authorization covering them, and the SPA asked an approved app for the
+  password only.
 - **What the app would reach.** `assignedFlocks` is the flock scope this very request
   resolved (#388, #612): null when the user reaches every flock, which includes a Worker
   with no assignments, else the assigned flocks' names, read through `IAccessModule`.

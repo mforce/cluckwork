@@ -61,10 +61,12 @@ away. Disconnect does neither.
 it after the step-up grant is spent, in the same transaction that creates the
 authorization:
 
-- `User.AppConnected` is written when the approval creates an authorization. That is a
-  first approval or one for wider scopes.
-- `User.AppReconnected` is written when the approval reuses an authorization that
-  already covers every requested scope.
+- `User.AppConnected` is written when the approval creates an authorization: one for a
+  set of granted scopes no valid approval holds exactly, wider or narrower (#1326; before
+  it, a first approval or one for wider scopes).
+- `User.AppReconnected` is written when the approval reuses an authorization whose
+  scopes equal the granted set (#1326; before it, one that covered every requested
+  scope).
 
 If the transaction fails, it writes neither the authorization nor the row. The details
 carry the client id, the app's name at write time and the granted scopes. The row's
@@ -72,7 +74,8 @@ connected-app columns (#800) stay empty, because they mean "acted through this a
 and here the person acted on the consent screen themselves. So these rows are not
 included under **Only actions through connected apps**. The code is issued after
 the endpoint returns, so a failure during issuance leaves a committed approval with no
-code. The client then has to ask again, and that request is recorded as a reconnect.
+code. The client then has to ask again, and that request, with the same choice, is
+recorded as a reconnect.
 
 **Last used, at most once every 15 minutes per authorization.** `CredentialEpochMiddleware`
 calls `ConnectedApps.RecordUseAsync` once the account and credential checks pass (#1229;
