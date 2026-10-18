@@ -3439,7 +3439,7 @@ export const es = {
       + "contraseña actual; nunca puede hacer más que tu rol. Una aplicación ya permitida solo pide la contraseña "
       + "cuando se conecta otra vez. Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la "
       + "pantalla muestra <strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice "
-      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre.",
+      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Una aplicación que pide más se conecta otra vez: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "

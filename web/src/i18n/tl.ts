@@ -3567,7 +3567,8 @@ export const tl = {
       + "app na pinayagan na ay password lang ang hihingin kapag kumonekta ulit. Kapag nakuha ng Cluckwork ang mga "
       + "detalye ng app mula sa sarili nitong website, ipinapakita ng screen ang <strong>Beripikadong domain</strong> "
       + "at ang address ng website na iyon; kung hindi, <strong>Hindi beripikadong app</strong> ang nakasulat. Alinman "
-      + "dito, ang app ang pumili ng sarili nitong pangalan.",
+      + "dito, ang app ang pumili ng sarili nitong pangalan. Kumokonekta ulit ang app na humihingi ng higit pa: may markang "
+      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong> ang hindi magagamit ng role mo.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
