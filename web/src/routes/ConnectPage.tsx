@@ -42,12 +42,12 @@ export function ConnectPage() {
   // #1185 — the request this page is for. The answer carries its query, so an answer for a
   // query the person has left never shows under the new one.
   const ask = useLatestLoad([search], async (signal) => ({ search, answer: await askConsent(search, signal) }));
-  // Where Allow or Cancel led, for this query only.
-  const [outcome, setOutcome] = useState<{ search: string; kind: "leaving" | "off" } | null>(null);
+  // Where Allow or Cancel led, for the one read it answered: a fresh read clears it.
+  const [outcome, setOutcome] = useState<{ read: typeof ask.data; kind: "leaving" | "off" } | null>(null);
   // The ticks belong to the one request they were made on; a new request starts afresh.
   const [choice, setChoice] = useState<{ request: ConsentRequest; selected: readonly string[] } | null>(null);
   const loaded = ask.data?.search === search ? ask.data.answer : null;
-  const view: View = outcome?.search === search ? { kind: outcome.kind }
+  const view: View = outcome && outcome.read === ask.data ? { kind: outcome.kind }
     : ask.error ? { kind: isOff(ask.error) ? "off" : "refused" }
     : !loaded ? { kind: "loading" }
     : "redirectUri" in loaded ? { kind: "leaving" }
@@ -72,9 +72,9 @@ export function ConnectPage() {
     if (loaded && "redirectUri" in loaded) window.location.assign(loaded.redirectUri);
   }, [loaded]);
 
-  function follow(answer: AuthorizeAnswer, from: string) {
+  function follow(answer: AuthorizeAnswer, read: typeof ask.data) {
     if ("redirectUri" in answer) {
-      setOutcome({ search: from, kind: "leaving" });
+      setOutcome({ read, kind: "leaving" });
       window.location.assign(answer.redirectUri);
     } else {
       ask.retry();
@@ -86,6 +86,7 @@ export function ConnectPage() {
     if (view.kind !== "ask") return;
     // Fixed before the first await: the checkboxes stay disabled until this settles.
     const asked = search;
+    const read = ask.data;
     const { selected } = view;
     if (selected.length === 0) return cancel();
     await run("allow", async () => {
@@ -101,9 +102,9 @@ export function ConnectPage() {
         return;
       }
       try {
-        follow(await approveConsent(asked, grant, selected), asked);
+        follow(await approveConsent(asked, grant, selected), read);
       } catch (err) {
-        if (isOff(err)) setOutcome({ search: asked, kind: "off" });
+        if (isOff(err)) setOutcome({ read, kind: "off" });
         else setError(t("failed"));
       }
     });
@@ -113,7 +114,7 @@ export function ConnectPage() {
     await run("cancel", async () => {
       setError(null);
       try {
-        follow(await declineConsent(search), search);
+        follow(await declineConsent(search), ask.data);
       } catch {
         setError(t("failed"));
       }

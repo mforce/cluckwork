@@ -497,4 +497,30 @@ describe("ConnectPage (#798, consent D)", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(screen.getByText("Nothing is ticked. Choose Cancel to go back to the app without connecting it.")).toBeInTheDocument();
   });
+
+  // A refusal belongs to the read it answered: coming back to the same request reads it
+  // afresh, and a fresh answer shows the request again.
+  it("forgets a refusal when the person leaves the request and comes back to it", async () => {
+    const OTHER = "?client_id=c2&scope=farm%3Aread";
+    vi.mocked(askConsent).mockImplementation((search) =>
+      Promise.resolve(search === SEARCH ? REQUEST : { ...REQUEST, clientId: "c2", scopes: ["farm:read"], usable: ["farm:read"] }));
+    vi.mocked(stepUp).mockResolvedValue({ token: "grant", expiresAt: "" });
+    vi.mocked(approveConsent).mockRejectedValue(new ApiError(403, "Auth.ConnectedAppsOff", "off"));
+    renderWithProviders(
+      <Routes><Route path="/connect" element={<><ConnectPage />
+        <Link to={`/connect${OTHER}`}>other</Link><Link to={`/connect${SEARCH}`}>back</Link></>} /></Routes>,
+      { route: `/connect${SEARCH}`, farm: account(), token: { sub: "u1", role: "Manager" } },
+    );
+    await screen.findByRole("heading", { name: "Let Claude Desktop act as you?" });
+    await allowWith("pw");
+    await screen.findByRole("heading", { name: "Connected apps are off" });
+
+    fireEvent.click(screen.getByText("other"));
+    await screen.findByRole("heading", { name: "Let Claude Desktop act as you?" });
+    fireEvent.click(screen.getByText("back"));
+
+    await waitFor(() => expect(askConsent).toHaveBeenCalledTimes(3));
+    expect(await screen.findByRole("heading", { name: "Let Claude Desktop act as you?" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Connected apps are off" })).not.toBeInTheDocument();
+  });
 });
