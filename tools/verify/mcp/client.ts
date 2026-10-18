@@ -111,12 +111,14 @@ function consent(url: URL, redirect: string, member: Member, shots?: string, del
     await page.goto(url.href);
     const farmCode = page.getByLabel(en.auth.farmCode);
     const password = page.getByLabel(CONSENT.password);
-    await farmCode.or(password).first().waitFor();
+    // Cancel is on every consent screen; the password is not when nothing can be ticked.
+    const cancel = page.getByRole("button", { name: CONSENT.cancel });
+    await farmCode.or(cancel).first().waitFor();
     if (await farmCode.isVisible()) {
       console.log(`sign-in at ${new URL(page.url()).pathname}`);
       await signIn(page, member);
     }
-    await password.waitFor();
+    await cancel.waitFor();
     const main = (await page.locator("main").innerText()).replaceAll(member.email, "<email>");
     console.log(`consent at ${new URL(page.url()).pathname}:\n${main.split("\n").filter(Boolean).map((l) => `  | ${l}`).join("\n")}`);
     const boxes = async () => (await page.getByRole("checkbox").evaluateAll((all) => all.map((b) =>
@@ -126,7 +128,8 @@ function consent(url: URL, redirect: string, member: Member, shots?: string, del
     for (const scope of (process.env.MCP_TICK ?? "").split(",").filter(Boolean)) await scopeBox(page, scope).setChecked(true);
     if (process.env.MCP_UNTICK || process.env.MCP_TICK) console.log(`checkboxes at Allow: ${await boxes()}`);
     // MCP_DETAILS=1 opens Details first, so the frames show what the grant covers.
-    if (shots && process.env.MCP_DETAILS) await page.getByText(CONSENT.details, { exact: true }).click();
+    const details = page.getByText(CONSENT.details, { exact: true });
+    if (shots && process.env.MCP_DETAILS && await details.isVisible()) await details.click();
     if (shots) {
       for (const [w, h] of [[1280, 800], [390, 844]] as const)
         for (const theme of ["light", "dark"] as const) {
