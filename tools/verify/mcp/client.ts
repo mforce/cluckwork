@@ -7,9 +7,12 @@
 //   node client.ts call <token-file> <tool> [json-args]
 //   node client.ts disconnect <persona> [app-name]
 //
+// MCP_CLIENT_FILE keeps one registration across connects, so a second connect is the same
+// app reconnecting and consent marks what it newly asks for as New (#1311, #1313).
+//
 // persona: owner | restricted-worker | readme-owner. Credentials come from the
 // git-ignored .sim-cast.json and are never printed.
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -139,8 +142,13 @@ function disconnect(member: Member, app: string): Promise<void> {
 
 async function connect(name: string, scope: string, tokenFile: string, shots?: string) {
   const member = persona(name);
-  const redirect = `http://127.0.0.1:${await freePort()}/callback`;
-  let info: OAuthClientInformationMixed | undefined;
+  const clientFile = process.env.MCP_CLIENT_FILE;
+  const saved = clientFile && existsSync(clientFile)
+    ? JSON.parse(readFileSync(clientFile, "utf8")) as { info: OAuthClientInformationMixed; redirect: string }
+    : undefined;
+  const redirect = saved?.redirect ?? `http://127.0.0.1:${await freePort()}/callback`;
+  let info: OAuthClientInformationMixed | undefined = saved?.info;
+  if (saved) console.log(`reusing client_id=${saved.info.client_id}`);
   let tokens: OAuthTokens | undefined;
   let verifier = "";
   let authUrl: URL | undefined;
@@ -155,7 +163,11 @@ async function connect(name: string, scope: string, tokenFile: string, shots?: s
       scope,
     },
     clientInformation: () => info,
-    saveClientInformation: (i) => { info = i; console.log(`registered client_id=${i.client_id}`); },
+    saveClientInformation: (i) => {
+      info = i;
+      console.log(`registered client_id=${i.client_id}`);
+      if (clientFile) writeFileSync(clientFile, JSON.stringify({ info: i, redirect }), { mode: 0o600 });
+    },
     tokens: () => tokens,
     saveTokens: (t) => { tokens = t; },
     // The SDK asks for every scope the resource metadata lists and ignores clientMetadata.scope,
