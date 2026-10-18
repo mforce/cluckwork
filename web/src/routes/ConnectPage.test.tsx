@@ -489,4 +489,12 @@ describe("ConnectPage (#798, consent D)", () => {
     await waitFor(() => expect(first.aborted).toBe(true));
     expect(askConsent).toHaveBeenLastCalledWith("?client_id=c2", expect.any(AbortSignal));
   });
+
+  it("asks for no unticking when the role can use none of the requested permissions", async () => {
+    await show({ ...REQUEST, scopes: ["expenses:write"], usable: [] }, null);
+
+    expect(screen.queryByText("Untick any permission you don't want to allow.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByText("Nothing is ticked. Choose Cancel to go back to the app without connecting it.")).toBeInTheDocument();
+  });
 });

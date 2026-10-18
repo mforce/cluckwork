@@ -237,7 +237,7 @@ function Permissions({ request, selected, disabled, onChange }: {
   const role = currentUserRole();
   return (
     <>
-      <Typography variant="body2">{t("chooseScopes")}</Typography>
+      {request.usable.length > 0 && <Typography variant="body2">{t("chooseScopes")}</Typography>}
       <Box component="ul" aria-label={t("scopesLabel")} sx={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--hairline)" }}>
         {scopes.map((scope) => {
           const old = had(scope);
