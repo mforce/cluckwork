@@ -144,9 +144,10 @@ public sealed class InventoryTools(
             async () =>
             {
                 var stock = await ResolveItemAsync(item, ct);
+                var settings = unitCost is null ? null : await farm.GetSettingsAsync(ct)
+                    ?? throw new McpException("This farm's currency could not be read.");
                 long? unitCostMinorUnits = unitCost is { } cost
-                    ? McpMoney.ToMinorUnits(cost, (await farm.GetSettingsAsync(ct)
-                        ?? throw new McpException("This farm's currency could not be read.")).CurrencyMinorUnit, "unitCost")
+                    ? McpMoney.ToMinorUnits(cost, settings!.CurrencyMinorUnit, nameof(unitCost))
                     : null;
                 var command = new RecordPurchaseCommand(stock.Id, receivedDate, quantity, unitCostMinorUnits, lotNumber, expiryDate, note);
                 if (await McpWrite.ValidateAsync(purchaseValidator, command, "InventoryPurchase.Invalid", ct) is { IsFailure: true } invalid)
@@ -155,6 +156,9 @@ public sealed class InventoryTools(
                 if (lotId.IsFailure)
                     return Result.Failure<RecordedPurchase>(lotId.Error);
                 var lot = (await inventory.ListLotsAsync(stock.Id, ct)).Single(l => l.Id == lotId.Value);
+                if (settings is not null && (lot.UnitCost.CurrencyCode != settings.CurrencyCode
+                    || lot.UnitCost.CurrencyMinorUnit != settings.CurrencyMinorUnit))
+                    return Result.Failure<RecordedPurchase>(McpMoney.CurrencyChanged(nameof(unitCost)));
                 return Result.Success(new RecordedPurchase(
                     lot.Id, stock.Id, stock.Name, lot.ReceivedDate, lot.QuantityReceived, stock.Unit, McpMoney.From(lot.UnitCost),
                     "An Admin or Manager corrects or writes off the lot with Correct stock on Inventory.", Replayed: false));

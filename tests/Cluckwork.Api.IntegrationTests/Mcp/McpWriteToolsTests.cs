@@ -7,6 +7,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
+using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -330,6 +331,66 @@ public sealed class McpWriteToolsTests(CluckworkWebApplicationFactory factory)
             db => db.Expenses.Where(e => e.Id == expenseId).Select(e => e.AmountMinorUnits).SingleAsync()));
         var audit = Assert.Single(await AuditAsync(factory, farm.User.AccountId, expenseId));
         Assert.Equal((AuditActions.ExpenseCreate, true), (audit.Action, audit.App is not null));
+    }
+
+    // #162: the tool converts the decimal with a currency read before the handler takes its
+    // account lock. A change committed in between makes the handler stamp the new currency on
+    // the old figure, so the tool must refuse and roll the record back.
+    [Fact]
+    public async Task Expense_WhenTheCurrencyChangesBeforeTheHandlersLock_IsRefused_AndNothingIsRecorded()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(factory, Roles.Manager);
+        await CreateCategoryAsync(farm.User.Jwt, "Feedstore");
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, [OAuthScopes.WriteExpenses]));
+
+        var refused = await RaceTheCurrencyChangeAsync(farm, client, ExpenseTools.RecordExpense, new()
+        {
+            ["idempotencyKey"] = "race", ["category"] = "Feedstore", ["date"] = Today.ToString("yyyy-MM-dd"),
+            ["description"] = "d", ["amount"] = 12m,
+        });
+
+        Assert.Contains("Money.CurrencyChanged:", refused);
+        Assert.Equal(0, await factory.WithTenantScopeAsync(farm.User.AccountId, db => db.Expenses.CountAsync()));
+    }
+
+    [Fact]
+    public async Task Purchase_WhenTheCurrencyChangesBeforeTheHandlersLock_IsRefused_AndNothingIsRecorded()
+    {
+        using var host = Host(factory);
+        var farm = await SeedFarmAsync(factory, Roles.Manager);
+        var item = await CreateItemAsync(farm.User.Jwt, "Grit", "Supplement", defaultCost: null);
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, Operations));
+
+        var refused = await RaceTheCurrencyChangeAsync(farm, client, InventoryTools.RecordInventoryPurchase, new()
+        {
+            ["idempotencyKey"] = "race", ["item"] = "Grit", ["receivedDate"] = Today.ToString("yyyy-MM-dd"),
+            ["quantity"] = 5m, ["unitCost"] = 12m,
+        });
+
+        Assert.Contains("Money.CurrencyChanged:", refused);
+        Assert.Equal(0m, await OnHandAsync(farm, item));
+    }
+
+    // Holds the currency change, USD to JPY, open under the account's FOR UPDATE, lets the tool
+    // read USD and park on the handler's FOR SHARE, then commits the change.
+    private async Task<string> RaceTheCurrencyChangeAsync(
+        Farm farm, McpClient client, string tool, Dictionary<string, object?> arguments)
+    {
+        var tenant = new TenantContext();
+        tenant.Resolve(farm.User.AccountId);
+        await using var db = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(factory.ConnectionString).Options, tenant, new FlockScope());
+        await using var change = await db.Database.BeginTransactionAsync();
+        await db.Database.ExecuteSqlInterpolatedAsync($"""SELECT 1 FROM "Accounts" WHERE "Id" = {farm.User.AccountId} FOR UPDATE""");
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Accounts" SET "DefaultCurrencyCode" = 'JPY', "DefaultCurrencyMinorUnit" = 0, "Version" = "Version" + 1 WHERE "Id" = {farm.User.AccountId}""");
+        var holder = await db.BackendPidAsync();
+
+        var call = client.CallToolAsync(tool, arguments).AsTask();
+        Assert.True(await factory.WaitUntilDoneOrBlockedAsync(call, holder), $"{tool} must park on the account lock");
+        await change.CommitAsync();
+        return ErrorText(await call);
     }
 
     // #809 guard 20: the claim is keyed on the tool, so one caller key on two tools runs both.

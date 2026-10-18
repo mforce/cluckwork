@@ -55,11 +55,15 @@ public sealed class ExpenseTools(
                 if (await McpWrite.ValidateAsync(validator, command, "Expense.Invalid", ct) is { IsFailure: true } invalid)
                     return Result.Failure<RecordedExpense>(invalid.Error);
                 var id = await finance.CreateExpenseAsync(command, call.AccountId, ct);
-                return id.IsFailure
-                    ? Result.Failure<RecordedExpense>(id.Error)
-                    : Result.Success(new RecordedExpense(
-                        id.Value, chosen.Id, chosen.Name, date, McpMoney.From(minorUnits, settings.CurrencyCode, settings.CurrencyMinorUnit),
-                        target?.Id, target?.Name, "Correct it with correct on Expenses.", Replayed: false));
+                if (id.IsFailure)
+                    return Result.Failure<RecordedExpense>(id.Error);
+                var stored = (await finance.GetExpenseAsync(id.Value, ct))!;
+                if (stored.CurrencyCode != settings.CurrencyCode || stored.CurrencyMinorUnit != settings.CurrencyMinorUnit)
+                    return Result.Failure<RecordedExpense>(McpMoney.CurrencyChanged(nameof(amount)));
+                return Result.Success(new RecordedExpense(
+                    stored.Id, chosen.Id, chosen.Name, date,
+                    McpMoney.From(stored.AmountMinorUnits, stored.CurrencyCode, stored.CurrencyMinorUnit),
+                    target?.Id, target?.Name, "Correct it with correct on Expenses.", Replayed: false));
             },
             // Expenses are Owner and Manager work, which no flock assignment narrows.
             reply => Task.FromResult(reply with { Replayed = true }),

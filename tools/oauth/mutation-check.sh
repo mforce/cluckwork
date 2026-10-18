@@ -335,6 +335,8 @@ feed-unaudited#kill#FEED_HANDLER#AuditActions.FeedUsageCreate, nameof(FeedUsage)
 feed-reply-note#kill#INVENTORY_TOOLS#    string Unit, McpMoney EstimatedCost, string CorrectInApp, bool Replayed);#    string Unit, McpMoney EstimatedCost, string CorrectInApp, bool Replayed, string? Note = null);#Mcp.McpToolSurfaceTests.RealTree_ToolRepliesReturnOnlyReviewedText#Collections differ
 names-include-inactive#kill#MCP_NAMES#var choices = all.Where(active).ToList();#var choices = all.Where(c => active(c) || !active(c)).ToList();#Mcp.McpWriteToolsTests.ItemNames_ResolveAmongActiveItems_AndASharedNameIsRefusedWithTheIds#Sub-string not found
 money-rounded#kill#MCP_MONEY#if (scaled == decimal.Truncate(scaled))#if (scaled >= decimal.MinValue)#Mcp.McpWriteToolsTests.Purchase_TakesADecimalUnitCost_AndRefusesMoreDecimalsThanTheCurrencyHas#Assert.True() Failure
+expense-currency-unchecked#kill#EXPENSE_TOOLS#if (stored.CurrencyCode != settings.CurrencyCode || stored.CurrencyMinorUnit != settings.CurrencyMinorUnit)#if (stored.CurrencyCode == "never")#Mcp.McpWriteToolsTests.Expense_WhenTheCurrencyChangesBeforeTheHandlersLock_IsRefused_AndNothingIsRecorded#Assert.True() Failure
+purchase-currency-unchecked#kill#INVENTORY_TOOLS#if (settings is not null && (lot.UnitCost.CurrencyCode != settings.CurrencyCode#if (settings is null && (lot.UnitCost.CurrencyCode != settings.CurrencyCode#Mcp.McpWriteToolsTests.Purchase_WhenTheCurrencyChangesBeforeTheHandlersLock_IsRefused_AndNothingIsRecorded#Assert.True() Failure
 EOF
 )
 
