@@ -6,6 +6,12 @@
 //   node client.ts tools <token-file>
 //   node client.ts call <token-file> <tool> [json-args]
 //   node client.ts disconnect <persona> [app-name]
+//   node client.ts approve <persona> <authorize-url> [shots-dir]
+//
+// approve plays the person for another client (Claude Code, Gemini CLI): it opens that
+// client's authorize URL and lets the redirect reach the client's own loopback listener.
+// MCP_UNTICK and MCP_TICK name scopes (comma-separated) to untick or tick on the consent
+// screen before Allow (#1326).
 //
 // MCP_DETAILS=1 photographs the consent screen with Details open.
 // MCP_CLIENT_FILE keeps one registration across connects, so a second connect is the same
@@ -23,6 +29,7 @@ import { chromium, type Page } from "playwright";
 import { en } from "../../../web/src/i18n/en.ts";
 import { es } from "../../../web/src/i18n/es.ts";
 import { resolveBrowser } from "../../simulation/ui/src/browser.ts";
+import { scopeEntry } from "../../../web/src/auth/oauthScopes.ts";
 
 const BASE = process.env.MCP_BASE ?? "https://localhost:8495";
 // The throwaway certificate is accepted only for the local proxy. Any other origin keeps
@@ -82,16 +89,24 @@ async function signIn(page: Page, member: Member) {
   await page.getByRole("button", { name: en.auth.signIn }).click();
 }
 
+const scopeBox = (page: Page, scope: string) => {
+  const label = CONSENT[scopeEntry(scope)!.label];
+  return page.getByRole("checkbox", { name: new RegExp(`^${label}`) });
+};
+
 // The person at the browser: sign in if asked, read the consent screen, type the password,
-// Allow, and hand back the code the app's redirect URI receives.
-function consent(url: URL, redirect: string, member: Member, shots?: string): Promise<string> {
+// Allow, and hand back the code the app's redirect URI receives. With deliver, the redirect
+// goes on to the client that is listening for it.
+function consent(url: URL, redirect: string, member: Member, shots?: string, deliver = false): Promise<string> {
   return withPage(async (page) => {
     let code: string | null = null;
+    let returned = false;
     await page.route(`${redirect}**`, (route) => {
       const back = new URL(route.request().url());
+      returned = true;
       code = back.searchParams.get("code");
       console.log(`redirect: ${back.origin}${back.pathname} code=${code ? "present" : "absent"} error=${back.searchParams.get("error")}`);
-      return route.fulfill({ body: "ok" });
+      return deliver ? route.continue() : route.fulfill({ body: "ok" });
     });
     await page.goto(url.href);
     const farmCode = page.getByLabel(en.auth.farmCode);
@@ -104,6 +119,12 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
     await password.waitFor();
     const main = (await page.locator("main").innerText()).replaceAll(member.email, "<email>");
     console.log(`consent at ${new URL(page.url()).pathname}:\n${main.split("\n").filter(Boolean).map((l) => `  | ${l}`).join("\n")}`);
+    const boxes = async () => (await page.getByRole("checkbox").evaluateAll((all) => all.map((b) =>
+      `${document.querySelector(`label[for="${b.id}"]`)?.textContent}=${(b as HTMLInputElement).checked ? "ticked" : "unticked"}`))).join(", ");
+    console.log(`checkboxes as shown: ${await boxes()}`);
+    for (const scope of (process.env.MCP_UNTICK ?? "").split(",").filter(Boolean)) await scopeBox(page, scope).setChecked(false);
+    for (const scope of (process.env.MCP_TICK ?? "").split(",").filter(Boolean)) await scopeBox(page, scope).setChecked(true);
+    if (process.env.MCP_UNTICK || process.env.MCP_TICK) console.log(`checkboxes at Allow: ${await boxes()}`);
     // MCP_DETAILS=1 opens Details first, so the frames show what the grant covers.
     if (shots && process.env.MCP_DETAILS) await page.getByText(CONSENT.details, { exact: true }).click();
     if (shots) {
@@ -115,6 +136,12 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
           await page.screenshot({ path: `${shots}/consent-${w}-${theme}.png`, animations: "disabled", fullPage: !!process.env.MCP_DETAILS });
         }
       await page.setViewportSize({ width: 1280, height: 800 });
+    }
+    // Nothing ticked leaves only Cancel (#1326).
+    if (!(await page.getByRole("button", { name: CONSENT.allow }).isVisible())) {
+      await page.getByRole("button", { name: CONSENT.cancel }).click();
+      for (let i = 0; i < 100 && !returned; i++) await page.waitForTimeout(100);
+      return "";
     }
     // The password field is required, so this checks form validation only; the server's
     // step-up refusal is checked with a direct request (features/mcp.md).
@@ -192,7 +219,12 @@ async function connect(name: string, scope: string, tokenFile: string, shots?: s
   }
   const q = authUrl!.searchParams;
   console.log(`authorize: ${authUrl!.origin}${authUrl!.pathname} scope=${q.get("scope")} resource=${q.get("resource")} code_challenge_method=${q.get("code_challenge_method")}`);
-  await first.finishAuth(await consent(authUrl!, redirect, member, shots));
+  const code = await consent(authUrl!, redirect, member, shots);
+  if (!code) {
+    console.log("cancelled: no code, nothing connected");
+    return;
+  }
+  await first.finishAuth(code);
   console.log(`token: type=${tokens!.token_type} expires_in=${tokens!.expires_in ?? "none"} scope=${tokens!.scope ?? "(not echoed)"} refresh=${tokens!.refresh_token ? "yes" : "no"}`);
   writeFileSync(tokenFile, tokens!.access_token, { mode: 0o600 });
 
@@ -215,6 +247,10 @@ const [cmd, ...rest] = process.argv.slice(2);
 try {
   if (cmd === "connect") await connect(rest[0]!, rest[1]!, rest[2]!, rest[3]);
   else if (cmd === "disconnect") await disconnect(persona(rest[0]!), rest[1] ?? APP);
+  else if (cmd === "approve") {
+    const url = new URL(rest[1]!);
+    await consent(url, url.searchParams.get("redirect_uri")!, persona(rest[0]!), rest[2], true);
+  }
   else if (cmd === "tools") {
     const c = await bearerClient(rest[0]!);
     console.log((await c.listTools()).tools.map((t) => t.name).join(", ") || "(none)");
@@ -226,7 +262,7 @@ try {
     if (r.isError) console.log("isError: true");
     for (const c of r.content as { type: string; text?: string }[]) if (c.type === "text") console.log(c.text);
     await c.close();
-  } else throw new Error("usage: connect <persona> <scope> <token-file> [shots-dir] | tools <token-file> | call <token-file> <tool> [json-args] | disconnect <persona> [app-name]");
+  } else throw new Error("usage: connect <persona> <scope> <token-file> [shots-dir] | approve <persona> <authorize-url> [shots-dir] | tools <token-file> | call <token-file> <tool> [json-args] | disconnect <persona> [app-name]");
 } catch (e) {
   const err = e as { code?: number; message?: string };
   console.log(`ERROR code=${err.code ?? "-"} ${err.message}`);
