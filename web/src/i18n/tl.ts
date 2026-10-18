@@ -126,6 +126,11 @@ export const tl = {
     scopeRead: "Basahin ang datos ng bukid",
     scopeReadLine: "Mga flock, stock, tala at benta",
     scopeWrite: "Itala ang araw-araw na tala",
+    scopeSubmit: "Isumite ang araw-araw na tala",
+    scopeSubmitLine: "Inilalagay sa stock ang mga itlog ng araw",
+    scopeOperations: "Itala ang gawain sa bukid",
+    scopeOperationsLine: "Paggamit ng pakain, paggamit ng tubig at pagbili ng imbentaryo",
+    scopeExpenses: "Itala ang mga gastos",
     scopeBlocked: "Hindi pinapayagan ng role mo",
     scopeNew: "Bago",
     scopeHad: "Pinayagan na",
@@ -142,9 +147,10 @@ export const tl = {
     detailsActs: "Kumikilos ito bilang ikaw, kaya hindi ito makakagawa ng higit sa kaya mo.",
     detailsReadAll: "Mababasa nito ang datos ng bukid para sa bawat flock.",
     detailsReadSome: "Mababasa lang nito ang datos ng bukid para sa mga flock na naka-assign sa iyo: {{flocks}}.",
-    detailsWriteAll: "Makakapagtala ito ng araw-araw na tala para sa alinmang flock.",
-    detailsWriteSome: "Makakapagtala lang ito ng araw-araw na tala para sa mga flock na naka-assign sa iyo: {{flocks}}.",
-    detailsWriteBlocked: "Hinihingi nitong magtala ng araw-araw na tala, pero hindi ito kaya ng role mo ({{role}}), kaya hindi rin ito makakapagtala.",
+    detailsWriteAll: "Makakapagtala ito para sa alinmang flock.",
+    detailsWriteSome: "Makakapagtala lang ito para sa mga flock na naka-assign sa iyo: {{flocks}}.",
+    detailsWriteBlocked: "Hindi pinapayagan ng role mo ({{role}}) ang may markang Hindi pinapayagan ng role mo, kaya hindi rin ito magagawa ng app.",
+    detailsAtOnce: "Agad na bumibilang ang paggamit ng pakain at tubig, pagbili at gastos na itinatala nito, gaya sa Cluckwork. Itinatama ito ng Admin o Manager sa Cluckwork.",
     detailsName: "Ang {{app}} ang pumili ng sarili nitong pangalan. Hindi ito sinusuri ng Cluckwork, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
     detailsNameVerified: "Mismong ang Cluckwork ang kumuha ng mga detalye ng app na ito mula sa {{url}}, kaya galing ang mga ito sa may hawak ng address na iyon sa {{domain}}. Pero ang {{app}} pa rin ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
     detailsReturnHere: "Pagkatapos, babalik ang browser mo sa {{host}}, isang address sa computer na ito.",
@@ -2360,6 +2366,9 @@ export const tl = {
     "auditAction.SalesOrder.Confirm": "Nakumpirma ang order ng benta",
     "auditAction.SalesOrder.Cancel": "Kinansela ang order ng benta",
     "auditAction.Expense.Create": "Nagawa ang gastos",
+    "auditAction.FeedUsage.Create": "Naitala ang pakain",
+    "auditAction.WaterUsage.Create": "Naitala ang tubig",
+    "auditAction.InventoryItem.Purchase": "Naitala ang pagbili",
     "auditAction.EggGrade.Create": "Nagawa ang grado ng itlog",
     "auditAction.Customer.Create": "Nagawa ang customer",
     "auditAction.Customer.Update": "Na-update ang customer",
@@ -2373,6 +2382,7 @@ export const tl = {
     "entityType.Expense": "Gastos",
     "entityType.ExpenseCategory": "Kategorya ng Gastos",
     "entityType.FarmLogo": "Logo ng bukid",
+    "entityType.FeedUsage": "Paggamit ng Pakain",
     "entityType.Flock": "Kawan",
     "entityType.InventoryItem": "Item sa Imbentaryo",
     "entityType.Payment": "Bayad",
@@ -2595,12 +2605,14 @@ export const tl = {
       + "maabot ang address mula roon.",
     signingInConnectApp:
       "<strong>Pagkonekta ng app.</strong> Puwedeng humiling ang isang panlabas na app, gaya ng AI assistant, na "
-      + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito, <strong>Basahin ang datos ng bukid</strong>, "
-      + "<strong>Itala ang araw-araw na tala</strong> o pareho, at sasagot ka ng <strong>Payagan</strong> pagkatapos "
-      + "ilagay ang <strong>Ang kasalukuyan mong password</strong>, o ng <strong>Kanselahin</strong>. Hindi ito "
-      + "makakagawa ng higit sa sarili mong role. Kapag kumonekta ulit ang app na pinayagan mo na, password mo lang ang "
-      + "hihingin. Ang app ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang "
-      + "ikonekta ito. Nasa <strong>Mga detalye</strong> ang mas mahabang paliwanag.",
+      + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito mula sa <strong>Basahin ang datos ng "
+      + "bukid</strong>, <strong>Itala ang araw-araw na tala</strong>, <strong>Isumite ang araw-araw na "
+      + "tala</strong>, <strong>Itala ang gawain sa bukid</strong> at <strong>Itala ang mga gastos</strong>, at "
+      + "sasagot ka ng <strong>Payagan</strong> pagkatapos ilagay ang <strong>Ang kasalukuyan mong "
+      + "password</strong>, o ng <strong>Kanselahin</strong>. Hindi ito makakagawa ng higit sa sarili mong role. "
+      + "Kapag kumonekta ulit ang app na pinayagan mo na, password mo lang ang hihingin. Ang app ang pumili ng "
+      + "sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ito. Nasa <strong>Mga "
+      + "detalye</strong> ang mas mahabang paliwanag.",
     // #799 — control names match the connectedApps and nav catalogs (#688).
     signingInConnectedApps:
       "<strong>Mga nakakonektang app.</strong> Nasa <strong>Account</strong> ang bawat app na pinayagan mong "
@@ -2613,29 +2625,43 @@ export const tl = {
       + "sa itaas ng pahinang iyon, hihinto ang bawat app at bawat bagong koneksyon hanggang buksan itong muli ng "
       + "Owner; walang naididiskonekta.",
     signingInAppTools:
-      "<strong>Ang kaya ng nakakonektang AI app.</strong> Ang kaya lang nito ay ang pinapayagan ng role mo at ng mga "
-      + "pahintulot mo, nang sabay. Sa <strong>Basahin ang datos ng bukid</strong>, kayang basahin ng bawat role ang mga kawan, "
-      + "stock, lote ng itlog at galaw nito, at araw-araw na tala (<code>cluckwork_list_flocks</code>, "
-      + "<code>cluckwork_read_stock</code>, <code>cluckwork_list_egg_lots</code>, "
-      + "<code>cluckwork_list_egg_lot_movements</code>, <code>cluckwork_list_daily_entries</code>). Kayang basahin "
-      + "ng bawat role maliban sa <strong>Read-only</strong> ang mga customer at sales order "
-      + "(<code>cluckwork_list_customers</code>, <code>cluckwork_list_sales_orders</code>). Ang "
-      + "<strong>Admin</strong>, <strong>Manager</strong> at <strong>Benta</strong> lang ang nakakakita ng utang at "
-      + "bayad (<code>cluckwork_list_order_payments</code>, <code>cluckwork_list_customer_balances</code>). Sa "
-      + "<strong>Itala ang araw-araw na tala</strong>, kayang itala ng <strong>Admin</strong>, "
-      + "<strong>Manager</strong> at <strong>Manggagawa</strong> ang isang araw ng kawan "
-      + "(<code>cluckwork_record_daily_entry</code>). Ang manggagawang may naka-assign na kawan ay nakakakuha lang "
-      + "ng mga kawang iyon.",
+      "<strong>Ang kaya ng nakakonektang AI app.</strong> Ang kaya lang nito ay ang pinapayagan ng role mo at ng "
+      + "mga pahintulot mo, nang sabay. Sa <strong>Basahin ang datos ng bukid</strong>, kayang basahin ng bawat "
+      + "role ang mga kawan, stock, lote ng itlog at galaw nito, at araw-araw na tala "
+      + "(<code>cluckwork_list_flocks</code>, <code>cluckwork_read_stock</code>, "
+      + "<code>cluckwork_list_egg_lots</code>, <code>cluckwork_list_egg_lot_movements</code>, "
+      + "<code>cluckwork_list_daily_entries</code>). Kayang basahin ng bawat role maliban sa "
+      + "<strong>Read-only</strong> ang mga customer at sales order (<code>cluckwork_list_customers</code>, "
+      + "<code>cluckwork_list_sales_orders</code>). Ang <strong>Admin</strong>, <strong>Manager</strong> at "
+      + "<strong>Benta</strong> lang ang nakakakita ng utang at bayad (<code>cluckwork_list_order_payments</code>, "
+      + "<code>cluckwork_list_customer_balances</code>). Sa <strong>Itala ang araw-araw na tala</strong>, kayang "
+      + "itala ng <strong>Admin</strong>, <strong>Manager</strong> at <strong>Manggagawa</strong> ang isang araw "
+      + "ng kawan (<code>cluckwork_record_daily_entry</code>). Sa <strong>Isumite ang araw-araw na tala</strong>, "
+      + "kayang isumite ng parehong mga role ang draft, na naglalagay ng mga itlog nito sa stock "
+      + "(<code>cluckwork_submit_daily_entry</code>). Sa <strong>Itala ang gawain sa bukid</strong>, kaya nilang "
+      + "itala ang paggamit ng pakain, paggamit ng tubig at pagbili ng imbentaryo "
+      + "(<code>cluckwork_record_feed_usage</code>, <code>cluckwork_record_water_usage</code>, "
+      + "<code>cluckwork_record_inventory_purchase</code>). Sa <strong>Itala ang mga gastos</strong>, ang "
+      + "<strong>Admin</strong> at <strong>Manager</strong> lang ang makakapagtala ng gastos "
+      + "(<code>cluckwork_record_expense</code>). Ang manggagawang may naka-assign na kawan ay nakakakuha lang ng "
+      + "mga kawang iyon.",
     signingInAppLimits:
-      "<strong>Ang itinatala at nakikita ng AI app.</strong> Laging <strong>Draft</strong> ang tala mula sa app. "
-      + "Papasok lang sa stock ang mga itlog nito kapag binuksan ito ng isang tao sa <strong>Araw-araw na "
-      + "Tala</strong> at pinindot ang <strong>Isumite ang araw</strong>. Kapag itinala ulit ang parehong kawan at "
-      + "araw, nagbabago ang draft. May idempotency key ang bawat pagtatala, isang label na pinipili ng app, kaya "
-      + "walang nase-save nang dalawang beses kapag ipinadala ito ulit sa loob ng 48 oras matapos magtagumpay. "
-      + "Tatakbo ulit ang mas lumang pagpapadala, kaya tingnan muna ang draft. Hanggang 100 hilera lang ang "
-      + "nababasa ng app bawat beses. Hindi nito kailanman nakikita ang free-text na note, reference ng bayad, "
-      + "nakasulat na dahilan o contact details, dahil puwedeng mag-type ang kahit sino "
-      + "ng utos para sa AI doon.",
+      "<strong>Ang itinatala at nakikita ng AI app.</strong> Nagsisimula bilang <strong>Draft</strong> ang tala "
+      + "mula sa app. Papasok sa stock ang mga itlog nito kapag binuksan ito ng isang tao sa <strong>Araw-araw na "
+      + "Tala</strong> at pinindot ang <strong>Isumite ang araw</strong>, o kapag isinumite ito ng app na "
+      + "pinayagang <strong>Isumite ang araw-araw na tala</strong>. Kapag itinala ulit ang parehong kawan at araw, "
+      + "nagbabago ang draft. Walang draft ang paggamit ng pakain at tubig, pagbili at gastos: agad itong "
+      + "bumibilang, gaya sa app. Sinasabi sa app kung saan itinatama ang bawat isa. Ginagamit ng "
+      + "<strong>Admin</strong> o <strong>Manager</strong> ang <strong>Itama ang stock</strong> sa "
+      + "<strong>Imbentaryo</strong> para sa pakain at pagbili, ang <strong>itama</strong> sa "
+      + "<strong>Tubig</strong> o <strong>Mga Gastos</strong>, at ang <strong>i-adjust</strong> o "
+      + "<strong>i-void</strong> sa <strong>History</strong> para sa naisumiteng tala. May idempotency key ang "
+      + "bawat pagtatala, isang label na pinipili ng app, kaya walang nase-save nang dalawang beses kapag "
+      + "ipinadala ito ulit sa loob ng 48 oras matapos magtagumpay. Tatakbo ulit ang mas lumang pagpapadala, kaya "
+      + "tingnan muna ang tala. Hanggang 100 hilera lang ang nababasa ng app bawat beses. Hindi nito kailanman "
+      + "nakikita ang free-text na note, paglalarawan, reference ng bayad, nakasulat na dahilan o contact details, "
+      + "dahil puwedeng mag-type ang kahit sino ng utos para sa AI doon. Sine-save ang mga note at paglalarawang "
+      + "ipinapadala nito, pero hindi kailanman ipinapakita pabalik dito.",
     signingInAppRefused:
       "<strong>Kapag tinanggihan ang AI app.</strong> Habang naka-off ang <strong>Payagan ang mga nakakonektang "
       + "app</strong>, natatanggap ng mga app ang <strong>Naka-off ang mga nakakonektang app</strong> at gagana ulit "
@@ -3804,7 +3830,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Nadidiskonekta ang lahat ng app ng isang tao kapag pinalitan o na-reset ang password niya, o binago ang email o role niya. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, at hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Nadidiskonekta ang lahat ng app ng isang tao kapag pinalitan o na-reset ang password niya, o binago ang email o role niya. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, o ng app na pinayagang magsumite. Agad na bumibilang ang paggamit ng pakain at tubig, pagbili at gastos na itinatala nito. Hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

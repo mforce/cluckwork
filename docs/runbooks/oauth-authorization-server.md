@@ -161,7 +161,8 @@ WWW-Authenticate: Bearer resource_metadata="https://farm.example/.well-known/oau
 
 The second answers 200 with JSON whose `resource` is `https://farm.example/mcp`,
 whose `authorization_servers` is `["https://farm.example/"]`, and whose
-`scopes_supported` is `farm:read` and `daily-entries:write`. The metadata path is the
+`scopes_supported` lists the five scopes: `farm:read`, `daily-entries:write`,
+`daily-entries:submit`, `operations:write` and `expenses:write` (#1311, #1313). The metadata path is the
 well-known prefix followed by the resource's own path, `/mcp`. A `GET /mcp` answers 405
 with `Allow: POST`, because the endpoint serves no event stream. A request body over 32 KB
 is refused.

@@ -61,8 +61,8 @@ balance tools. No tool needs `[MirrorsNoRoute]` yet, so that attribute does not 
 the first tool that has no route. #806 adds a walk the
 table did not have, `McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy`:
 the SDK runs a tool with no `[Authorize]`, or with `[AllowAnonymous]`, for any caller. #810 holds
-the same walk to exactly one scope policy, `farm:read` for a `ReadOnly` tool and
-`daily-entries:write` for any other, and `McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool`
+the same walk to exactly one scope policy, `farm:read` for a `ReadOnly` tool and one write
+scope for any other (#1311, #1313 added three), and `McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool`
 fails a scope in `OAuthScopes.All` that no tool requires.
 
 ## Idempotency

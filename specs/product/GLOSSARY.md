@@ -792,7 +792,21 @@ customer owes, for Owner, Manager and Sales. Amounts carry their currency code.
 `cluckwork_record_daily_entry`, for Owner, Manager and Worker. It records one
 flock's day as a **Draft**. Recording the same flock and day again replaces the
 draft's numbers, and a submitted entry cannot be changed. The eggs reach stock
-only when a person submits the draft in Cluckwork. The app sends an idempotency
+only when the draft is submitted. **Submit daily entries** (`daily-entries:submit`)
+covers `cluckwork_submit_daily_entry`, for the same roles: it submits a draft,
+named by its id or by flock and date, exactly as **Submit day** does, and refuses
+one that is already submitted (#1311). **Record farm operations**
+(`operations:write`) covers `cluckwork_record_feed_usage`,
+`cluckwork_record_water_usage` and `cluckwork_record_inventory_purchase`, for
+Owner, Manager and Worker; **Record expenses** (`expenses:write`) covers
+`cluckwork_record_expense`, for Owner and Manager (#1313). Items and expense
+categories are named as the app's pickers offer them: an active one, by its exact
+name ignoring case, or any one by its id. These records have no draft. They take
+effect at once, as the app's own buttons do, and each reply names the screen and
+control where an Owner or Manager corrects it. Notes, lot numbers and expense
+descriptions an app sends are saved and never returned to it. Feed use, water use
+and purchases now write an audit event, through the app or not, so each names who
+recorded it. The app sends an idempotency
 key with each recording, a label it picks for that one recording. Sending the
 recording again with the same label within 48 hours of a successful recording
 returns the first answer and records nothing new; the same label with different
@@ -1507,13 +1521,16 @@ TOTP/WebAuthn step-up is a deferred follow-up (#320).
 to act as you through OAuth. The app sends you to Cluckwork's consent screen
 (`/connect`), signing in first if needed; the sign-in screen names the app it
 continues to. The screen shows the app's self-chosen name with its **Verified
-domain** or an **Unverified app** marker (see **Verified domain**), what it asks for (**Read farm data**, **Record daily entries**),
+domain** or an **Unverified app** marker (see **Verified domain**), what it asks for (**Read farm data**, **Record daily entries**, **Submit daily entries**, **Record farm operations**, **Record expenses**),
 that it acts as you with only your access, and where the browser returns. It is
 all or nothing: **Allow** after re-entering **Your current password** (a
 **step-up grant**, see above), or **Cancel**. Every approval spends a step-up
 grant. When an app you already approved asks for nothing new, the screen skips
-the permissions and asks only for the password; when it asks for more, the new
-permission is marked **New** and the earlier one **Already allowed**.
+the permissions and asks only for the password; when it asks for more, each new
+permission is marked **New** and the earlier ones **Already allowed**. That is how a
+connection gains a permission added later: the app reconnects and the person
+allows it. A permission the person's role cannot use is marked **Not allowed for
+your role**.
 **Details** holds the longer explanations and **Not you? Sign out**. The app's
 access never expires on its own; see **Disconnecting an app**, which also covers how approvals are audited.
 

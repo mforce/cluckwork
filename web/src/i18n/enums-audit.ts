@@ -28,7 +28,8 @@ export const AUDIT_ACTION_VALUES = [
   "Flock.Create", "DailyEntry.Create", "DailyEntry.Update", "DailyEntry.Submit",
   "SalesOrder.Create", "SalesOrder.Confirm", "SalesOrder.Cancel",
   "SalesOrder.AddItem", "SalesOrder.UpdateItem", "SalesOrder.RemoveItem",
-  "Expense.Create", "EggGrade.Create", "Customer.Create", "Customer.Update",
+  "Expense.Create", "FeedUsage.Create", "WaterUsage.Create", "InventoryItem.Purchase",
+  "EggGrade.Create", "Customer.Create", "Customer.Update",
 ] as const;
 export type AuditActionValue = (typeof AUDIT_ACTION_VALUES)[number];
 export const AUDIT_ACTION_KEYS = {
@@ -89,6 +90,9 @@ export const AUDIT_ACTION_KEYS = {
   "SalesOrder.Confirm": "enums:auditAction.SalesOrder.Confirm",
   "SalesOrder.Cancel": "enums:auditAction.SalesOrder.Cancel",
   "Expense.Create": "enums:auditAction.Expense.Create",
+  "FeedUsage.Create": "enums:auditAction.FeedUsage.Create",
+  "WaterUsage.Create": "enums:auditAction.WaterUsage.Create",
+  "InventoryItem.Purchase": "enums:auditAction.InventoryItem.Purchase",
   "EggGrade.Create": "enums:auditAction.EggGrade.Create",
   "Customer.Create": "enums:auditAction.Customer.Create",
   "Customer.Update": "enums:auditAction.Customer.Update",
@@ -163,6 +167,9 @@ export const AUDIT_ACTION_ENTITY_TYPE = {
   "SalesOrder.UpdateItem": "SalesOrder",
   "SalesOrder.RemoveItem": "SalesOrder",
   "Expense.Create": "Expense",
+  "FeedUsage.Create": "FeedUsage",
+  "WaterUsage.Create": "WaterUsage",
+  "InventoryItem.Purchase": "InventoryItem",
   "EggGrade.Create": "EggGrade",
   "Customer.Create": "Customer",
   "Customer.Update": "Customer",
@@ -173,7 +180,7 @@ export const AUDIT_ACTION_ENTITY_TYPE = {
 // ---------------------------------------------------------------------------
 export const ENTITY_TYPE_VALUES = [
   "Account", "Customer", "DailyEntry", "EggGrade", "EggLot", "EggUnitConversion", "Expense",
-  "ExpenseCategory", "FarmLogo", "Flock", "InventoryItem", "Payment", "Product",
+  "ExpenseCategory", "FarmLogo", "FeedUsage", "Flock", "InventoryItem", "Payment", "Product",
   "SalesOrder", "User", "WaterUsage",
 ] as const;
 export type EntityTypeValue = (typeof ENTITY_TYPE_VALUES)[number];
@@ -187,6 +194,7 @@ export const ENTITY_TYPE_KEYS = {
   Expense: "enums:entityType.Expense",
   ExpenseCategory: "enums:entityType.ExpenseCategory",
   FarmLogo: "enums:entityType.FarmLogo",
+  FeedUsage: "enums:entityType.FeedUsage",
   Flock: "enums:entityType.Flock",
   InventoryItem: "enums:entityType.InventoryItem",
   Payment: "enums:entityType.Payment",

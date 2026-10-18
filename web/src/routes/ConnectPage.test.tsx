@@ -164,14 +164,14 @@ describe("ConnectPage (#798, consent D)", () => {
 
     expect(details).toHaveTextContent(
       "It can read farm data only for the flocks assigned to you: House A, House B. "
-      + "It can record daily entries only for the flocks assigned to you: House A, House B.");
+      + "It can record only for the flocks assigned to you: House A, House B.");
   });
 
   it("tells a Worker with no assignments that the app reaches every flock", async () => {
     const details = await detailsFor(REQUEST, null);
 
     expect(details).toHaveTextContent(
-      "It can read farm data for every flock. It can record daily entries for any flock.");
+      "It can read farm data for every flock. It can record for any flock.");
   });
 
   it("promises no recording when the app asks only to read", async () => {
@@ -185,7 +185,7 @@ describe("ConnectPage (#798, consent D)", () => {
     const details = await detailsFor(REQUEST, "Manager");
 
     expect(details).toHaveTextContent(
-      "It can read farm data for every flock. It can record daily entries for any flock.");
+      "It can read farm data for every flock. It can record for any flock.");
   });
 
   it("starts focus at the request, not the password", async () => {
@@ -216,6 +216,44 @@ describe("ConnectPage (#798, consent D)", () => {
 
     const write = within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem")[1];
     expect(write).toHaveTextContent("Not allowed for your role");
+  });
+
+  const EVERY_SCOPE = ["farm:read", "daily-entries:write", "daily-entries:submit", "operations:write", "expenses:write"];
+  const rows = () => within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem");
+
+  // #1311, #1313 — an app connected for reading and recording reconnects asking for every
+  // scope; the three it never had are marked New and come first.
+  it("marks the three new permissions New when a connected app asks for more", async () => {
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, alreadyAllowed: ["farm:read", "daily-entries:write"] }, "Manager");
+
+    expect(rows().map((row) => row.textContent)).toEqual([
+      "Submit daily entries NewPuts the day's eggs in stock",
+      "Record farm operations NewFeed use, water use and inventory purchases",
+      "Record expenses New",
+      "Read farm dataAlready allowed",
+      "Record daily entriesAlready allowed",
+    ]);
+  });
+
+  it("marks expenses as not allowed for a Worker, and the rest as allowed", async () => {
+    await show({ ...REQUEST, scopes: EVERY_SCOPE }, null);
+
+    expect(rows().map((row) => row.textContent?.includes("Not allowed for your role"))).toEqual([false, false, false, false, true]);
+    fireEvent.click(screen.getByText("Details"));
+    expect(screen.getByText("Details").closest("details")!).toHaveTextContent(
+      "Your role (Worker) does not allow what is marked Not allowed for your role, so the app cannot do it either.");
+  });
+
+  it("says operations take effect at once", async () => {
+    const details = await detailsFor({ ...REQUEST, scopes: ["operations:write"] }, "Manager");
+
+    expect(details).toHaveTextContent("Feed use, water use, purchases and expenses it records count at once");
+  });
+
+  it("says nothing of taking effect at once for daily entries, which stay drafts", async () => {
+    const details = await detailsFor({ ...REQUEST, scopes: ["daily-entries:write"] }, "Manager");
+
+    expect(details).not.toHaveTextContent("count at once");
   });
 
   // #1148 — a metadata-document app: its domain is checked, its name is not.

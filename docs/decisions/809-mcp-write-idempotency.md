@@ -62,8 +62,9 @@ connection is held while bytes go to a slow client.
 
 ## What this does NOT cover
 
-- Guard 20 (two tools, same caller key) needs a second write tool. Today the operation key is
-  `mcp:tool:<name>`, built from the tool's own constant.
+- Every write tool runs this protocol through `McpWrite.RunAsync` (#1311, #1313). The
+  operation key is `mcp:tool:<name>`, built from each tool's own constant;
+  `McpWriteToolsTests.TwoTools_SameCallerKey_DoNotCollide` is guard 20.
 - A Worker naming a flock outside their assignments is refused by the flock-scoped read
   (`IFlockLookup`) before the handler runs. `FlockScopeGuard` sits behind that read, and no
   MCP test reaches it on its own.

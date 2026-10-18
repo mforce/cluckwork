@@ -176,6 +176,11 @@ export const en = {
     scopeRead: "Read farm data",
     scopeReadLine: "Flocks, stock, entries and sales",
     scopeWrite: "Record daily entries",
+    scopeSubmit: "Submit daily entries",
+    scopeSubmitLine: "Puts the day's eggs in stock",
+    scopeOperations: "Record farm operations",
+    scopeOperationsLine: "Feed use, water use and inventory purchases",
+    scopeExpenses: "Record expenses",
     scopeBlocked: "Not allowed for your role",
     scopeNew: "New",
     scopeHad: "Already allowed",
@@ -192,9 +197,10 @@ export const en = {
     detailsActs: "It acts as you, so it can never do more than you can.",
     detailsReadAll: "It can read farm data for every flock.",
     detailsReadSome: "It can read farm data only for the flocks assigned to you: {{flocks}}.",
-    detailsWriteAll: "It can record daily entries for any flock.",
-    detailsWriteSome: "It can record daily entries only for the flocks assigned to you: {{flocks}}.",
-    detailsWriteBlocked: "It asks to record daily entries, but your role ({{role}}) cannot, so it cannot either.",
+    detailsWriteAll: "It can record for any flock.",
+    detailsWriteSome: "It can record only for the flocks assigned to you: {{flocks}}.",
+    detailsWriteBlocked: "Your role ({{role}}) does not allow what is marked Not allowed for your role, so the app cannot do it either.",
+    detailsAtOnce: "Feed use, water use, purchases and expenses it records count at once, as they do in Cluckwork. An Admin or Manager corrects them in Cluckwork.",
     detailsName: "{{app}} chose its own name. Cluckwork does not check it, so allow it only if you just started connecting {{app}}.",
     detailsNameVerified: "Cluckwork fetched this app's details itself from {{url}}, so they come from whoever controls that address on {{domain}}. The name {{app}} is still the app's own choice, so allow it only if you just started connecting {{app}}.",
     detailsReturnHere: "Afterwards your browser goes back to {{host}}, an address on this computer.",
@@ -3021,6 +3027,9 @@ export const en = {
     "auditAction.SalesOrder.Confirm": "Sales order confirmed",
     "auditAction.SalesOrder.Cancel": "Sales order cancelled",
     "auditAction.Expense.Create": "Expense created",
+    "auditAction.FeedUsage.Create": "Feed recorded",
+    "auditAction.WaterUsage.Create": "Water recorded",
+    "auditAction.InventoryItem.Purchase": "Purchase recorded",
     "auditAction.EggGrade.Create": "Egg grade created",
     "auditAction.Customer.Create": "Customer created",
     "auditAction.Customer.Update": "Customer updated",
@@ -3035,6 +3044,7 @@ export const en = {
     "entityType.Expense": "Expense",
     "entityType.ExpenseCategory": "Expense category",
     "entityType.FarmLogo": "Farm logo",
+    "entityType.FeedUsage": "Feed usage",
     "entityType.Flock": "Flock",
     "entityType.InventoryItem": "Inventory item",
     "entityType.Payment": "Payment",
@@ -3247,11 +3257,12 @@ export const en = {
       + "from it.",
     signingInConnectApp:
       "<strong>Connecting an app.</strong> An outside app, such as an AI assistant, can ask to act as you. "
-      + "Cluckwork shows what it asks for, <strong>Read farm data</strong>, <strong>Record daily entries</strong> or both, "
-      + "and you answer with <strong>Allow</strong> after typing <strong>Your current password</strong>, or with "
-      + "<strong>Cancel</strong>. It can never do more than your own role. When an app you already allowed connects "
-      + "again, only your password is asked. The app chose its own name, so allow it only if you just started "
-      + "connecting it. <strong>Details</strong> has the longer explanation.",
+      + "Cluckwork shows what it asks for, from <strong>Read farm data</strong>, <strong>Record daily "
+      + "entries</strong>, <strong>Submit daily entries</strong>, <strong>Record farm operations</strong> and "
+      + "<strong>Record expenses</strong>, and you answer with <strong>Allow</strong> after typing <strong>Your "
+      + "current password</strong>, or with <strong>Cancel</strong>. It can never do more than your own role. When "
+      + "an app you already allowed connects again, only your password is asked. The app chose its own name, so "
+      + "allow it only if you just started connecting it. <strong>Details</strong> has the longer explanation.",
     // #799 — control names match the connectedApps and nav catalogs (#688).
     signingInConnectedApps:
       "<strong>Connected apps.</strong> <strong>Account</strong> lists every app you allowed to act as you, with "
@@ -3262,24 +3273,36 @@ export const en = {
       + "Turning off <strong>Allow connected apps</strong> at the top of that page stops every app and any new "
       + "connection until the Owner turns it back on; nothing is disconnected.",
     signingInAppTools:
-      "<strong>What a connected AI app can do.</strong> It can do only what your role and your permissions both allow. With "
-      + "<strong>Read farm data</strong>, every role can read flocks, stock, egg lots and their movements, and daily "
-      + "entries (<code>cluckwork_list_flocks</code>, <code>cluckwork_read_stock</code>, <code>cluckwork_list_egg_lots</code>, "
-      + "<code>cluckwork_list_egg_lot_movements</code>, <code>cluckwork_list_daily_entries</code>). Every role but "
-      + "<strong>Read-only</strong> can read customers and sales orders (<code>cluckwork_list_customers</code>, "
-      + "<code>cluckwork_list_sales_orders</code>). Only <strong>Admin</strong>, <strong>Manager</strong> and "
-      + "<strong>Sales</strong> see what is owed and paid (<code>cluckwork_list_order_payments</code>, "
-      + "<code>cluckwork_list_customer_balances</code>). With <strong>Record daily entries</strong>, "
-      + "<strong>Admin</strong>, <strong>Manager</strong> and <strong>Worker</strong> can record a flock's day "
-      + "(<code>cluckwork_record_daily_entry</code>). A worker with assigned flocks gets only those flocks.",
+      "<strong>What a connected AI app can do.</strong> It can do only what your role and your permissions both "
+      + "allow. With <strong>Read farm data</strong>, every role can read flocks, stock, egg lots and their "
+      + "movements, and daily entries (<code>cluckwork_list_flocks</code>, <code>cluckwork_read_stock</code>, "
+      + "<code>cluckwork_list_egg_lots</code>, <code>cluckwork_list_egg_lot_movements</code>, "
+      + "<code>cluckwork_list_daily_entries</code>). Every role but <strong>Read-only</strong> can read customers "
+      + "and sales orders (<code>cluckwork_list_customers</code>, <code>cluckwork_list_sales_orders</code>). Only "
+      + "<strong>Admin</strong>, <strong>Manager</strong> and <strong>Sales</strong> see what is owed and paid "
+      + "(<code>cluckwork_list_order_payments</code>, <code>cluckwork_list_customer_balances</code>). With "
+      + "<strong>Record daily entries</strong>, <strong>Admin</strong>, <strong>Manager</strong> and "
+      + "<strong>Worker</strong> can record a flock's day (<code>cluckwork_record_daily_entry</code>). With "
+      + "<strong>Submit daily entries</strong>, the same roles can submit a draft, which puts its eggs in stock "
+      + "(<code>cluckwork_submit_daily_entry</code>). With <strong>Record farm operations</strong>, they can "
+      + "record feed use, water use and inventory purchases (<code>cluckwork_record_feed_usage</code>, "
+      + "<code>cluckwork_record_water_usage</code>, <code>cluckwork_record_inventory_purchase</code>). With "
+      + "<strong>Record expenses</strong>, only <strong>Admin</strong> and <strong>Manager</strong> can record an "
+      + "expense (<code>cluckwork_record_expense</code>). A worker with assigned flocks gets only those flocks.",
     signingInAppLimits:
-      "<strong>What an AI app records and sees.</strong> An entry from an app is always a <strong>Draft</strong>. "
-      + "Its eggs reach stock only when a person opens it in <strong>Daily entry</strong> and presses "
-      + "<strong>Submit day</strong>. Recording the same flock and day again changes the draft. Each recording "
-      + "carries an idempotency key, a label the app picks, so resending it within 48 hours of success saves "
-      + "nothing twice. An older resend runs again, so check the draft first. The app reads at most 100 rows at a "
-      + "time. It never sees free-text notes, payment references, written reasons or contact details, because "
-      + "anyone could type instructions for an AI there.",
+      "<strong>What an AI app records and sees.</strong> An entry from an app starts as a "
+      + "<strong>Draft</strong>. Its eggs reach stock when a person opens it in <strong>Daily entry</strong> and "
+      + "presses <strong>Submit day</strong>, or when an app allowed to <strong>Submit daily entries</strong> "
+      + "submits it. Recording the same flock and day again changes the draft. Feed use, water use, purchases and "
+      + "expenses have no draft: they count at once, as they do in the app. The app is told where each one is "
+      + "corrected. An <strong>Admin</strong> or <strong>Manager</strong> uses <strong>Correct stock</strong> on "
+      + "<strong>Inventory</strong> for feed and purchases, <strong>correct</strong> on <strong>Water</strong> or "
+      + "<strong>Expenses</strong>, and <strong>adjust</strong> or <strong>void</strong> on "
+      + "<strong>History</strong> for a submitted entry. Each recording carries an idempotency key, a label the "
+      + "app picks, so resending it within 48 hours of success saves nothing twice. An older resend runs again, so "
+      + "check the record first. The app reads at most 100 rows at a time. It never sees free-text notes, "
+      + "descriptions, payment references, written reasons or contact details, because anyone could type "
+      + "instructions for an AI there. Notes and descriptions it sends are saved, but never shown back to it.",
     signingInAppRefused:
       "<strong>When an AI app is refused.</strong> While <strong>Allow connected apps</strong> is off, apps get "
       + "<strong>Connected apps are off</strong> and work again once it is back on. After <strong>Disconnect</strong>, "
@@ -4338,7 +4361,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. A password change or reset, or a change to the person's email or role, disconnects all of that person's apps. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, and it never sees free-text notes or written reasons.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. A password change or reset, or a change to the person's email or role, disconnects all of that person's apps. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, or an app allowed to submit them does. Feed use, water use, purchases and expenses it records count at once. It never sees free-text notes or written reasons.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "

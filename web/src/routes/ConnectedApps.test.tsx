@@ -55,6 +55,17 @@ describe("Account › Connected apps (#799)", () => {
     expect(screen.getByText("Not used for 47 days")).toBeInTheDocument();
   });
 
+  // #1311, #1313 — the server sorts scopes by name; the list follows the consent screen's order.
+  it("names every permission in the consent screen's order", async () => {
+    vi.mocked(listMyConnectedApps).mockResolvedValue([app({
+      scopes: ["daily-entries:submit", "daily-entries:write", "expenses:write", "farm:read", "operations:write"],
+    })]);
+    renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "Manager" } });
+
+    expect(await screen.findByText(
+      "Read farm data, Record daily entries, Submit daily entries, Record farm operations, Record expenses")).toBeInTheDocument();
+  });
+
   it("disconnects after confirmation and says when it stops working", async () => {
     vi.mocked(listMyConnectedApps).mockResolvedValueOnce([app({})]).mockResolvedValueOnce([]);
     renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "Worker" } });

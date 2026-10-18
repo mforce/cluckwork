@@ -9,6 +9,7 @@ import { approveConsent, askConsent, declineConsent } from "../api/oauth";
 import type { AuthorizeAnswer, ConsentRequest } from "../api/oauth";
 import { useAuth } from "../auth/useAuth";
 import { currentUserRole } from "../auth/claims";
+import { READ_SCOPE, allowedFor, scopeEntry, scopeRank } from "../auth/oauthScopes";
 import { BusyButton } from "../components/BusyButton";
 import { StepUpPasswordField } from "../components/StepUpPasswordField";
 import { usePendingAction } from "../components/usePendingAction";
@@ -16,11 +17,8 @@ import { useFarm } from "../farm/useFarm";
 import { roleLabel } from "../i18n/enums";
 import { useMe } from "../session/SessionContext";
 
-const READ = "farm:read";
-const WRITE = "daily-entries:write";
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
-// The roles whose policy lets them record daily entries (ProductionWrite).
-const RECORDS_ENTRIES = new Set(["Admin", "Manager", "Worker"]);
+const AT_ONCE = new Set(["operations:write", "expenses:write"]);
 
 type View =
   | { kind: "loading" }
@@ -202,17 +200,18 @@ function Permissions({ request }: { request: ConsentRequest }) {
   const { t } = useTranslation("connect");
   const had = (scope: string) => request.alreadyAllowed.includes(scope);
   // A request for more puts what is new first; what was allowed before drops to a muted line.
-  const scopes = [...request.scopes].sort((a, b) => Number(had(a)) - Number(had(b)));
+  const scopes = [...request.scopes].sort((a, b) => Number(had(a)) - Number(had(b)) || scopeRank(a) - scopeRank(b));
   const role = currentUserRole();
-  const canRecord = RECORDS_ENTRIES.has(role);
   return (
     <>
       <Box component="ul" aria-label={t("scopesLabel")} sx={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--hairline)" }}>
         {scopes.map((scope) => {
           const old = had(scope);
           const isNew = request.alreadyAllowed.length > 0 && !old;
-          const read = scope === READ;
-          const blocked = scope === WRITE && !canRecord;
+          const read = scope === READ_SCOPE;
+          const blocked = !allowedFor(scope, role);
+          const entry = scopeEntry(scope);
+          const line = entry && "line" in entry ? t(entry.line) : null;
           return (
             <Box component="li" key={scope} sx={{
               display: "flex", gap: 1.5, paddingBlock: 1.25, paddingInline: isNew ? 1 : 0, marginInline: isNew ? -1 : 0,
@@ -222,13 +221,13 @@ function Permissions({ request }: { request: ConsentRequest }) {
               {read ? <Eye size={18} aria-hidden /> : <PenLine size={18} aria-hidden />}
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: old ? 400 : 600, color: "inherit" }}>
-                  {read ? t("scopeRead") : scope === WRITE ? t("scopeWrite") : scope}
+                  {entry ? t(entry.label) : scope}
                   {isNew && <> <span className="badge badge-accent">{t("scopeNew")}</span></>}
                 </Typography>
-                {(old || blocked || read) && (
+                {(old || blocked || line) && (
                   <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {old ? t("scopeHad")
-                      : blocked ? <span className="badge badge-warn">{t("scopeBlocked")}</span> : t("scopeReadLine")}
+                      : blocked ? <span className="badge badge-warn">{t("scopeBlocked")}</span> : line}
                   </Typography>
                 )}
               </Box>
@@ -259,14 +258,17 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
   const domain = request.verifiedDomain;
   // What this request would get: its scopes, within the user's role and flock scope.
   const flocks = request.assignedFlocks?.join(", ");
-  const reads = request.scopes.includes(READ) && (flocks === undefined ? t("detailsReadAll") : t("detailsReadSome", { flocks }));
-  const writes = request.scopes.includes(WRITE) && (!RECORDS_ENTRIES.has(role)
-    ? t("detailsWriteBlocked", { role: roleLabel(role) })
-    : flocks === undefined ? t("detailsWriteAll") : t("detailsWriteSome", { flocks }));
+  const reads = request.scopes.includes(READ_SCOPE) && (flocks === undefined ? t("detailsReadAll") : t("detailsReadSome", { flocks }));
+  const asked = request.scopes.filter((scope) => scope !== READ_SCOPE);
+  const writes = asked.some((scope) => allowedFor(scope, role))
+    && (flocks === undefined ? t("detailsWriteAll") : t("detailsWriteSome", { flocks }));
+  const blocked = asked.some((scope) => !allowedFor(scope, role)) && t("detailsWriteBlocked", { role: roleLabel(role) });
+  // #1313 — these have no draft, so consent says so before they are allowed.
+  const atOnce = asked.some((scope) => AT_ONCE.has(scope) && allowedFor(scope, role)) && t("detailsAtOnce");
   return (
     <Box component="details" sx={{ borderTop: "1px solid var(--hairline)", paddingTop: 1.5, "& p": { marginBlock: 1 } }}>
       <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600 }}>{t("details")}</Box>
-      <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes].filter(Boolean).join(" ")}</Typography>
+      <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes, atOnce, blocked].filter(Boolean).join(" ")}</Typography>
       <Typography variant="body2" component="p" sx={{ overflowWrap: "anywhere" }}>
         {domain ? t("detailsNameVerified", { app, domain, url: request.clientId }) : t("detailsName", { app })}
       </Typography>

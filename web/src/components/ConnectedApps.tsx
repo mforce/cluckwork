@@ -3,6 +3,7 @@ import { Alert, Box } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { AppConnection } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { scopeEntry, scopeRank } from "../auth/oauthScopes";
 import { useFarm } from "../farm/useFarm";
 import { daysSince, farmDateOf, relativeTime } from "../lib/relativeTime";
 import { FarmDate } from "./FarmDate";
@@ -11,27 +12,19 @@ import { useConfirm } from "./useConfirm";
 // #799 — an app unused this long gets the idle marker and, on Account, the nudge.
 export const IDLE_DAYS = 30;
 
-// The consent screen's words for each permission (#798), so Connected apps names
-// what was allowed exactly as the person saw it when they allowed it.
-const SCOPE_KEYS: Record<string, "connect:scopeRead" | "connect:scopeWrite"> = {
-  "farm:read": "connect:scopeRead",
-  "daily-entries:write": "connect:scopeWrite",
-};
-// The server sorts scopes by name; consent lists reading first, and so does this.
-const rank = (scope: string) => {
-  const index = Object.keys(SCOPE_KEYS).indexOf(scope);
-  return index === -1 ? Infinity : index;
-};
 
 export function useConnectionFacts() {
   const { t } = useTranslation(["connectedApps", "connect"]);
+  const { t: consent } = useTranslation("connect");
   const timeZone = useFarm().farm?.timeZoneId;
   const idleDays = (app: AppConnection) => daysSince(app.lastUsedAtUtc ?? app.connectedAtUtc, timeZone);
   const isIdle = (app: AppConnection) => idleDays(app) >= IDLE_DAYS;
   return {
     name: (app: AppConnection) => app.appName ?? t("connect:unnamedApp"),
-    can: (app: AppConnection) => [...app.scopes].sort((a, b) => rank(a) - rank(b))
-      .map((scope) => SCOPE_KEYS[scope] ? t(SCOPE_KEYS[scope]) : scope).join(", "),
+    // The consent screen's words for each permission (#798), so Connected apps names
+    // what was allowed exactly as the person saw it when they allowed it.
+    can: (app: AppConnection) => [...app.scopes].sort((a, b) => scopeRank(a) - scopeRank(b))
+      .map((scope) => { const entry = scopeEntry(scope); return entry ? consent(entry.label) : scope; }).join(", "),
     connected: (app: AppConnection) => <FarmDate iso={farmDateOf(app.connectedAtUtc, timeZone)} />,
     lastUsed: (app: AppConnection) =>
       app.lastUsedAtUtc ? relativeTime(app.lastUsedAtUtc, timeZone) : t("connectedApps:notUsedYet"),

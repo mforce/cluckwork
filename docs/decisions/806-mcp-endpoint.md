@@ -4,7 +4,8 @@
 > guard table is [`02-guards.md`](../plans/770-mcp-server/02-guards.md). This file records
 > what #806 decided while mapping the endpoint.
 
-**Status:** accepted
+**Status:** accepted; amended by [#1311 and #1313](1311-mcp-write-tools.md), which add three
+write scopes beside the two named here
 **Date:** 2026-10-10
 
 ## What happened

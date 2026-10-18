@@ -120,6 +120,11 @@ export const es = {
     scopeRead: "Leer datos de la granja",
     scopeReadLine: "Lotes, existencias, registros y ventas",
     scopeWrite: "Anotar registros diarios",
+    scopeSubmit: "Enviar registros diarios",
+    scopeSubmitLine: "Pasa los huevos del día a existencias",
+    scopeOperations: "Anotar operaciones de la granja",
+    scopeOperationsLine: "Uso de alimento, uso de agua y compras de inventario",
+    scopeExpenses: "Anotar gastos",
     scopeBlocked: "Tu rol no lo permite",
     scopeNew: "Nuevo",
     scopeHad: "Ya permitido",
@@ -136,9 +141,10 @@ export const es = {
     detailsActs: "Actúa como tú, así que nunca puede hacer más que tú.",
     detailsReadAll: "Puede leer los datos de la granja de todos los lotes.",
     detailsReadSome: "Solo puede leer los datos de la granja de los lotes que tienes asignados: {{flocks}}.",
-    detailsWriteAll: "Puede anotar registros diarios de cualquier lote.",
-    detailsWriteSome: "Solo puede anotar registros diarios de los lotes que tienes asignados: {{flocks}}.",
-    detailsWriteBlocked: "Pide anotar registros diarios, pero tu rol ({{role}}) no puede, así que tampoco puede ella.",
+    detailsWriteAll: "Puede anotar para cualquier lote.",
+    detailsWriteSome: "Solo puede anotar para los lotes que tienes asignados: {{flocks}}.",
+    detailsWriteBlocked: "Tu rol ({{role}}) no permite lo marcado como Tu rol no lo permite, así que la app tampoco puede hacerlo.",
+    detailsAtOnce: "El uso de alimento y de agua, las compras y los gastos que anote cuentan al instante, igual que en Cluckwork. Un Administrador o Gerente los corrige en Cluckwork.",
     detailsName: "{{app}} eligió su propio nombre. Cluckwork no lo comprueba, así que permítela solo si acabas de empezar a conectar {{app}}.",
     detailsNameVerified: "Cluckwork obtuvo los datos de esta aplicación directamente de {{url}}, así que vienen de quien controla esa dirección en {{domain}}. El nombre {{app}} sigue siendo elección de la aplicación, así que permítela solo si acabas de empezar a conectar {{app}}.",
     detailsReturnHere: "Después, tu navegador vuelve a {{host}}, una dirección de este equipo.",
@@ -2276,6 +2282,9 @@ export const es = {
     "auditAction.SalesOrder.Confirm": "Pedido de venta confirmado",
     "auditAction.SalesOrder.Cancel": "Pedido de venta cancelado",
     "auditAction.Expense.Create": "Gasto creado",
+    "auditAction.FeedUsage.Create": "Alimento registrado",
+    "auditAction.WaterUsage.Create": "Agua registrada",
+    "auditAction.InventoryItem.Purchase": "Compra registrada",
     "auditAction.EggGrade.Create": "Grado de huevo creado",
     "auditAction.Customer.Create": "Cliente creado",
     "auditAction.Customer.Update": "Cliente actualizado",
@@ -2289,6 +2298,7 @@ export const es = {
     "entityType.Expense": "Gasto",
     "entityType.ExpenseCategory": "Categoría de gasto",
     "entityType.FarmLogo": "Logotipo de la granja",
+    "entityType.FeedUsage": "Uso de alimento",
     "entityType.Flock": "Lote",
     "entityType.InventoryItem": "Artículo de inventario",
     "entityType.Payment": "Pago",
@@ -2502,12 +2512,15 @@ export const es = {
       + "inicia sesión en el navegador que se abre. Claude Code se ejecuta en tu computadora, así que basta con que la dirección sea "
       + "accesible desde ella.",
     signingInConnectApp:
-      "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede pedir actuar "
-      + "como tú. Cluckwork muestra lo que pide, <strong>Leer datos de la granja</strong>, <strong>Anotar registros "
-      + "diarios</strong> o ambos, y respondes con <strong>Permitir</strong> después de escribir <strong>Tu contraseña "
-      + "actual</strong>, o con <strong>Cancelar</strong>. Nunca puede hacer más que tu propio rol. Cuando una aplicación "
-      + "que ya permitiste se conecta otra vez, solo se pide tu contraseña. La aplicación eligió su propio nombre, así "
-      + "que permítela solo si acabas de empezar a conectarla. <strong>Detalles</strong> tiene la explicación completa.",
+      "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede pedir "
+      + "actuar como tú. Cluckwork muestra lo que pide, entre <strong>Leer datos de la granja</strong>, "
+      + "<strong>Anotar registros diarios</strong>, <strong>Enviar registros diarios</strong>, <strong>Anotar "
+      + "operaciones de la granja</strong> y <strong>Anotar gastos</strong>, y respondes con "
+      + "<strong>Permitir</strong> después de escribir <strong>Tu contraseña actual</strong>, o con "
+      + "<strong>Cancelar</strong>. Nunca puede hacer más que tu propio rol. Cuando una aplicación que ya "
+      + "permitiste se conecta otra vez, solo se pide tu contraseña. La aplicación eligió su propio nombre, así "
+      + "que permítela solo si acabas de empezar a conectarla. <strong>Detalles</strong> tiene la explicación "
+      + "completa.",
     // #799 — control names match the connectedApps and nav catalogs (#688).
     signingInConnectedApps:
       "<strong>Aplicaciones conectadas.</strong> <strong>Cuenta</strong> muestra cada aplicación que permitiste "
@@ -2519,27 +2532,41 @@ export const es = {
       + "Desactivar <strong>Permitir aplicaciones conectadas</strong>, arriba en esa página, detiene todas las "
       + "aplicaciones y toda conexión nueva hasta que el propietario lo vuelva a activar; no se desconecta nada.",
     signingInAppTools:
-      "<strong>Qué puede hacer una aplicación de IA conectada.</strong> Puede hacer solo lo que permiten a la vez tu rol y tus "
-      + "permisos. Con <strong>Leer datos de la granja</strong>, todos los roles pueden leer lotes, existencias, "
-      + "lotes de huevos y sus movimientos, y entradas diarias (<code>cluckwork_list_flocks</code>, "
-      + "<code>cluckwork_read_stock</code>, <code>cluckwork_list_egg_lots</code>, "
-      + "<code>cluckwork_list_egg_lot_movements</code>, <code>cluckwork_list_daily_entries</code>). Todos los roles "
-      + "menos <strong>Solo lectura</strong> pueden leer clientes y pedidos de venta "
-      + "(<code>cluckwork_list_customers</code>, <code>cluckwork_list_sales_orders</code>). Solo "
-      + "<strong>Administrador</strong>, <strong>Gerente</strong> y <strong>Ventas</strong> ven lo que se debe y "
-      + "se pagó (<code>cluckwork_list_order_payments</code>, <code>cluckwork_list_customer_balances</code>). Con "
-      + "<strong>Anotar registros diarios</strong>, <strong>Administrador</strong>, <strong>Gerente</strong> y "
-      + "<strong>Trabajador</strong> pueden anotar el día de un lote (<code>cluckwork_record_daily_entry</code>). "
-      + "Un trabajador con lotes asignados solo recibe esos lotes.",
+      "<strong>Qué puede hacer una aplicación de IA conectada.</strong> Puede hacer solo lo que permiten a la "
+      + "vez tu rol y tus permisos. Con <strong>Leer datos de la granja</strong>, todos los roles pueden leer "
+      + "lotes, existencias, lotes de huevos y sus movimientos, y entradas diarias "
+      + "(<code>cluckwork_list_flocks</code>, <code>cluckwork_read_stock</code>, "
+      + "<code>cluckwork_list_egg_lots</code>, <code>cluckwork_list_egg_lot_movements</code>, "
+      + "<code>cluckwork_list_daily_entries</code>). Todos los roles menos <strong>Solo lectura</strong> pueden "
+      + "leer clientes y pedidos de venta (<code>cluckwork_list_customers</code>, "
+      + "<code>cluckwork_list_sales_orders</code>). Solo <strong>Administrador</strong>, <strong>Gerente</strong> "
+      + "y <strong>Ventas</strong> ven lo que se debe y se pagó (<code>cluckwork_list_order_payments</code>, "
+      + "<code>cluckwork_list_customer_balances</code>). Con <strong>Anotar registros diarios</strong>, "
+      + "<strong>Administrador</strong>, <strong>Gerente</strong> y <strong>Trabajador</strong> pueden anotar el "
+      + "día de un lote (<code>cluckwork_record_daily_entry</code>). Con <strong>Enviar registros "
+      + "diarios</strong>, los mismos roles pueden enviar un borrador, lo que pasa sus huevos a existencias "
+      + "(<code>cluckwork_submit_daily_entry</code>). Con <strong>Anotar operaciones de la granja</strong>, pueden "
+      + "anotar uso de alimento, uso de agua y compras de inventario (<code>cluckwork_record_feed_usage</code>, "
+      + "<code>cluckwork_record_water_usage</code>, <code>cluckwork_record_inventory_purchase</code>). Con "
+      + "<strong>Anotar gastos</strong>, solo <strong>Administrador</strong> y <strong>Gerente</strong> pueden "
+      + "anotar un gasto (<code>cluckwork_record_expense</code>). Un trabajador con lotes asignados solo recibe "
+      + "esos lotes.",
     signingInAppLimits:
-      "<strong>Qué anota y qué ve una aplicación de IA.</strong> Una entrada hecha por una aplicación siempre es un "
-      + "<strong>Borrador</strong>. Sus huevos entran en existencias solo cuando una persona la abre en "
-      + "<strong>Registro diario</strong> y pulsa <strong>Enviar día</strong>. Anotar otra vez el mismo lote y día "
-      + "cambia el borrador. Cada anotación lleva una clave de idempotencia, una etiqueta que elige la aplicación, "
-      + "así que reenviarla en las 48 horas tras su éxito no guarda nada dos veces. Un reenvío posterior se "
-      + "ejecuta de nuevo, así que revisa antes el borrador. La aplicación lee como máximo 100 filas a la vez. "
-      + "Nunca ve notas de texto libre, referencias de pago, motivos escritos ni datos de contacto, porque "
-      + "cualquiera podría escribir ahí instrucciones para una IA.",
+      "<strong>Qué anota y qué ve una aplicación de IA.</strong> Una entrada hecha por una aplicación empieza "
+      + "como <strong>Borrador</strong>. Sus huevos entran en existencias cuando una persona la abre en "
+      + "<strong>Registro diario</strong> y pulsa <strong>Enviar día</strong>, o cuando la envía una aplicación "
+      + "con permiso para <strong>Enviar registros diarios</strong>. Anotar otra vez el mismo lote y día cambia el "
+      + "borrador. El uso de alimento y de agua, las compras y los gastos no tienen borrador: cuentan al instante, "
+      + "igual que en la aplicación. La aplicación recibe dónde se corrige cada uno. Un "
+      + "<strong>Administrador</strong> o <strong>Gerente</strong> usa <strong>Corregir existencias</strong> en "
+      + "<strong>Inventario</strong> para el alimento y las compras, <strong>corregir</strong> en "
+      + "<strong>Agua</strong> o <strong>Gastos</strong>, y <strong>ajustar</strong> o <strong>anular</strong> en "
+      + "<strong>Historial</strong> para una entrada enviada. Cada anotación lleva una clave de idempotencia, una "
+      + "etiqueta que elige la aplicación, así que reenviarla en las 48 horas tras su éxito no guarda nada dos "
+      + "veces. Un reenvío posterior se ejecuta de nuevo, así que revisa antes el registro. La aplicación lee como "
+      + "máximo 100 filas a la vez. Nunca ve notas de texto libre, descripciones, referencias de pago, motivos "
+      + "escritos ni datos de contacto, porque cualquiera podría escribir ahí instrucciones para una IA. Las notas "
+      + "y descripciones que envía se guardan, pero nunca se le muestran.",
     signingInAppRefused:
       "<strong>Cuando se rechaza una aplicación de IA.</strong> Mientras <strong>Permitir aplicaciones "
       + "conectadas</strong> está desactivado, las aplicaciones reciben <strong>Las aplicaciones conectadas están "
@@ -3667,7 +3694,7 @@ export const es = {
       "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
       + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
       + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
-      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Cambiar o restablecer la contraseña, o cambiar el correo o el rol de la persona, desconecta todas sus aplicaciones. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que una persona las envía, y nunca ve notas de texto libre ni motivos escritos.",
+      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud. Cambiar o restablecer la contraseña, o cambiar el correo o el rol de la persona, desconecta todas sus aplicaciones. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que las envía una persona o una aplicación con permiso para enviarlas. El uso de alimento y de agua, las compras y los gastos que anota cuentan al instante. Nunca ve notas de texto libre ni motivos escritos.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "
