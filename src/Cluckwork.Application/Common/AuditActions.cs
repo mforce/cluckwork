@@ -101,6 +101,11 @@ public static class AuditActions
     // somebody killed must say who.
     public const string SalesOrderCancel = "SalesOrder.Cancel";
     public const string ExpenseCreate = "Expense.Create";
+    // #1313 — feed use, water use and purchases take effect at once, and a connected app
+    // can now record them, so each names who recorded it and through which app.
+    public const string FeedUsageCreate = "FeedUsage.Create";
+    public const string WaterUsageCreate = "WaterUsage.Create";
+    public const string InventoryItemPurchase = "InventoryItem.Purchase";
     public const string EggGradeCreate = "EggGrade.Create";
     public const string CustomerCreate = "Customer.Create";
     public const string CustomerUpdate = "Customer.Update";

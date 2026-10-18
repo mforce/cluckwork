@@ -67,7 +67,11 @@ internal static class McpToolSurface
     // #806 — the SDK authorizes a tool only from attributes on it or its type, and runs
     // one that carries none, or carries [AllowAnonymous], for any caller. So every tool
     // carries a role policy and a scope policy, which AND together into role ∩ scope.
-    public static readonly string[] ScopePolicies = [AuthPolicies.FarmReadScope, AuthPolicies.DailyEntriesWriteScope];
+    public static readonly string[] ScopePolicies =
+    [
+        AuthPolicies.FarmReadScope, AuthPolicies.DailyEntriesWriteScope, AuthPolicies.DailyEntriesSubmitScope,
+        AuthPolicies.OperationsWriteScope, AuthPolicies.ExpensesWriteScope,
+    ];
 
     public static IReadOnlyList<string> GateFindings(IEnumerable<Type> types)
     {
@@ -86,11 +90,11 @@ internal static class McpToolSurface
                 var scopes = gates.Select(g => g.Policy).Where(ScopePolicies.Contains).Distinct().ToList();
                 if (scopes.Count == 0)
                     findings.Add($"{site} has no scope policy; add [Authorize(Policy = AuthPolicies.<Scope>Scope)]");
-                // #810: a read needs farm:read and a write daily-entries:write, never both, so a
-                // farm:read token cannot reach a write and a write-only token cannot read.
-                var expected = IsReadOnly(method) ? AuthPolicies.FarmReadScope : AuthPolicies.DailyEntriesWriteScope;
-                if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))
-                    findings.Add($"{site} requires {string.Join(" and ", scopes)}; a {(IsReadOnly(method) ? "read" : "write")} tool requires exactly {expected}");
+                // #810: a read needs farm:read and a write exactly one write scope, never both, so
+                // a farm:read token cannot reach a write and a write-only token cannot read.
+                if (scopes.Count > 0 && (scopes.Count > 1 || (scopes[0] == AuthPolicies.FarmReadScope) != IsReadOnly(method)))
+                    findings.Add($"{site} requires {string.Join(" and ", scopes)}; "
+                        + (IsReadOnly(method) ? $"a read tool requires exactly {AuthPolicies.FarmReadScope}" : "a write tool requires exactly one write scope"));
                 if (!gates.Any(g => !ScopePolicies.Contains(g.Policy)))
                     findings.Add($"{site} has no role policy; add [Authorize] or [Authorize(Policy = AuthPolicies.<Tier>)]");
                 // Every read is a query of this farm's own records, never the open world.

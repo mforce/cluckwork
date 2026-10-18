@@ -1,7 +1,4 @@
 using System.ComponentModel;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Modules.EggOperations.Contracts;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
@@ -17,7 +14,8 @@ namespace Cluckwork.Api.Mcp;
 // text and are left out (#792). #809 records one, the only write in phase 1: a model holds
 // names, not ids, so the flock and the grades are addressed by name and FarmId and HouseId
 // come from the flock. Validation, flock scope and eligibility stay in the validator and
-// handler behind the contract. The entry stays a draft; a person submits it.
+// handler behind the contract. The entry stays a draft until a person submits it, or an app
+// allowed to submit calls the submit tool (#1311), which runs the REST route's handler.
 [McpServerToolType]
 public sealed class DailyEntryTools(
     McpCallContext call,
@@ -27,20 +25,18 @@ public sealed class DailyEntryTools(
     IValidator<RecordDailyEntryCommand> validator)
 {
     public const string RecordDailyEntry = "cluckwork_record_daily_entry";
+    public const string SubmitDailyEntry = "cluckwork_submit_daily_entry";
 
     [McpServerTool(Name = RecordDailyEntry, Idempotent = true, OpenWorld = false)]
     [Description("Record a flock's egg production for one day as a draft daily entry. Recording again for the "
         + "same flock and date replaces the draft's numbers; leave grades out to keep its grade lines. A submitted "
-        + "entry cannot be changed here. A person reviews and submits the draft in Cluckwork; "
-        + "until then its eggs are not in stock.")]
+        + "entry cannot be changed here. Until the draft is submitted, by a person in Cluckwork or with "
+        + SubmitDailyEntry + ", its eggs are not in stock.")]
     [Authorize(Policy = AuthPolicies.ProductionWrite)]
     [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]
     [MirrorsRoute("RecordDailyEntry")]
     public async Task<RecordedDailyEntry> RecordAsync(
-        [Description("A key you choose for this recording. A successful result is kept for at least 48 hours. "
-            + "Until then, resending the same call with the same key returns that result instead of recording again, "
-            + "and reusing the key with different values is refused. After 48 hours the key may be purged and a retry "
-            + "may record again. Before retrying an older call, check the current entry with "
+        [Description(McpWrite.KeyDescription + "Before retrying an older call, check the current entry with "
             + "cluckwork_list_daily_entries, or ask a person when this connection cannot read.")]
         string idempotencyKey,
         [Description("The flock's name, ignoring case, or its id when several flocks share the name.")] string flock,
@@ -54,52 +50,47 @@ public sealed class DailyEntryTools(
             + "lines; an empty list removes them.")] IReadOnlyList<GradeLine>? grades = null,
         CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-            throw new McpException("idempotencyKey is required.");
         if (string.IsNullOrWhiteSpace(flock))
             throw new McpException("flock is required.");
 
-        // Keyed on the tool name, so another tool cannot collide, and on the user, so two
-        // people's agents choosing the same key do not refuse or replay each other.
-        var scope = new IdempotencyScope(
-            call.AccountId,
-            Sha256($"mcp:tool:{RecordDailyEntry}"),
-            Sha256($"{call.UserId}:{idempotencyKey}"),
-            Sha256(JsonSerializer.Serialize(new
-            {
-                flock, date, totalEggs, crackedEggs, dirtyEggs, discardedEggs, mortalityCount, grades,
-            })));
+        return await McpWrite.RunAsync(idempotency, call, RecordDailyEntry, idempotencyKey,
+            new { flock, date, totalEggs, crackedEggs, dirtyEggs, discardedEggs, mortalityCount, grades },
+            () => RecordOnceAsync(flock, date, totalEggs, crackedEggs, dirtyEggs, discardedEggs, mortalityCount, grades, ct),
+            // A Worker unassigned since the first call gets the refusal a fresh call gets.
+            async reply => await flocks.GetAsync(reply.FlockId, ct) is null
+                ? throw FlockTools.NotFound(flock)
+                : reply with { Replayed = true },
+            ct);
+    }
 
-        var result = await idempotency.RunAsync(scope, async () =>
-        {
-            var recorded = await RecordOnceAsync(
-                flock, date, totalEggs, crackedEggs, dirtyEggs, discardedEggs, mortalityCount, grades, ct);
-            return recorded.IsSuccess
-                ? new IdempotentResponse(true, StatusCodes.Status200OK, "application/json", JsonSerializer.Serialize(recorded.Value))
-                : new IdempotentResponse(false, StatusCodes.Status422UnprocessableEntity, "text/plain",
-                    Refusal(recorded.Error));
-        }, ct);
+    [McpServerTool(Name = SubmitDailyEntry, Idempotent = true, OpenWorld = false)]
+    [Description("Submit a draft daily entry, as a person does with Submit day in Cluckwork: the entry is locked and "
+        + "its sellable eggs become egg lots in stock. Name the entry by the id cluckwork_record_daily_entry returned, "
+        + "or by flock and date. An entry that is already submitted is refused. Only an Admin or Manager can correct a "
+        + "submitted entry, in Cluckwork.")]
+    [Authorize(Policy = AuthPolicies.ProductionWrite)]
+    [Authorize(Policy = AuthPolicies.DailyEntriesSubmitScope)]
+    [MirrorsRoute("SubmitDailyEntry")]
+    public async Task<SubmittedDailyEntry> SubmitAsync(
+        [Description(McpWrite.KeyDescription + "Before retrying an older call, check the entry's status with "
+            + "cluckwork_list_daily_entries, or ask a person when this connection cannot read.")]
+        string idempotencyKey,
+        [Description("The entry's id. Leave it out to name the entry by flock and date.")] Guid? dailyEntryId = null,
+        [Description("The flock's name, ignoring case, or its id. Use with date, instead of dailyEntryId.")]
+        string? flock = null,
+        [Description("The production day, YYYY-MM-DD. Use with flock.")] DateOnly? date = null,
+        CancellationToken ct = default)
+    {
+        if (dailyEntryId is not null ? flock is not null || date is not null : string.IsNullOrWhiteSpace(flock) || date is null)
+            throw new McpException("Name the entry by dailyEntryId alone, or by flock and date.");
 
-        // A replay never runs RecordOnceAsync, so the caller's current flock access is checked
-        // here. A Worker unassigned since the first call gets the refusal a fresh call gets.
-        if (result is IdempotentResult.Replayed replayed)
-        {
-            var reply = Deserialize(replayed.Response);
-            if (await flocks.GetAsync(reply.FlockId, ct) is null)
-                throw FlockTools.NotFound(flock);
-            return reply with { Replayed = true };
-        }
-
-        return result switch
-        {
-            IdempotentResult.Executed { Response.Succeeded: true } executed => Deserialize(executed.Response),
-            IdempotentResult.Executed failed => throw new McpException(failed.Response.Body),
-            IdempotentResult.KeyReused => throw new McpException(
-                "Idempotency.KeyReused: this idempotencyKey was already used with different values. "
-                + "Use a new key for a new recording."),
-            _ => throw new McpException(
-                "Idempotency.InProgress: a call with this idempotencyKey is still running. Retry shortly."),
-        };
+        return await McpWrite.RunAsync(idempotency, call, SubmitDailyEntry, idempotencyKey,
+            new { dailyEntryId, flock, date },
+            () => SubmitOnceAsync(dailyEntryId, flock, date, ct),
+            async reply => await flocks.GetAsync(reply.FlockId, ct) is null
+                ? throw FlockTools.NotFound(flock ?? reply.FlockId.ToString())
+                : reply with { Replayed = true },
+            ct);
     }
 
     [McpServerTool(Name = "cluckwork_list_daily_entries", ReadOnly = true, OpenWorld = false)]
@@ -151,10 +142,8 @@ public sealed class DailyEntryTools(
         var command = new RecordDailyEntryCommand(
             details.FarmId, details.HouseId, details.Id, date,
             totalEggs, crackedEggs, dirtyEggs, discardedEggs, mortalityCount, gradeLines);
-        var validation = await validator.ValidateAsync(command, ct);
-        if (!validation.IsValid)
-            return Result.Failure<RecordedDailyEntry>(Error.Validation("DailyEntry.Invalid",
-                string.Join(" ", validation.Errors.Select(e => e.ErrorMessage))));
+        if (await McpWrite.ValidateAsync(validator, command, "DailyEntry.Invalid", ct) is { IsFailure: true } invalid)
+            return Result.Failure<RecordedDailyEntry>(invalid.Error);
 
         var id = await eggs.RecordDailyEntryAsync(command, call.AccountId, ct);
         return id.IsSuccess
@@ -189,13 +178,39 @@ public sealed class DailyEntryTools(
         return Result.Success(lines);
     }
 
-    private static string Refusal(Error error) => $"{error.Code}: {error.Description}";
+    private async Task<Result<SubmittedDailyEntry>> SubmitOnceAsync(
+        Guid? dailyEntryId, string? flock, DateOnly? date, CancellationToken ct)
+    {
+        var entry = dailyEntryId is { } id
+            ? await eggs.GetDailyEntryAsync(id, ct)
+                ?? throw new McpException($"No daily entry you can see has the id '{id}'.")
+            : await FindEntryAsync(flock!, date!.Value, ct);
 
-    private static RecordedDailyEntry Deserialize(IdempotentResponse response) =>
-        JsonSerializer.Deserialize<RecordedDailyEntry>(response.Body)!;
+        var submitted = await eggs.SubmitDailyEntryAsync(entry.Id, call.AccountId, ct);
+        if (submitted.IsFailure)
+            return Result.Failure<SubmittedDailyEntry>(submitted.Error);
 
-    private static string Sha256(string value) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+        var name = (await flocks.GetDisplayNamesAsync([entry.FlockId], ct)).GetValueOrDefault(entry.FlockId)?.Name;
+        return Result.Success(new SubmittedDailyEntry(
+            entry.Id, entry.FlockId, name, entry.Date, submitted.Value.Status, submitted.Value.EggLotIds,
+            "Only an Admin or Manager can change it now, with adjust or void on History.", Replayed: false));
+    }
+
+    // The record tool writes one entry per flock and day under the flock's own house, so a
+    // second match means one was recorded under another house in the app; neither is picked.
+    private async Task<DailyEntryDetails> FindEntryAsync(string flock, DateOnly date, CancellationToken ct)
+    {
+        var flockId = (await FlockTools.ResolveAsync(flocks, flock, ct)).Id;
+        return await eggs.ListDailyEntriesAsync(flockId, date, date, 2, 0, ct) switch
+        {
+            [var only] => only,
+            [] => throw new McpException(
+                $"Flock '{flock.Trim()}' has no daily entry on {date:yyyy-MM-dd}. Record one with {RecordDailyEntry} first."),
+            var many => throw new McpException(
+                $"Flock '{flock.Trim()}' has more than one daily entry on {date:yyyy-MM-dd}. Call again with dailyEntryId "
+                + $"set to one of these ids: {string.Join(", ", many.Select(e => e.Id))}."),
+        };
+    }
 }
 
 public sealed record GradeLine(
@@ -203,6 +218,10 @@ public sealed record GradeLine(
     int Quantity);
 
 public sealed record RecordedDailyEntry(Guid DailyEntryId, Guid FlockId, string FlockName, DateOnly Date, bool Replayed);
+
+public sealed record SubmittedDailyEntry(
+    Guid DailyEntryId, Guid FlockId, string? FlockName, DateOnly Date, string Status, IReadOnlyList<Guid> EggLotIds,
+    string CorrectInApp, bool Replayed);
 
 public sealed record DailyEntryRow(
     Guid DailyEntryId, Guid FlockId, string? FlockName, DateOnly Date, string Status,

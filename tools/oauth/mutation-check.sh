@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 to #808, #810, #1148 and #1294 OAuth and MCP claim has a
+# tools/oauth/mutation-check.sh — proves each #795 to #799, #806 to #808, #810, #1148, #1294, #1311 and #1313 OAuth and MCP claim has a
 # test that fails when the claim breaks.
 #
 # Baseline green, then per mutant: apply one exact-string edit (it must match once),
@@ -68,6 +68,12 @@ COMMERCE_TOOLS=src/Cluckwork.Api/Mcp/CommerceTools.cs
 PAYMENT_REPO=src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/PaymentRepository.cs
 PARITY=tests/Cluckwork.Api.IntegrationTests/Mcp/McpRouteParityTests.cs
 DAILY_TOOLS=src/Cluckwork.Api/Mcp/DailyEntryTools.cs
+INVENTORY_TOOLS=src/Cluckwork.Api/Mcp/InventoryTools.cs
+EXPENSE_TOOLS=src/Cluckwork.Api/Mcp/ExpenseTools.cs
+MCP_WRITE=src/Cluckwork.Api/Mcp/McpWrite.cs
+MCP_NAMES=src/Cluckwork.Api/Mcp/McpNames.cs
+MCP_MONEY=src/Cluckwork.Api/Mcp/McpMoney.cs
+FEED_HANDLER=src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordFeedUsage/RecordFeedUsageHandler.cs
 TESTS=tests/Cluckwork.Api.IntegrationTests
 TEST_NS=Cluckwork.Api.IntegrationTests
 SUITE='FullyQualifiedName~OAuth|FullyQualifiedName~ClientMetadata|FullyQualifiedName~Cluckwork.Api.IntegrationTests.Mcp.'
@@ -280,7 +286,7 @@ resource-unregistered#kill#SERVER#\n                    .RegisterResources(resou
 challenge-without-metadata#kill#IDENTITY#? McpAuthenticationDefaults.AuthenticationScheme#? "OpenIddict.Validation.AspNetCore"#Mcp.McpAuthorizationTests.NoToken_Gets401_NamingTheProtectedResourceMetadata#Strings differ
 metadata-from-request-host#kill#MCP#\n            options.ResourceMetadataUri = new Uri(resource, "/.well-known/oauth-protected-resource" + resource.AbsolutePath);##Mcp.McpAuthorizationTests.Challenge_NamesTheIssuer_NotTheRequestHost#Sub-string not found
 insufficient-scope-unannounced#kill#FORBIDDEN#var onlyScopesFailed = failed.Count > 0 && failed.All(r => r is OAuthScopeRequirement);#var onlyScopesFailed = false;#Mcp.McpAuthorizationTests.TokenWithoutAnMcpScope_Gets403InsufficientScope#Strings differ
-rpc-429-as-problem#kill#LIMITS#if (policyName == RateLimitingOptions.OAuthApiPolicyName)\n                {\n                    context.HttpContext.Response.StatusCode#if (policyName == "none")\n                {\n                    context.HttpContext.Response.StatusCode#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#not a JSON-RPC error
+rpc-429-as-problem#kill#LIMITS#if (policyName == RateLimitingOptions.OAuthApiPolicyName)\n                {\n                    await WriteJsonRpcTooManyRequestsAsync#if (policyName == "none")\n                {\n                    await WriteJsonRpcTooManyRequestsAsync#Mcp.McpAuthorizationTests.OverTheBudget_Gets429_AsAJsonRpcError#not a JSON-RPC error
 route-tightened#kill#FLOCK_ENDPOINTS#.WithName("ListFlocks")#.WithName("ListFlocks").RequireAuthorization(AuthPolicies.AdminOnly)#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#which ListFlocks denies
 route-renamed#kill#STOCK_ENDPOINTS#.WithName("ListEggLots")#.WithName("ListEggLotsRenamed")#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#mirrors 'ListEggLots', which no endpoint is named
 tool-mirrors-nothing#kill#STOCK_TOOLS#[MirrorsRoute("GetStock")]##Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#declares no [MirrorsRoute]
@@ -310,11 +316,25 @@ customer-note-returned#kill#COMMERCE_TOOLS#public sealed record CustomerRow(Guid
 balance-currency-assumed#kill#COMMERCE_TOOLS#McpMoney.From(minorUnits, settings.CurrencyCode, settings.CurrencyMinorUnit)#McpMoney.From(minorUnits, settings.CurrencyCode, 2)#Mcp.McpCommerceToolsTests.Amounts_AreDecimalsInTheirCurrencysPrecision#Values differ
 customers-route-admin-only#kill#ENDPOINT_GROUPS#        app.MapGroup("/api/v1/customers")\n            .WithTags("Customers")\n            .RequireAuthorization()\n#        app.MapGroup("/api/v1/customers")\n            .WithTags("Customers")\n            .RequireAuthorization(AuthPolicies.AdminOnly)\n#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#CommerceTools.ListCustomersAsync admits Worker, which ListCustomers denies
 parity-first-route-only#kill#PARITY#foreach (var routeName in mirrored)#foreach (var routeName in mirrored.Take(1))#Mcp.McpRouteParityTests.ToolBreakingParity_IsAFinding#Assert.Contains() Failure
-scope-unmatched-to-readonly#kill#TOOL_SURFACE#if (scopes.Count > 0 && (scopes.Count > 1 || scopes[0] != expected))#if (scopes.Count > 1)#Mcp.McpToolSurfaceTests.ToolMissingAGate_IsAGateFinding#Assert.Contains() Failure
-write-tool-on-read-scope#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy#a write tool requires exactly scope:daily-entries:write
+scope-unmatched-to-readonly#kill#TOOL_SURFACE#if (scopes.Count > 0 && (scopes.Count > 1 || (scopes[0] == AuthPolicies.FarmReadScope) != IsReadOnly(method)))#if (scopes.Count > 1)#Mcp.McpToolSurfaceTests.ToolMissingAGate_IsAGateFinding#Assert.Contains() Failure
+write-tool-on-read-scope#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpToolSurfaceTests.RealTree_EveryToolCarriesARolePolicyAndAScopePolicy#a write tool requires exactly one write scope
 write-scope-unused#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#    [Authorize(Policy = AuthPolicies.FarmReadScope)]#Mcp.McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool#Collections differ
 write-reply-minor-units#kill#DAILY_TOOLS#public sealed record RecordedDailyEntry(Guid DailyEntryId, Guid FlockId, string FlockName, DateOnly Date, bool Replayed);#public sealed record RecordedDailyEntry(Guid DailyEntryId, Guid FlockId, string FlockName, DateOnly Date, bool Replayed, long TotalMinorUnits = 0);#Mcp.McpToolSurfaceTests.RealTree_ToolRepliesCarryNoMinorUnits#RecordedDailyEntry.TotalMinorUnits
 scope-use-method-only#kill#PARITY#m.GetCustomAttributes(inherit: true).Concat(m.DeclaringType!.GetCustomAttributes(inherit: true)).OfType<IAuthorizeData>()#m.GetCustomAttributes(inherit: true).OfType<IAuthorizeData>()#Mcp.McpRouteParityTests.ScopeDeclaredOnTheToolClass_CountsAsRequired#Collections differ
+submit-scope-policy-wrong#kill#POLICIES#new OAuthScopeRequirement(OAuthScopes.SubmitDailyEntries)#new OAuthScopeRequirement(OAuthScopes.WriteDailyEntries)#Mcp.McpWriteToolsTests.EachScopeAndRole_ListsExactlyItsWriteTools#Collections differ
+operations-scope-policy-wrong#kill#POLICIES#new OAuthScopeRequirement(OAuthScopes.WriteOperations)#new OAuthScopeRequirement(OAuthScopes.WriteDailyEntries)#Mcp.McpWriteToolsTests.EachScopeAndRole_ListsExactlyItsWriteTools#Collections differ
+expenses-scope-policy-wrong#kill#POLICIES#new OAuthScopeRequirement(OAuthScopes.WriteExpenses)#new OAuthScopeRequirement(OAuthScopes.WriteOperations)#Mcp.McpWriteToolsTests.EachScopeAndRole_ListsExactlyItsWriteTools#Collections differ
+submit-on-record-scope#kill#DAILY_TOOLS#    [Authorize(Policy = AuthPolicies.DailyEntriesSubmitScope)]#    [Authorize(Policy = AuthPolicies.DailyEntriesWriteScope)]#Mcp.McpRouteParityTests.RealTree_EveryOAuthScopeIsRequiredByATool#Collections differ
+expense-on-operations-scope#kill#EXPENSE_TOOLS#    [Authorize(Policy = AuthPolicies.ExpensesWriteScope)]#    [Authorize(Policy = AuthPolicies.OperationsWriteScope)]#Mcp.McpWriteToolsTests.EachScopeAndRole_ListsExactlyItsWriteTools#Collections differ
+expense-for-workers#kill#EXPENSE_TOOLS#    [Authorize(Policy = AuthPolicies.AdminOnly)]#    [Authorize(Policy = AuthPolicies.ProductionWrite)]#Mcp.McpRouteParityTests.RealTree_EveryToolMirrorsARoute_AndAdmitsNoRoleItDenies#which CreateExpense denies
+mcp-outer-gate-two-scopes#kill#MCP#.AcceptOAuthTokens([.. OAuthScopes.All])#.AcceptOAuthTokens(OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries)#Mcp.McpAuthorizationTests.TokenWithoutAnMcpScope_Gets403InsufficientScope#Strings differ
+write-tool-two-write-scopes#kill#TOOL_SURFACE#if (scopes.Count > 0 && (scopes.Count > 1 || (scopes[0] == AuthPolicies.FarmReadScope) != IsReadOnly(method)))#if (scopes.Count > 0 && (scopes[0] == AuthPolicies.FarmReadScope) != IsReadOnly(method))#Mcp.McpToolSurfaceTests.ToolMissingAGate_IsAGateFinding#Assert.Contains() Failure
+write-key-unstable#kill#MCP_WRITE#Sha256($"{call.UserId}:{idempotencyKey}")#Sha256($"{call.UserId}:{idempotencyKey}:{Guid.NewGuid()}")#Mcp.McpWriteToolsTests.Submit_ByFlockAndDate_Retried_MakesOneSetOfLots_AndANewKeyIsRefused#DailyEntry.NotDraft
+write-key-shared-across-tools#kill#MCP_WRITE#Sha256($"mcp:tool:{tool}")#Sha256("mcp:tool")#Mcp.McpWriteToolsTests.TwoTools_SameCallerKey_DoNotCollide#Idempotency.KeyReused
+feed-unaudited#kill#FEED_HANDLER#            await audit.WriteAsync(AuditActions.FeedUsageCreate, nameof(FeedUsage), usageId,\n                reason: null, new { InventoryItemId = item.Id, command.Quantity, item.Unit }, transactionCt);\n##Mcp.McpWriteToolsTests.FeedUsage_ByNames_DrainsStock_NeverEchoesTheNote_AndTheAuditRowNamesTheApp#Assert.Single() Failure
+feed-reply-note#kill#INVENTORY_TOOLS#    string Unit, McpMoney EstimatedCost, string CorrectInApp, bool Replayed);#    string Unit, McpMoney EstimatedCost, string CorrectInApp, bool Replayed, string? Note = null);#Mcp.McpToolSurfaceTests.RealTree_ToolRepliesReturnOnlyReviewedText#Collections differ
+names-include-inactive#kill#MCP_NAMES#var choices = all.Where(active).ToList();#var choices = all.Where(c => active(c) || !active(c)).ToList();#Mcp.McpWriteToolsTests.ItemNames_ResolveAmongActiveItems_AndASharedNameIsRefusedWithTheIds#Sub-string not found
+money-rounded#kill#MCP_MONEY#if (scaled == decimal.Truncate(scaled))#if (scaled >= decimal.MinValue)#Mcp.McpWriteToolsTests.Purchase_TakesADecimalUnitCost_AndRefusesMoreDecimalsThanTheCurrencyHas#Assert.True() Failure
 EOF
 )
 
@@ -409,7 +429,7 @@ sys.exit(1 if problems else 0)
 PY
 }
 
-FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$PROVIDER" "$ME" "$ENDPOINT_GROUPS" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO" "$PARITY" "$DAILY_TOOLS")
+FILES=("$MCP" "$FORBIDDEN" "$POLICIES" "$TOOL_SURFACE" "$FLOCK_TOOLS" "$STOCK_TOOLS" "$PAGE" "$FLOCK_ENDPOINTS" "$STOCK_ENDPOINTS" "$FLOCK_SCOPE" "$MOVEMENT_REPO" "$FLOCK_REPO" "$FLOCK_LOOKUP" "$DB_CONTEXT" "$TEXT_WALK" "$IDENTITY" "$TELEMETRY" "$SERVER" "$ENDPOINT" "$REGISTRATION" "$FETCHER" "$DOCUMENTS" "$IDEMPOTENCY" "$LIMITS" "$PURGE" "$SWEEP" "$WORKER" "$STAMP_MIGRATION" "$STAMP_CONFIG" "$VERIFIER" "$EPOCH" "$MUST_CHANGE" "$CONNECTED" "$PROVIDER" "$ME" "$ENDPOINT_GROUPS" "$ACCOUNT" "$ACCOUNT_ENDPOINTS" "$SWITCH_HANDLER" "$SWITCH_MIGRATION" "$COMMERCE_TOOLS" "$PAYMENT_REPO" "$PARITY" "$DAILY_TOOLS" "$INVENTORY_TOOLS" "$EXPENSE_TOOLS" "$MCP_WRITE" "$MCP_NAMES" "$MCP_MONEY" "$FEED_HANDLER")
 restore() { git checkout -- "${FILES[@]}"; }
 
 if ! git diff --quiet -- "${FILES[@]}"; then

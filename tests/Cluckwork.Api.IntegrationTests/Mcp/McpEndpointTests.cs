@@ -58,8 +58,7 @@ public sealed class McpEndpointTests(CluckworkWebApplicationFactory factory)
     public async Task ToolSchemas_AreServedForEveryTool_WithoutNull()
     {
         using var host = Host(factory);
-        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Owner),
-            [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries]);
+        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Owner), [.. OAuthScopes.All]);
         await using var client = await ConnectAsync(host, token);
 
         var tools = await client.ListToolsAsync();

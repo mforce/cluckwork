@@ -15,6 +15,7 @@ public sealed class RecordWaterUsageHandler(
     Cluckwork.Application.Modules.EggOperations.Contracts.IDailyEntryLookup dailyEntries,
     IUnitOfWork unitOfWork,
     IFarmClock farmClock,
+    IAuditWriter audit,
     ILogger<RecordWaterUsageHandler> logger)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -59,6 +60,8 @@ public sealed class RecordWaterUsageHandler(
             dailyEntryId);
 
         await waterUsages.AddAsync(usage, ct);
+        await audit.WriteAsync(AuditActions.WaterUsageCreate, nameof(WaterUsage), usage.Id,
+            reason: null, new { usage.Quantity, usage.Unit }, ct);
         await unitOfWork.SaveChangesAsync(ct);
         logger.LogInformation(
             "Water usage {WaterUsageId} recorded: {Quantity} {Unit} for flock {FlockId} on {UsageDate}",

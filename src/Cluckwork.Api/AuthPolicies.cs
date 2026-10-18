@@ -28,6 +28,9 @@ public static class AuthPolicies
     // policy; stacked [Authorize] attributes AND together, so a tool runs for role ∩ scope.
     public const string FarmReadScope = "scope:" + OAuthScopes.ReadFarm;
     public const string DailyEntriesWriteScope = "scope:" + OAuthScopes.WriteDailyEntries;
+    public const string DailyEntriesSubmitScope = "scope:" + OAuthScopes.SubmitDailyEntries;
+    public const string OperationsWriteScope = "scope:" + OAuthScopes.WriteOperations;
+    public const string ExpensesWriteScope = "scope:" + OAuthScopes.WriteExpenses;
 
     // Kept for existing references; prefer Roles.* (#84).
     public const string AdminRole = Roles.Owner;
@@ -66,6 +69,9 @@ public static class AuthPolicies
 
         opts.AddPolicy(FarmReadScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.ReadFarm)));
         opts.AddPolicy(DailyEntriesWriteScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.WriteDailyEntries)));
+        opts.AddPolicy(DailyEntriesSubmitScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.SubmitDailyEntries)));
+        opts.AddPolicy(OperationsWriteScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.WriteOperations)));
+        opts.AddPolicy(ExpensesWriteScope, p => p.AddRequirements(new OAuthScopeRequirement(OAuthScopes.WriteExpenses)));
     }
 
     private const string WorkerRole = "Worker";

@@ -101,13 +101,13 @@ internal static class CluckworkMcp
         context.Response.Headers.WWWAuthenticate = $"Bearer {parameters}, resource_metadata=\"{metadata}\"";
     }
 
-    // Either scope admits the request; each tool then requires its own (AuthPolicies).
+    // Any scope admits the request; each tool then requires its own (AuthPolicies).
     public static void MapCluckworkMcp(this IEndpointRouteBuilder app)
     {
         app.MapMcp(Path)
             .WithMetadata(new ReadsRequestBodyAttribute(), new HandlesOwnIdempotencyAttribute())
             .WithMaxRequestBodyBytes(MaxRequestBodyBytes)
-            .AcceptOAuthTokens(OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries)
+            .AcceptOAuthTokens([.. OAuthScopes.All])
             .RequireAuthorization();
 
         // Stateless serves no GET stream, and the MCP spec then wants 405. Without this the

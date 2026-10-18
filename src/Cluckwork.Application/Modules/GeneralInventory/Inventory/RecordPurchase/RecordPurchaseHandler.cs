@@ -16,6 +16,7 @@ public sealed class RecordPurchaseHandler(
     IAccountRepository accounts,
     IUnitOfWork unitOfWork,
     IFarmClock farmClock,
+    IAuditWriter audit,
     ILogger<RecordPurchaseHandler> logger)
 {
     public async Task<Result<Guid>> HandleAsync(
@@ -86,6 +87,8 @@ public sealed class RecordPurchaseHandler(
 
             await lots.AddAsync(lot, transactionCt);
             await movements.AddAsync(movement, transactionCt);
+            await audit.WriteAsync(AuditActions.InventoryItemPurchase, nameof(InventoryItem), item.Id,
+                reason: null, new { InventoryLotId = lot.Id, command.Quantity, item.Unit }, transactionCt);
             outcome = Result.Success(lot.Id);
             return true;
         }, ct);

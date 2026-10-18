@@ -45,8 +45,18 @@ internal static partial class RealModuleLedger
             "EggOperations",
             "FlockManagement",
         ]),
+        new("Cluckwork.Api.Mcp.ExpenseTools.ctor", [
+            "Farm",
+            "Finance",
+            "FlockManagement",
+        ]),
         new("Cluckwork.Api.Mcp.FlockTools.ResolveAsync", ["FlockManagement"]),
         new("Cluckwork.Api.Mcp.FlockTools.ctor", ["FlockManagement"]),
+        new("Cluckwork.Api.Mcp.InventoryTools.ctor", [
+            "Farm",
+            "FlockManagement",
+            "GeneralInventory",
+        ]),
         new("Cluckwork.Api.Mcp.StockTools.ResolveGrade", ["EggOperations"]),
         new("Cluckwork.Api.Mcp.StockTools.ctor", ["EggOperations"]),
         new("Cluckwork.Api.Modules.Farm.Accounts.AccountEndpoints.GetAccount", ["Farm"]),

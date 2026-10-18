@@ -1468,6 +1468,10 @@ public sealed class SimulationSeederTests(SimulationSeedFactory factory)
             [AuditActions.ProductCreate] = FromPool(ManagerPrefix),
             [AuditActions.ExpenseCreate] = FromPool(ManagerPrefix),
             [AuditActions.InventoryItemAdjust] = FromPool(ManagerPrefix),
+            // #1313 — the store-keeper receives the opening stock and records feed and water.
+            [AuditActions.InventoryItemPurchase] = FromPool(ManagerPrefix),
+            [AuditActions.FeedUsageCreate] = FromPool(ManagerPrefix),
+            [AuditActions.WaterUsageCreate] = FromPool(ManagerPrefix),
 
             // The sales desk books the orders and creates the customers who place them.
             [AuditActions.CustomerCreate] = FromPool(SalesPrefix),

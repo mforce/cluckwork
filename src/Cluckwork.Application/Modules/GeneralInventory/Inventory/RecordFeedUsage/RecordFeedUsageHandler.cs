@@ -23,6 +23,7 @@ public sealed class RecordFeedUsageHandler(
     Cluckwork.Application.Modules.EggOperations.Contracts.IDailyEntryLookup dailyEntries,
     IUnitOfWork unitOfWork,
     IFarmClock farmClock,
+    IAuditWriter audit,
     ILogger<RecordFeedUsageHandler> logger)
 {
     // Categories a flock can plausibly eat. Recording packaging or equipment
@@ -162,6 +163,8 @@ public sealed class RecordFeedUsageHandler(
                 command.Date, command.Quantity, item.Unit, estimatedCost, command.Note,
                 dailyEntryId);
             await usages.AddAsync(usage, transactionCt);
+            await audit.WriteAsync(AuditActions.FeedUsageCreate, nameof(FeedUsage), usageId,
+                reason: null, new { InventoryItemId = item.Id, command.Quantity, item.Unit }, transactionCt);
 
             outcome = Result.Success(new RecordFeedUsageResponse(
                 usageId, command.Quantity, estimatedCost.MinorUnits,

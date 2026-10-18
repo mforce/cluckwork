@@ -22,7 +22,9 @@ namespace Cluckwork.Api.IntegrationTests.Mcp;
 public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory)
     : IClassFixture<CluckworkWebApplicationFactory>
 {
-    private static readonly string[] BothScopes = [OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries];
+    // Discovery advertises every scope, so a client that asks for all of them gets each tool (#1311, #1313).
+    private static readonly string[] EveryScope =
+        ["farm:read", "daily-entries:write", "daily-entries:submit", "operations:write", "expenses:write"];
     private static readonly string[] ReadTools =
     [
         "cluckwork_list_daily_entries", "cluckwork_list_egg_lot_movements", "cluckwork_list_egg_lots",
@@ -129,7 +131,7 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
 
         Assert.Equal(McpUrl, metadata.GetProperty("resource").GetString());
         Assert.Equal(["https://localhost/"], metadata.GetProperty("authorization_servers").EnumerateArray().Select(s => s.GetString()));
-        Assert.Equal(BothScopes, metadata.GetProperty("scopes_supported").EnumerateArray().Select(s => s.GetString()));
+        Assert.Equal(EveryScope, metadata.GetProperty("scopes_supported").EnumerateArray().Select(s => s.GetString()));
     }
 
     // The metadata URL comes from OAuth:Issuer, so a request arriving under another Host
@@ -207,7 +209,7 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
             (await redeemed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
     }
 
-    // RFC 6750 §3.1: the token holds neither MCP scope, so the client is told which to ask for.
+    // RFC 6750 §3.1: the token holds no MCP scope, so the client is told which to ask for.
     [Fact]
     public async Task TokenWithoutAnMcpScope_Gets403InsufficientScope()
     {
@@ -218,7 +220,7 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(
-            $"Bearer error=\"insufficient_scope\", scope=\"farm:read daily-entries:write\", resource_metadata=\"{ResourceMetadata}\"",
+            $"Bearer error=\"insufficient_scope\", scope=\"farm:read daily-entries:write daily-entries:submit operations:write expenses:write\", resource_metadata=\"{ResourceMetadata}\"",
             response.Headers.WwwAuthenticate.ToString());
     }
 

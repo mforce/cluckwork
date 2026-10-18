@@ -67,6 +67,22 @@ public sealed class McpToolSurfaceTests
         "McpMoney.Currency", // an ISO currency code
         "PaymentRow.Method", // enum
         "RecordedDailyEntry.FlockName",
+        // #1313: item and category names and units are set by Owner or Manager, Source is an
+        // enum, and CorrectInApp is fixed text naming a screen and its control, set by code.
+        "RecordedExpense.Category",
+        "RecordedExpense.CorrectInApp",
+        "RecordedExpense.FlockName",
+        "RecordedFeedUsage.CorrectInApp",
+        "RecordedFeedUsage.FlockName",
+        "RecordedFeedUsage.Item",
+        "RecordedFeedUsage.Unit",
+        "RecordedPurchase.CorrectInApp",
+        "RecordedPurchase.Item",
+        "RecordedPurchase.Unit",
+        "RecordedWaterUsage.CorrectInApp",
+        "RecordedWaterUsage.FlockName",
+        "RecordedWaterUsage.Source", // enum
+        "RecordedWaterUsage.Unit", // "L" or "gal"
         "SalesOrderLine.Grade",
         "SalesOrderLine.Unit", // enum
         "SalesOrderRow.Customer",
@@ -74,6 +90,9 @@ public sealed class McpToolSurfaceTests
         "SalesOrderRow.Reference", // "SO-" and eight hex digits, set by code
         "SalesOrderRow.Status", // enum
         "StockRow.Grade",
+        "SubmittedDailyEntry.CorrectInApp",
+        "SubmittedDailyEntry.FlockName",
+        "SubmittedDailyEntry.Status", // enum
     ];
 
     [Fact]
@@ -185,9 +204,9 @@ public sealed class McpToolSurfaceTests
     public void RealTree_EveryWriteToolTakesAnIdempotencyKey()
     {
         var writes = McpToolSurface.ToolTypes(ApiTypes).SelectMany(McpToolSurface.ToolMethods)
-            .Where(m => m.Name == nameof(DailyEntryTools.RecordAsync));
+            .Where(m => !m.GetCustomAttribute<ModelContextProtocol.Server.McpServerToolAttribute>()!.ReadOnly);
 
-        Assert.Single(writes);
+        Assert.True(writes.Count() >= 6, $"the walk found {writes.Count()} write tools");
         AssertNone(McpToolSurface.WriteToolFindings(ApiTypes));
     }
 
@@ -270,7 +289,8 @@ public sealed class McpToolSurfaceTests
 
     [Theory]
     [InlineData(typeof(ReadWithWriteScopeTool), "requires scope:daily-entries:write; a read tool requires exactly scope:farm:read")]
-    [InlineData(typeof(WriteWithReadScopeTool), "requires scope:farm:read; a write tool requires exactly scope:daily-entries:write")]
+    [InlineData(typeof(WriteWithReadScopeTool), "requires scope:farm:read; a write tool requires exactly one write scope")]
+    [InlineData(typeof(TwoWriteScopesTool), "requires scope:daily-entries:write and scope:expenses:write; a write tool requires exactly one write scope")]
     [InlineData(typeof(TwoScopesTool), "requires scope:farm:read and scope:daily-entries:write; a read tool requires exactly scope:farm:read")]
     [InlineData(typeof(RoleOnlyTool), "has no scope policy")]
     [InlineData(typeof(ScopeOnlyTool), "has no role policy")]
@@ -420,6 +440,14 @@ public sealed class McpToolSurfaceTests
     {
         [ModelContextProtocol.Server.McpServerTool(ReadOnly = true), Authorize, Authorize(Policy = AuthPolicies.FarmReadScope)]
         public string Read() => call.Email;
+    }
+
+    [McpServerToolType]
+    private sealed class TwoWriteScopesTool(McpCallContext call)
+    {
+        [ModelContextProtocol.Server.McpServerTool, Authorize,
+         Authorize(Policy = AuthPolicies.DailyEntriesWriteScope), Authorize(Policy = AuthPolicies.ExpensesWriteScope)]
+        public string Write(string idempotencyKey) => call.Email + idempotencyKey;
     }
 
     [McpServerToolType]
