@@ -164,7 +164,7 @@ describe("ConnectPage (#798, consent D)", () => {
 
     expect(details).toHaveTextContent(
       "It can read farm data only for the flocks assigned to you: House A, House B. "
-      + "It can record only for the flocks assigned to you: House A, House B.");
+      + "Daily entries, feed use and water use it records are only for the flocks assigned to you: House A, House B.");
   });
 
   it("tells a Worker with no assignments that the app reaches every flock", async () => {
@@ -242,6 +242,21 @@ describe("ConnectPage (#798, consent D)", () => {
     fireEvent.click(screen.getByText("Details"));
     expect(screen.getByText("Details").closest("details")!).toHaveTextContent(
       "Your role (Worker) does not allow what is marked Not allowed for your role, so the app cannot do it either.");
+  });
+
+  // Purchases are account-wide, so a flock-scoped Worker is told the limit does not reach them.
+  it("tells a flock-scoped Worker that purchases reach the whole farm's inventory", async () => {
+    const details = await detailsFor({ ...REQUEST, scopes: ["operations:write"], assignedFlocks: ["House A"] }, null);
+
+    expect(details).toHaveTextContent(
+      "Daily entries, feed use and water use it records are only for the flocks assigned to you: House A. "
+      + "Inventory purchases are not tied to a flock: they add to the whole farm's inventory.");
+  });
+
+  it("says nothing of purchases when the app asks only for daily entries", async () => {
+    const details = await detailsFor({ ...REQUEST, assignedFlocks: ["House A"] }, null);
+
+    expect(details).not.toHaveTextContent("Inventory purchases");
   });
 
   it("says operations take effect at once", async () => {

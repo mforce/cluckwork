@@ -266,10 +266,14 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
     const entry = scopeEntry(scope);
     return entry && "atOnce" in entry && allowedFor(scope, role);
   }) && t("detailsAtOnce");
+  const wholeFarm = flocks !== undefined && asked.some((scope) => {
+    const entry = scopeEntry(scope);
+    return entry && "wholeFarm" in entry && allowedFor(scope, role);
+  }) && t("detailsPurchases");
   return (
     <Box component="details" sx={{ borderTop: "1px solid var(--hairline)", paddingTop: 1.5, "& p": { marginBlock: 1 } }}>
       <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600 }}>{t("details")}</Box>
-      <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes, atOnce, blocked].filter(Boolean).join(" ")}</Typography>
+      <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes, wholeFarm, atOnce, blocked].filter(Boolean).join(" ")}</Typography>
       <Typography variant="body2" component="p" sx={{ overflowWrap: "anywhere" }}>
         {domain ? t("detailsNameVerified", { app, domain, url: request.clientId }) : t("detailsName", { app })}
       </Typography>
