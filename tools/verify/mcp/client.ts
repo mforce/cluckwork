@@ -7,6 +7,7 @@
 //   node client.ts call <token-file> <tool> [json-args]
 //   node client.ts disconnect <persona> [app-name]
 //
+// MCP_DETAILS=1 photographs the consent screen with Details open.
 // MCP_CLIENT_FILE keeps one registration across connects, so a second connect is the same
 // app reconnecting and consent marks what it newly asks for as New (#1311, #1313).
 //
@@ -103,6 +104,8 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
     await password.waitFor();
     const main = (await page.locator("main").innerText()).replaceAll(member.email, "<email>");
     console.log(`consent at ${new URL(page.url()).pathname}:\n${main.split("\n").filter(Boolean).map((l) => `  | ${l}`).join("\n")}`);
+    // MCP_DETAILS=1 opens Details first, so the frames show what the grant covers.
+    if (shots && process.env.MCP_DETAILS) await page.getByText(CONSENT.details, { exact: true }).click();
     if (shots) {
       for (const [w, h] of [[1280, 800], [390, 844]] as const)
         for (const theme of ["light", "dark"] as const) {
