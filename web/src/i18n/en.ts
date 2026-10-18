@@ -4130,7 +4130,7 @@ export const en = {
       + "your current password; it can never do more than your role. An app already allowed asks only for the "
       + "password when it connects again. When Cluckwork could fetch the app's details from its own website, the "
       + "screen shows <strong>Verified domain</strong> and that website's address; otherwise it says "
-      + "<strong>Unverified app</strong>. Either way the app chose its own name. An app that asks for more connects again: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong>.",
+      + "<strong>Unverified app</strong>. Either way the app chose its own name. To give an app new permissions, connect it again and approve them: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong>.",
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "
