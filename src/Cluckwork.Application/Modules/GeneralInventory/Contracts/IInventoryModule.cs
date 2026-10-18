@@ -16,7 +16,7 @@ public interface IInventoryModule
 
     Task<Result> SetItemActiveAsync(Guid id, bool active, CancellationToken ct);
 
-    Task<Result<Guid>> RecordPurchaseAsync(RecordPurchaseCommand command, Guid accountId, CancellationToken ct);
+    Task<Result<InventoryLotDetails>> RecordPurchaseAsync(RecordPurchaseCommand command, Guid accountId, CancellationToken ct);
 
     Task<IReadOnlyList<InventoryLotDetails>> ListLotsAsync(Guid itemId, CancellationToken ct);
 

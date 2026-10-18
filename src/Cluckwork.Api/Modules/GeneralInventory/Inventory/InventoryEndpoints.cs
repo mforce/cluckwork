@@ -162,7 +162,7 @@ public static class InventoryEndpoints
 
         var result = await inventory.RecordPurchaseAsync(command, tenant.AccountId, ct);
         return result.IsSuccess
-            ? Results.Created($"/api/v1/inventory/items/{id}/lots", new { LotId = result.Value })
+            ? Results.Created($"/api/v1/inventory/items/{id}/lots", new { LotId = result.Value.Id })
             : MapFailure(result.Error);
     }
 

@@ -49,7 +49,7 @@ public sealed class InventoryModule(
     public Task<Result> SetItemActiveAsync(Guid id, bool active, CancellationToken ct) =>
         setItemActive.HandleAsync(id, active, ct);
 
-    public Task<Result<Guid>> RecordPurchaseAsync(RecordPurchaseCommand command, Guid accountId, CancellationToken ct) =>
+    public Task<Result<InventoryLotDetails>> RecordPurchaseAsync(RecordPurchaseCommand command, Guid accountId, CancellationToken ct) =>
         recordPurchase.HandleAsync(command, accountId, ct);
 
     public async Task<IReadOnlyList<InventoryLotDetails>> ListLotsAsync(Guid itemId, CancellationToken ct) =>

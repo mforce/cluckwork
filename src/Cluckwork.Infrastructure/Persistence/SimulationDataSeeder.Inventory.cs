@@ -222,7 +222,7 @@ public sealed partial class SimulationDataSeeder
             itemId, receivedDate, quantity, UnitCostMinorUnits: null, LotNumber: "SIM-OPEN-1",
             ExpiryDate: null, Note: "Simulation fixture opening stock"), accountId, ct);
         Require(result, $"record opening purchase for inventory item {itemId}");
-        return result.Value;
+        return result.Value.Id;
     }
 
     private async Task EnsureAdjustmentAsync(

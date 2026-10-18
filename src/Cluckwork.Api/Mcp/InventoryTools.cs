@@ -152,10 +152,10 @@ public sealed class InventoryTools(
                 var command = new RecordPurchaseCommand(stock.Id, receivedDate, quantity, unitCostMinorUnits, lotNumber, expiryDate, note);
                 if (await McpWrite.ValidateAsync(purchaseValidator, command, "InventoryPurchase.Invalid", ct) is { IsFailure: true } invalid)
                     return Result.Failure<RecordedPurchase>(invalid.Error);
-                var lotId = await inventory.RecordPurchaseAsync(command, call.AccountId, ct);
-                if (lotId.IsFailure)
-                    return Result.Failure<RecordedPurchase>(lotId.Error);
-                var lot = (await inventory.ListLotsAsync(stock.Id, ct)).Single(l => l.Id == lotId.Value);
+                var received = await inventory.RecordPurchaseAsync(command, call.AccountId, ct);
+                if (received.IsFailure)
+                    return Result.Failure<RecordedPurchase>(received.Error);
+                var lot = received.Value;
                 if (settings is not null && (lot.UnitCost.CurrencyCode != settings.CurrencyCode
                     || lot.UnitCost.CurrencyMinorUnit != settings.CurrencyMinorUnit))
                     return Result.Failure<RecordedPurchase>(McpMoney.CurrencyChanged(nameof(unitCost)));
