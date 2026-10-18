@@ -112,7 +112,7 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
           await page.setViewportSize({ width: w, height: h });
           await page.emulateMedia({ colorScheme: theme });
           await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
-          await page.screenshot({ path: `${shots}/consent-${w}-${theme}.png`, animations: "disabled" });
+          await page.screenshot({ path: `${shots}/consent-${w}-${theme}.png`, animations: "disabled", fullPage: !!process.env.MCP_DETAILS });
         }
       await page.setViewportSize({ width: 1280, height: 800 });
     }
