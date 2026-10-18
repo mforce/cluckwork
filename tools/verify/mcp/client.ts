@@ -20,6 +20,7 @@ import { UnauthorizedError, type OAuthClientProvider } from "@modelcontextprotoc
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { chromium, type Page } from "playwright";
 import { en } from "../../../web/src/i18n/en.ts";
+import { es } from "../../../web/src/i18n/es.ts";
 import { resolveBrowser } from "../../simulation/ui/src/browser.ts";
 
 const BASE = process.env.MCP_BASE ?? "https://localhost:8495";
@@ -28,6 +29,8 @@ const BASE = process.env.MCP_BASE ?? "https://localhost:8495";
 const LOCAL_PROXY = ["localhost", "127.0.0.1"].includes(new URL(BASE).hostname);
 const MCP = new URL("/mcp", BASE);
 const APP = "Cluckwork live verifier";
+// MCP_LANG=es reads the consent screen in Spanish, for a person whose language is Spanish.
+const CONSENT = process.env.MCP_LANG === "es" ? es.connect : en.connect;
 const CAST = new URL("../../simulation/.sim-cast.json", import.meta.url);
 
 type Member = { farmCode: string; email: string; password: string };
@@ -91,7 +94,7 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
     });
     await page.goto(url.href);
     const farmCode = page.getByLabel(en.auth.farmCode);
-    const password = page.getByLabel(en.connect.password);
+    const password = page.getByLabel(CONSENT.password);
     await farmCode.or(password).first().waitFor();
     if (await farmCode.isVisible()) {
       console.log(`sign-in at ${new URL(page.url()).pathname}`);
@@ -112,11 +115,11 @@ function consent(url: URL, redirect: string, member: Member, shots?: string): Pr
     }
     // The password field is required, so this checks form validation only; the server's
     // step-up refusal is checked with a direct request (features/mcp.md).
-    await page.getByRole("button", { name: en.connect.allow }).click();
+    await page.getByRole("button", { name: CONSENT.allow }).click();
     await page.waitForTimeout(500);
     console.log(`form validation: Allow with no password stays on consent: ${!code && (await password.isVisible())}`);
     await password.fill(member.password);
-    await page.getByRole("button", { name: en.connect.allow }).click();
+    await page.getByRole("button", { name: CONSENT.allow }).click();
     for (let i = 0; i < 100 && !code; i++) await page.waitForTimeout(100);
     if (!code) throw new Error("no authorization code reached the redirect URI");
     return code;
