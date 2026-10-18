@@ -20,6 +20,13 @@ permissions, never the password". The rest stands.
   it and the person meets that tool's role policies, read from the tool's own
   `[Authorize]` metadata. A scope no tool requires is usable by nobody. There is no
   role-to-scope table, on the server or in the SPA.
+- **The derivation reads only the policy forms the tools use today.**
+  `CluckworkMcp.UsableScopesAsync` in `src/Cluckwork.Api/Hosting/CluckworkMcp.cs` combines
+  each tool's `[Authorize]` attributes, its role policies plus one scope policy, and
+  evaluates the role part against the person. It does not handle the SDK's other forms:
+  `AuthorizationPolicy` metadata on the tool, `IAuthorizationRequirementData`, or a
+  requirement that depends on a resource. A tool that uses one of them must extend the
+  derivation first; otherwise consent can offer or withhold its scope wrongly.
 - **One parser, before the password is spent.** The SPA sends G as a JSON array in
   `X-Cluckwork-Consent-Scopes`. `ConsentSelection.Read` accepts it only when G ⊆ R ∩ U;
   anything else (a scope outside R or U, malformed JSON, a repeated header) is a 400
@@ -46,9 +53,15 @@ permissions, never the password". The rest stands.
   A call to a tool outside G stays a JSON-RPC `InvalidRequest` (#806), never a 403
   `insufficient_scope`, so clients do not start re-authorization.
 
-Accepted costs: an older SPA's approval now drops role-blocked scopes it used to grant
-inertly; a new SPA served against a rolled-back API would grant all of R, because the old
-API ignores the header.
+Accepted cost: an older SPA's approval now drops role-blocked scopes it used to grant
+inertly.
+
+**Accepted risk: an API rollback under an open consent page** (the maintainer,
+2026-10-18; No incident). A consent page loaded from a build with selection support and
+submitted after the API is rolled back to a build without it sends a header the old API
+ignores. That approval grants every requested scope, the unticked ones included, and the
+app keeps them until the person chooses **Disconnect**. The SPA and the API ship in one
+image, so this needs a rollback while the page is open between load and Allow.
 
 ## What happened
 
