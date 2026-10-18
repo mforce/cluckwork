@@ -115,7 +115,6 @@ export const tl = {
     title: "Hayaan ang {{app}} na kumilos bilang ikaw?",
     titleMore: "Hayaan ang {{app}} na gumawa ng higit pa?",
     titleReconnect: "Ikonektang muli ang {{app}}?",
-    reconnectBody: "Pinayagan mo na ito dati. Ilagay ang password mo para kumpirmahing ikaw ito.",
     unnamedApp: "Isang app na walang pangalan",
     unverified: "Hindi beripikadong app",
     verifiedDomain: "Beripikadong domain: {{domain}}",
@@ -134,6 +133,8 @@ export const tl = {
     scopeBlocked: "Hindi pinapayagan ng role mo",
     scopeNew: "Bago",
     scopeHad: "Pinayagan na",
+    chooseScopes: "Alisin ang tsek sa pahintulot na ayaw mong ibigay.",
+    noSelection: "Walang may tsek. Piliin ang {{cancel}} para bumalik sa app nang hindi ito ikinokonekta.",
     acts: "Kumikilos bilang ikaw, gamit lang ang access mo",
     roleSr: "Ang role mo:",
     password: "Ang kasalukuyan mong password",
@@ -142,16 +143,15 @@ export const tl = {
     wrongPassword: "Mali ang password. Walang naikonekta.",
     tooManyAttempts: "Masyadong maraming subok. Maghintay ng ilang minuto at subukang muli.",
     failed: "May nangyaring mali, at walang naikonekta. Subukang muli.",
-    undo: "Idiskonekta ito kahit kailan sa Account › Mga nakakonektang app.",
+    undo: "Mananatili ang access ng mga koneksyong pinayagan mo dati hanggang piliin mo ang Idiskonekta sa Account › Mga nakakonektang app.",
     details: "Mga detalye",
     detailsActs: "Kumikilos ito bilang ikaw, kaya hindi ito makakagawa ng higit sa kaya mo.",
     detailsReadAll: "Mababasa nito ang datos ng bukid para sa bawat flock.",
     detailsReadSome: "Mababasa lang nito ang datos ng bukid para sa mga flock na naka-assign sa iyo: {{flocks}}.",
     detailsWriteAll: "Makakapagtala ito para sa alinmang flock.",
-    detailsWriteSome: "Para lang sa mga flock na naka-assign sa iyo ang araw-araw na tala, paggamit ng pakain at paggamit ng tubig na itinatala nito: {{flocks}}.",
+    detailsWriteSome: "Makakapagtala lang ito para sa mga flock na naka-assign sa iyo: {{flocks}}.",
     detailsPurchases: "Hindi nakatali sa isang flock ang pagbili ng imbentaryo: nadaragdag ito sa imbentaryo ng buong bukid.",
-    detailsWriteBlocked: "Hindi pinapayagan ng role mo ({{role}}) ang may markang Hindi pinapayagan ng role mo, kaya hindi rin ito magagawa ng app.",
-    detailsAtOnce: "Agad na bumibilang ang paggamit ng pakain at tubig, pagbili at gastos na itinatala nito, gaya sa Cluckwork. Itinatama ito ng Admin o Manager sa Cluckwork.",
+    detailsAtOnce: "{{permissions}}: agad na bumibilang ang itinatala nito, gaya sa Cluckwork. Itinatama ito ng Admin o Manager sa Cluckwork.",
     detailsName: "Ang {{app}} ang pumili ng sarili nitong pangalan. Hindi ito sinusuri ng Cluckwork, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
     detailsNameVerified: "Mismong ang Cluckwork ang kumuha ng mga detalye ng app na ito mula sa {{url}}, kaya galing ang mga ito sa may hawak ng address na iyon sa {{domain}}. Pero ang {{app}} pa rin ang pumili ng sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ang {{app}}.",
     detailsReturnHere: "Pagkatapos, babalik ang browser mo sa {{host}}, isang address sa computer na ito.",
@@ -2608,18 +2608,26 @@ export const tl = {
       "<strong>Pagkonekta ng app.</strong> Puwedeng humiling ang isang panlabas na app, gaya ng AI assistant, na "
       + "kumilos bilang ikaw. Ipinapakita ng Cluckwork ang hinihingi nito mula sa <strong>Basahin ang datos ng "
       + "bukid</strong>, <strong>Itala ang araw-araw na tala</strong>, <strong>Isumite ang araw-araw na "
-      + "tala</strong>, <strong>Itala ang gawain sa bukid</strong> at <strong>Itala ang mga gastos</strong>, at "
-      + "sasagot ka ng <strong>Payagan</strong> pagkatapos ilagay ang <strong>Ang kasalukuyan mong "
-      + "password</strong>, o ng <strong>Kanselahin</strong>. Hindi ito makakagawa ng higit sa sarili mong role. "
-      + "Kapag kumonekta ulit ang app na pinayagan mo na, password mo lang ang hihingin. Ang app ang pumili ng "
+      + "tala</strong>, <strong>Itala ang gawain sa bukid</strong> at <strong>Itala ang mga gastos</strong>, na "
+      + "may checkbox ang bawat isa. Alisin ang tsek sa ayaw mong ibigay, pati ang <strong>Basahin ang datos ng "
+      + "bukid</strong>, saka piliin ang <strong>Payagan</strong> pagkatapos ilagay ang <strong>Ang kasalukuyan mong "
+      + "password</strong>. Kapag walang may tsek, <strong>Kanselahin</strong> na lang ang natitira. Hindi ito "
+      + "makakagawa ng higit sa sarili mong role: may markang <strong>Hindi pinapayagan ng role mo</strong> at "
+      + "walang checkbox ang pahintulot na hindi magagamit ng role mo. Kapag kumonekta ulit ang app, may tsek ang "
+      + "pinayagan mo dati at may markang <strong>Bago</strong> ang iba, at laging hihingin ang password mo. Hindi "
+      + "inaalis sa naunang koneksyon ang pahintulot na inalisan mo ng tsek: para alisin ito, piliin ang "
+      + "<strong>Idiskonekta</strong> sa <strong>Account</strong> › <strong>Mga nakakonektang app</strong>, saka "
+      + "ikonekta ulit ang app. Ang app ang pumili ng "
       + "sarili nitong pangalan, kaya payagan lang ito kung kasisimula mo pa lang ikonekta ito. Nasa <strong>Mga "
       + "detalye</strong> ang mas mahabang paliwanag.",
     // #799 — control names match the connectedApps and nav catalogs (#688).
     signingInConnectedApps:
       "<strong>Mga nakakonektang app.</strong> Nasa <strong>Account</strong> ang bawat app na pinayagan mong "
       + "kumilos bilang ikaw, kasama ang kaya nito, kung kailan ito ikinonekta at huling ginamit. Hihinto ito sa "
-      + "susunod nitong kahilingan kapag pinindot mo ang <strong>Idiskonekta</strong>; para magamit ulit, ikonekta "
-      + "itong muli gamit ang password mo. May marka ang app na hindi nagamit sa loob ng 30 araw. Nakikita ng "
+      + "susunod nitong kahilingan, sa bawat koneksyong inaprubahan mo para dito, kapag pinindot mo ang "
+      + "<strong>Idiskonekta</strong>; para magamit ulit, ikonekta itong muli gamit ang password mo. Saklaw ng kaya "
+      + "nito ang lahat ng koneksyong iyon, kaya hindi ito lumiliit kapag ikinonekta mo ulit nang mas kaunti ang "
+      + "pahintulot. May marka ang app na hindi nagamit sa loob ng 30 araw. Nakikita ng "
       + "Owner ang bawat app sa bukid sa <strong>Setup</strong> › <strong>Mga nakakonektang app</strong>, puwede "
       + "niyang i-filter ayon sa <strong>Tao</strong>, at puwede niyang idiskonekta ang alinman, na mas kaunti ang "
       + "nagagawa kaysa sa pag-disable sa tao. Kapag in-off ang <strong>Payagan ang mga nakakonektang app</strong> "
@@ -2670,7 +2678,7 @@ export const tl = {
       + "ng password mo, o ng pagbabago ng email o role mo, mawawala ang app sa <strong>Mga nakakonektang "
       + "app</strong> at kailangan itong kumonekta ulit gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
       + "pahintulot na hindi mo ibinigay, gaya ng <strong>Isumite ang araw-araw na tala</strong>, ikonekta ulit at "
-      + "payagan ito; may marka itong <strong>Bago</strong>. Hinihingi ng Claude Code ang bawat pahintulot na iniaalok ng Cluckwork kapag kumonekta ulit ito, kaya hindi kailangang baguhin ang setup nito.",
+      + "lagyan ito ng tsek; may marka itong <strong>Bago</strong>. Hinihingi ng Claude Code ang bawat pahintulot na iniaalok ng Cluckwork kapag kumonekta ulit ito, kaya hindi kailangang baguhin ang setup nito.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",
@@ -3563,12 +3571,13 @@ export const tl = {
     glossaryAppConsentTerm: "Pagkonekta ng app",
     glossaryAppConsentDef:
       "Pag-apruba sa isang panlabas na app, gaya ng AI assistant, na kumilos bilang ikaw. Makikita mo ang hinihingi "
-      + "nito at papayagan mo ito gamit ang kasalukuyan mong password; hindi ito makakagawa ng higit sa role mo. Ang "
-      + "app na pinayagan na ay password lang ang hihingin kapag kumonekta ulit. Kapag nakuha ng Cluckwork ang mga "
+      + "nito, aalisin mo ang tsek sa ayaw mo, at papayagan mo ang iba gamit ang kasalukuyan mong password; hindi ito "
+      + "makakagawa ng higit sa role mo. Hihingin ang password sa bawat koneksyon, at kapareho ng "
+      + "<strong>Kanselahin</strong> ang pag-alis ng lahat ng tsek. Kapag nakuha ng Cluckwork ang mga "
       + "detalye ng app mula sa sarili nitong website, ipinapakita ng screen ang <strong>Beripikadong domain</strong> "
       + "at ang address ng website na iyon; kung hindi, <strong>Hindi beripikadong app</strong> ang nakasulat. Alinman "
-      + "dito, ang app ang pumili ng sarili nitong pangalan. Para bigyan ang app ng mga bagong pahintulot, ikonekta itong muli at payagan ang mga ito: may markang "
-      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong> ang hindi magagamit ng role mo.",
+      + "dito, ang app ang pumili ng sarili nitong pangalan. Para bigyan ang app ng mga bagong pahintulot, ikonekta itong muli at lagyan ng tsek ang mga ito: may markang "
+      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong>, na walang checkbox, ang hindi magagamit ng role mo. Para mag-alis ng pahintulot, idiskonekta ang app, saka ikonekta ito ulit.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
@@ -3832,7 +3841,7 @@ export const tl = {
       "Isang app mula sa labas, gaya ng AI assistant, na pinahintulutan ng isang tao sa bukid na kumilos para "
       + "sa kanya. Ang kaya lang nitong gawin ay ang kaya ng taong iyon. Pinapangalanan ng audit log ang tao, "
       + "idinadagdag ang app sa linya sa ilalim, at kayang ipakita lang ang mga aksyon sa pamamagitan ng mga "
-      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan. Nadidiskonekta ang lahat ng app ng isang tao kapag pinalitan o na-reset ang password niya, o binago ang email o role niya. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, o ng app na pinayagang magsumite. Agad na bumibilang ang paggamit ng pakain at tubig, pagbili at gastos na itinatala nito. Hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
+      + "nakakonektang app. Nasa Mga nakakonektang app ang mga app na pinayagang kumilos bilang isang tao: sa Account ang sa iyo, at sa Setup ang sa buong bukid para sa Owner. Pinahihinto ng Idiskonekta ang app sa susunod nitong kahilingan, sa bawat koneksyong inaprubahan ng tao para dito. Nadidiskonekta ang lahat ng app ng isang tao kapag pinalitan o na-reset ang password niya, o binago ang email o role niya. Pinapatay silang lahat ng Payagan ang mga nakakonektang app sa pahinang Mga nakakonektang app ng Owner. Kumokonekta ang AI app sa address ng Cluckwork na sinusundan ng /mcp. Nananatiling draft ang mga araw-araw na tala nito hanggang isumite ng isang tao, o ng app na pinayagang magsumite. Agad na bumibilang ang paggamit ng pakain at tubig, pagbili at gastos na itinatala nito. Hindi nito kailanman nakikita ang free-text na note o nakasulat na dahilan.",
     glossaryRolesTerm: "Mga Tungkulin",
     glossaryRolesDef:
       "Admin (may-ari), Manager, Manggagawa, Benta, Read-only — tingnan ang \"Sino ang puwedeng gumawa ng "

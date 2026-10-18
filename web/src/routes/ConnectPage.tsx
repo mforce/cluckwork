@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode, Ref } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Eye, Laptop, PenLine, UserRound } from "lucide-react";
-import { Alert, Box, Button, Paper, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Checkbox, Paper, Stack, Typography } from "@mui/material";
 import { ApiError, stepUp } from "../api/client";
 import { approveConsent, askConsent, declineConsent } from "../api/oauth";
 import type { AuthorizeAnswer, ConsentRequest } from "../api/oauth";
 import { useAuth } from "../auth/useAuth";
 import { currentUserRole } from "../auth/claims";
-import { READ_SCOPE, allowedFor, scopeEntry, scopeRank } from "../auth/oauthScopes";
+import { READ_SCOPE, scopeEntry, scopeRank } from "../auth/oauthScopes";
 import { BusyButton } from "../components/BusyButton";
 import { StepUpPasswordField } from "../components/StepUpPasswordField";
 import { usePendingAction } from "../components/usePendingAction";
@@ -24,12 +24,13 @@ type View =
   | { kind: "refused" }
   | { kind: "off" }
   | { kind: "leaving" }
-  | { kind: "ask"; request: ConsentRequest };
+  | { kind: "ask"; search: string; request: ConsentRequest; selected: readonly string[] };
 
 // #798 — the consent screen a connected app sends the user to (compact
 // direction D, docs/designs/788-oauth-screens/SELECTION.md). Every Allow spends
-// a step-up grant; an app already approved for everything it asks skips the
-// permission rows and asks for the password only.
+// a step-up grant, a reconnect included. #1326 — the person ticks which of the
+// requested permissions to grant; the choice belongs to the one request it was
+// made for and is never stored.
 export function ConnectPage() {
   const { t } = useTranslation("connect");
   const { search } = useLocation();
@@ -54,25 +55,29 @@ export function ConnectPage() {
     if (wrongPassword && !busy) passwordRef.current?.focus();
   }, [wrongPassword, busy]);
 
-  function follow(answer: AuthorizeAnswer) {
+  function follow(answer: AuthorizeAnswer, from: string) {
     if ("redirectUri" in answer) {
       setView({ kind: "leaving" });
       window.location.assign(answer.redirectUri);
     } else {
-      setView({ kind: "ask", request: answer });
+      setView({ kind: "ask", search: from, request: answer, selected: initialSelection(answer) });
     }
   }
 
   useEffect(() => {
     let live = true;
     askConsent(search).then(
-      (answer) => { if (live) follow(answer); },
+      (answer) => { if (live) follow(answer, search); },
       (err) => { if (live) setView({ kind: isOff(err) ? "off" : "refused" }); });
     return () => { live = false; };
   }, [search]);
 
   async function allow(e: FormEvent) {
     e.preventDefault();
+    if (view.kind !== "ask") return;
+    // Fixed before the first await: the checkboxes stay disabled until this settles.
+    const { search: asked, selected } = view;
+    if (selected.length === 0) return cancel();
     await run("allow", async () => {
       setError(null);
       const entered = password;
@@ -86,7 +91,7 @@ export function ConnectPage() {
         return;
       }
       try {
-        follow(await approveConsent(search, grant));
+        follow(await approveConsent(asked, grant, selected), asked);
       } catch (err) {
         if (isOff(err)) setView({ kind: "off" });
         else setError(t("failed"));
@@ -98,11 +103,16 @@ export function ConnectPage() {
     await run("cancel", async () => {
       setError(null);
       try {
-        follow(await declineConsent(search));
+        follow(await declineConsent(search), search);
       } catch {
         setError(t("failed"));
       }
     });
+  }
+
+  function choose(selected: readonly string[]) {
+    if (selected.length === 0) setPassword("");
+    setView((current) => current.kind === "ask" ? { ...current, selected } : current);
   }
 
   const email = me?.email ?? "";
@@ -118,7 +128,7 @@ export function ConnectPage() {
           </Typography>
         </Stack>
         <Paper elevation={0} sx={{ padding: { xs: "20px", md: "24px" }, border: "1px solid var(--hairline)", borderRadius: "var(--r-panel)" }}>
-          {view.kind === "loading" && <Typography role="status">{t("loading")}</Typography>}
+          {(view.kind === "loading" || (view.kind === "ask" && view.search !== search)) && <Typography role="status">{t("loading")}</Typography>}
           {view.kind === "leaving" && <Typography role="status">{t("leaving")}</Typography>}
           {view.kind === "refused" && (
             <Stack spacing={2}>
@@ -137,20 +147,24 @@ export function ConnectPage() {
               <Button variant="outlined" onClick={() => void cancel()} disabled={busy}>{t("cancel")}</Button>
             </Stack>
           )}
-          {view.kind === "ask" && (
+          {view.kind === "ask" && view.search === search && (
             <Stack component="form" spacing={2} onSubmit={allow}>
               <Headline request={view.request} ref={headingRef} />
-              {!view.request.alreadyApproved && <Permissions request={view.request} />}
-              {view.request.alreadyApproved && <Typography variant="body2">{t("reconnectBody")}</Typography>}
-              <StepUpPasswordField label={t("password")} value={password} onChange={setPassword} inputRef={passwordRef} disabled={busy} />
+              <Permissions request={view.request} selected={view.selected} disabled={busy} onChange={choose} />
+              {/* Nothing ticked is Cancel, which needs no password (#1326). */}
+              {view.selected.length > 0
+                ? <StepUpPasswordField label={t("password")} value={password} onChange={setPassword} inputRef={passwordRef} disabled={busy} />
+                : <Typography variant="body2">{t("noSelection", { cancel: t("cancel") })}</Typography>}
               <Box aria-live="assertive">{error && <Alert severity="error" role="alert">{error}</Alert>}</Box>
               <Stack direction="row" spacing={1}>
-                <BusyButton variant="contained" type="submit" busy={busy} sx={{ flex: 1 }}>{t("allow")}</BusyButton>
+                {view.selected.length > 0 && (
+                  <BusyButton variant="contained" type="submit" busy={busy} sx={{ flex: 1 }}>{t("allow")}</BusyButton>
+                )}
                 <Button variant="outlined" onClick={() => void cancel()} disabled={busy} sx={{ flex: 1 }}>{t("cancel")}</Button>
               </Stack>
               <Typography variant="caption" color="text.secondary">{t("undo")}</Typography>
-              {!view.request.alreadyApproved && (
-                <Details request={view.request} email={email} onSignOut={() => void logout()} />
+              {view.selected.length > 0 && (
+                <Details request={view.request} selected={view.selected} email={email} onSignOut={() => void logout()} />
               )}
             </Stack>
           )}
@@ -163,6 +177,11 @@ export function ConnectPage() {
 }
 
 const isOff = (err: unknown) => err instanceof ApiError && err.title === "Auth.ConnectedAppsOff";
+
+// What was allowed before starts ticked and the rest unticked; a first request starts with
+// everything the role can use. Declined permissions are not remembered.
+const initialSelection = (request: ConsentRequest) =>
+  request.alreadyAllowed.length > 0 ? request.usable.filter((scope) => request.alreadyAllowed.includes(scope)) : request.usable;
 
 function Headline({ request, ref }: { request: ConsentRequest; ref: Ref<HTMLHeadingElement> }) {
   const { t } = useTranslation("connect");
@@ -178,11 +197,9 @@ function Headline({ request, ref }: { request: ConsentRequest; ref: Ref<HTMLHead
       {request.verifiedDomain
         ? <span className="badge badge-ok">{t("verifiedDomain", { domain: request.verifiedDomain })}</span>
         : <span className="badge badge-warn">{t("unverified")}</span>}
-      {!request.alreadyApproved && (
-        <Line icon={<Laptop size={16} aria-hidden />}>
-          {LOOPBACK.has(request.redirectHost) ? t("returnsHere") : t("returnsTo", { host: request.redirectHost })}
-        </Line>
-      )}
+      <Line icon={<Laptop size={16} aria-hidden />}>
+        {LOOPBACK.has(request.redirectHost) ? t("returnsHere") : t("returnsTo", { host: request.redirectHost })}
+      </Line>
     </Stack>
   );
 }
@@ -195,38 +212,58 @@ function Line({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-function Permissions({ request }: { request: ConsentRequest }) {
+function Permissions({ request, selected, disabled, onChange }: {
+  request: ConsentRequest;
+  selected: readonly string[];
+  disabled: boolean;
+  onChange: (selected: readonly string[]) => void;
+}) {
   const { t } = useTranslation("connect");
+  const id = useId();
   const had = (scope: string) => request.alreadyAllowed.includes(scope);
   // A request for more puts what is new first; what was allowed before drops to a muted line.
   const scopes = [...request.scopes].sort((a, b) => Number(had(a)) - Number(had(b)) || scopeRank(a) - scopeRank(b));
   const role = currentUserRole();
   return (
     <>
+      <Typography variant="body2">{t("chooseScopes")}</Typography>
       <Box component="ul" aria-label={t("scopesLabel")} sx={{ listStyle: "none", margin: 0, padding: 0, borderTop: "1px solid var(--hairline)" }}>
         {scopes.map((scope) => {
           const old = had(scope);
           const isNew = request.alreadyAllowed.length > 0 && !old;
           const read = scope === READ_SCOPE;
-          const blocked = !allowedFor(scope, role);
+          // The server decides what the role can use; such a row has no checkbox.
+          const blocked = !request.usable.includes(scope);
           const entry = scopeEntry(scope);
           const line = entry && "line" in entry ? t(entry.line) : null;
+          const note = old ? t("scopeHad") : blocked ? null : line;
+          const rowId = `${id}-${scope}`;
           return (
             <Box component="li" key={scope} sx={{
               display: "flex", gap: 1.5, paddingBlock: 1.25, paddingInline: isNew ? 1 : 0, marginInline: isNew ? -1 : 0,
               borderBottom: "1px solid var(--hairline)", background: isNew ? "var(--tint-accent)" : undefined,
               color: old ? "text.secondary" : "text.primary",
             }}>
-              {read ? <Eye size={18} aria-hidden /> : <PenLine size={18} aria-hidden />}
+              {blocked
+                ? (read ? <Eye size={18} aria-hidden /> : <PenLine size={18} aria-hidden />)
+                : (
+                  <Checkbox
+                    id={rowId} size="small" checked={selected.includes(scope)} disabled={disabled} sx={{ padding: 0 }}
+                    onChange={(e) => onChange(e.target.checked ? [...selected, scope] : selected.filter((s) => s !== scope))}
+                    slotProps={{ input: { "aria-describedby": note ? `${rowId}-note` : undefined } }}
+                  />
+                )}
               <Box>
-                <Typography variant="body2" sx={{ fontWeight: old ? 400 : 600, color: "inherit" }}>
+                <Typography variant="body2" component={blocked ? "span" : "label"} htmlFor={blocked ? undefined : rowId}
+                  sx={{ display: "block", fontWeight: old ? 400 : 600, color: "inherit" }}>
                   {entry ? t(entry.label) : scope}
                   {isNew && <> <span className="badge badge-accent">{t("scopeNew")}</span></>}
                 </Typography>
-                {(old || blocked || line) && (
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {old ? t("scopeHad")
-                      : blocked ? <span className="badge badge-warn">{t("scopeBlocked")}</span> : line}
+                {(blocked || note) && (
+                  <Typography variant="body2" id={`${rowId}-note`} sx={{ color: "text.secondary" }}>
+                    {blocked && <span className="badge badge-warn">{t("scopeBlocked")}</span>}
+                    {blocked && note && " "}
+                    {note}
                   </Typography>
                 )}
               </Box>
@@ -249,31 +286,31 @@ function Permissions({ request }: { request: ConsentRequest }) {
   );
 }
 
-function Details({ request, email, onSignOut }: { request: ConsentRequest; email: string; onSignOut: () => void }) {
+// Describes only what is ticked: an unticked permission is not promised anywhere.
+function Details({ request, selected, email, onSignOut }: {
+  request: ConsentRequest;
+  selected: readonly string[];
+  email: string;
+  onSignOut: () => void;
+}) {
   const { t } = useTranslation("connect");
   const app = request.clientName ?? t("unnamedApp");
-  const role = currentUserRole();
   const host = request.redirectHost;
   const domain = request.verifiedDomain;
-  // What this request would get: its scopes, within the user's role and flock scope.
+  // What this approval would get: the ticked scopes, within the user's role and flock scope.
   const flocks = request.assignedFlocks?.join(", ");
-  const reads = request.scopes.includes(READ_SCOPE) && (flocks === undefined ? t("detailsReadAll") : t("detailsReadSome", { flocks }));
-  const asked = request.scopes.filter((scope) => scope !== READ_SCOPE);
-  const writes = asked.some((scope) => allowedFor(scope, role))
-    && (flocks === undefined ? t("detailsWriteAll") : t("detailsWriteSome", { flocks }));
-  const blocked = asked.some((scope) => !allowedFor(scope, role)) && t("detailsWriteBlocked", { role: roleLabel(role) });
-  const atOnce = asked.some((scope) => {
-    const entry = scopeEntry(scope);
-    return entry && "atOnce" in entry && allowedFor(scope, role);
-  }) && t("detailsAtOnce");
-  const wholeFarm = flocks !== undefined && asked.some((scope) => {
-    const entry = scopeEntry(scope);
-    return entry && "wholeFarm" in entry && allowedFor(scope, role);
-  }) && t("detailsPurchases");
+  const read = selected.includes(READ_SCOPE);
+  const reads = read && (flocks === undefined ? t("detailsReadAll") : t("detailsReadSome", { flocks }));
+  const entries = selected.filter((scope) => scope !== READ_SCOPE).sort((a, b) => scopeRank(a) - scopeRank(b)).map(scopeEntry);
+  const writes = entries.length > 0 && (flocks === undefined ? t("detailsWriteAll") : t("detailsWriteSome", { flocks }));
+  const wholeFarm = flocks !== undefined && entries.some((entry) => entry && "wholeFarm" in entry) && t("detailsPurchases");
+  const atOnce = entries.flatMap((entry) => entry && "atOnce" in entry ? [t(entry.label)] : []);
   return (
     <Box component="details" sx={{ borderTop: "1px solid var(--hairline)", paddingTop: 1.5, "& p": { marginBlock: 1 } }}>
       <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600 }}>{t("details")}</Box>
-      <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[reads, writes, wholeFarm, atOnce, blocked].filter(Boolean).join(" ")}</Typography>
+      <Typography variant="body2" component="p"><strong>{t("detailsActs")}</strong> {[
+        reads, writes, wholeFarm, atOnce.length > 0 && t("detailsAtOnce", { permissions: atOnce.join(", ") }),
+      ].filter(Boolean).join(" ")}</Typography>
       <Typography variant="body2" component="p" sx={{ overflowWrap: "anywhere" }}>
         {domain ? t("detailsNameVerified", { app, domain, url: request.clientId }) : t("detailsName", { app })}
       </Typography>
@@ -281,7 +318,7 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
         {LOOPBACK.has(host) ? t("detailsReturnHere", { host }) : t("detailsReturnTo", { host })}
         {domain && LOOPBACK.has(host) && <> {t("detailsLoopbackVerified", { domain })}</>}
       </Typography>
-      <Typography variant="body2" component="p">{t("detailsScopes")}</Typography>
+      {read && <Typography variant="body2" component="p">{t("detailsScopes")}</Typography>}
       <Typography variant="body2" component="p">
         {email} · <Button variant="text" size="small" onClick={onSignOut} sx={{ padding: 0, minWidth: 0, verticalAlign: "baseline" }}>{t("notYou")}</Button>
       </Typography>

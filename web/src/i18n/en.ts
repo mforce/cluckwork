@@ -165,7 +165,6 @@ export const en = {
     title: "Let {{app}} act as you?",
     titleMore: "Let {{app}} do more?",
     titleReconnect: "Reconnect {{app}}?",
-    reconnectBody: "You allowed it before. Enter your password to confirm it's you.",
     unnamedApp: "An unnamed app",
     unverified: "Unverified app",
     verifiedDomain: "Verified domain: {{domain}}",
@@ -184,6 +183,8 @@ export const en = {
     scopeBlocked: "Not allowed for your role",
     scopeNew: "New",
     scopeHad: "Already allowed",
+    chooseScopes: "Untick any permission you don't want to allow.",
+    noSelection: "Nothing is ticked. Choose {{cancel}} to go back to the app without connecting it.",
     acts: "Acts as you, with only your access",
     roleSr: "Your role:",
     password: "Your current password",
@@ -192,16 +193,15 @@ export const en = {
     wrongPassword: "Wrong password. Nothing was connected.",
     tooManyAttempts: "Too many attempts. Wait a few minutes and try again.",
     failed: "Something went wrong, and nothing was connected. Try again.",
-    undo: "Disconnect it anytime in Account › Connected apps.",
+    undo: "Connections you allowed before keep their access until you choose Disconnect in Account › Connected apps.",
     details: "Details",
     detailsActs: "It acts as you, so it can never do more than you can.",
     detailsReadAll: "It can read farm data for every flock.",
     detailsReadSome: "It can read farm data only for the flocks assigned to you: {{flocks}}.",
     detailsWriteAll: "It can record for any flock.",
-    detailsWriteSome: "Daily entries, feed use and water use it records are only for the flocks assigned to you: {{flocks}}.",
+    detailsWriteSome: "It can record only for the flocks assigned to you: {{flocks}}.",
     detailsPurchases: "Inventory purchases are not tied to a flock: they add to the whole farm's inventory.",
-    detailsWriteBlocked: "Your role ({{role}}) does not allow what is marked Not allowed for your role, so the app cannot do it either.",
-    detailsAtOnce: "Feed use, water use, purchases and expenses it records count at once, as they do in Cluckwork. An Admin or Manager corrects them in Cluckwork.",
+    detailsAtOnce: "{{permissions}}: what it records counts at once, as it does in Cluckwork. An Admin or Manager corrects it in Cluckwork.",
     detailsName: "{{app}} chose its own name. Cluckwork does not check it, so allow it only if you just started connecting {{app}}.",
     detailsNameVerified: "Cluckwork fetched this app's details itself from {{url}}, so they come from whoever controls that address on {{domain}}. The name {{app}} is still the app's own choice, so allow it only if you just started connecting {{app}}.",
     detailsReturnHere: "Afterwards your browser goes back to {{host}}, an address on this computer.",
@@ -3260,15 +3260,22 @@ export const en = {
       "<strong>Connecting an app.</strong> An outside app, such as an AI assistant, can ask to act as you. "
       + "Cluckwork shows what it asks for, from <strong>Read farm data</strong>, <strong>Record daily "
       + "entries</strong>, <strong>Submit daily entries</strong>, <strong>Record farm operations</strong> and "
-      + "<strong>Record expenses</strong>, and you answer with <strong>Allow</strong> after typing <strong>Your "
-      + "current password</strong>, or with <strong>Cancel</strong>. It can never do more than your own role. When "
-      + "an app you already allowed connects again, only your password is asked. The app chose its own name, so "
-      + "allow it only if you just started connecting it. <strong>Details</strong> has the longer explanation.",
+      + "<strong>Record expenses</strong>, each with a checkbox. Untick any you don't want to allow, <strong>Read "
+      + "farm data</strong> included, then choose <strong>Allow</strong> after typing <strong>Your current "
+      + "password</strong>. With nothing ticked, only <strong>Cancel</strong> is left. It can never do more than "
+      + "your own role: a permission your role cannot use is marked <strong>Not allowed for your role</strong> and "
+      + "has no checkbox. When an app connects again, what you allowed before starts ticked and the rest is marked "
+      + "<strong>New</strong>, and your password is asked every time. Unticking a permission does not take it from "
+      + "an earlier connection: to remove it, choose <strong>Disconnect</strong> in <strong>Account</strong> › "
+      + "<strong>Connected apps</strong>, then connect the app again. The app chose its own name, so allow it only "
+      + "if you just started connecting it. <strong>Details</strong> has the longer explanation.",
     // #799 — control names match the connectedApps and nav catalogs (#688).
     signingInConnectedApps:
       "<strong>Connected apps.</strong> <strong>Account</strong> lists every app you allowed to act as you, with "
       + "what it can do and when it was connected and last used. <strong>Disconnect</strong> stops it on its next "
-      + "request; to use it again, connect it again with your password. An app unused for 30 days is marked. "
+      + "request, for every connection you approved for it; to use it again, connect it again with your password. "
+      + "What it can do covers all those connections, so connecting it again with fewer permissions does not "
+      + "shrink it. An app unused for 30 days is marked. "
       + "The Owner sees every app on the farm under <strong>Setup</strong> › <strong>Connected apps</strong>, can "
       + "filter by <strong>Person</strong>, and can disconnect any of them, which does less than disabling the person. "
       + "Turning off <strong>Allow connected apps</strong> at the top of that page stops every app and any new "
@@ -3310,7 +3317,7 @@ export const en = {
       + "a password change or reset, or a change to your email or role, the app leaves <strong>Connected "
       + "apps</strong> and must connect again with your password. A tool your role does not allow stays "
       + "hidden. For a permission you did not allow, such as <strong>Submit daily entries</strong>, connect again "
-      + "and allow it; it is marked <strong>New</strong>. Claude Code asks for every permission Cluckwork offers when it connects again, so its setup needs no change.",
+      + "and tick it; it is marked <strong>New</strong>. Claude Code asks for every permission Cluckwork offers when it connects again, so its setup needs no change.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",
@@ -4126,11 +4133,11 @@ export const en = {
     // #308/#356/#360
     glossaryAppConsentTerm: "Connecting an app",
     glossaryAppConsentDef:
-      "Approving an outside app, such as an AI assistant, to act as you. You see what it asks for and allow it with "
-      + "your current password; it can never do more than your role. An app already allowed asks only for the "
-      + "password when it connects again. When Cluckwork could fetch the app's details from its own website, the "
+      "Approving an outside app, such as an AI assistant, to act as you. You see what it asks for, untick what you "
+      + "don't want, and allow the rest with your current password; it can never do more than your role. Every "
+      + "connection asks for the password, and unticking everything is the same as <strong>Cancel</strong>. When Cluckwork could fetch the app's details from its own website, the "
       + "screen shows <strong>Verified domain</strong> and that website's address; otherwise it says "
-      + "<strong>Unverified app</strong>. Either way the app chose its own name. To give an app new permissions, connect it again and approve them: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong>.",
+      + "<strong>Unverified app</strong>. Either way the app chose its own name. To give an app new permissions, connect it again and tick them: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong> and cannot be ticked. To take a permission away, disconnect the app, then connect it again.",
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "
@@ -4362,7 +4369,7 @@ export const en = {
     glossaryConnectedAppDef:
       "An outside app, such as an AI assistant, that a person on the farm allowed to act for them. It can do "
       + "only what that person can do. The audit log names the person, adds the app on the line below, and "
-      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request. A password change or reset, or a change to the person's email or role, disconnects all of that person's apps. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, or an app allowed to submit them does. Feed use, water use, purchases and expenses it records count at once. It never sees free-text notes or written reasons.",
+      + "can show only actions through connected apps. Connected apps lists the apps allowed to act as a person: on Account for your own, and on Setup for the Owner. Disconnect stops an app on its next request, for every connection the person approved for it. A password change or reset, or a change to the person's email or role, disconnects all of that person's apps. Allow connected apps, on the Owner's Connected apps page, turns them all off. An AI app connects at Cluckwork's address followed by /mcp. Its daily entries stay drafts until a person submits them, or an app allowed to submit them does. Feed use, water use, purchases and expenses it records count at once. It never sees free-text notes or written reasons.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (owner), Manager, Worker, Sales, Read-only — see \"Who can do what\". Workers record; "

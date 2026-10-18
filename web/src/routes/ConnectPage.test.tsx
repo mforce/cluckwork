@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { Route, Routes } from "react-router";
+import { Link, Route, Routes } from "react-router";
 import { ConnectPage } from "./ConnectPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { account } from "../test/fixtures";
@@ -25,7 +25,8 @@ vi.mock("../api/oauth", () => ({
 const SEARCH = "?client_id=c1&scope=farm%3Aread%20daily-entries%3Awrite";
 const REQUEST: ConsentRequest = {
   clientId: "c1", clientName: "Claude Desktop", verifiedDomain: null, redirectHost: "127.0.0.1",
-  scopes: ["farm:read", "daily-entries:write"], alreadyAllowed: [], alreadyApproved: false, assignedFlocks: null,
+  scopes: ["farm:read", "daily-entries:write"], alreadyAllowed: [], usable: ["farm:read", "daily-entries:write"],
+  alreadyApproved: false, assignedFlocks: null,
 };
 const assign = vi.fn();
 const originalLocation = window.location;
@@ -53,6 +54,12 @@ async function show(request: ConsentRequest, role: string | null = "Manager") {
   await screen.findByRole("heading", { level: 1 });
 }
 
+const EVERY_SCOPE = ["farm:read", "daily-entries:write", "daily-entries:submit", "operations:write", "expenses:write"];
+const rows = () => within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem");
+const checked = () => screen.getAllByRole("checkbox").filter((box) => (box as HTMLInputElement).checked)
+  .map((box) => document.querySelector(`label[for="${box.id}"]`)!.textContent!.replace(/ New$/, ""));
+const untick = (label: string) => fireEvent.click(screen.getByRole("checkbox", { name: new RegExp(`^${label}`) }));
+
 async function allowWith(password: string) {
   fireEvent.change(screen.getByLabelText(/Your current password/), { target: { value: password } });
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Allow" })); });
@@ -73,8 +80,15 @@ describe("ConnectPage (#798, consent D)", () => {
     ]);
     expect(screen.getByText("Acts as you, with only your access")).toBeInTheDocument();
     expect(screen.getByText("Your role:").parentElement).toHaveTextContent("Your role: Manager");
-    expect(screen.getByText("Disconnect it anytime in Account › Connected apps.")).toBeInTheDocument();
+    expect(screen.getByText("Connections you allowed before keep their access until you choose Disconnect in Account › Connected apps.")).toBeInTheDocument();
     expect(screen.getByText("Details").closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("ticks every permission the role can use on a first request", async () => {
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE.filter((s) => s !== "expenses:write") }, null);
+
+    expect(checked()).toEqual(["Read farm data", "Record daily entries", "Submit daily entries", "Record farm operations"]);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
   });
 
   it("names the signed-in account prominently, not as a muted caption", async () => {
@@ -103,7 +117,7 @@ describe("ConnectPage (#798, consent D)", () => {
     await allowWith("pw");
 
     expect(stepUp).toHaveBeenCalledWith("pw");
-    expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant-1");
+    expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant-1", ["farm:read", "daily-entries:write"]);
     expect(assign).toHaveBeenCalledWith("http://127.0.0.1:5000/cb?code=abc");
   });
 
@@ -129,14 +143,13 @@ describe("ConnectPage (#798, consent D)", () => {
     ]);
   });
 
-  it("asks an already-approved app for the password only", async () => {
+  // #1326 — the maintainer, 2026-10-18: a fully approved app still shows its permissions.
+  it("shows an already-approved app's permissions, all ticked, with the password", async () => {
     await show({ ...REQUEST, alreadyAllowed: REQUEST.scopes, alreadyApproved: true });
 
     expect(screen.getByRole("heading", { name: "Reconnect Claude Desktop?" })).toBeInTheDocument();
-    expect(screen.getByText("You allowed it before. Enter your password to confirm it's you.")).toBeInTheDocument();
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.queryByText("Details")).not.toBeInTheDocument();
-    expect(screen.getByText("Signed in as").parentElement).toHaveTextContent("ana.reyes@meadowlark.farm");
+    expect(checked()).toEqual(["Read farm data", "Record daily entries"]);
+    expect(screen.getByText("Details")).toBeInTheDocument();
     expect(screen.getByLabelText(/Your current password/)).toBeInTheDocument();
   });
 
@@ -164,7 +177,7 @@ describe("ConnectPage (#798, consent D)", () => {
 
     expect(details).toHaveTextContent(
       "It can read farm data only for the flocks assigned to you: House A, House B. "
-      + "Daily entries, feed use and water use it records are only for the flocks assigned to you: House A, House B.");
+      + "It can record only for the flocks assigned to you: House A, House B.");
   });
 
   it("tells a Worker with no assignments that the app reaches every flock", async () => {
@@ -175,7 +188,7 @@ describe("ConnectPage (#798, consent D)", () => {
   });
 
   it("promises no recording when the app asks only to read", async () => {
-    const details = await detailsFor({ ...REQUEST, scopes: ["farm:read"] }, "Manager");
+    const details = await detailsFor({ ...REQUEST, scopes: ["farm:read"], usable: ["farm:read"] }, "Manager");
 
     expect(details).toHaveTextContent("It can read farm data for every flock.");
     expect(details).not.toHaveTextContent("record");
@@ -211,20 +224,20 @@ describe("ConnectPage (#798, consent D)", () => {
     await waitFor(() => expect(screen.getByLabelText(/Your current password/)).toHaveFocus());
   });
 
-  it("marks recording entries as not allowed for a role that cannot record them", async () => {
-    await show(REQUEST, "ReadOnly");
+  // The server says what the role can use; the screen keeps no role list of its own.
+  it("marks what the server says the role cannot use as not allowed, with no checkbox", async () => {
+    await show({ ...REQUEST, usable: ["farm:read"] }, "ReadOnly");
 
     const write = within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem")[1];
     expect(write).toHaveTextContent("Not allowed for your role");
+    expect(within(write).queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  const EVERY_SCOPE = ["farm:read", "daily-entries:write", "daily-entries:submit", "operations:write", "expenses:write"];
-  const rows = () => within(screen.getByRole("list", { name: "It asks to" })).getAllByRole("listitem");
 
   // #1311, #1313 — an app connected for reading and recording reconnects asking for every
   // scope; the three it never had are marked New and come first.
   it("marks the three new permissions New when a connected app asks for more", async () => {
-    await show({ ...REQUEST, scopes: EVERY_SCOPE, alreadyAllowed: ["farm:read", "daily-entries:write"] }, "Manager");
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE, alreadyAllowed: ["farm:read", "daily-entries:write"] }, "Manager");
 
     expect(rows().map((row) => row.textContent)).toEqual([
       "Submit daily entries NewPuts the day's eggs in stock",
@@ -235,21 +248,23 @@ describe("ConnectPage (#798, consent D)", () => {
     ]);
   });
 
-  it("marks expenses as not allowed for a Worker, and the rest as allowed", async () => {
-    await show({ ...REQUEST, scopes: EVERY_SCOPE }, null);
+  it("marks expenses as not allowed for a Worker and never sends it", async () => {
+    vi.mocked(stepUp).mockResolvedValue({ token: "grant", expiresAt: "" });
+    vi.mocked(approveConsent).mockResolvedValue({ redirectUri: "http://127.0.0.1:5000/cb?code=abc" });
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE.filter((s) => s !== "expenses:write") }, null);
 
     expect(rows().map((row) => row.textContent?.includes("Not allowed for your role"))).toEqual([false, false, false, false, true]);
-    fireEvent.click(screen.getByText("Details"));
-    expect(screen.getByText("Details").closest("details")!).toHaveTextContent(
-      "Your role (Worker) does not allow what is marked Not allowed for your role, so the app cannot do it either.");
+    expect(within(rows()[4]).queryByRole("checkbox")).not.toBeInTheDocument();
+    await allowWith("pw");
+    expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant", ["farm:read", "daily-entries:write", "daily-entries:submit", "operations:write"]);
   });
 
   // Purchases are account-wide, so a flock-scoped Worker is told the limit does not reach them.
   it("tells a flock-scoped Worker that purchases reach the whole farm's inventory", async () => {
-    const details = await detailsFor({ ...REQUEST, scopes: ["operations:write"], assignedFlocks: ["House A"] }, null);
+    const details = await detailsFor({ ...REQUEST, scopes: ["operations:write"], usable: ["operations:write"], assignedFlocks: ["House A"] }, null);
 
     expect(details).toHaveTextContent(
-      "Daily entries, feed use and water use it records are only for the flocks assigned to you: House A. "
+      "It can record only for the flocks assigned to you: House A. "
       + "Inventory purchases are not tied to a flock: they add to the whole farm's inventory.");
   });
 
@@ -260,13 +275,13 @@ describe("ConnectPage (#798, consent D)", () => {
   });
 
   it("says operations take effect at once", async () => {
-    const details = await detailsFor({ ...REQUEST, scopes: ["operations:write"] }, "Manager");
+    const details = await detailsFor({ ...REQUEST, scopes: ["operations:write"], usable: ["operations:write"] }, "Manager");
 
-    expect(details).toHaveTextContent("Feed use, water use, purchases and expenses it records count at once");
+    expect(details).toHaveTextContent("Record farm operations: what it records counts at once");
   });
 
   it("says nothing of taking effect at once for daily entries, which stay drafts", async () => {
-    const details = await detailsFor({ ...REQUEST, scopes: ["daily-entries:write"] }, "Manager");
+    const details = await detailsFor({ ...REQUEST, scopes: ["daily-entries:write"], usable: ["daily-entries:write"] }, "Manager");
 
     expect(details).not.toHaveTextContent("count at once");
   });
@@ -352,5 +367,112 @@ describe("ConnectPage (#798, consent D)", () => {
 
     expect(await screen.findByRole("heading", { name: "Nothing to approve" })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText(/Your current password/)).not.toBeInTheDocument());
+  });
+
+  // #1326 — partial consent.
+  it("ticks what was allowed before and leaves the new permissions unticked and marked New", async () => {
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE, alreadyAllowed: ["farm:read", "daily-entries:write"] });
+
+    expect(checked()).toEqual(["Read farm data", "Record daily entries"]);
+    expect(rows().filter((row) => row.textContent?.includes("New"))).toHaveLength(3);
+  });
+
+  it("sends only the ticked permissions after one password check", async () => {
+    vi.mocked(stepUp).mockResolvedValue({ token: "grant", expiresAt: "" });
+    vi.mocked(approveConsent).mockResolvedValue({ redirectUri: "http://127.0.0.1:5000/cb?code=abc" });
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE });
+
+    untick("Submit daily entries");
+    untick("Record farm operations");
+    untick("Record expenses");
+    await allowWith("pw");
+
+    expect(stepUp).toHaveBeenCalledTimes(1);
+    expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant", ["farm:read", "daily-entries:write"]);
+  });
+
+  it("cancels an empty choice without asking for a password", async () => {
+    vi.mocked(declineConsent).mockResolvedValue({ redirectUri: "http://127.0.0.1:5000/cb?error=access_denied" });
+    await show(REQUEST);
+
+    untick("Read farm data");
+    untick("Record daily entries");
+
+    expect(screen.queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+    expect(screen.getByText("Nothing is ticked. Choose Cancel to go back to the app without connecting it.")).toBeInTheDocument();
+    await act(async () => { fireEvent.submit(screen.getByRole("button", { name: "Cancel" }).closest("form")!); });
+    expect(declineConsent).toHaveBeenCalledWith(SEARCH);
+    expect(stepUp).not.toHaveBeenCalled();
+    expect(approveConsent).not.toHaveBeenCalled();
+  });
+
+  it("lets Read farm data be unticked, and then promises no reading", async () => {
+    await show(REQUEST, "Manager");
+
+    untick("Read farm data");
+    fireEvent.click(screen.getByText("Details"));
+
+    const details = screen.getByText("It acts as you, so it can never do more than you can.").parentElement!;
+    expect(details).toHaveTextContent("It can record for any flock.");
+    expect(details).not.toHaveTextContent("read");
+    expect(screen.queryByText(/Reading covers/)).not.toBeInTheDocument();
+  });
+
+  it("names only the ticked permissions that count at once", async () => {
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE }, "Manager");
+
+    untick("Record expenses");
+    fireEvent.click(screen.getByText("Details"));
+
+    const details = screen.getByText("It acts as you, so it can never do more than you can.").parentElement!;
+    expect(details).toHaveTextContent("Record farm operations: what it records counts at once");
+    expect(details).not.toHaveTextContent("Record expenses");
+  });
+
+  it("locks the choice while the password and the approval are checked", async () => {
+    let resolveStepUp!: (value: { token: string; expiresAt: string }) => void;
+    vi.mocked(stepUp).mockReturnValue(new Promise((resolve) => { resolveStepUp = resolve; }));
+    vi.mocked(approveConsent).mockResolvedValue({ redirectUri: "http://127.0.0.1:5000/cb?code=abc" });
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE });
+
+    untick("Record expenses");
+    await allowWith("pw");
+    expect(screen.getAllByRole("checkbox").every((box) => (box as HTMLInputElement).disabled)).toBe(true);
+    await act(async () => { resolveStepUp({ token: "grant", expiresAt: "" }); });
+
+    expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant", ["farm:read", "daily-entries:write", "daily-entries:submit", "operations:write"]);
+  });
+
+  it("keeps the choice after a wrong password", async () => {
+    vi.mocked(stepUp).mockRejectedValueOnce(new ApiError(400, "Users.CurrentPasswordIncorrect", "Wrong"));
+    await show({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE });
+
+    untick("Record expenses");
+    await allowWith("nope");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Wrong password.");
+    expect(checked()).toEqual(["Read farm data", "Record daily entries", "Submit daily entries", "Record farm operations"]);
+  });
+
+  it("drops the choice when the authorization request changes", async () => {
+    const NEXT = "?client_id=c2&scope=farm%3Aread";
+    let resolveNext!: (value: ConsentRequest) => void;
+    vi.mocked(askConsent).mockImplementation((search) => search === SEARCH
+      ? Promise.resolve({ ...REQUEST, scopes: EVERY_SCOPE, usable: EVERY_SCOPE })
+      : new Promise((resolve) => { resolveNext = resolve; }));
+    renderWithProviders(
+      <Routes><Route path="/connect" element={<><ConnectPage /><Link to={`/connect${NEXT}`}>next</Link></>} /></Routes>,
+      { route: `/connect${SEARCH}`, farm: account(), token: { sub: "u1", role: "Manager" } },
+    );
+    await screen.findByRole("heading", { level: 1 });
+    untick("Record expenses");
+
+    fireEvent.click(screen.getByText("next"));
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading the request…")).toBeInTheDocument();
+    await act(async () => { resolveNext({ ...REQUEST, clientId: "c2", scopes: ["farm:read"], usable: ["farm:read"] }); });
+    expect(checked()).toEqual(["Read farm data"]);
   });
 });

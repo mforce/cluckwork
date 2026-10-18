@@ -1522,15 +1522,21 @@ to act as you through OAuth. The app sends you to Cluckwork's consent screen
 (`/connect`), signing in first if needed; the sign-in screen names the app it
 continues to. The screen shows the app's self-chosen name with its **Verified
 domain** or an **Unverified app** marker (see **Verified domain**), what it asks for (**Read farm data**, **Record daily entries**, **Submit daily entries**, **Record farm operations**, **Record expenses**),
-that it acts as you with only your access, and where the browser returns. It is
-all or nothing: **Allow** after re-entering **Your current password** (a
-**step-up grant**, see above), or **Cancel**. Every approval spends a step-up
-grant. When an app you already approved asks for nothing new, the screen skips
-the permissions and asks only for the password; when it asks for more, each new
-permission is marked **New** and the earlier ones **Already allowed**. That is how a
-connection gains a permission added later: the app reconnects and the person
-allows it. A permission the person's role cannot use is marked **Not allowed for
-your role**.
+that it acts as you with only your access, and where the browser returns. Each
+requested permission has a checkbox (#1326): the person unticks what they don't
+want, **Read farm data** included, and chooses **Allow** after re-entering **Your
+current password** (a **step-up grant**, see above), or **Cancel**. Unticking
+everything leaves only **Cancel**. The app gets only the ticked permissions. Every
+approval spends a step-up grant, a reconnect included, and the checkboxes show on
+every connection, even for an app already approved for everything. When an app
+connects again, what an earlier approval allowed starts ticked and marked **Already
+allowed**; each other permission starts unticked and is marked **New**, meaning it is
+in no current approval. Declined permissions are not remembered. That is how a
+connection gains a permission added later: the app reconnects and the person ticks
+it. A permission the person's role cannot use is marked **Not allowed for your
+role**, has no checkbox and is never granted; the server decides this from the
+tools' own role rules. Unticking a permission does not remove it from an earlier
+connection: those keep their access until **Disconnect**.
 **Details** holds the longer explanations and **Not you? Sign out**. The app's
 access never expires on its own; see **Disconnecting an app**, which also covers how approvals are audited.
 
@@ -1557,9 +1563,12 @@ gave that app and every token from them, so the app is refused on its next
 request; the person keeps their sign-in and can connect it again with their
 password. An Owner can disconnect anyone's app on their own farm, which does less
 than disabling the person. Each disconnect writes an **App disconnected** audit
-event naming the person who did it. Approving an app writes **App connected** (a
-first approval, or one for more permissions) or **App reconnected** (an approval
-that asked for nothing new); each names the person, the app and what was allowed.
+event naming the person who did it. **Can** covers every approval the person gave
+the app, so connecting it again with fewer permissions does not narrow it; to take a
+permission away, disconnect the app and connect it again. Approving an app writes
+**App connected** (an approval for a set of permissions not approved before, wider or
+narrower) or **App reconnected** (an approval of exactly the permissions of an earlier
+one); each names the person, the app, what was allowed and what the app asked for.
 
 **Allow connected apps (#1146)** — the Owner's farm-wide switch at the top of
 **Setup** › **Connected apps**, on by default. Off, the consent screen refuses

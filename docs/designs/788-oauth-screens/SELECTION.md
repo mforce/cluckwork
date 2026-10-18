@@ -29,7 +29,7 @@ The write permission reads "Record daily entries" with no line about drafts or s
 
 ## Reconnect
 
-When the payload says `alreadyApproved`, the card asks only for the password: the headline "Reconnect <app>?", the Unverified marker, one line, the password, Allow and Cancel, and the undo line. It shows no permission rows and no Details. Every connection still spends a step-up grant (`docs/decisions/798-oauth-consent.md`).
+Replaced by #1326 (2026-10-18): every connection now shows the permission checkboxes, and `alreadyApproved` only picks the headline. Before that, when the payload said `alreadyApproved`, the card asked only for the password: the headline "Reconnect <app>?", the Unverified marker, one line, the password, Allow and Cancel, and the undo line. It showed no permission rows and no Details. Every connection still spends a step-up grant (`docs/decisions/798-oauth-consent.md`).
 
 ## Connected apps on Account: C
 

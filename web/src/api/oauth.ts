@@ -11,6 +11,9 @@ export interface ConsentRequest {
   redirectHost: string;
   scopes: string[];
   alreadyAllowed: string[];
+  // #1326 — the requested scopes the person's role can use; the others cannot be granted.
+  usable: string[];
+  // One earlier approval holds every requested scope. It only picks the headline.
   alreadyApproved: boolean;
   // Null when the user reaches every flock; else the flocks they are assigned to.
   assignedFlocks: string[] | null;
@@ -24,9 +27,11 @@ export function askConsent(search: string): Promise<AuthorizeAnswer> {
   return apiFetch<AuthorizeAnswer>(authorizePath(search), { method: "GET" });
 }
 
-export function approveConsent(search: string, stepUpToken: string): Promise<AuthorizeAnswer> {
+// #1326 — the ticked scopes travel as a JSON array, so an empty choice is [] and never a
+// missing header, which the server reads as an older SPA granting everything usable.
+export function approveConsent(search: string, stepUpToken: string, selectedScopes: readonly string[]): Promise<AuthorizeAnswer> {
   return apiFetch<AuthorizeAnswer>(authorizePath(search), {
-    method: "GET", headers: { [STEP_UP_HEADER]: stepUpToken },
+    method: "GET", headers: { [STEP_UP_HEADER]: stepUpToken, "X-Cluckwork-Consent-Scopes": JSON.stringify(selectedScopes) },
   });
 }
 

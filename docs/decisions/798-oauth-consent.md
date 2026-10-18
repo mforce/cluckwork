@@ -5,8 +5,50 @@
 > [`docs/plans/788-mcp-oauth/`](../plans/788-mcp-oauth/02-design.md) and the
 > "Consent screen: decided" comment on #788.
 
-**Status:** accepted
+**Status:** accepted, amended 2026-10-18 by #1326
 **Date:** 2026-10-09
+
+## Amendment, 2026-10-18: partial consent (#1326)
+
+This replaces **All or nothing** under "Consent" and the section "A reconnect skips the
+permissions, never the password". The rest stands.
+
+- **The person grants what they tick.** The token and the authorization it is bound to
+  hold the granted set G, never more than the requested set R. G is also limited to U,
+  the scopes the person's role can use. The server derives U in one place,
+  `CluckworkMcp.UsableScopesAsync`: a scope is usable when a registered MCP tool requires
+  it and the person meets that tool's role policies, read from the tool's own
+  `[Authorize]` metadata. A scope no tool requires is usable by nobody. There is no
+  role-to-scope table, on the server or in the SPA.
+- **One parser, before the password is spent.** The SPA sends G as a JSON array in
+  `X-Cluckwork-Consent-Scopes`. `ConsentSelection.Read` accepts it only when G ⊆ R ∩ U;
+  anything else (a scope outside R or U, malformed JSON, a repeated header) is a 400
+  `OAuth.InvalidConsentScopes` before the farm switch and before the step-up grant is
+  spent. A request without the header, from an older SPA, gets G = R ∩ U.
+- **Nothing ticked is Cancel.** `[]`, or an older SPA's approval whose R ∩ U is empty,
+  takes Cancel's path: `access_denied` to the app, no grant spent, no authorization, no
+  audit row, even when the farm switch is off. **Read farm data** may be unticked; the
+  `farm:read` default for an empty `scope` can be unticked too.
+- **Checkboxes on every authorization**, a reconnect of a fully approved app included
+  (the maintainer, 2026-10-18). Every approval still spends a step-up grant. The payload
+  adds `usable` (R ∩ U); a requested scope outside it shows **Not allowed for your
+  role** with no checkbox and is never granted. What an earlier approval allowed
+  (`alreadyAllowed`) starts ticked, the rest unticked and marked **New**; with no overlap
+  every usable scope starts ticked. `alreadyApproved` (one approval holds all of R) now
+  only picks the headline.
+- **No stored declines.** An unticked scope is simply not granted, so it shows as
+  **New** again next time. `alreadyAllowed` is a union across approvals, so the screen
+  says "allowed before", never "your last choice".
+- **Disconnect removes access.** A narrower approval revokes nothing: earlier
+  authorizations and their tokens keep working until **Disconnect** in Account ›
+  Connected apps. The screen and Help say so.
+- **The token response** names G in `scope`, through OpenIddict's own sign-in handling.
+  A call to a tool outside G stays a JSON-RPC `InvalidRequest` (#806), never a 403
+  `insufficient_scope`, so clients do not start re-authorization.
+
+Accepted costs: an older SPA's approval now drops role-blocked scopes it used to grant
+inertly; a new SPA served against a rolled-back API would grant all of R, because the old
+API ignores the header.
 
 ## What happened
 
@@ -24,7 +66,7 @@ endpoint therefore answers three kinds of caller:
    redirect URI, PKCE and the scopes. The endpoint redirects to the SPA's `/connect`
    route with the same query. The path is relative, so it cannot leave this origin.
 2. **The SPA asking** (session bearer). The endpoint returns what the consent screen
-   shows, `{ clientId, clientName, redirectHost, scopes, alreadyAllowed, alreadyApproved, assignedFlocks }`,
+   shows, `{ clientId, clientName, redirectHost, scopes, alreadyAllowed, usable, alreadyApproved, assignedFlocks }`,
    or, when it issues a code or an error, `{ redirectUri }` for the SPA to navigate to. An inline
    handler on `ApplyAuthorizationResponseContext` writes that JSON for any request that
    carries a bearer. Response modes other than `query` are removed, so the redirect is
@@ -38,7 +80,7 @@ cancel stay on the GET authorize endpoint because #796 refuses any other method 
 
 ## Consent
 
-- **All or nothing.** The token gets every requested scope or none. An empty `scope`
+- **All or nothing** (replaced 2026-10-18, see the amendment). The token gets every requested scope or none. An empty `scope`
   defaults to `farm:read`, the narrower of the two; the screen shows what it gets.
 - **Step-up.** `IAccessModule.ConsumeStepUpGrantAsync` validates and spends a #308 grant,
   exactly as the user-administration handlers do. `IStepUpGrantService` stays internal to
@@ -63,7 +105,7 @@ cancel stay on the GET authorize endpoint because #796 refuses any other method 
   authorizations, so #799's Disconnect must revoke every valid authorization of the user
   for that app, not one.
 
-## A reconnect skips the permissions, never the password
+## A reconnect skips the permissions, never the password (replaced 2026-10-18, see the amendment)
 
 #788 decided to skip re-approval when an app asks for nothing new. The first version of
 this slice skipped the password too, and review found what that cost. Someone holding
@@ -125,6 +167,9 @@ row in one transaction ([`799-connected-apps.md`](799-connected-apps.md)).
 
 ## How it is enforced
 
+- `OAuthConsentTests.PartialConsent.cs` and `Mcp/McpPartialConsentTests` drive #1326:
+  the token response, stored and audited scopes, refusals before the grant is spent,
+  empty choice as Cancel, exact reuse, the usable list, and the tool list per choice.
 - `OAuthConsentTests` drives each rule: the consent payload and no row before approval,
   a refused and a replayed grant, the JSON redirect with `state` and `iss`, a reconnect
   that gets no code from the bearer alone and spends its grant, a wider request, another

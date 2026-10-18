@@ -3,8 +3,21 @@
 > **Rule**: the one-paragraph version lives in [`src/AGENTS.md`](../../src/AGENTS.md);
 > this file is the rationale.
 
-**Status:** accepted
+**Status:** accepted, amended 2026-10-18 by #1326
 **Date:** 2026-10-09
+
+## Amendment, 2026-10-18: exact reuse (#1326)
+
+With partial consent ([`798-oauth-consent.md`](798-oauth-consent.md)), an approval
+reuses only a valid permanent authorization whose scopes **equal** the granted set G,
+and writes `User.AppReconnected`. Otherwise it creates a new authorization holding G and
+writes `User.AppConnected`, including when G is narrower than an earlier approval. Two
+approvals that together cover a request are never treated as one. The audit details now
+carry `requested`, the scopes the app asked for, beside `scopes`, the scopes granted, so
+an unticked permission is explainable from the row. Earlier authorizations are never
+changed: Connected apps lists the union of every valid approval, and Disconnect revokes
+them all. Accepted cost: one authorization per distinct granted set, so the stored row
+always equals the token's scopes.
 
 ## What happened
 

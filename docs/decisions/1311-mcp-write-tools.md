@@ -73,7 +73,9 @@ full list in memory: an exact name, ignoring case, among active records, or any 
 - **A model sending the wrong numbers.** Validation refuses what the app refuses, and nothing
   more. The correction hint is the remedy, not a check.
 - **Existing connections.** None gains a permission silently. An app reconnects; consent marks
-  each new permission **New**, as for any wider request (#798).
+  each new permission **New**, as for any wider request (#798). Since #1326 consent offers a
+  checkbox per requested permission: **New** means not in a current approval, it starts
+  unticked, and none is added without a new password-backed approval.
 - **Which scopes an app asks for.** Discovery lists every scope in `scopes_supported`. An app
   that asks for a fixed list has to be told about the new ones in its own configuration.
 - **A replayed purchase or expense** re-checks nothing beyond the role and scope gates. Neither
