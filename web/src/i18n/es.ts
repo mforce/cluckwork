@@ -2573,8 +2573,8 @@ export const es = {
       + "desactivadas</strong> y vuelven a funcionar cuando se activa. Después de <strong>Desconectar</strong>, de "
       + "cambiar o restablecer tu contraseña, o de un cambio de tu correo o tu rol, la aplicación sale de "
       + "<strong>Aplicaciones conectadas</strong> y debe conectarse de nuevo con tu contraseña. Una herramienta que tu "
-      + "rol no permite queda oculta. Para un permiso que no diste, como <strong>Anotar registros diarios</strong>, "
-      + "conéctala de nuevo y permítelo; aparece marcado como <strong>Nuevo</strong>.",
+      + "rol no permite queda oculta. Para un permiso que no diste, como <strong>Enviar registros diarios</strong>, "
+      + "conéctala de nuevo y permítelo; aparece marcado como <strong>Nuevo</strong>. Claude Code pide todos los permisos que ofrece Cluckwork al conectarse de nuevo, así que no hay que cambiar su configuración.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",

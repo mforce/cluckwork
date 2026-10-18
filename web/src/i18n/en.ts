@@ -3308,8 +3308,8 @@ export const en = {
       + "<strong>Connected apps are off</strong> and work again once it is back on. After <strong>Disconnect</strong>, "
       + "a password change or reset, or a change to your email or role, the app leaves <strong>Connected "
       + "apps</strong> and must connect again with your password. A tool your role does not allow stays "
-      + "hidden. For a permission you did not allow, such as <strong>Record daily entries</strong>, connect again "
-      + "and allow it; it is marked <strong>New</strong>.",
+      + "hidden. For a permission you did not allow, such as <strong>Submit daily entries</strong>, connect again "
+      + "and allow it; it is marked <strong>New</strong>. Claude Code asks for every permission Cluckwork offers when it connects again, so its setup needs no change.",
     signingInCredentialEpoch:
       "When an administrator resets a password, your existing sign-in can be invalidated immediately. If you "
       + "see a message that your credentials changed, sign in again with your current password.",

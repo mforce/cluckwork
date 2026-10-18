@@ -24,6 +24,12 @@ real MCP clients.
   `cluckwork_list_customer_balances` for Owner, Manager and Sales. Amounts are
   `{"amount": "<decimal>", "currency": "<code>"}`; a Worker's orders carry
   `outstanding: null`.
+- Write tools (#809, #1311, #1313): `cluckwork_record_daily_entry` (**Record daily entries**,
+  `daily-entries:write`), `cluckwork_submit_daily_entry` (**Submit daily entries**,
+  `daily-entries:submit`), `cluckwork_record_feed_usage`, `cluckwork_record_water_usage` and
+  `cluckwork_record_inventory_purchase` (**Record farm operations**, `operations:write`), and
+  `cluckwork_record_expense` (**Record expenses**, `expenses:write`, Owner and Manager only).
+  Every write takes an `idempotencyKey`; every reply but the draft's carries `correctInApp`.
 - Scope gates: `tools/list` shows a tool only for role ∩ scope; a hidden tool's call is a
   JSON-RPC error inside a 200.
 - Revocation: the farm switch (Setup › Connected apps) and Disconnect (Account › Connected
@@ -246,7 +252,35 @@ challenge. `disconnect` removes the first app with that name, so give the Worker
 connection; with two, run it twice and check that each token dies in turn while the
 Owner's keeps working.
 
-**12. Optional third client and schema lint.**
+**12. Write tools, the upgrade path and the retry (#1311, #1313).** Use a flock with no entry
+on the day, such as `Sim Z Flock Catalog 001`, and the fixture's items and categories:
+
+```sh
+ALL="farm:read daily-entries:write daily-entries:submit operations:write expenses:write"; D=$(date -d yesterday +%F)
+MCP_CLIENT_FILE=$S/up.json node client.ts connect owner daily-entries:write $S/up1.token
+MCP_CLIENT_FILE=$S/up.json node client.ts connect owner "daily-entries:write daily-entries:submit operations:write expenses:write" $S/up2.token $S/shots
+node client.ts connect owner "$ALL" $S/all.token
+E=$(node client.ts call $S/all.token cluckwork_record_daily_entry "{\"idempotencyKey\":\"r1\",\"flock\":\"Sim Z Flock Catalog 001\",\"date\":\"$D\",\"totalEggs\":100,\"crackedEggs\":2,\"dirtyEggs\":3,\"discardedEggs\":1,\"mortalityCount\":0,\"grades\":[{\"grade\":\"Large\",\"quantity\":94}]}" | jq -r .dailyEntryId)
+for k in s1 s1 s2; do node client.ts call $S/all.token cluckwork_submit_daily_entry "{\"idempotencyKey\":\"$k\",\"dailyEntryId\":\"$E\"}" | jq -c '{status, replayed, lots: (.eggLotIds|length)}' 2>/dev/null || true; done
+curl -s "$APP/api/v1/stock/lots?from=$D&to=$D&limit=500" -H "Authorization: Bearer $JWT" | jq --arg e $E '[.[]|select(.dailyEntryId==$e)]|length'
+node client.ts call $S/all.token cluckwork_record_feed_usage "{\"idempotencyKey\":\"f1\",\"flock\":\"Sim House A\",\"item\":\"sim layer feed\",\"date\":\"$D\",\"quantity\":12.5,\"note\":\"MCPCANARY\"}"
+node client.ts call $S/all.token cluckwork_record_expense "{\"idempotencyKey\":\"e1\",\"category\":\"sim utilities\",\"date\":\"$D\",\"description\":\"MCPCANARY\",\"amount\":125.50}"
+node client.ts connect restricted-worker "$ALL" $W
+node client.ts call $W cluckwork_record_feed_usage "{\"idempotencyKey\":\"w1\",\"flock\":\"Sim House B\",\"item\":\"Sim Layer Feed\",\"date\":\"$D\",\"quantity\":1}"
+```
+
+Expect `tools/list: cluckwork_record_daily_entry` for the first token. The second connect
+prints `reusing client_id=…`, its consent lists **Submit daily entries**, **Record farm
+operations** and **Record expenses** each marked **New** above **Record daily entries** /
+**Already allowed**, and its `tools/list` adds the five new tools. The submits print
+`Submitted`, then the same with `replayed: true`, then `DailyEntry.NotDraft`, and the lot count
+equals the first reply's `lots`. Feed and expense replies carry `correctInApp` and no
+`MCPCANARY`. The Worker's consent marks **Record expenses** "Not allowed for your role", its
+`tools/list` has no `cluckwork_record_expense`, and the feed call on Sim House B is refused
+with `No flock you can see is named or numbered 'Sim House B'.` The audit log with **Only
+actions through connected apps** shows each record "via Cluckwork live verifier".
+
+**13. Optional third client and schema lint.**
 
 ```sh
 npx -y @modelcontextprotocol/inspector --cli $MCP/mcp --transport http \
@@ -271,6 +305,7 @@ Expect the five tools and `0 errors`.
 | 2026-07-28 and 2025-11-25 | 9 | one endpoint serves both protocol versions |
 | Switch off refuses, on restores | 10 | the switch refuses without revoking |
 | Disconnect revokes | 11 | revocation reaches `/mcp` on the next request |
+| Reconnect marks three permissions New; submit retry makes one set of lots; Worker refusals | 12 | an existing connection gains a permission only through consent, and writes keep their idempotency, role and flock gates through a real client |
 | A client ID metadata document connects end to end | not covered | needs a public https URL the server can fetch; locally only the refusals are visible (see Gotchas) |
 
 ## Gotchas

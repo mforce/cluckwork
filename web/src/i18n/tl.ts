@@ -2668,8 +2668,8 @@ export const tl = {
       + "kapag binuksan ito. Pagkatapos ng <strong>Idiskonekta</strong>, ng pagpapalit o pag-reset "
       + "ng password mo, o ng pagbabago ng email o role mo, mawawala ang app sa <strong>Mga nakakonektang "
       + "app</strong> at kailangan itong kumonekta ulit gamit ang password mo. Nakatago ang tool na hindi pinapayagan ng role mo. Para sa "
-      + "pahintulot na hindi mo ibinigay, gaya ng <strong>Itala ang araw-araw na tala</strong>, ikonekta ulit at "
-      + "payagan ito; may marka itong <strong>Bago</strong>.",
+      + "pahintulot na hindi mo ibinigay, gaya ng <strong>Isumite ang araw-araw na tala</strong>, ikonekta ulit at "
+      + "payagan ito; may marka itong <strong>Bago</strong>. Hinihingi ng Claude Code ang bawat pahintulot na iniaalok ng Cluckwork kapag kumonekta ulit ito, kaya hindi kailangang baguhin ang setup nito.",
     signingInCredentialEpoch:
       "Kapag ni-reset ng administrator ang password, maaaring agad ma-invalid ang kasalukuyan mong sign-in. Kung "
       + "makakita ka ng mensaheng nagbago ang iyong credentials, mag-sign in muli gamit ang kasalukuyan mong password.",

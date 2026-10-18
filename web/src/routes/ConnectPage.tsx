@@ -18,7 +18,6 @@ import { roleLabel } from "../i18n/enums";
 import { useMe } from "../session/SessionContext";
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
-const AT_ONCE = new Set(["operations:write", "expenses:write"]);
 
 type View =
   | { kind: "loading" }
@@ -263,8 +262,10 @@ function Details({ request, email, onSignOut }: { request: ConsentRequest; email
   const writes = asked.some((scope) => allowedFor(scope, role))
     && (flocks === undefined ? t("detailsWriteAll") : t("detailsWriteSome", { flocks }));
   const blocked = asked.some((scope) => !allowedFor(scope, role)) && t("detailsWriteBlocked", { role: roleLabel(role) });
-  // #1313 — these have no draft, so consent says so before they are allowed.
-  const atOnce = asked.some((scope) => AT_ONCE.has(scope) && allowedFor(scope, role)) && t("detailsAtOnce");
+  const atOnce = asked.some((scope) => {
+    const entry = scopeEntry(scope);
+    return entry && "atOnce" in entry && allowedFor(scope, role);
+  }) && t("detailsAtOnce");
   return (
     <Box component="details" sx={{ borderTop: "1px solid var(--hairline)", paddingTop: 1.5, "& p": { marginBlock: 1 } }}>
       <Box component="summary" sx={{ cursor: "pointer", fontWeight: 600 }}>{t("details")}</Box>
