@@ -23,8 +23,8 @@ export type AuthorizeAnswer = { redirectUri: string } | ConsentRequest;
 
 const authorizePath = (search: string) => `/oauth/authorize${search}`;
 
-export function askConsent(search: string): Promise<AuthorizeAnswer> {
-  return apiFetch<AuthorizeAnswer>(authorizePath(search), { method: "GET" });
+export function askConsent(search: string, signal?: AbortSignal): Promise<AuthorizeAnswer> {
+  return apiFetch<AuthorizeAnswer>(authorizePath(search), { method: "GET", signal });
 }
 
 // #1326 — the ticked scopes travel as a JSON array, so an empty choice is [] and never a

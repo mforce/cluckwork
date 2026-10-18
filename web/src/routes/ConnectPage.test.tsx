@@ -69,7 +69,7 @@ describe("ConnectPage (#798, consent D)", () => {
   it("asks for the request it was opened with and shows the compact card", async () => {
     await show(REQUEST);
 
-    expect(askConsent).toHaveBeenCalledWith(SEARCH);
+    expect(askConsent).toHaveBeenCalledWith(SEARCH, expect.any(AbortSignal));
     expect(screen.getByRole("heading", { name: "Let Claude Desktop act as you?" })).toBeInTheDocument();
     expect(screen.getByText("Unverified app")).toBeInTheDocument();
     expect(screen.getByText("Returns to this computer")).toBeInTheDocument();
@@ -474,5 +474,19 @@ describe("ConnectPage (#798, consent D)", () => {
     expect(screen.getByText("Loading the request…")).toBeInTheDocument();
     await act(async () => { resolveNext({ ...REQUEST, clientId: "c2", scopes: ["farm:read"], usable: ["farm:read"] }); });
     expect(checked()).toEqual(["Read farm data"]);
+  });
+
+  it("aborts the request it was loading when the authorization request changes", async () => {
+    vi.mocked(askConsent).mockImplementation(() => new Promise(() => {}));
+    renderWithProviders(
+      <Routes><Route path="/connect" element={<><ConnectPage /><Link to="/connect?client_id=c2">next</Link></>} /></Routes>,
+      { route: `/connect${SEARCH}`, farm: account(), token: { sub: "u1", role: "Manager" } },
+    );
+    const first = vi.mocked(askConsent).mock.calls[0]![1]!;
+
+    fireEvent.click(screen.getByText("next"));
+
+    await waitFor(() => expect(first.aborted).toBe(true));
+    expect(askConsent).toHaveBeenLastCalledWith("?client_id=c2", expect.any(AbortSignal));
   });
 });

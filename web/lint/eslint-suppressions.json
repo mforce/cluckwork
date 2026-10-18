@@ -4,11 +4,6 @@
       "count": 1
     }
   },
-  "src/routes/ConnectPage.tsx": {
-    "no-restricted-syntax": {
-      "count": 1
-    }
-  },
   "src/routes/CustomersPage.tsx": {
     "no-restricted-syntax": {
       "count": 1

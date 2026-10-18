@@ -13,6 +13,7 @@ import { READ_SCOPE, scopeEntry, scopeRank } from "../auth/oauthScopes";
 import { BusyButton } from "../components/BusyButton";
 import { StepUpPasswordField } from "../components/StepUpPasswordField";
 import { usePendingAction } from "../components/usePendingAction";
+import { useLatestLoad } from "../components/useLatestLoad";
 import { useFarm } from "../farm/useFarm";
 import { roleLabel } from "../i18n/enums";
 import { useMe } from "../session/SessionContext";
@@ -24,7 +25,7 @@ type View =
   | { kind: "refused" }
   | { kind: "off" }
   | { kind: "leaving" }
-  | { kind: "ask"; search: string; request: ConsentRequest; selected: readonly string[] };
+  | { kind: "ask"; request: ConsentRequest; selected: readonly string[] };
 
 // #798 — the consent screen a connected app sends the user to (compact
 // direction D, docs/designs/788-oauth-screens/SELECTION.md). Every Allow spends
@@ -38,7 +39,19 @@ export function ConnectPage() {
   const { logout } = useAuth();
   const me = useMe();
   const { farm } = useFarm();
-  const [view, setView] = useState<View>({ kind: "loading" });
+  // #1185 — the request this page is for. The answer carries its query, so an answer for a
+  // query the person has left never shows under the new one.
+  const ask = useLatestLoad([search], async (signal) => ({ search, answer: await askConsent(search, signal) }));
+  // Where Allow or Cancel led, for this query only.
+  const [outcome, setOutcome] = useState<{ search: string; kind: "leaving" | "off" } | null>(null);
+  // The ticks belong to the one request they were made on; a new request starts afresh.
+  const [choice, setChoice] = useState<{ request: ConsentRequest; selected: readonly string[] } | null>(null);
+  const loaded = ask.data?.search === search ? ask.data.answer : null;
+  const view: View = outcome?.search === search ? { kind: outcome.kind }
+    : ask.error ? { kind: isOff(ask.error) ? "off" : "refused" }
+    : !loaded ? { kind: "loading" }
+    : "redirectUri" in loaded ? { kind: "leaving" }
+    : { kind: "ask", request: loaded, selected: choice?.request === loaded ? choice.selected : initialSelection(loaded) };
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
@@ -55,28 +68,25 @@ export function ConnectPage() {
     if (wrongPassword && !busy) passwordRef.current?.focus();
   }, [wrongPassword, busy]);
 
+  useEffect(() => {
+    if (loaded && "redirectUri" in loaded) window.location.assign(loaded.redirectUri);
+  }, [loaded]);
+
   function follow(answer: AuthorizeAnswer, from: string) {
     if ("redirectUri" in answer) {
-      setView({ kind: "leaving" });
+      setOutcome({ search: from, kind: "leaving" });
       window.location.assign(answer.redirectUri);
     } else {
-      setView({ kind: "ask", search: from, request: answer, selected: initialSelection(answer) });
+      ask.retry();
     }
   }
-
-  useEffect(() => {
-    let live = true;
-    askConsent(search).then(
-      (answer) => { if (live) follow(answer, search); },
-      (err) => { if (live) setView({ kind: isOff(err) ? "off" : "refused" }); });
-    return () => { live = false; };
-  }, [search]);
 
   async function allow(e: FormEvent) {
     e.preventDefault();
     if (view.kind !== "ask") return;
     // Fixed before the first await: the checkboxes stay disabled until this settles.
-    const { search: asked, selected } = view;
+    const asked = search;
+    const { selected } = view;
     if (selected.length === 0) return cancel();
     await run("allow", async () => {
       setError(null);
@@ -93,7 +103,7 @@ export function ConnectPage() {
       try {
         follow(await approveConsent(asked, grant, selected), asked);
       } catch (err) {
-        if (isOff(err)) setView({ kind: "off" });
+        if (isOff(err)) setOutcome({ search: asked, kind: "off" });
         else setError(t("failed"));
       }
     });
@@ -111,8 +121,9 @@ export function ConnectPage() {
   }
 
   function choose(selected: readonly string[]) {
+    if (view.kind !== "ask") return;
     if (selected.length === 0) setPassword("");
-    setView((current) => current.kind === "ask" ? { ...current, selected } : current);
+    setChoice({ request: view.request, selected });
   }
 
   const email = me?.email ?? "";
@@ -128,7 +139,7 @@ export function ConnectPage() {
           </Typography>
         </Stack>
         <Paper elevation={0} sx={{ padding: { xs: "20px", md: "24px" }, border: "1px solid var(--hairline)", borderRadius: "var(--r-panel)" }}>
-          {(view.kind === "loading" || (view.kind === "ask" && view.search !== search)) && <Typography role="status">{t("loading")}</Typography>}
+          {view.kind === "loading" && <Typography role="status">{t("loading")}</Typography>}
           {view.kind === "leaving" && <Typography role="status">{t("leaving")}</Typography>}
           {view.kind === "refused" && (
             <Stack spacing={2}>
@@ -147,7 +158,7 @@ export function ConnectPage() {
               <Button variant="outlined" onClick={() => void cancel()} disabled={busy}>{t("cancel")}</Button>
             </Stack>
           )}
-          {view.kind === "ask" && view.search === search && (
+          {view.kind === "ask" && (
             <Stack component="form" spacing={2} onSubmit={allow}>
               <Headline request={view.request} ref={headingRef} />
               <Permissions request={view.request} selected={view.selected} disabled={busy} onChange={choose} />
