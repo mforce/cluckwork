@@ -82,12 +82,13 @@ internal static class McpConnection
     }
 
     public static async Task<string> IssueAsync(
-        WebApplicationFactory<Program> host, User user, string[] scopes, string? resource = null)
+        WebApplicationFactory<Program> host, User user, string[] scopes, string? resource = null,
+        IReadOnlyList<string>? selectedScopes = null)
     {
         var clientId = await OAuthServerTests.RegisterClientAsync(host.Services);
         var verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
         var query = AuthorizeQuery(clientId, verifier, scopes, resource);
-        var location = await OAuthServerTests.ApproveAsync(host, user.Jwt, query);
+        var location = await OAuthServerTests.ApproveAsync(host, user.Jwt, query, selectedScopes);
         var code = QueryHelpers.ParseQuery(location.Query)["code"].ToString();
         using var response = await RedeemAsync(host, clientId, code, verifier, query["redirect_uri"]!, resource);
         response.EnsureSuccessStatusCode();

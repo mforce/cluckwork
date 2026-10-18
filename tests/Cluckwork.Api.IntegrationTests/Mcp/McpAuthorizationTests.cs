@@ -81,8 +81,9 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
     [InlineData(Roles.Sales, new[] { OAuthScopes.ReadFarm, OAuthScopes.WriteDailyEntries }, new[] { ProbeTools.Read })]
     public async Task ToolsList_ShowsOnlyToolsTheRoleAndScopesAllow(string role, string[] scopes, string[] expected)
     {
-        using var host = Host(factory);
-        var token = await IssueAsync(host, await SeedAsync(factory, role), scopes);
+        // The token models one approved before a role change: consent no longer grants a scope the role cannot use (#1326).
+        using var host = Host(factory, alterIssued: principal => principal.SetScopes(scopes));
+        var token = await IssueAsync(host, await SeedAsync(factory, role), [OAuthScopes.ReadFarm]);
 
         await using var client = await ConnectAsync(host, token);
         var tools = await client.ListToolsAsync();
@@ -213,8 +214,9 @@ public sealed class McpAuthorizationTests(CluckworkWebApplicationFactory factory
     [Fact]
     public async Task TokenWithoutAnMcpScope_Gets403InsufficientScope()
     {
-        using var host = Host(factory);
-        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Manager), [OtherScope]);
+        // Consent grants only a scope some tool requires (#1326), so the token is altered after it.
+        using var host = Host(factory, alterIssued: principal => principal.SetScopes(OtherScope));
+        var token = await IssueAsync(host, await SeedAsync(factory, Roles.Manager), [OAuthScopes.ReadFarm]);
 
         using var response = await PostAsync(host, token, Initialize);
 

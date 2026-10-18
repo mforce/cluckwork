@@ -16,7 +16,6 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.Abstractions;
-using OpenIddict.Server;
 using OpenIddict.Validation.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -197,7 +196,7 @@ public sealed class AuditConnectedAppTests(CluckworkWebApplicationFactory factor
         factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<IStartupFilter, AuditProbe>();
-            services.Configure<OpenIddictServerOptions>(options => options.Scopes.Add(WriteScope));
+            services.AddTestScope(WriteScope);
         }));
 
     private async Task<(Guid AccountId, string Email, string Jwt)> OwnerAsync()

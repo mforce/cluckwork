@@ -13,10 +13,10 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #798 — consent: all or nothing, approved with the user's password through a step-up
-// grant, skipped when the app asks for nothing new, asked again when it asks for more.
+// #798 — consent, approved with the user's password through a step-up grant on every
+// approval, a reconnect included. #1326's partial grants are in OAuthConsentTests.PartialConsent.
 [Collection(IntegrationCollection.Name)]
-public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
+public sealed partial class OAuthConsentTests(CluckworkWebApplicationFactory factory)
 {
     private const string Read = OAuthScopes.ReadFarm;
     private const string Write = OAuthScopes.WriteDailyEntries;
@@ -122,9 +122,10 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
     }
 
-    // A reconnect skips the permissions, never the password (the maintainer, 2026-10-09).
+    // An approved app still needs the password, and a narrower approval gets its own
+    // authorization rather than reusing the wider one (#1326).
     [Fact]
-    public async Task ApprovedApp_AsksOnlyForThePassword()
+    public async Task ApprovedApp_StillRequiresProof()
     {
         var (userId, jwt) = await new OAuthServerTests(factory).SeedUserAsync();
         var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
@@ -135,9 +136,9 @@ public sealed class OAuthConsentTests(CluckworkWebApplicationFactory factory)
         var location = await OAuthServerTests.ApproveAsync(factory, jwt, Query(clientId, Read));
 
         Assert.False(body.TryGetProperty("redirectUri", out _), "a session bearer alone minted a code for an approved app");
-        Assert.True(body.GetProperty("alreadyApproved").GetBoolean(), "an approved app was shown its permissions again");
+        Assert.True(body.GetProperty("alreadyApproved").GetBoolean(), "an approval holding every requested scope was not reported");
         Assert.False(string.IsNullOrEmpty(QueryHelpers.ParseQuery(location.Query)["code"]), "the reconnect issued no code");
-        Assert.Equal(1, await CountAuthorizationsAsync(userId));
+        Assert.Equal(2, await CountAuthorizationsAsync(userId));
     }
 
     [Fact]

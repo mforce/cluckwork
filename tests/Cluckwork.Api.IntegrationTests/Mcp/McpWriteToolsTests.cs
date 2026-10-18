@@ -11,6 +11,7 @@ using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using OpenIddict.Abstractions;
 using static Cluckwork.Api.IntegrationTests.Mcp.McpConnection;
 using static Cluckwork.Api.IntegrationTests.Mcp.RecordDailyEntryToolTests;
 
@@ -46,8 +47,9 @@ public sealed class McpWriteToolsTests(CluckworkWebApplicationFactory factory)
     [InlineData(Roles.ReadOnly, new[] { OAuthScopes.WriteDailyEntries, OAuthScopes.SubmitDailyEntries, OAuthScopes.WriteOperations, OAuthScopes.WriteExpenses }, new string[0])]
     public async Task EachScopeAndRole_ListsExactlyItsWriteTools(string? role, string[] scopes, string[] expected)
     {
-        using var host = Host(factory);
-        await using var client = await ConnectAsync(host, await IssueAsync(host, await SeedAsync(factory, role), scopes));
+        // The token models one approved before a role change: consent no longer grants a scope the role cannot use (#1326).
+        using var host = Host(factory, alterIssued: principal => principal.SetScopes(scopes));
+        await using var client = await ConnectAsync(host, await IssueAsync(host, await SeedAsync(factory, role), [OAuthScopes.ReadFarm]));
 
         // The test host's probe tools are left out; McpAuthorizationTests covers them.
         Assert.Equal(expected.Order(), (await client.ListToolsAsync()).Select(t => t.Name).Where(n => n.StartsWith("cluckwork_")).Order());

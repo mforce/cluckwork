@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using OpenIddict.Abstractions;
 using static Cluckwork.Api.IntegrationTests.Mcp.McpConnection;
 
 namespace Cluckwork.Api.IntegrationTests.Mcp;
@@ -70,9 +71,10 @@ public sealed class RecordDailyEntryToolTests(CluckworkWebApplicationFactory fac
     [InlineData(Roles.Manager, new[] { OAuthScopes.ReadFarm })]
     public async Task RoleOrScopeWithoutTheWrite_HidesAndRefusesTheTool(string role, string[] scopes)
     {
-        using var host = Host(factory);
+        // The token models one approved before a role change: consent no longer grants a scope the role cannot use (#1326).
+        using var host = Host(factory, alterIssued: principal => principal.SetScopes(scopes));
         var farm = await SeedFarmAsync(role);
-        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, scopes));
+        await using var client = await ConnectAsync(host, await IssueAsync(host, farm.User, [OAuthScopes.ReadFarm]));
 
         var listed = (await client.ListToolsAsync()).Select(t => t.Name);
         var refused = await Assert.ThrowsAsync<McpProtocolException>(() =>

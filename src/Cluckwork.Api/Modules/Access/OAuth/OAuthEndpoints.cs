@@ -86,13 +86,15 @@ public static class OAuthEndpoints
 
     public const string ConsentHeaderName = "X-Cluckwork-Consent";
 
+    // #1326 — the scopes the person ticked, as a JSON array.
+    public const string ConsentScopesHeaderName = "X-Cluckwork-Consent-Scopes";
+
     // #1146 — the farm's switch is off: consent and the per-request check both say so.
     public const string ConnectedAppsOff = "Auth.ConnectedAppsOff";
 
     // #798 — OpenIddict has already validated the client, the redirect URI, PKCE and the
-    // scopes. Consent is all or nothing and always needs the user's password through a
-    // step-up grant. When one of their valid permanent authorizations for this app already
-    // holds every scope asked for, only the permission explanation is skipped.
+    // scopes. The person grants the requested scopes they tick (#1326), and every approval
+    // needs their password through a step-up grant.
     private static async Task<IResult> Authorize(
         HttpContext context,
         ICurrentUser currentUser,
@@ -132,13 +134,24 @@ public static class OAuthEndpoints
         }
 
         if (consent == "deny")
-            return Results.Forbid(
-                new AuthenticationProperties(new Dictionary<string, string?>
-                {
-                    [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
-                    [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user declined the request.",
-                }),
-                [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+            return DenyConsent();
+
+        var request = context.GetOpenIddictServerRequest()!;
+        // RFC 6749 §3.3 lets a server default an empty request. The default is the narrower
+        // scope, and consent shows it.
+        var requestedScopes = request.GetScopes() is { IsEmpty: false } asked ? asked : [OAuthScopes.ReadFarm];
+        var usable = await CluckworkMcp.UsableScopesAsync(context.RequestServices, context.User);
+        // #1326 — the person's choice, checked before the farm switch and before any password
+        // is spent. Nothing chosen is Cancel; a request carrying neither a choice nor a
+        // password is the first load of the consent screen.
+        var choice = context.Request.Headers[ConsentScopesHeaderName];
+        var selection = ConsentSelection.Read(requestedScopes, usable, choice);
+        if (selection.IsFailure)
+            return Results.Problem(selection.Error.Description,
+                statusCode: StatusCodes.Status400BadRequest, title: selection.Error.Code);
+        var grantedScopes = selection.Value.Scopes;
+        if (grantedScopes.IsEmpty && (choice.Count > 0 || stepUpToken is not null))
+            return DenyConsent();
 
         // #1146 — before any password is asked or code issued. Cancel, above, still
         // sends the user back to the app.
@@ -146,36 +159,38 @@ public static class OAuthEndpoints
             return Results.Problem("This farm doesn't allow connected apps. Ask an Owner.",
                 statusCode: StatusCodes.Status403Forbidden, title: ConnectedAppsOff);
 
-        var request = context.GetOpenIddictServerRequest()!;
-        // RFC 6749 §3.3 lets a server default an empty request. The default is the narrower
-        // scope, and consent shows it.
-        var scopes = request.GetScopes() is { IsEmpty: false } asked ? asked : [OAuthScopes.ReadFarm];
         var application = (await applications.FindByClientIdAsync(request.ClientId!, ct))!;
         var applicationId = (await applications.GetIdAsync(application, ct))!;
         var subject = currentUser.UserId.ToString();
 
-        object? covering = null;
+        // Approval reuses only an authorization holding exactly the chosen scopes, so the
+        // stored row always equals the token's scopes (#1326). Whether one row already covers
+        // the request is history for the screen's headline, never a reason to skip anything.
+        object? reusable = null;
+        var requestedCovered = false;
         var allowed = new HashSet<string>(StringComparer.Ordinal);
         await foreach (var authorization in authorizations.FindAsync(
             subject, applicationId, Statuses.Valid, AuthorizationTypes.Permanent, scopes: null, ct))
         {
-            var granted = await authorizations.GetScopesAsync(authorization, ct);
-            allowed.UnionWith(granted);
-            if (covering is null && scopes.All(granted.Contains)) covering = authorization;
+            var authorizationScopes = await authorizations.GetScopesAsync(authorization, ct);
+            allowed.UnionWith(authorizationScopes);
+            requestedCovered |= requestedScopes.All(authorizationScopes.Contains);
+            if (reusable is null && authorizationScopes.ToHashSet(StringComparer.Ordinal).SetEquals(grantedScopes))
+                reusable = authorization;
         }
 
         // Every code costs a spent step-up grant, a reconnect included: the code becomes a
-        // token that never expires, so a session bearer alone must never mint one. A
-        // reconnect only skips the permissions, because the user already approved them.
+        // token that never expires, so a session bearer alone must never mint one.
         if (stepUpToken is null)
             return Results.Json(new ConsentRequest(
                 request.ClientId!,
                 await applications.GetDisplayNameAsync(application, ct),
                 ClientMetadata.VerifiedDomain(request.ClientId),
                 new Uri(ValidatedRedirectUri(context)).Host,
-                scopes,
-                [.. scopes.Where(allowed.Contains)],
-                AlreadyApproved: covering is not null,
+                requestedScopes,
+                [.. requestedScopes.Where(allowed.Contains)],
+                [.. requestedScopes.Where(usable.Contains)],
+                AlreadyApproved: requestedCovered,
                 AssignedFlocks: flockScope.IsUnrestricted ? null
                     : [.. (await access.ListFlockAssignmentsAsync(currentUser.UserId, ct))
                         .Select(assignment => assignment.FlockName).OfType<string>()]));
@@ -190,38 +205,52 @@ public static class OAuthEndpoints
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme,
             Claims.Name,
             Claims.Role);
-        identity.SetScopes(scopes);
+        identity.SetScopes(grantedScopes);
         // #800 — the name rides in the token, as the user's email does, so an audit row
         // snapshots it without a lookup per write. Registration never renames a client.
         var appName = await applications.GetDisplayNameAsync(application, ct);
         identity.SetClaim(ClientNameClaim, appName);
         identity.SetDestinations(static _ => [Destinations.AccessToken]);
-        // One permanent authorization per approval, reused by every later connection that
-        // asks for no more. Disconnect revokes it, and with it every token it issued (#796).
+        // One permanent authorization per distinct granted set, reused by every later
+        // approval of exactly that set. Disconnect revokes them all, and with them every
+        // token they issued (#796). A narrower approval leaves earlier ones as they are.
         // #799 — the approval and its audit row commit together. The person acted here
         // themselves, so the row's connected-app columns stay empty; details name the app.
-        var reconnect = covering is not null;
+        var reconnect = reusable is not null;
         await unitOfWork.ExecuteInTransactionAsync(async token =>
         {
-            covering ??= await authorizations.CreateAsync(
-                identity, subject, applicationId, AuthorizationTypes.Permanent, scopes, token);
+            reusable ??= await authorizations.CreateAsync(
+                identity, subject, applicationId, AuthorizationTypes.Permanent, grantedScopes, token);
             await audit.WriteAsync(reconnect ? AuditActions.UserAppReconnected : AuditActions.UserAppConnected,
-                "User", currentUser.UserId, details: new { clientId = request.ClientId, appName, scopes }, ct: token);
+                "User", currentUser.UserId,
+                details: new { clientId = request.ClientId, appName, scopes = grantedScopes, requested = requestedScopes },
+                ct: token);
             return true;
         }, ct);
-        identity.SetAuthorizationId(await authorizations.GetIdAsync(covering!, ct));
+        identity.SetAuthorizationId(await authorizations.GetIdAsync(reusable!, ct));
 
         return Results.SignIn(
             new ClaimsPrincipal(identity),
             authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
+    // Cancel, and an empty choice: the client gets access_denied, and nothing is spent or
+    // recorded.
+    private static IResult DenyConsent() => Results.Forbid(
+        new AuthenticationProperties(new Dictionary<string, string?>
+        {
+            [OpenIddictServerAspNetCoreConstants.Properties.Error] = Errors.AccessDenied,
+            [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = "The user declined the request.",
+        }),
+        [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+
     // What the consent screen shows. The name is the app's own choice (#797). A client
     // whose id is its metadata document's URL has a VerifiedDomain, the host Cluckwork
-    // fetched that document from (#1148); for any other client it is null. When
-    // AlreadyApproved, an earlier approval holds every scope and the SPA asks only for the
-    // password. AssignedFlocks is the user's flock scope as this request resolved it: null
-    // for every flock, else the names of the flocks they are assigned to.
+    // fetched that document from (#1148); for any other client it is null. Usable is the
+    // requested scopes this person's role can use (#1326); the others show as not allowed.
+    // AlreadyApproved means one earlier approval holds every requested scope; it only picks
+    // the headline. AssignedFlocks is the user's flock scope as this request resolved it:
+    // null for every flock, else the names of the flocks they are assigned to.
     private sealed record ConsentRequest(
         string ClientId,
         string? ClientName,
@@ -229,6 +258,7 @@ public static class OAuthEndpoints
         string RedirectHost,
         IReadOnlyList<string> Scopes,
         IReadOnlyList<string> AlreadyAllowed,
+        IReadOnlyList<string> Usable,
         bool AlreadyApproved,
         IReadOnlyList<string>? AssignedFlocks);
 

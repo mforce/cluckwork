@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Api.Middleware;
@@ -6,6 +7,7 @@ using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
@@ -70,6 +72,26 @@ internal static class CluckworkMcp
                     ? McpServerTool.Create(method, target: null, options)
                     : McpServerTool.Create(method, r => ActivatorUtilities.CreateInstance(r.Services!, type), options);
             });
+    }
+
+    // #1326 — the scopes this person's role can use: those a registered tool requires whose
+    // role policies the person meets. Read from each tool's own [Authorize] metadata, as the
+    // SDK's authorization filter reads it, so no table repeats the policies. A scope no tool
+    // requires is usable by nobody.
+    public static async Task<IReadOnlySet<string>> UsableScopesAsync(IServiceProvider services, ClaimsPrincipal user)
+    {
+        var policies = services.GetRequiredService<IAuthorizationPolicyProvider>();
+        var authorization = services.GetRequiredService<IAuthorizationService>();
+        var usable = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var tool in services.GetServices<McpServerTool>())
+        {
+            if (await AuthorizationPolicy.CombineAsync(policies, tool.Metadata.OfType<IAuthorizeData>()) is not { } policy)
+                continue;
+            IAuthorizationRequirement[] role = [.. policy.Requirements.Where(r => r is not OAuthScopeRequirement)];
+            if (role.Length > 0 && (await authorization.AuthorizeAsync(user, resource: null, role)).Succeeded)
+                usable.UnionWith(policy.Requirements.OfType<OAuthScopeRequirement>().SelectMany(r => r.AnyOf));
+        }
+        return usable;
     }
 
     // An omitted parameter binds to its default, so a client never needs to send null.

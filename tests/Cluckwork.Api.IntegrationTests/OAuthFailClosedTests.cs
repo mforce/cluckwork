@@ -23,7 +23,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenIddict.Abstractions;
-using OpenIddict.Server;
 using OpenIddict.Validation;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -776,11 +775,7 @@ public sealed partial class OAuthFailClosedTests(CluckworkWebApplicationFactory 
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter, Probe>();
-                services.Configure<OpenIddictServerOptions>(options =>
-                {
-                    options.Scopes.Add(ReadScope);
-                    options.Scopes.Add(WriteScope);
-                });
+                services.AddTestScope(ReadScope).AddTestScope(WriteScope);
             });
         });
 

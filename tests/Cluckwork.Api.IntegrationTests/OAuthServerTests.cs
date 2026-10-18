@@ -275,11 +275,14 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
     }
 
     // The consent route's Allow (#798): the user re-enters their password for a step-up
-    // grant, and the approval comes back as the client's redirect.
+    // grant, and the approval comes back as the client's redirect. Null selectedScopes omits
+    // the choice, as an SPA older than #1326 does.
     internal static async Task<Uri> ApproveAsync(
-        WebApplicationFactory<Program> host, string jwt, Dictionary<string, string?> query)
+        WebApplicationFactory<Program> host, string jwt, Dictionary<string, string?> query,
+        IReadOnlyList<string>? selectedScopes = null)
     {
-        using var response = await SendAuthorizeAsync(host, jwt, query, await StepUpAsync(host, jwt));
+        using var response = await SendAuthorizeAsync(host, jwt, query, await StepUpAsync(host, jwt),
+            consentScopes: selectedScopes is null ? null : JsonSerializer.Serialize(selectedScopes));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return RedirectOf(await response.Content.ReadFromJsonAsync<JsonElement>());
     }
@@ -307,11 +310,12 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 
     internal static Task<HttpResponseMessage> SendAuthorizeAsync(
         WebApplicationFactory<Program> host, string? jwt, Dictionary<string, string?> query,
-        string? stepUp = null, string? consent = null)
+        string? stepUp = null, string? consent = null, string? consentScopes = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, QueryHelpers.AddQueryString("/api/v1/oauth/authorize", query));
         if (stepUp is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, stepUp);
         if (consent is not null) request.Headers.Add(OAuthEndpoints.ConsentHeaderName, consent);
+        if (consentScopes is not null) request.Headers.TryAddWithoutValidation(OAuthEndpoints.ConsentScopesHeaderName, consentScopes);
         return HttpsClient(host, jwt).SendAsync(request);
     }
 
