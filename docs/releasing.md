@@ -329,6 +329,10 @@ included, reaches a live hotfix line only when it is cherry-picked there.
   default token get no CI run, so you'd only see a problem after merging rather
   than before. (The released image is verified either way: promotion refuses to
   run unless CI recorded a digest for that commit.)
+- **The release App force-pushes its own branch.** Every Release run that
+  changes the release PR rewrites and force-pushes
+  `release-please--branches--main--components--cluckwork`. That is expected.
+  It never pushes `main`.
 
 ## When a release goes wrong
 
