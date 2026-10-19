@@ -305,7 +305,9 @@ class PreCommitTest(unittest.TestCase):
             repo = Repo(root)
             self.check("feat/x", repo.commit("on feature"), "allow")
             run(repo.work, "switch", "-q", "main", check=True)
-            self.check("main", repo.commit("on main"), "refuse")
+            on_main = repo.commit("on main")
+            self.check("main", on_main, "refuse")
+            self.assertIn("--no-verify", on_main.stderr)
             ENV["SKIP_HOOKS"] = "1"
             try:
                 self.check("main, SKIP_HOOKS=1", repo.commit("skip"), "refuse")
