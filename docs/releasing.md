@@ -129,10 +129,12 @@ hotfix):
 BASE=$(gh pr view <N> -R mforce/cluckwork --json baseRefName --jq .baseRefName)
 gh run list -R mforce/cluckwork --workflow release-please.yml --branch "$BASE" --limit 5
 gh run rerun <Release run id> -R mforce/cluckwork
-gh pr list -R mforce/cluckwork --base "$BASE" --state open --label 'autorelease: pending' --json number,title
+gh run watch <Release run id> -R mforce/cluckwork --exit-status &&
+  gh pr list -R mforce/cluckwork --base "$BASE" --state open --label 'autorelease: pending' --json number,title
 ```
 
-The release PR's title states the version it now proposes (#1320 moved to
+`gh run rerun` returns before the run finishes, so wait for it before reading
+the title. The release PR's title states the version it now proposes (#1320 moved to
 1.1.2 this way). Check that version on every release PR before merging it.
 
 ## Deploying
