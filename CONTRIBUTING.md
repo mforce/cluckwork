@@ -16,7 +16,7 @@ checkout, a main worktree that has linked worktrees beside it, then runs unit
 tests for staged .NET changes and `npm run typecheck` for staged `web/` changes),
 **commit-msg** (rejects a message release-please would silently drop from the
 changelog) and **pre-push** (refuses a push to `main`, a force push, and a push
-under another branch name). Integration tests
+under another branch name, and warns when the Docs impact check would fail). Integration tests
 are deliberately excluded — Docker, slow; CI is the authority. Skip once with
 `--no-verify`.
 
