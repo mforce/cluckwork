@@ -84,8 +84,8 @@ commit or in the PR description is dropped.
 
 **Write release-please's commit-override block in the PR description when you
 open the PR.** release-please reads the block from the merged PR's description
-and uses it as the commit message, so it works whichever way the PR is merged,
-web button included:
+and parses it in place of the commit's message, so it works whichever way the
+PR is merged, web button included:
 
 ```text
 Empty commit that sets the next version.
@@ -97,11 +97,13 @@ Release-As: X.Y.Z
 END_COMMIT_OVERRIDE
 ```
 
-Everything between the markers **replaces the whole commit message**, so the
-block MUST start with the full conventional subject line, normally the PR
-title. A malformed block makes release-please drop the commit entirely, with a
-green run. Never write the markers in a PR description unless you mean to
-replace that PR's message.
+For release-please, everything between the markers **replaces the whole
+commit message**, so the block MUST start with the full conventional subject
+line, normally the PR title. A malformed block makes release-please drop the
+commit entirely, with a green run. The git commit itself is not rewritten and
+keeps only its subject, so a cherry-pick of it carries no `Release-As`. Never
+write the markers in a PR description unless you mean to replace that PR's
+message.
 
 The other option is merge-time text, which works only when that exact merge
 command or dialog is used:

@@ -210,8 +210,9 @@ PRs squash-merge with the **PR title** as the commit subject and an **empty
 body**. A plain `BREAKING CHANGE:` or `Release-As:` footer written in a branch
 commit or the PR description is dropped. Text reaches the commit body only when
 typed at merge time (`gh pr merge <N> --squash --body "…"` or the squash
-dialog's extended description), or through release-please's commit-override
-block in the PR description, which replaces the whole message (see
+dialog's extended description). Separately, release-please's commit-override
+block in the PR description replaces the message release-please parses for
+that commit; the git commit itself keeps only its subject (see
 [Forcing a version](docs/releasing.md#forcing-a-version)).
 
 Two traps, both producing a **green run with no changelog entry**:
