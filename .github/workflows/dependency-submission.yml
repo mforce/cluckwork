@@ -18,8 +18,15 @@ name: NuGet dependency submission
 #
 # Runs on push to main so the graph tracks the default branch, which is what
 # dependency-review diffs a PR against.
+#
+# Also runs daily (#1291): Dependabot matched a new advisory against the
+# submitted graph only when the next snapshot arrived. MessagePack's
+# GHSA-qhrr-8q5h-9q3h was published 2026-10-15 18:35 UTC and alerted
+# 2026-10-16 17:24 UTC, when a dependency push to main resubmitted.
 
 on:
+  schedule:
+    - cron: "30 5 * * *"
   push:
     branches:
       - main
