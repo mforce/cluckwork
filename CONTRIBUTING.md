@@ -16,7 +16,7 @@ checkout, a main worktree that has linked worktrees beside it, then runs unit
 tests for staged .NET changes and `npm run typecheck` for staged `web/` changes),
 **commit-msg** (rejects a message release-please would silently drop from the
 changelog) and **pre-push** (refuses a push to `main`, a force push, and a push
-under another branch name). Integration tests
+under another branch name, and warns when the Docs impact check would fail). Integration tests
 are deliberately excluded — Docker, slow; CI is the authority. Skip once with
 `--no-verify`.
 
@@ -207,10 +207,13 @@ endpoints`. It marks the changelog entry and moves no version digit. *Hidden*
 types stay out of the changelog text.
 
 PRs squash-merge with the **PR title** as the commit subject and an **empty
-body**. A `BREAKING CHANGE:` or `Release-As:` footer written in a branch commit or
-the PR description is dropped. Text reaches the commit body only when typed at
-merge time (`gh pr merge <N> --squash --body "…"` or the squash dialog's
-extended description).
+body**. A plain `BREAKING CHANGE:` or `Release-As:` footer written in a branch
+commit or the PR description is dropped. Text reaches the commit body only when
+typed at merge time (`gh pr merge <N> --squash --body "…"` or the squash
+dialog's extended description). Separately, release-please's commit-override
+block in the PR description replaces the message release-please parses for
+that commit; the git commit itself keeps only its subject (see
+[Forcing a version](docs/releasing.md#forcing-a-version)).
 
 Two traps, both producing a **green run with no changelog entry**:
 

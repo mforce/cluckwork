@@ -201,6 +201,89 @@ class PrePushTest(unittest.TestCase):
                     self.assertEqual(refs_of(repo.bare), before, "a refused push changed the remote")
 
 
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class DocsImpactWarningTest(unittest.TestCase):
+    """pre-push runs .github/scripts/docs-impact.mjs once per branch push and only warns.
+    A stub stands in for the script and logs its arguments; a `fail` file makes it exit 1."""
+
+    STUB = """import { appendFileSync, existsSync } from "node:fs";
+appendFileSync("../docs-impact.log", process.argv.slice(2).join(" ") + "\\n");
+if (existsSync("../fail")) { console.error("stub finding"); process.exit(1); }
+"""
+
+    def push(self, setup, *args):
+        with tempfile.TemporaryDirectory() as root:
+            repo = Repo(root)
+            os.makedirs(os.path.join(repo.work, ".github", "scripts"))
+            with open(os.path.join(repo.work, ".github", "scripts", "docs-impact.mjs"), "w") as f:
+                f.write(self.STUB)
+            # Upstream moves past the merge base, and HEAD is not the branch pushed, so the
+            # expected arguments differ from `origin/main` and from HEAD.
+            upstream = run(repo.work, "commit-tree", "origin/main^{tree}", "-p", "origin/main", "-m", "upstream",
+                           check=True).stdout.strip()
+            run(repo.work, "push", "-q", "--no-verify", "origin", f"{upstream}:refs/heads/main", check=True)
+            run(repo.work, "fetch", "-q", "origin", check=True)
+            run(repo.work, "switch", "-q", "main", check=True)
+            head = run(repo.work, "rev-parse", "feat/x", check=True).stdout.strip()
+            base = run(repo.work, "merge-base", "origin/main", "feat/x", check=True).stdout.strip()
+            setup(repo)
+            result = run(repo.work, "push", "-q", *args)
+            log = os.path.join(root, "docs-impact.log")
+            calls = []
+            if os.path.exists(log):
+                with open(log) as f:
+                    calls = f.read().splitlines()
+            print(f"pre-push   docs-impact [{setup.__name__:14}] git push {' '.join(args)} -> exit {result.returncode},"
+                  f" {len(calls)} run(s)")
+            return result, calls, f"--base {base} --head {head}"
+
+    @staticmethod
+    def passing(repo):
+        pass
+
+    @staticmethod
+    def failing(repo):
+        open(os.path.join(repo.root, "fail"), "w").close()
+
+    @staticmethod
+    def two_branches(repo):
+        DocsImpactWarningTest.failing(repo)
+        run(repo.work, "branch", "feat/y", "main", check=True)
+
+    @staticmethod
+    def no_origin_main(repo):
+        DocsImpactWarningTest.failing(repo)
+        run(repo.work, "update-ref", "-d", "refs/remotes/origin/main", check=True)
+
+    def test_failure_warns_and_pushes(self):
+        result, calls, expected = self.push(self.failing, "origin", "feat/x")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, [expected])
+        self.assertIn("pre-push: warning: the Docs impact check would fail", result.stderr)
+        self.assertIn("stub finding", result.stderr)
+
+    def test_pass_is_silent(self):
+        result, calls, expected = self.push(self.passing, "origin", "feat/x")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, [expected])
+        self.assertNotIn("pre-push: warning", result.stderr)
+
+    def test_once_for_two_branches(self):
+        result, calls, expected = self.push(self.two_branches, "origin", "feat/x", "feat/y")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, [expected])  # the first branch pushed, feat/x
+
+    def test_skipped(self):
+        for setup, args in ((self.failing, ["origin", "--delete", "feat/old"]),
+                            (self.failing, ["origin", "v1"]),
+                            (self.failing, ["origin", "main"]),  # refused before the check
+                            (self.no_origin_main, ["origin", "feat/x"])):
+            with self.subTest(setup=setup.__name__, push=" ".join(args)):
+                result, calls, _ = self.push(setup, *args)
+                self.assertEqual(calls, [])
+                self.assertNotIn("pre-push: warning", result.stderr)
+
+
 class KnownLimitTest(unittest.TestCase):
     def test_mirror_deletion_of_main_sends_the_hook_no_record(self):
         """Pins a documented limit: if this fails, git now sends the record, so make it a refusal row."""
@@ -229,7 +312,9 @@ class PreCommitTest(unittest.TestCase):
             repo = Repo(root)
             self.check("feat/x", repo.commit("on feature"), "allow")
             run(repo.work, "switch", "-q", "main", check=True)
-            self.check("main", repo.commit("on main"), "refuse")
+            on_main = repo.commit("on main")
+            self.check("main", on_main, "refuse")
+            self.assertIn("--no-verify", on_main.stderr)
             ENV["SKIP_HOOKS"] = "1"
             try:
                 self.check("main, SKIP_HOOKS=1", repo.commit("skip"), "refuse")

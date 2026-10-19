@@ -20,7 +20,7 @@ if head=$(git symbolic-ref --quiet HEAD); then :; elif [ $? -ne 1 ]; then
   exit 1
 fi
 if [ "$head" = refs/heads/main ]; then
-  echo "pre-commit: refusing to commit on main: main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then commit there." >&2
+  echo "pre-commit: refusing to commit on main: main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then commit there (skip once: --no-verify)." >&2
   exit 1
 fi
 # Nor in the shared checkout, a main worktree with linked worktrees beside it (#1205).

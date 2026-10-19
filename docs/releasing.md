@@ -53,8 +53,7 @@ digit, once, however many PRs it collects:
 `release-please-config.json` sets this: `"versioning": "always-bump-minor"` on
 `main`, and `"always-bump-patch"` in each hotfix line's own copy (see
 [Hotfix releases](#hotfix-releases)). **The first digit moves only by hand**,
-with `Release-As: 2.0.0` added at merge time (see
-[Forcing a version](#forcing-a-version)). A `!` or a breaking change moves no
+with `Release-As: 2.0.0` (see [Forcing a version](#forcing-a-version)). A `!` or a breaking change moves no
 digit. PR #1130, which introduced this scheme, merges with
 `--body "Release-As: 1.0.0"`, so `main`'s next release is `v1.0.0`.
 
@@ -80,25 +79,63 @@ commit from the changelog — are in
 
 Use this for the first digit (`Release-As: 2.0.0`), or to answer a Release
 workflow error. This repository squash-merges with the PR title as the commit
-subject and an empty commit body. A plain `Release-As:` footer written in a
-branch commit or in the PR description is therefore dropped and does nothing.
-Add it when you merge:
+subject and an empty commit body, so a plain `Release-As:` footer in a branch
+commit or in the PR description is dropped.
+
+**Write release-please's commit-override block in the PR description when you
+open the PR.** release-please reads the block from the merged PR's description
+and parses it in place of the commit's message, so it works whichever way the
+PR is merged, web button included:
+
+```text
+Empty commit that sets the next version.
+
+BEGIN_COMMIT_OVERRIDE
+chore: release X.Y.Z as a patch
+
+Release-As: X.Y.Z
+END_COMMIT_OVERRIDE
+```
+
+For release-please, everything between the markers **replaces the whole
+commit message**, so the block MUST start with the full conventional subject
+line, normally the PR title. A malformed block makes release-please drop the
+commit entirely, with a green run. The git commit itself is not rewritten and
+keeps only its subject, so a cherry-pick of it carries no `Release-As`. Never
+write the markers in a PR description unless you mean to replace that PR's
+message.
+
+The other option is merge-time text, which works only when that exact merge
+command or dialog is used:
 
 ```bash
 gh pr merge <N> -R mforce/cluckwork --squash --body "Release-As: X.Y.Z"
 ```
 
 or type `Release-As: X.Y.Z` into the extended description box of the
-squash-merge dialog. If no PR is waiting to merge, open one holding a single
-empty `chore:` commit (`git commit --allow-empty`) and merge it that way. A
-hidden `chore:` commit alone opens no release PR, but one carrying
-`Release-As` does: the changelog writer keeps a hidden commit with that footer.
+squash-merge dialog. A plain merge with the web button drops it.
 
-Merge-time text is the recommended route, not the only one. release-please
-replaces a squash commit's message with a `BEGIN_COMMIT_OVERRIDE` ...
-`END_COMMIT_OVERRIDE` block from the PR description, so a description can
-still set `Release-As` that way. Check the version every release PR proposes
-before merging it; its title states it.
+If no PR is waiting to merge, open one holding a single empty `chore:` commit
+(`git commit --allow-empty`). A hidden `chore:` commit alone opens no release
+PR, but one carrying `Release-As` does: the changelog writer keeps a hidden
+commit with that footer.
+
+**If the PR already merged without it** (#1328 did), edit that PR's
+description to add the block, then re-run the Release workflow run that the
+merge started on the PR's base branch (`main`, or `release/vX.Y.x` for a
+hotfix):
+
+```bash
+BASE=$(gh pr view <N> -R mforce/cluckwork --json baseRefName --jq .baseRefName)
+gh run list -R mforce/cluckwork --workflow release-please.yml --branch "$BASE" --limit 5
+gh run rerun <Release run id> -R mforce/cluckwork
+gh run watch <Release run id> -R mforce/cluckwork --exit-status &&
+  gh pr list -R mforce/cluckwork --base "$BASE" --state open --label 'autorelease: pending' --json number,title
+```
+
+`gh run rerun` returns before the run finishes, so wait for it before reading
+the title. The release PR's title states the version it now proposes (#1320 moved to
+1.1.2 this way). Check that version on every release PR before merging it.
 
 ## Deploying
 
@@ -298,6 +335,11 @@ included, reaches a live hotfix line only when it is cherry-picked there.
   default token get no CI run, so you'd only see a problem after merging rather
   than before. (The released image is verified either way: promotion refuses to
   run unless CI recorded a digest for that commit.)
+- **The release App force-pushes its own branch.** Every Release run that
+  changes a release PR rewrites and force-pushes that PR's branch,
+  `release-please--branches--<target>--components--cluckwork`
+  (`release-please--branches--main--components--cluckwork` for `main`). That
+  is expected. It never pushes `main` or a `release/` branch.
 
 ## When a release goes wrong
 

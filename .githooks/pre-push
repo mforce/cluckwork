@@ -1,6 +1,7 @@
 #!/bin/sh
 # pre-push: refuse pushes that change main, rewrite history, move a pushed tag,
-# or land a branch under another name (#1171).
+# or land a branch under another name (#1171). Warns when the Docs impact
+# check would fail.
 #
 # Enable once per clone:   git config core.hooksPath .githooks
 # Skip once:               git push --no-verify
@@ -52,6 +53,7 @@ EOF
   return 1
 }
 
+docs_sha=
 while read -r local_ref local_sha remote_ref remote_sha; do
   if [ "$remote_ref" = refs/heads/main ]; then
     refuse "main changes only through a merged PR. Run \`git switch -c <type>/<topic>\`, then push that branch."
@@ -69,5 +71,17 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   if [ "$local_ref" != "$remote_ref" ] && ! configured; then
     refuse "the local and remote names differ, a src:dst push (#900). Run \`git branch --show-current\`, then \`git push -u origin <that-branch>\`."
   fi
+  case $remote_ref in refs/heads/*) docs_sha=${docs_sha:-$local_sha} ;; esac
 done
+
+# Docs impact (#1325 skipped it and CI failed): warn, never refuse, because the
+# PR body that can waive a finding may not exist yet. One run per push, for the
+# first branch pushed, against its merge base with origin/main so only the
+# branch's own changes count.
+# Skipped quietly without node, the script, or origin/main.
+if [ -n "$docs_sha" ] && [ -f .github/scripts/docs-impact.mjs ] && command -v node >/dev/null 2>&1 \
+  && base=$(git merge-base origin/main "$docs_sha" 2>/dev/null); then
+  out=$(node .github/scripts/docs-impact.mjs --base "$base" --head "$docs_sha" 2>&1 </dev/null) ||
+    printf 'pre-push: warning: the Docs impact check would fail; pushing anyway.\n%s\n' "$out" >&2
+fi
 exit 0

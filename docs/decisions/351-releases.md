@@ -126,10 +126,10 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   first release; the strategy governs every release after it. Don't diagnose
   one as the other.
 
-  **The first digit moves only by hand**, with a `Release-As: X.0.0` footer
-  added at merge time. Squash commits here carry only the PR title, so a plain
-  footer anywhere else is dropped (the watch-the-version bullet below names the
-  one exception).
+  **The first digit moves only by hand**, with a `Release-As: X.0.0` footer.
+  Squash commits here carry only the PR title, so a plain footer in a branch
+  commit or PR description is dropped; the footer must come from merge-time
+  text or a commit-override block (the watch-the-version bullet below).
 
   Note that `hidden: true` in `changelog-sections` suppresses a type in the
   changelog *text*, and a changelog with no entries opens no release PR
@@ -360,11 +360,13 @@ Two stages, deliberately separate: **CI publishes, the release PR versions.**
   `Release-As: X.Y.Z` footer on any commit reaching the branch overrides the
   computed version. Squash commits here carry the PR title and an empty body
   (`squash_merge_commit_message=BLANK`), so a plain footer in a PR description
-  or a branch commit is dropped; typing it at merge time is the recommended way
-  to force a version. It is not the only way: release-please replaces a squash
-  commit's message with a `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE`
-  block from the PR description (`preprocessCommitMessage` in `src/commit.ts`),
-  so a contributor can still set `Release-As` through one. The control is
+  or a branch commit is dropped. release-please replaces a squash commit's
+  message with a `BEGIN_COMMIT_OVERRIDE` ... `END_COMMIT_OVERRIDE` block from
+  the PR description (`preprocessCommitMessage` in `src/commit.ts`), so a
+  contributor can set `Release-As` through one. That block, written when the PR
+  opens, is the recommended way to force a version, because it works whatever
+  merges the PR; merge-time text is lost to a plain web-button merge (#1328,
+  recovered by editing the description and re-running Release). The control is
   review of the version the release PR proposes; its title states it, and the
   human merging it decides.
 - **Config lives in three files**, all machine-maintained — `release-please-config.json`,
