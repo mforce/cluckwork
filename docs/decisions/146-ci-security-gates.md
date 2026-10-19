@@ -45,8 +45,10 @@ entirely. The tree-scoped `dotnet list package --vulnerable
 covers those at PR time. All of this leaves
 dependency-review blind to a transitively-introduced vulnerable package.
 `.github/workflows/dependency-submission.yml` closes that: on a push to `main`
-touching the dependency set, Microsoft's component-detection reads the restore
-output and submits the resolved graph via the Dependency Submission API. npm needs
+touching the dependency set, and daily, Microsoft's component-detection reads the restore
+output and submits the resolved graph via the Dependency Submission API. The
+daily run exists because Dependabot matched a new advisory against the submitted
+graph only when the next snapshot arrived (#1291). npm needs
 none of this — the graph reads `web/package-lock.json` and already has the full tree.
 
 ### Dependabot NuGet PRs: automatic lock-file healing
