@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.1.2](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.1.2) (2026-10-19)
+
+
+### Features
+
+* **mcp:** submit daily entries and record feed, water, purchases and expenses ([#1325](https://github.com/mforce/cluckwork/issues/1325)) ([f0df35f](https://github.com/mforce/cluckwork/commit/f0df35fc1bc9d54a6ae69d60ed316b149c1a780b))
+* **oauth:** let a person grant only some of the permissions a connected app asks for ([#1327](https://github.com/mforce/cluckwork/issues/1327)) ([ce7807e](https://github.com/mforce/cluckwork/commit/ce7807e7333c70b97e0917daaa88a22bdaafb631))
+
+
+### Bug fixes
+
+* **deps:** pin MessagePack 2.5.303 for GHSA-qhrr-8q5h-9q3h ([#1321](https://github.com/mforce/cluckwork/issues/1321)) ([60f7e70](https://github.com/mforce/cluckwork/commit/60f7e70b60ea1c9fa1ae310277e066eb71ff4d02))
+
+
+### Performance
+
+* **web:** drop install icons from the precache and minify theme-init.js ([#1323](https://github.com/mforce/cluckwork/issues/1323)) ([455ed0d](https://github.com/mforce/cluckwork/commit/455ed0d96876890225d70bf0534b6f6db66f23fe))
+* **web:** precache a currency-only Inter face instead of latin-ext ([#1324](https://github.com/mforce/cluckwork/issues/1324)) ([39228ed](https://github.com/mforce/cluckwork/commit/39228edd6b44c12ca5c86a083f842bdb9be5f041))
+
+
+### Documentation
+
+* **specs:** say who corrects locked daily entries and when archiving blocks it ([#1312](https://github.com/mforce/cluckwork/issues/1312)) ([1683ce6](https://github.com/mforce/cluckwork/commit/1683ce688941efde5b3f0e76934d040056e1a1ff))
+
+
+### Chores
+
+* release 1.1.2 as a patch ([e1d108d](https://github.com/mforce/cluckwork/commit/e1d108d52f127cad01a2315b44ba5396225b01e1))
+
 ## [1.1.1](https://github.com/mforce/cluckwork/compare/v1.1.0...v1.1.1) (2026-10-15)
 
 
