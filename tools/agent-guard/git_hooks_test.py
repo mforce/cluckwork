@@ -217,6 +217,13 @@ if (existsSync("../fail")) { console.error("stub finding"); process.exit(1); }
             os.makedirs(os.path.join(repo.work, ".github", "scripts"))
             with open(os.path.join(repo.work, ".github", "scripts", "docs-impact.mjs"), "w") as f:
                 f.write(self.STUB)
+            # Upstream moves past the merge base, and HEAD is not the branch pushed, so the
+            # expected arguments differ from `origin/main` and from HEAD.
+            upstream = run(repo.work, "commit-tree", "origin/main^{tree}", "-p", "origin/main", "-m", "upstream",
+                           check=True).stdout.strip()
+            run(repo.work, "push", "-q", "--no-verify", "origin", f"{upstream}:refs/heads/main", check=True)
+            run(repo.work, "fetch", "-q", "origin", check=True)
+            run(repo.work, "switch", "-q", "main", check=True)
             head = run(repo.work, "rev-parse", "feat/x", check=True).stdout.strip()
             base = run(repo.work, "merge-base", "origin/main", "feat/x", check=True).stdout.strip()
             setup(repo)
@@ -262,9 +269,9 @@ if (existsSync("../fail")) { console.error("stub finding"); process.exit(1); }
         self.assertNotIn("pre-push: warning", result.stderr)
 
     def test_once_for_two_branches(self):
-        result, calls, _ = self.push(self.two_branches, "origin", "feat/x", "feat/y")
+        result, calls, expected = self.push(self.two_branches, "origin", "feat/x", "feat/y")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(calls), 1, calls)
+        self.assertEqual(calls, [expected])  # the first branch pushed, feat/x
 
     def test_skipped(self):
         for setup, args in ((self.failing, ["origin", "--delete", "feat/old"]),
