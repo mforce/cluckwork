@@ -207,10 +207,12 @@ endpoints`. It marks the changelog entry and moves no version digit. *Hidden*
 types stay out of the changelog text.
 
 PRs squash-merge with the **PR title** as the commit subject and an **empty
-body**. A `BREAKING CHANGE:` or `Release-As:` footer written in a branch commit or
-the PR description is dropped. Text reaches the commit body only when typed at
-merge time (`gh pr merge <N> --squash --body "…"` or the squash dialog's
-extended description).
+body**. A plain `BREAKING CHANGE:` or `Release-As:` footer written in a branch
+commit or the PR description is dropped. Text reaches the commit body only when
+typed at merge time (`gh pr merge <N> --squash --body "…"` or the squash
+dialog's extended description), or through release-please's commit-override
+block in the PR description, which replaces the whole message (see
+[Forcing a version](docs/releasing.md#forcing-a-version)).
 
 Two traps, both producing a **green run with no changelog entry**:
 

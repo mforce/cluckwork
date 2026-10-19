@@ -12,7 +12,8 @@ The type picks the changelog section; the version comes from the branch.
 
 <!-- What changed and the problem it solves, in a few lines. Link the issue.
      This body does not reach the squashed commit: only the title does, so a
-     footer here (BREAKING CHANGE, Release-As) does nothing.
+     plain footer here (BREAKING CHANGE, Release-As) does nothing.
+     To force a version, see docs/releasing.md#forcing-a-version.
      See CONTRIBUTING.md#commit-messages. -->
 
 ## How it was verified
