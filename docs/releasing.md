@@ -120,12 +120,14 @@ commit with that footer.
 
 **If the PR already merged without it** (#1328 did), edit that PR's
 description to add the block, then re-run the Release workflow run that the
-merge started:
+merge started on the PR's base branch (`main`, or `release/vX.Y.x` for a
+hotfix):
 
 ```bash
-gh run list -R mforce/cluckwork --workflow release-please.yml --limit 5
+BASE=$(gh pr view <N> -R mforce/cluckwork --json baseRefName --jq .baseRefName)
+gh run list -R mforce/cluckwork --workflow release-please.yml --branch "$BASE" --limit 5
 gh run rerun <Release run id> -R mforce/cluckwork
-gh pr list -R mforce/cluckwork --head release-please--branches--main--components--cluckwork --json number,title
+gh pr list -R mforce/cluckwork --base "$BASE" --state open --label 'autorelease: pending' --json number,title
 ```
 
 The release PR's title states the version it now proposes (#1320 moved to
@@ -330,9 +332,10 @@ included, reaches a live hotfix line only when it is cherry-picked there.
   than before. (The released image is verified either way: promotion refuses to
   run unless CI recorded a digest for that commit.)
 - **The release App force-pushes its own branch.** Every Release run that
-  changes the release PR rewrites and force-pushes
-  `release-please--branches--main--components--cluckwork`. That is expected.
-  It never pushes `main`.
+  changes a release PR rewrites and force-pushes that PR's branch,
+  `release-please--branches--<target>--components--cluckwork`
+  (`release-please--branches--main--components--cluckwork` for `main`). That
+  is expected. It never pushes `main` or a `release/` branch.
 
 ## When a release goes wrong
 
