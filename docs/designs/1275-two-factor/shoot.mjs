@@ -46,6 +46,10 @@ try {
     }
   }
   await page.evaluate(() => window.configure({ screen: 'recovery', state: 'new', direction: 'a', width: 390, theme: 'light' }));
+  const samples = await page.locator('.codes li').allTextContents();
+  assert.equal(samples.length, 10);
+  assert.equal(new Set(samples).size, 10);
+  for (const code of samples) assert.match(code, /^[23456789BCDFGHJKMNPQRTVWXY]{5}-[23456789BCDFGHJKMNPQRTVWXY]{5}$/);
   await page.getByRole('checkbox', { name: 'I saved my recovery codes somewhere safe.' }).check();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByText('8', { exact: true }).waitFor();
@@ -83,6 +87,14 @@ try {
   await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('dialog').count(), 0);
   await page.getByRole('heading', { name: 'Let Farm Ledger act as you?' }).waitFor();
+  for (const state of ['dialog', 'consent']) {
+    await page.evaluate(state => window.configure({ screen: 'stepup', direction: 'a-password', state, theme: 'light' }), state);
+    const password = page.getByLabel('Your current password', { exact: true });
+    assert.equal(await password.getAttribute('autocomplete'), 'current-password');
+    await page.getByLabel('Your authenticator code', { exact: true }).waitFor();
+    await page.evaluate(state => window.configure({ direction: 'a', state }), state);
+    assert.equal(await page.getByLabel('Your current password', { exact: true }).count(), 0);
+  }
   assert.deepEqual(errors, []);
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(results, null, 2) + '\n');
   console.log(`Captured ${results.length} frames at 1:1 into ${out}. No page errors or horizontal frame overflow. Interaction checks passed.`);
