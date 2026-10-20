@@ -73,7 +73,7 @@ Starting a new record: copy [`TEMPLATE.md`](TEMPLATE.md).
 | [Connected apps: listing, Disconnect, last used and audit (#799)](799-connected-apps.md) | src/AGENTS · Auth and credentials |
 | [The farm's connected-apps switch refuses; it never revokes (#1146)](1146-connected-apps-switch.md) | src/AGENTS · Auth and credentials, Accepted risks |
 | [Client ID metadata documents beside registration (#1148)](1148-client-id-metadata-documents.md) | src/AGENTS · Auth and credentials |
-| [Two-factor authentication: TOTP at login and as a step-up factor (#1274)](1274-two-factor-authentication.md) | this record until #1278 lands, then src/AGENTS · Auth and credentials |
+| [Two-factor authentication: TOTP at login and as a step-up factor (#1274)](1274-two-factor-authentication.md) | this record; each slice adds the rules it lands to src/AGENTS · Auth and credentials |
 | [MCP writes share #307's idempotency unit, not the REST route (#809)](809-mcp-write-idempotency.md) | src/AGENTS · Auth and credentials |
 | [MCP write tools: one scope per permission, no drafts, a correction hint (#1311, #1313)](1311-mcp-write-tools.md) | src/AGENTS · Auth and credentials |
 | [Nothing writes an audit event without an actor (#500)](500-audit-actor.md) | src/AGENTS · Auth and credentials |
