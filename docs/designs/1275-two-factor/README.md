@@ -15,20 +15,20 @@ The lab reads the actual [colour tokens](../../../web/src/styles/tokens.css). It
 | Recovery codes | A. Code list, copy, download and saved confirmation. | A keeps the once-only list visible until the user confirms saving it. No alternative changes a useful decision here. |
 | Login code | A. The chosen Login B card. | A preserves the account, farm and connected-app context while replacing password entry with a code. A single input supports paste and one-time-code autofill. |
 | Step-up | A1. Inline code alone. A2. Inline password plus code. B. Review the action, then verify. | A keeps the target and proof together, matching today's inline step-up. B reduces the first form's field count but hides the draft during verification. Consent B uses a separate confirmation dialog; A keeps proof in the compact card. |
-| Reset another user | A. Reset in the selected-user inspector, then one confirmation with the acting user's code. | A keeps a destructive action beside the person it affects. The confirmation distinguishes Ben, the target, from Ana, the signed-in Admin. |
+| Reset another user | A1. Inspector and reset confirmation with code alone. A2. The same layout with password plus code. | A keeps a destructive action beside the person it affects. The confirmation distinguishes Ben, the target, from Ana, the signed-in Admin. |
 
 The app displays the Owner role as **Admin**. These frames use that existing label. The reset flow is an Owner action, not a new permission for other roles.
 
 ## State coverage
 
-Every state renders at 1280 and 390 CSS pixels. Recommended direction A also renders every state in night mode at both widths. For step-up, A1 has night frames and A2 is light only.
+Every state renders at 1280 and 390 CSS pixels. Recommended direction A also renders every state in night mode at both widths. For step-up and Users reset, A1 has night frames and A2 is light only.
 
 - Account shows off, set-up unfinished, on, one recovery code left, regenerate confirmation, turn-off confirmation, a rejected proof and turn-off success.
 - Enrolment shows the QR, the manual key, confirmation, an incorrect code and expired set-up. Direction A keeps scan and confirmation together. Direction B splits them.
 - Recovery shows the initial set, copy feedback, download feedback, saved confirmation and a regenerated set that replaces the old codes.
 - Login shows authenticator and recovery entry, each rejected, expiry and rate limiting. Connected-app variants keep Farm Ledger visible through errors, expiry, rate limiting, recovery entry and the return to the password. The long-name state checks app and account wrapping.
 - Step-up shows the user-administration form and consent, incorrect proof and rate limiting in each. Both directions show a verification step; A keeps it inline. A1 shows code alone. A2 adds the signed-in user's current password in the same form. The proof policy is pending item 11 of the design record; A2 is a required combination, not a password fallback.
-- Users shows selection, reset confirmation, incorrect proof, rate limiting, reset success and the caller's own row. The self row sends the user to Account / Security instead of offering an administrative self reset.
+- Users shows selection, reset confirmation, incorrect proof, rate limiting, reset success and the caller's own row. The self row sends the user to Account / Security instead of offering an administrative self reset. A2 also shows the password-plus-code policy in the reset confirmation.
 
 `TERMS` at the start of the lab script holds the three shared terms. [The design record](https://github.com/mforce/cluckwork/issues/1274) controls the final login and step-up rules. These mockups do not settle lifetimes, rate-limit durations, code count, reset session effects or the later Owner enrolment requirement. Ten generated sample codes and the remaining-code counts illustrate the layout only. Samples use Identity's five-character groups separated by a hyphen, with the alphabet in [UserManager.CreateTwoFactorRecoveryCode](https://github.com/dotnet/aspnetcore/blob/v10.0.0/src/Identity/Extensions.Core/src/UserManager.cs#L2291-L2326). The lab generates them in memory when the page opens, so day and night frames from one render run use the same examples. No code literal is committed.
 

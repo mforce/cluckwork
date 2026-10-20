@@ -87,12 +87,13 @@ try {
   await page.keyboard.press('Escape');
   assert.equal(await page.getByRole('dialog').count(), 0);
   await page.getByRole('heading', { name: 'Let Farm Ledger act as you?' }).waitFor();
-  for (const state of ['dialog', 'consent']) {
-    await page.evaluate(state => window.configure({ screen: 'stepup', direction: 'a-password', state, theme: 'light' }), state);
+  for (const config of [{ screen: 'stepup', state: 'dialog' }, { screen: 'stepup', state: 'consent' }, { screen: 'users', state: 'confirm' }]) {
+    await page.evaluate(config => window.configure({ ...config, direction: 'a-password', theme: 'light' }), config);
     const password = page.getByLabel('Your current password', { exact: true });
     assert.equal(await password.getAttribute('autocomplete'), 'current-password');
     await page.getByLabel('Your authenticator code', { exact: true }).waitFor();
-    await page.evaluate(state => window.configure({ direction: 'a', state }), state);
+    await page.getByText(/Enter your password and a code from your authenticator app/).waitFor();
+    await page.evaluate(config => window.configure({ ...config, direction: 'a' }), config);
     assert.equal(await page.getByLabel('Your current password', { exact: true }).count(), 0);
   }
   assert.deepEqual(errors, []);
