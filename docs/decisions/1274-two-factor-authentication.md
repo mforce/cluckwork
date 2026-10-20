@@ -189,6 +189,7 @@ public abstract record SecondFactorOutcome
 	public sealed record Accepted : SecondFactorOutcome;                   // the commit ran; mint from the binding
 	public sealed record Wrong : SecondFactorOutcome;                      // charged once
 	public sealed record Locked : SecondFactorOutcome;                     // not charged; answered like Wrong
+	public sealed record Replayed : SecondFactorOutcome;                   // the code matches a step at or below the watermark; not charged
 	public sealed record Superseded : SecondFactorOutcome;                 // disabled, epoch or stamp moved, two-factor off, watermark moved
 	public sealed record Unavailable : SecondFactorOutcome;                // the key cannot be decrypted; not charged
 	public sealed record Throttled(TimeSpan RetryAfter) : SecondFactorOutcome;
@@ -201,10 +202,10 @@ public long SecondFactorWatermark { get; set; }   // bigint, default 0
 The verifier, in order:
 
 1. If `DisabledAt` is set, `TwoFactorEnabled` is false, `CredentialEpoch < 1`, or the epoch, stamp or watermark differ from the binding, return `Superseded`. Nothing is charged (#1031, `AccountLockout.cs:93`).
-2. If the per-user failure budget is spent, return `Throttled`.
+2. Spend one per-user attempt permit with an atomic `IncrementAsync`. Over the limit, return `Throttled`. Then read the daily failure budget; if it is spent, return `Throttled`. Decision 6 gives both limits.
 3. If `IsLockedOutAsync`, return `Locked`. Nothing is charged, because `AccountLockout.RecordFailedAccessAsync` calls `AccessFailedAsync` even on a locked row (`AccountLockout.cs:99-103`) and would extend the lockout. Login refuses a locked user the same way (`IdentityProvider.cs:78-88`).
-4. Match the code. A TOTP code matches when `Totp.MatchStep` finds a step in −2..+2 that is strictly above the binding's watermark. A recovery code matches when its digest is in the stored set. An unreadable key returns `Unavailable`.
-5. No match: log the identity-free `Auth.SecondFactorFailed`, increment the failure budget, call `AccountLockout.RecordFailedAccessAsync`, log `Auth.AccountLockedOut` on the transition, and return `Wrong`. The failed access commits before the 400 returns.
+4. Match the code. For a TOTP code, `Totp.MatchStep` looks for a matching step in −2..+2. A step strictly above the binding's watermark is a match. A step at or below it returns `Replayed`, which is not charged and is answered like a wrong code; the SPA says "Wait for the next code." A recovery code matches when its digest is in the stored set. An unreadable key returns `Unavailable`.
+5. No match at any step: log the identity-free `Auth.SecondFactorFailed`, increment the failure budget, call `AccountLockout.RecordFailedAccessAsync`, log `Auth.AccountLockedOut` on the transition, and return `Wrong`. The failed access commits before the 400 returns.
 6. Match: commit, as below, and return `Accepted` or `Superseded`.
 
 The commit is one transaction. For a recovery code, it first removes the digest with a compare-and-swap `ExecuteUpdate` on the token row (`WHERE Value = <the value read>`). Then one conditional update on the user row holds every binding:
@@ -218,7 +219,9 @@ WHERE "Id" = @userId AND "AccountId" = @accountId AND "DisabledAt" IS NULL AND "
   AND ("LockoutEnd" IS NULL OR "LockoutEnd" <= @now)
 ```
 
-Zero rows rolls back and returns `Superseded`. `@newWatermark` is the matched step, or `max(bound + 1, current step)` for a recovery code. Rotating `ConcurrencyStamp` in the same statement stops a stale full-entity Identity save from writing the old watermark back, the fence `PersistentStepUpGrantRegistry.RecordLogoutAsync` uses for `StepUpLogoutEpoch` (`PersistentStepUpGrantRegistry.cs:85-99`). The caller does not reload the user afterwards. It mints the refresh row and the access token from the bound epoch, so a password reset that commits after the update leaves the new tokens dead on arrival. Login uses the same rule today (`IdentityProvider.cs:114-129`).
+Zero rows rolls back and returns `Superseded`. `@newWatermark` is the matched step, or `max(bound + 1, current step)` for a recovery code. A matched step can be up to two steps ahead of the clock, so after a code from the future edge of the window, or after a recovery code, the user's next code can be refused as `Replayed` for up to about 90 seconds. Rotating `ConcurrencyStamp` in the same statement stops a stale full-entity Identity save from writing the old watermark back, the fence `PersistentStepUpGrantRegistry.RecordLogoutAsync` uses for `StepUpLogoutEpoch` (`PersistentStepUpGrantRegistry.cs:85-99`). The caller does not reload the user afterwards. It mints the refresh row and the access token from the bound epoch, so a password reset that commits after the update leaves the new tokens dead on arrival. Login uses the same rule today (`IdentityProvider.cs:114-129`).
+
+Enrolment confirm is the verifier's second operation, `ConfirmEnrolmentAsync`, so the one-oracle rule still holds. Starting enrolment writes a new key to a separate, protected row (`LoginProvider = "Cluckwork"`, `Name = "PendingAuthenticatorKey"`) and never touches the live key. Confirm matches the code against that pending key, checks the epoch and stamp the start read, and in one transaction moves the pending key into the live row, sets `TwoFactorEnabled`, raises the watermark to the matched step and bumps `CredentialEpoch` (decision 8). It does not require `TwoFactorEnabled`, because it is the step that sets it. The same flow replaces the authenticator of a user who is already enrolled: the old key keeps working until confirm swaps in the new one.
 
 The call chain is three files deep: the endpoint, then `IdentityProvider` or `StepUpGrantService`, then `SecondFactorVerifier`.
 
@@ -268,13 +271,16 @@ Rejected: a separate counter for codes. It would be a second budget that drifts 
 
 **Per address.** A new policy, `auth-second-factor`, is a `DistributedFixedWindowPolicy` on `/auth/login/second-factor` with 10 permits per 900 s, configurable under `RateLimiting:SecondFactor`. The global `OnRejected` handler writes the 429, `Retry-After` and `Auth.RateLimitRejected policy=auth-second-factor` unchanged (`CluckworkRateLimitingServiceCollectionExtensions.cs:83-92`). The password step stays the only login spender of `auth-login`, so a two-factor sign-in does not halve what one address gets. Step-up stays on `auth-login` (`AuthEndpoints.cs:114`), as `AuthRateLimitLoggingTests.StepUp_rate_limit_rejection_emits_RateLimitRejected_because_it_shares_the_login_policy` pins.
 
-**Per user.** A policy cannot read the user, because `GetPartition` runs before the body is read and before authentication (`DistributedFixedWindowPolicy.cs:46-66`). So the verifier keeps a failure budget in `IFixedWindowCounter`, keyed `second-factor-fail:<userId:N>`, 20 failures per 24 hours. It reads the count before matching and increments after a wrong code, the `FailedAuthenticationBudget` pattern (`src/Cluckwork.Infrastructure/RateLimiting/FailedAuthenticationBudget.cs:16-33`). Login and step-up share it. Successes do not spend it, so an Owner doing many step-ups is not throttled.
+**Per user.** A policy cannot read the user, because `GetPartition` runs before the body is read and before authentication (`DistributedFixedWindowPolicy.cs:46-66`). So the verifier calls `IFixedWindowCounter` itself, with two keys that hold only the server-verified user id. Login and step-up share both.
+
+- An attempt limit, keyed `second-factor-attempt:<userId:N>`, 20 per 15 minutes. The verifier spends one permit with an atomic `IncrementAsync` before it matches anything, so it is a hard bound even under concurrency. Successes count too. Twenty is above an Owner's busiest legitimate quarter hour, which is one sign-in and a step-up for each of the eight user-administration actions.
+- A failure budget, keyed `second-factor-fail:<userId:N>`, 20 wrong codes per 24 hours. The verifier reads the count before matching and increments it after a wrong code, the `FailedAuthenticationBudget` pattern (`src/Cluckwork.Infrastructure/RateLimiting/FailedAuthenticationBudget.cs:16-33`). Successes do not spend it.
 
 Why per day. Lockout alone allows 5 guesses per 15 minutes, which is 480 a day. Each guess matches one of 5 valid steps out of 10^6 codes, so a year of that is 175,200 guesses and about a 58% chance of breaking the factor (1 − e^(−175200 × 5/10^6)). Twenty a day is 7,300 a year and about 3.6%.
 
 A rejection maps to 429 with `Retry-After` from the counter's clock and logs `Auth.RateLimitRejected policy=auth-second-factor-user` with the existing field set and no user id. The key holds a server-verified GUID and no request text, so `DistributedRateLimiterWiringTests.No_attacker_supplied_dimension_in_key_or_log` keeps its meaning.
 
-Accepted ceiling, stated where the code goes: check-then-record lets concurrent wrong codes for one user overshoot the daily budget, by no fixed number, as `FailedAuthenticationBudget.cs:12-15` says of its own budget. Lockout still stops each burst at 5, and the per-address policy bounds the rate.
+Concurrency. Neither lockout nor the failure budget is atomic. Lockout is checked before matching and charged after, so concurrent guesses can all pass the check before the fifth failure lands. The failure budget is check-then-record, as `FailedAuthenticationBudget.cs:12-15` says of its own budget. The attempt limit is the atomic bound. A burst can therefore admit at most 20 guesses per 15 minutes, and once the failure budget reads spent, nothing more that day. The worst case is the budget plus one window of overshoot, 40 wrong codes a day, which is about 7% a year by the formula above. The 3.6% figure holds for guesses that arrive one at a time.
 
 #### 7. The code step comes before MustChangePassword
 
@@ -292,13 +298,13 @@ Rejected: an authentication-strength column on `refresh_tokens`. It would be a s
 
 #### 9. Ten recovery codes, each used once, generated and stored by Cluckwork
 
-Enrolment confirm generates 10 codes with `RandomNumberGenerator.GetString`, each 16 characters from Identity's 26-character alphabet (`UserManager.cs:2513-2515`), shown as `XXXX-XXXX-XXXX-XXXX`. Each code holds about 75 bits. The response shows them once. The store keeps a SHA-256 digest of `<userId:N>:<code>` for each, in one `AspNetUserTokens` row with `LoginProvider = "Cluckwork"` and `Name = "RecoveryCodeDigests"`, prefixed with a format version.
+A first enrolment's confirm generates 10 codes with `RandomNumberGenerator.GetString`, each 16 characters from Identity's 26-character alphabet (`UserManager.cs:2513-2515`), shown as `XXXX-XXXX-XXXX-XXXX`. Each code holds about 75 bits. The response shows them once. The store keeps a SHA-256 digest of `<userId:N>:<code>` for each, in one `AspNetUserTokens` row with `LoginProvider = "Cluckwork"` and `Name = "RecoveryCodeDigests"`, prefixed with a format version.
 
 A recovery code works wherever a TOTP code works, at the login code step and at step-up. A user who lost the device can therefore still step up to turn two-factor off or to regenerate codes. Redemption removes one digest with the compare-and-swap in the commit. A lost compare-and-swap means another redemption won the row. The verifier reads the row again and retries once. If it loses again, it answers 400 and charges nothing.
 
 When the codes run out, nothing changes automatically. TOTP still works, and no login response reveals the count. The account page shows how many remain (#1277). Regenerating replaces all ten and needs step-up. A user with no device and no codes is reset by an Owner (decision 17), or by `recover-admin` for an Owner (decision 16).
 
-Rejected: Identity's codes and recovery-code API. Its codes hold about 47 bits, so a fast digest of one falls to an offline search in hours, and a slow digest would cost a key derivation per stored code on every attempt. Its store also cannot be wrapped safely. `RedeemCodeAsync` passes the remaining stored values back through the virtual `ReplaceCodesAsync` (`UserStoreBase.cs:974-979`), so an override that digests in `ReplaceCodesAsync` digests the remainder twice. A failed redemption also leaves a modified tracked token, which a later lockout save in the same scope writes back, bringing a spent code back to life. The compare-and-swap avoids both. Rejected: uncharged recovery attempts, as `SignInManager` allows (`SignInManager.cs:832`).
+Rejected: Identity's codes and recovery-code API. Its codes hold about 47 bits. A fast digest of one is open to an offline search: 2^47 is about 1.4 × 10^14 guesses, and at an assumed 10^10 SHA-256 a second on one GPU that is about 4 hours. At 75 bits the same search takes about 3.8 × 10^12 seconds, over 100,000 years. A slow digest would instead cost a key derivation per stored code on every attempt. Its store also cannot be wrapped safely. `RedeemCodeAsync` passes the remaining stored values back through the virtual `ReplaceCodesAsync` (`UserStoreBase.cs:974-979`), so an override that digests in `ReplaceCodesAsync` digests the remainder twice. A failed redemption also leaves a modified tracked token, which a later lockout save in the same scope writes back, bringing a spent code back to life. The compare-and-swap avoids both. Rejected: uncharged recovery attempts, as `SignInManager` allows (`SignInManager.cs:832`).
 
 #### 10. The pending response is 401 with a distinct title
 
@@ -324,7 +330,7 @@ Why both factors. Step-up then is never weaker than the login it re-confirms. An
 
 The access token gains a `two_factor: "true"` claim only while the user is enrolled, as `must_change_password` appears only while set (`JwtTokenService.cs:52`). The SPA reads it to show the code field next to the password. An unenrolled user's token claims are unchanged.
 
-Enrolment (#1277) follows the same rule. Starting enrolment needs a grant, which is the password alone because the user is not enrolled yet. Confirming needs no second grant, because the code from the app is the proof, and the verifier sets the watermark. Regenerating recovery codes needs a grant with the password and a code. Starting is refused while the user is enrolled, so an abandoned start never replaces a working key. Changing the authenticator is turning it off, then enrolling again.
+Enrolment (#1277) follows the same rule. Starting enrolment needs a grant: the password alone for a user who is not enrolled, and the password and a code, or a recovery code, for a user who is replacing an authenticator. Confirming needs no second grant, because the code from the new key is the proof (`ConfirmEnrolmentAsync`, see "The shape"). Regenerating recovery codes needs a grant with the password and a code. Starting never touches the live key, so an abandoned start leaves the working authenticator in place. An Owner, who cannot turn two-factor off under #1281, replaces a lost or unreadable authenticator this way with a recovery code.
 
 Rejected: the code alone. It is less typing for an Owner doing many user edits, and it is open question 1. Rejected: a second grant type, which the maintainer ruled out.
 
@@ -342,7 +348,7 @@ A wrong or missing code answers 400 at step-up and at the login code step. On st
 
 Why encrypt. #794 already treats a database backup as a threat. Its rule says dropping either Production guard "lets anyone with a database backup forge every token the ring protects" (`docs/decisions/794-data-protection-key-ring.md:35-37`), and it names TOTP as a consumer the ring exists for (`:19`). A plaintext key in a backup is a working second factor for every enrolled user.
 
-The cost, accepted and named. Any certificate change makes every protected payload unreadable (`794-data-protection-key-ring.md:63-76`), and so does deleting the ring after a compromise. Every authenticator would then stop working at once. The recovery codes are digests that need no key, so every user can still sign in with a recovery code and enrol again. An Owner with no codes uses `recover-admin`. The 794 runbook gains that line in #1276. Overlap support for the previous certificate (`UnprotectKeysWithAnyCertificate`, `794-data-protection-key-ring.md:116-117`) would remove the cost, and open question 2 asks whether it must ship before #1281.
+The cost, accepted and named. Any certificate change makes every protected payload unreadable (`794-data-protection-key-ring.md:63-76`), and so does deleting the ring after a compromise. Every authenticator would then stop working at once. The recovery codes are digests that need no key, so every user can still sign in with a recovery code, step up with the password and a recovery code, and enrol a new authenticator through the replacement flow in decision 11. An Owner with no codes uses `recover-admin`, or another Owner's reset (decision 17). The 794 runbook gains that line in #1276. Overlap support for the previous certificate (`UnprotectKeysWithAnyCertificate`, `794-data-protection-key-ring.md:116-117`) would remove the cost, and open question 2 asks whether it must ship before #1281.
 
 **One-shot verbs.** They run an ephemeral ring (`src/Cluckwork.Api/Hosting/Modules/CluckworkPlatformServiceCollectionExtensions.cs:56-59`), so they never create or read a protected key. `recover-admin` deletes the rows without reading `Value` (decision 16).
 
@@ -356,7 +362,7 @@ The matched step needs a small hand-written TOTP matcher, because `Authenticator
 
 Rejected: claiming `(user, step)` in `IClaimOnceStore`. With Redis configured but down, the claim fails closed and every enrolled user is locked out of sign-in. Without Redis, the in-process store forgets its claims on restart (`src/Cluckwork.Infrastructure/SharedState/InProcessClaimOnceStore.cs`), so a code used just before a restart works again after it. Rejected: no replay check. The probe shows one code verifies again and again for up to 150 s.
 
-Known ceiling: two sign-ins that share one key inside one 30-second step collide. k6 Owner VUs must sign in one at a time or as distinct users (#1281).
+Known ceiling: two sign-ins that share one key inside one 30-second step collide. Signing in one at a time is not enough, because two sequential sign-ins can fall in the same step. A harness must wait for a fresh step after each accepted code, or use distinct users (#1281).
 
 #### 15. `AspNetUserTokens` gets the `AspNetUserRoles` tenant treatment before any write
 
@@ -373,13 +379,13 @@ Inside the existing transaction (`AdminRecoveryService.cs:132-157`, `IdentityPro
 - sets `MustChangePassword = true` (open question 3);
 - writes `twoFactorCleared: true` or `false` into the `User.BreakGlassReset` details (`AuditActions.cs:45`).
 
-The epoch bump, the stamp rotation and the revocation already happen (`IdentityProvider.Passwords.cs:98,122-123,133`). The watermark stays, because it only ever rises and the next key starts above it.
+The epoch bump, the stamp rotation and the revocation already happen (`IdentityProvider.Passwords.cs:98,122-123,133`). The watermark stays, because it only ever rises. A new key's codes count the same clock steps, so after recovery the first code of a new key can be refused as `Replayed` for up to about 90 seconds, and the enrolment screen says "Wait for the next code."
 
-Today the shared reset clears `MustChangePassword` (`IdentityProvider.Passwords.cs:116-122`), so the operator-printed temporary password is never forced to change. This design changes that for `recover-admin` only. The Owner's reset of another user's password keeps clearing it. The chain after recovery is then the temporary password, the forced change, and enrolment again for an Owner (decision 18). `RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers` proves the DML-only role can delete from `AspNetUserTokens`.
+Today the shared reset clears `MustChangePassword` (`IdentityProvider.Passwords.cs:116-122`), so the operator-printed temporary password is never forced to change. This design changes that for `recover-admin` only. The Owner's reset of another user's password keeps clearing it. The chain after recovery is then the temporary password, the forced change, and enrolment again for an Owner (decision 18). Whether the DML-only role may delete from `AspNetUserTokens` is not proven yet. G5.3 extends `RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers` with an enrolled user to prove it.
 
 #### 17. An Owner resets another user's two-factor as its own step-up action
 
-`DELETE /api/v1/users/{id}/two-factor` is Owner-only and needs a step-up grant. It follows the role, email and disable pattern: the account lock, then `RequireActiveOwnerAsync` inside the transaction (`IdentityProvider.cs:202-219`, `IdentityProvider.DisableEnable.cs:49-58`). It deletes the target's key and recovery digests, calls `SetTwoFactorEnabledAsync(false)`, which rotates the stamp, bumps `CredentialEpoch`, revokes the target's sessions with `RevokeAllActiveForUserAsync`, and writes `User.TwoFactorReset`. The target's pending challenges die with the stamp and the epoch. Their step-up grants die with the stamp (`StepUpGrantService.cs:369-372`). An Owner may reset another Owner. An Owner cannot reset their own two-factor this way; they turn it off for themselves, which #1281 forbids for Owners.
+`DELETE /api/v1/users/{id}/two-factor` is Owner-only and needs a step-up grant. It follows the role, email and disable pattern: the account lock, then `RequireActiveOwnerAsync` inside the transaction (`IdentityProvider.cs:202-219`, `IdentityProvider.DisableEnable.cs:49-58`). It deletes the target's key and recovery digests, calls `SetTwoFactorEnabledAsync(false)`, which rotates the stamp, bumps `CredentialEpoch`, revokes the target's sessions with `RevokeAllActiveForUserAsync`, and writes `User.TwoFactorReset`. The target's pending challenges die with the stamp and the epoch. Their step-up grants die with the stamp (`StepUpGrantService.cs:369-372`). An Owner may reset another Owner. An Owner cannot reset their own two-factor this way. They replace their authenticator through the replacement flow in decision 11, with a code or a recovery code, because #1281 forbids an Owner to turn two-factor off.
 
 An Owner's reset of a user's password does not clear that user's two-factor. Recovering a lost phone is a separate action, so the password reset gains no new power. `SetUserPasswordAsync` takes no account lock and makes no `RequireActiveOwnerAsync` re-check today (`IdentityProvider.Passwords.cs:11-24`). The new action does not copy that.
 
@@ -429,7 +435,7 @@ Two new identity-free events in `SecurityEvents` (`src/Cluckwork.Application/Com
 
 The enrolment screen draws the `otpauth://` URI with `uqr` (MIT, no dependencies, 11,651 bytes minified, the QR probe), as a React `<svg>` path built from its module matrix. The key is also shown as text for manual entry, and on a phone the URI is a link that opens the authenticator app. The page loads lazily with the enrolment route. Every emitted JavaScript chunk is precached (`web/scripts/verify-sw.mjs:294-299`), so the bytes still count against the fixed 1,600 KiB ceiling (`web/scripts/verify-sw.mjs:452-458`). #1277 reports the measured precache size before and after.
 
-Why `uqr`. It is the smallest of the three measured, and a round trip through `jsqr` decoded the URI. Rejected: drawing on the server. The CSP is `img-src 'self' blob:` (`src/Cluckwork.Api/Security/SecurityHeaders.cs:63`), so a `data:` image needs a CSP change, an SVG string needs `innerHTML`, and the server gains a NuGet package. Rejected: `qrcode`, the largest, with three dependencies. `qrcode-generator` is the fallback if `uqr` fails #146's audit gate. The package goes through #146's `npm audit --omit=dev` gate.
+Why `uqr`. It is the smallest of the three measured, and a round trip through `jsqr` decoded the URI. Rejected: drawing on the server. It needs a NuGet package, and either an image endpoint that returns the secret and must be kept out of every cache, or a `data:` URI, which the CSP `img-src 'self' blob:` forbids (`src/Cluckwork.Api/Security/SecurityHeaders.cs:63`). Rejected: `qrcode`, the largest, with three dependencies. `qrcode-generator` is the fallback if `uqr` fails #146's audit gate. The package goes through #146's `npm audit --omit=dev` gate.
 
 #### 22. Which login callers change, and how
 
@@ -442,7 +448,7 @@ Cast and test users stay unenrolled until #1281, so every caller keeps working t
 | `tools/simulation/ui/src/api.ts:35-58` (`signInForToken`) | reads `accessToken` from a 200 | throws a clear error on a pending 401; completes the step for a member with a key | #1278 (error), #1281 (step) |
 | `tools/simulation/ui/src/mutants.ts:389-408` | forges the role on the login and refresh responses | forges on the code step's response too; fails loudly on a login response without `accessToken` | #1278 |
 | `tools/simulation/ui/specs/session-refresh.spec.ts:54-71`, `session-races.spec.ts:302-319` | observe `/auth/login` | also observe `/auth/login/second-factor` | #1278 |
-| `tools/simulation/k6/auth.js:84-115` | checks status 200, `accessToken`, `accessTokenExpiry`, the cookie | computes the code with `k6/crypto` HMAC-SHA1 for a member with a key; Owner VUs sign in one at a time | #1281 |
+| `tools/simulation/k6/auth.js:84-115` | checks status 200, `accessToken`, `accessTokenExpiry`, the cookie | computes the code with `k6/crypto` HMAC-SHA1 for a member with a key; Owner VUs wait for a fresh step after each accepted code, or sign in as distinct users | #1281 |
 | `tools/simulation/reset.sh:95-194` (`rotate_owner_password`, `verify_owner_farm`) | signs in with the temporary password, changes it | after the change, steps up, enrols through the API, stores the key in `.sim-cast.json`, and computes codes in its Python helper | #1281 |
 | `tools/verify/mcp/client.ts:85-136`, `tools/verify/features/mcp.md:85-93` | sign in as an Owner | fill the code step; the runbook shows computing a code | #1281 |
 | `TestHarness.LoginAsync`, `LoginForAccessTokenAsync`, `TryLoginAsync` (`tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestHarness.cs:415-428,594-600`) | `EnsureSuccessStatusCode`, then read the tokens | asserts a non-empty `accessToken`; a new `LoginWithSecondFactorAsync` for enrolled test users; about 440 existing call sites unchanged | #1278 |
@@ -455,11 +461,11 @@ The simulation Owner gets a known key by enrolling through the API, not by an ex
 
 ## How this design was chosen
 
-Four design candidates, from Opus, Fable, Sonnet and Codex GPT-6-Astra, answered decisions 1 to 14 from the same grounding. A Codex cross-judge scored them with their authorship hidden. It ranked the Codex candidate first: a `pending_logins` table, user-row `FOR UPDATE` locks, and an encrypted envelope holding the key and the watermark. The base here is the Opus candidate instead, a signed challenge and one watermark column, because it needs no new table or purge and keeps sign-in independent of Redis. The judge's defect findings against it were checked against the source and fixed: no reload after the commit, an identity-free failure event, a budget stated as soft, and no charge for a locked account.
+Four design candidates, from Opus, Fable, Sonnet and Codex GPT-6-Astra, answered decisions 1 to 14 from the same grounding. A Codex cross-judge scored them with their authorship hidden. It ranked the Codex candidate first: a `pending_logins` table, user-row `FOR UPDATE` locks, and an encrypted envelope holding the key and the watermark. The base here is the Opus candidate instead, a signed challenge and one watermark column, because it needs no new table or purge and keeps sign-in independent of Redis. The judge's defect findings against it were checked against the source and fixed: no reload after the commit, an identity-free failure event, an atomic per-user attempt limit beside the soft daily budget, and no charge for a locked account. A later review of this record found that enrolment confirm did not fit the verifier and that an Owner had no self-service way to replace an authenticator. Both led to the pending-key flow in "The shape".
 
 Taken from the other candidates:
 
-- recovery codes long enough for a fast digest, the failed access committed before the 400, the SPA race contract, and the epoch bump on every factor change (Codex);
+- Cluckwork-generated recovery codes long enough for a fast digest (that candidate chose 128 bits; this record uses about 75), the failed access committed before the 400, the SPA race contract, and the epoch bump on every factor change (Codex);
 - the key-only store override and the unreadable-key path (Fable);
 - the outcome categories that decide what is charged (Sonnet).
 
@@ -480,7 +486,7 @@ All four agreed on these points:
 - "Remember this device". Not designed. Every enrolled sign-in asks for a code.
 - An account-row lock at the code step. #579's accepted window stays as it is (decision 4).
 - The replay guarantee inside one 30-second step for two users who share one key. Users do not share keys; the harness must not (decision 14).
-- Concurrency of the daily failure budget (decision 6). It is a soft bound.
+- An atomic daily failure budget (decision 6). The attempt limit is the atomic bound; the daily budget can overshoot by one window.
 
 ## Existing tests the design touches
 
@@ -520,7 +526,7 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 
 ### #1277: enrolment
 
-- **G2.1** Enrolment that starts but is never confirmed leaves `TwoFactorEnabled` false, login stays one step, and the next start issues a new key. Mutation: set the flag at start.
+- **G2.1** Enrolment that starts but is never confirmed leaves `TwoFactorEnabled` false, login stays one step, and the next start issues a new key. For an enrolled user, a started replacement leaves the live key working until confirm. Mutations: set the flag at start; write the new key to the live row at start.
 - **G2.2** Two concurrent confirms with the same code leave one enrolment, one digest set and one audit row. Mutation: drop the watermark predicate.
 - **G2.3** Recovery codes appear only in the confirm and regenerate responses. Every later read returns a count and no code, and the stored row holds no plaintext code. Mutation: store the codes raw.
 - **G2.4** Confirm bumps `CredentialEpoch`: a refresh cookie minted before enrolment is refused after it, and the acting session gets a fresh pair. Mutation: skip the bump (decision 8).
@@ -529,13 +535,14 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 ### #1278: login
 
 - **G3.1** An enrolled user's correct password writes no `refresh_tokens` row and no `Set-Cookie`, and the body has no `accessToken`. Mutation: let the branch fall through to minting.
-- **G3.2** The challenge is refused as a bearer on every `RequireAuthorization` route, as a refresh cookie, and as `X-Cluckwork-Step-Up`. Mutations: set its audience to `Jwt:Audience`; rename `sf_epoch` to `credential_epoch`.
+- **G3.2** The challenge is refused as a bearer on every `RequireAuthorization` route, as a refresh cookie, and as `X-Cluckwork-Step-Up`. Mutation: issue it with `aud = Jwt:Audience` and a `credential_epoch` claim together. Each barrier also gets its own test. A token with the challenge audience and a `credential_epoch` claim is refused by the bearer handler; mutation: accept that audience in `ValidAudiences`. A token with `aud = Jwt:Audience` and only `sf_epoch` is refused by `CredentialEpochMiddleware`; mutation: rename `sf_epoch` to `credential_epoch`.
 - **G3.3** One challenge completed concurrently through two app instances on one database gives exactly one 200 (the `MultiInstanceIdempotencyTests` pattern). Mutation: drop the watermark predicate.
-- **G3.4** A theory over every event that moves a bound value, run between the two steps: password change, Owner password reset, disable, disable then enable, suspension, two-factor off, key reset. Each answers 401 with no session and no charge. The rows come from one list with a floor of 7. Mutation: drop the stamp from the `WHERE`; the enable row turns red.
+- **G3.4** A theory over every event that moves a bound value, run between the two steps: password change, Owner password reset, disable, disable then enable, suspension, two-factor off, authenticator replacement. Each answers 401 with no session and no charge. The rows come from one list with a floor of 7. Mutation: drop the epoch from the verifier's in-memory check and from the `WHERE`; the password-change row turns red. Every event in the list moves the epoch, so the stamp gets its own row: rotate only the stamp with `UpdateSecurityStampAsync` between the steps. Mutation: drop the stamp comparison.
+- **G3.4b** The same events applied at a test barrier placed between the verifier's in-memory check and its database update. Each answers 401 and mints nothing. Mutation: drop that column from the `WHERE` only; the in-memory check has already passed, so only the `WHERE` can refuse.
 - **G3.5** Two wrong passwords and three wrong codes lock the account. Four wrong codes, a fresh correct password, then one wrong code also lock it. While locked, the right code gets 400 and `AccessFailedCount` does not move. Mutation: put `ResetFailedAccessCountAsync` back on the password step.
 - **G3.6** A password reset that commits after the verifier's update and before minting leaves the minted tokens refused on the next request. Mutation: reload the user after the commit.
 - **G3.7** An unenrolled user's 200 body has exactly `accessToken` and `accessTokenExpiry`, and the access token's claim set equals today's. Mutation: add `two_factor` unconditionally.
-- **G3.8** Twenty wrong codes from twenty addresses make the 21st a 429 with `Retry-After`. `Auth.RateLimitRejected` carries no user id. A success does not spend the budget. Mutations: increment on success; log the user id.
+- **G3.8** Twenty wrong codes from twenty addresses make the 21st a 429 with `Retry-After`. Thirty concurrent codes for one user admit at most 20 to matching. Mutation: read the attempt counter instead of incrementing it. `Auth.RateLimitRejected` carries no user id. A success does not spend the budget. Mutations: increment on success; log the user id.
 - **G3.9** At challenge age 5 minutes plus one second (`FakeTimeProvider`), the code step answers 401 and charges nothing. Mutation: validate the lifetime with the wall clock.
 - **G3.10** Every endpoint with `IgnoresAmbientPrincipalAttribute` is on `IdempotencyMiddleware`'s skip list and has a rate policy, with a floor of 3 (login, the code step, refresh). Mutation: remove the new path from the skip list.
 - **G3.11** A recovery code works once at the code step, writes `User.RecoveryCodeUsed`, and the remaining count drops by one. Two different codes redeemed at the same moment both succeed, or the loser is refused uncharged and still works afterwards. Mutation: redeem through a tracked edit instead of the compare-and-swap.
@@ -544,7 +551,7 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 ### #1279: step-up
 
 - **G4.1** `Totp.Compute` matches the RFC 6238 Appendix B SHA-1 vectors (last 6 digits). For 200 random keys and times, `AuthenticatorTokenProvider.ValidateAsync` accepts every code the matcher accepts at offsets −2..+2, and the matcher refuses ±3. Mutations: an off-by-one in dynamic truncation; a window of ±3.
-- **G4.2** The same code is accepted once and refused the second time, across login and step-up. A code from an older step is refused after a newer one. With `IClaimOnceStore` failing, an enrolled login still succeeds. Mutation: change `>` to `>=` in `MatchStep`.
+- **G4.2** The same code is accepted once and refused the second time, across login and step-up, and the refusal leaves `AccessFailedCount` and the failure budget unchanged. A code from an older step is refused after a newer one. With `IClaimOnceStore` failing, an enrolled login still succeeds. Mutations: change `>` to `>=` in `MatchStep`; charge `Replayed` as `Wrong`.
 - **G4.3** A stale full-entity `UpdateAsync` that read the user before a commit cannot lower `SecondFactorWatermark` (the shape of `StepUpGrantRegistryTests.RecordLogout_FencesAStaleFullEntityWrite_SoTheEpochCannotBeReverted`). Mutation: drop the `ConcurrencyStamp` rotation.
 - **G4.4** An enrolled user with the password alone gets 400 `Auth.SecondFactorRequired`, no grant, and `AccessFailedCount` unchanged. A wrong code records exactly one failed access per attempt (extends `StepUp_LockoutTripsOnTheFifthUserAttempt_NotTheThird`). A wrong code from the SPA issues one request and no refresh (sibling of `client.test.ts:1260`). Mutation: return 401.
 - **G4.5** A grant minted with a code passes the existing `ValidateAsync` tests unchanged: replay, stamp, logout and account.
