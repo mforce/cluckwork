@@ -195,7 +195,7 @@ public interface ITwoFactorCredentials
 	Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct);               // never reads a protected value
 }
 
-public enum ClearOutcome { NotFound, NotEnrolled, Cleared }
+public enum ClearOutcome { NotFound, NotEnrolled, PendingDeleted, Cleared }
 
 public readonly record struct TwoFactorStatus(bool Enabled, int RecoveryCodesLeft);
 
@@ -267,7 +267,7 @@ After `Accepted`, the login code step resolves the tenant and the actor, writes 
 
 The same flow replaces the authenticator of an enrolled user, and the old key works until confirm swaps it. If confirm's acknowledgement is lost, the user is enrolled without having seen the codes, and regenerating them is the way out.
 
-`ClearAsync` deletes every `Cluckwork` token row for the user, sets `TwoFactorEnabled = false`, the count to zero and its start to null, and bumps `CredentialEpoch` and rotates the stamp as confirm does, without reading a protected value, and returns `Cleared`. For an unenrolled user it deletes the same rows, which ends a started enrolment, bumps nothing and returns `NotEnrolled`, because ending sessions for nothing has a cost. On `Cleared` its callers revoke sessions and write their audit rows, turn-off answers 200 with the acting session's fresh pair, and the Owner reset answers 204. On `NotEnrolled` both routes answer 204, revoke nothing and write no audit row.
+`ClearAsync` deletes every `Cluckwork` token row for the user, sets `TwoFactorEnabled = false`, the count to zero and its start to null, and bumps `CredentialEpoch` and rotates the stamp as confirm does, without reading a protected value, and returns `Cleared`. For an unenrolled user it deletes the same rows and bumps nothing, because ending sessions for nothing has a cost, and returns `PendingDeleted` if that ended a started enrolment, `NotEnrolled` otherwise. On `Cleared` its callers revoke sessions and write their audit rows, turn-off answers 200 with the acting session's fresh pair, and the Owner reset answers 204. On the other two both routes answer 204 and revoke nothing, and the Owner reset writes `User.TwoFactorReset` with `pending: true` for `PendingDeleted`, because an ended enrolment can be a takeover in progress.
 
 `GetStatusAsync` returns whether the user is enrolled and how many recovery codes are left, for the status endpoint. Login and step-up decide whether a user is enrolled from `TwoFactorEnabled` on the user row they have already loaded.
 
@@ -325,6 +325,8 @@ Recovery codes are outside the budget, because at about 75 bits they cannot be g
 
 Accepted risk. A password holder can spend a user's budget and keep their authenticator refused for up to 24 hours. A recovery code, an Owner's reset (decision 17) and `recover-admin` (decision 16) each clear the count, and `Auth.SecondFactorBudgetSpent` alerts on it.
 
+Decided by the maintainer on 2026-10-20: the limits stay as written, 20 wrong authenticator codes a day and 10 code-step requests per 15 minutes per address. Twenty a day keeps a password holder's chance of guessing the factor in a year near 3.6%, and a lower number would throttle a user who mistypes sooner. The address policy is configuration; the budget is a constant.
+
 #### 7. The code step comes before MustChangePassword
 
 No token of any kind exists until both factors pass, so the #283 gate has nothing to act on before the code step. After it, `JwtTokenService` sets `must_change_password` from the row (`JwtTokenService.cs:52`) and `MustChangePasswordMiddleware` works unchanged. Its allowed paths stay change-password and logout (`MustChangePasswordMiddleware.cs:39-42`). Running the forced change first would need a password-only session, which is the credential this design refuses to create.
@@ -373,7 +375,7 @@ Accepted cost. Each privileged action spends one grant, and each grant needs a c
 
 Enrolment (#1277) follows the same rule. Starting a first enrolment needs a grant with the password alone, because the user is not enrolled yet. Confirming needs no second grant, because the code from the new key is the proof. Replacing an authenticator and regenerating recovery codes need a grant with the password and either an authenticator code or a recovery code. An Owner, who cannot turn two-factor off under #1281, replaces a lost or unreadable authenticator that way, with a recovery code.
 
-Rejected: the code alone (open question 1), and a second grant type, which the maintainer ruled out.
+Decided by the maintainer on 2026-10-20: an enrolled user steps up with the password and a code, for the reason in "Why both factors"; the code alone would save only the password typing. Rejected: a second grant type, which the maintainer ruled out.
 
 #### 12. A wrong code returns 400, never 401
 
@@ -387,7 +389,7 @@ On step-up a 401 would make `apiFetch` refresh and replay the request, so one ty
 
 Why encrypt. #794 treats a database backup as a threat (`794-data-protection-key-ring.md:35-37`) and names TOTP as a consumer the ring exists for (`:19`). A plaintext key in a backup is a working second factor for every enrolled user.
 
-The cost, named. A certificate change or a ring deletion makes every protected payload unreadable (`794-data-protection-key-ring.md:63-76`). Recovery codes need no key, so every user can still sign in, step up and replace the authenticator (decision 11); #1276 adds the Owner with no codes to the 794 runbook, and previous-certificate support (`:116-117`) is open question 2.
+The cost, named. A certificate change or a ring deletion makes every protected payload unreadable (`794-data-protection-key-ring.md:63-76`). Recovery codes need no key, so every user can still sign in, step up and replace the authenticator (decision 11); #1276 adds the Owner with no codes to the 794 runbook, and previous-certificate support (`UnprotectKeysWithAnyCertificate`, `:116-117`) would remove the cost. Decided by the maintainer on 2026-10-20: that support does not need to ship before #1281, because recovery codes keep every user able to sign in after a certificate change.
 
 One-shot verbs run an ephemeral ring (`CluckworkPlatformServiceCollectionExtensions.cs:56-59`), so they never create or read a protected key; `recover-admin` calls `ClearAsync` (decision 16).
 
@@ -397,7 +399,7 @@ Rejected: `ProtectPersonalData`. It would also encrypt `UserName`, `Email` and `
 
 `TotpMatcher.MatchStep` accepts only a step strictly above `SecondFactorWatermark`, and the commit raises the watermark to the matched step. This meets RFC 6238 §5.2 and also refuses an older step after a newer one, across replicas and restarts, without Redis. The rule applies at login and step-up, and confirm raises the watermark too, so a code used to confirm is refused at both. Only TOTP codes move the watermark. A matched step can be up to two steps ahead of the clock, so after a code from the edge of the window the next code can be refused as a reuse for up to about 90 seconds.
 
-The matched step needs a small hand-written matcher, because `AuthenticatorTokenProvider.ValidateAsync` returns only a bool (`AuthenticatorTokenProvider.cs:48-82`) and `Rfc6238AuthenticationService` is internal. It is the same algorithm (HMAC-SHA1, 6 digits, 30 s, −2..+2), compares all five candidates without an early exit, and takes exactly six ASCII digits. G3.17 pins it.
+The matched step needs a small hand-written matcher, because `AuthenticatorTokenProvider.ValidateAsync` returns only a bool (`AuthenticatorTokenProvider.cs:48-82`) and `Rfc6238AuthenticationService` is internal. It is the same algorithm (HMAC-SHA1, 6 digits, 30 s, −2..+2), compares all five candidates without an early exit, takes exactly six ASCII digits, and reads the host's `TimeProvider`. G3.17 pins it.
 
 Rejected: claiming `(user, step)` in `IClaimOnceStore`, which locks every enrolled user out while Redis is down and, without Redis, forgets its claims on restart (`InProcessClaimOnceStore.cs`). Rejected: no replay check; the probe shows one code verifying again for up to 150 s.
 
@@ -411,9 +413,9 @@ Known ceiling: two sign-ins that share one key inside one 30-second step collide
 
 #### 16. `recover-admin` clears two-factor in its own transaction and forces a password change
 
-Inside the existing transaction (`AdminRecoveryService.cs:132-157`, `IdentityProvider.Passwords.cs:41-67`), `recover-admin` first calls `ClearAsync`, before anything is modified. It passes `twoFactorCleared` (the outcome is `Cleared`) and `mustChangePassword: true` (open question 3) to `BreakGlassResetAsync`, so the shared reset's one save and its one `User.BreakGlassReset` row carry `twoFactorCleared` and the flag (`AuditActions.cs:45`). The shared reset bumps the epoch again, which is harmless (`IdentityProvider.Passwords.cs:98,122-123,133`).
+Inside the existing transaction (`AdminRecoveryService.cs:132-157`, `IdentityProvider.Passwords.cs:41-67`), `recover-admin` first calls `ClearAsync`, before anything is modified. It passes `twoFactorCleared` (the outcome is `Cleared`) and `mustChangePassword: true` to `BreakGlassResetAsync`, so the shared reset's one save and its one `User.BreakGlassReset` row carry `twoFactorCleared` and the flag (`AuditActions.cs:45`). The shared reset bumps the epoch again, which is harmless (`IdentityProvider.Passwords.cs:98,122-123,133`).
 
-Today the shared reset clears `MustChangePassword` (`IdentityProvider.Passwords.cs:116-122`); this design sets it for `recover-admin` only (open question 3). The chain after recovery is then the temporary password, the forced change, and enrolment again for an Owner (decision 18). Whether the DML-only role may delete from `AspNetUserTokens` is not proven yet. G5.3 extends `RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers` with an enrolled user to prove it.
+Today the shared reset clears `MustChangePassword` (`IdentityProvider.Passwords.cs:116-122`), so the printed temporary password is never forced to change. Decided by the maintainer on 2026-10-20: `recover-admin` sets `MustChangePassword = true`, so the Owner uses the printed password once and must pick a new one before enrolling again. The Owner's reset of another user's password keeps clearing the flag. The chain after recovery is then the temporary password, the forced change, and enrolment again for an Owner (decision 18). Whether the DML-only role may delete from `AspNetUserTokens` is not proven yet. G5.3 extends `RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers` with an enrolled user to prove it.
 
 #### 17. An Owner resets another user's two-factor as its own step-up action
 
@@ -444,7 +446,7 @@ New `AuditActions` entries, with entity type `User`:
 | `User.TwoFactorEnabled` | enrolment and replacement confirm (#1277) | `replaced: true` or `false` |
 | `User.RecoveryCodesRegenerated` | regenerate (#1277) | none; never a code |
 | `User.TwoFactorDisabled` | the user turns it off (#1280) | none |
-| `User.TwoFactorReset` | an Owner resets another user (#1280) | none; the actor and the target are the row's actor and entity |
+| `User.TwoFactorReset` | an Owner resets another user (#1280) | `pending: true` when only a started enrolment was ended; the actor and the target are the row's actor and entity |
 | `User.RecoveryCodeUsed` | an accepted recovery code at login (#1278) or step-up (#1279) | `remaining` |
 | `User.BreakGlassReset` (existing) | `recover-admin` (#1280) | gains `twoFactorCleared` |
 
@@ -491,11 +493,17 @@ Tests and the harness enrol through `ConfirmEnrolmentAsync`, the one writer. No 
 | `web/src/api/session.ts:63-180`, `web/src/auth/AuthContext.tsx:113-149`, `web/src/routes/Login.tsx:202-230` | `login()` returns `{kind:"signedIn"} \| {kind:"secondFactor", challenge, expiresAt}`. `completeSecondFactor()` reuses `performLogin`'s lock, deadline, generation check and stale-cookie revoke. `AuthContext` binds the farm and navigates only on `signedIn`. `Login.tsx` keeps `location.state.from` for `/connect` (`returnPath.ts:5-10`) and has its own `Auth.SecondFactorThrottled` message (`Login.tsx:65`). `parseError` keeps the problem extensions, which `ApiError` drops today (`web/src/api/errors.ts:4-13`), and `login()` takes the challenge off the `ApiError` at once, so no generic catch prints it. | #1278 |
 | `tools/simulation/ui/src/api.ts:35-58` (`signInForToken`) | a clear error on a pending 401 (#1278); completes the step for a member with a key (#1281) | #1278, #1281 |
 | `TestHarness.LoginAsync`, `LoginForAccessTokenAsync`, `TryLoginAsync` (`TestHarness.cs:415-428,594-600`) | asserts a non-empty `accessToken`; adds `LoginWithSecondFactorAsync` and a helper that returns the refusal's title (decision 10); about 440 call sites unchanged | #1278 |
-| `TestHarness.SeedAccountWithUserAsync` (an Owner by default, about 480 call sites) | enrols a seeded Owner through `ConfirmEnrolmentAsync` and keeps its key; `LoginAsync` completes the code step with the next unused step, waiting for one when none is left (decision 14); `enrolled: false` keeps an Owner unenrolled for gate tests | #1281 |
 | `tools/simulation/ui/src/fixtures.ts:135-150`, `mutants.ts:389-408`, `specs/session-refresh.spec.ts:54-71`, `specs/session-races.spec.ts:302-319` | fill the code step for a cast member with a key; forge and observe the code step's response | #1281 |
 | `tools/simulation/k6/auth.js:84-115` | computes the code with `k6/crypto` HMAC-SHA1; Owner VUs wait for a fresh step after each accepted code, or sign in as distinct users | #1281 |
 | `tools/simulation/reset.sh:95-194` | after the password change, steps up, enrols through the API, stores the key in `.sim-cast.json`, and computes codes in its Python helper | #1281 |
 | `tools/verify/mcp/client.ts:85-136`, `tools/verify/features/mcp.md:85-93` | fill the code step; the runbook shows computing a code | #1281 |
+
+**Test factors, owned by #1281.** #1281 enrols a seeded Owner by default, because `SeedAccountWithUserAsync` seeds an Owner at about 480 call sites and the gate refuses an unenrolled one. These rules hold for every test:
+
+- Password-only contracts keep a password-only user: an `enrolled: false` Owner where the contract stays on routes the gate allows (`AuthSessionContractTests`, the password-only step-up contracts), and a non-Owner where it reaches a gated route, as `OAuthServerTests` does with consent and `/mcp`. A case that needs an Owner-only route or an Owner's scopes moves to the enrolled path.
+- `TotpMatcher` reads the host's `TimeProvider`, and the harness computes codes from that same instance, so hosts that replace it (`StepUpAuthTests.cs:361-363`, `CredentialEpochFreshReadTests.cs:39`) still work. Enrolled fixtures use the recovery codes confirm returned, or a controlled `TimeProvider` advanced one step per code. Ordinary fixture setup never waits on the wall clock. A recovery code writes `User.RecoveryCodeUsed`, so an audit-count test uses the controlled clock.
+- The ten private `StepUpAsync` helpers, `TryLoginAsync` and the raw-login tests migrate through one `TestHarness` helper that completes the second factor.
+- `CluckworkWebApplicationFactory` raises `RateLimiting:SecondFactor:PermitLimit` as it raises `Login` (`CluckworkWebApplicationFactory.cs:82-89`). G3.10 keeps the production limit in its own factory.
 
 #### 23. Login keeps its hand-written shape instead of `SignInManager`
 
@@ -511,15 +519,15 @@ Tests and the harness enrol through `ConfirmEnrolmentAsync`, the one writer. No 
 
 ## Existing tests the design touches
 
-Found by `grep` over `tests/`, `web/src/**/*.test.ts(x)`, `tools/simulation/ui/` and `tools/simulation/k6/`. `IT/` is `tests/Cluckwork.Api.IntegrationTests/`, `AT/` is `tests/Cluckwork.Application.Tests/`. "Kept" means the test passes unmodified, because seeded and cast users stay unenrolled.
+Found by `grep` over `tests/`, `web/src/**/*.test.ts(x)`, `tools/simulation/ui/` and `tools/simulation/k6/`. `IT/` is `tests/Cluckwork.Api.IntegrationTests/`, `AT/` is `tests/Cluckwork.Application.Tests/`. "Kept" means the test's assertions do not change. Seeded and cast users stay unenrolled until #1281, which moves fixtures to the test-factor policy in decision 22.
 
 | Group | Tests (path) | Kept or changed |
 |---|---|---|
-| Login | `IT/AuthSessionContractTests.cs`, `IT/AuthCookieContractTests.cs`, `IT/AuthBodyLimitTests.cs`, `IT/LoginRequestValidatorTests.cs`, `IT/AmbientPrincipalOnLoginTests.cs`, `IT/FirstRunLoginNoticeTests.cs`, `IT/AccountSuspensionTests.SuspendedFarm_RejectsLogin_WithFarmSuspended`, `IT/RetryBoundaryTests.LostAcknowledgmentOnLoginsTokenInsert_IssuesTheSessionItAlreadyMinted`, `web/src/routes/Login.test.tsx`, `web/src/auth/AuthContext.lifecycle.test.tsx`, login cases in `web/src/api/client.test.ts` | Kept. #1278 extends the not-cacheable pin (G3.10) and the SPA tests. |
+| Login | `IT/AuthSessionContractTests.cs`, `IT/AuthCookieContractTests.cs`, `IT/AuthBodyLimitTests.cs`, `IT/LoginRequestValidatorTests.cs`, `IT/AmbientPrincipalOnLoginTests.cs`, `IT/FirstRunLoginNoticeTests.cs`, `IT/AccountSuspensionTests.SuspendedFarm_RejectsLogin_WithFarmSuspended`, `IT/RetryBoundaryTests.LostAcknowledgmentOnLoginsTokenInsert_IssuesTheSessionItAlreadyMinted`, `web/src/routes/Login.test.tsx`, `web/src/auth/AuthContext.lifecycle.test.tsx`, login cases in `web/src/api/client.test.ts` | Kept. #1278 extends the not-cacheable pin (G3.10) and the SPA tests. #1281 keeps `AuthSessionContractTests` on an `enrolled: false` Owner. |
 | Direct `IIdentityProvider.LoginAsync` calls | `IT/AdminRecoveryServiceTests.cs`, `IT/CredentialEpochTests.cs`, `IT/RecoverAdminCommandTests.cs`, `IT/MustChangePasswordGateTests.cs`, `IT/StepUpAuthTests.cs`, and the decorators in the last two | Changed in #1278: unwrap `LoginStep.SignedIn`; decorators gain `CompleteSecondFactorLoginAsync`. Assertions unchanged. |
 | Refresh | `IT/RefreshTokenFlowTests.cs`, `IT/RefreshAccountBindingTests.cs`, `IT/RefreshGraceClockRaceTests.cs`, `IT/LogoutRefreshLineageRaceTests.cs`, `IT/RefreshTokenPurgeSweepTests.cs`, `IT/RefreshTokenPurgeBatchTests.cs`, `IT/AccountSuspensionTests.ARefreshTokenWhoseEpochStillMatches_IsRejected_WhenTheFarmIsInactive`, `tools/simulation/ui/specs/session-refresh.spec.ts` | Kept (decision 8). |
-| Step-up | `IT/StepUpAuthTests.cs` (including `StepUpToken_CannotBeUsedAsANormalAccessToken`, `StepUpFailures_AllProduceTheIdenticalNonEnumeratingResponse`, `StepUp_LockoutTripsOnTheFifthUserAttempt_NotTheThird`), `IT/StepUpGrantRegistryTests.cs`, `IT/StepUpGrantRegistrySharedStoreTests.cs`, `IT/CredentialEpochRaceTests.StepUpThatVerifiedTheOldPassword_CannotAdoptAConcurrentPasswordReset`, `IT/DisableUserRaceTests.StepUpIssuedWhileADisableIsQueued_IsNotSpendableAfterAReEnable`, the `stepUp (#308)` block in `web/src/api/client.test.ts:1230-1298` | Kept. Changed in #1279: direct `IssueAsync` callers pass `code: null`, and the three race and auth files gain an enrolled case. |
-| OAuth consent | `IT/OAuthConsentTests.cs`, `IT/OAuthConsentTests.PartialConsent.cs`, the `StepUpAsync` helpers in `IT/OAuthServerTests.cs:292` and `IT/OAuthFailClosedTests.ConnectedAppsSwitch.cs:232`, `web/src/routes/ConnectPage.test.tsx` | Kept. #1279 adds an enrolled consent case. |
+| Step-up | `IT/StepUpAuthTests.cs` (including `StepUpToken_CannotBeUsedAsANormalAccessToken`, `StepUpFailures_AllProduceTheIdenticalNonEnumeratingResponse`, `StepUp_LockoutTripsOnTheFifthUserAttempt_NotTheThird`), `IT/StepUpGrantRegistryTests.cs`, `IT/StepUpGrantRegistrySharedStoreTests.cs`, `IT/CredentialEpochRaceTests.StepUpThatVerifiedTheOldPassword_CannotAdoptAConcurrentPasswordReset`, `IT/DisableUserRaceTests.StepUpIssuedWhileADisableIsQueued_IsNotSpendableAfterAReEnable`, the `stepUp (#308)` block in `web/src/api/client.test.ts:1230-1298` | Kept. Changed in #1279: direct `IssueAsync` callers pass `code: null`, and the three race and auth files gain an enrolled case. #1281 keeps the password-only contracts on an `enrolled: false` Owner and moves the private `StepUpAsync` helpers to the shared one. |
+| OAuth consent | `IT/OAuthConsentTests.cs`, `IT/OAuthConsentTests.PartialConsent.cs`, the `StepUpAsync` helpers in `IT/OAuthServerTests.cs:292` and `IT/OAuthFailClosedTests.ConnectedAppsSwitch.cs:232`, `web/src/routes/ConnectPage.test.tsx` | Kept. #1279 adds an enrolled consent case. #1281 moves `OAuthServerTests` to a non-Owner. |
 | MustChangePassword | `IT/MustChangePasswordGateTests.cs`, `IT/CredentialEpochMiddlewareOrderTests.Program_PinsTheCompleteCredentialGateSequence`, `IT/CredentialEpochTests.SupersededPendingUser_IsRejectedBeforeTheMustChangePasswordGate`, `web/src/routes/SetPasswordPage.test.tsx`, `web/src/auth/claims.test.ts`, `web/src/routes/ProtectedRoute.test.tsx` | Kept. #1281 changes the gate sequence pin. |
 | Lockout | `IT/AccountLockoutTests.cs`, `IT/SecurityEventLoggingTests.Login_attempts_crossing_the_lockout_threshold_emit_AccountLockedOut_exactly_once` and its step-up twin, `IT/AmbientPrincipalOnLoginTests.AForeignFarmsValidBearer_DoesNotSuppressTheVictimsLockoutCounter` | Kept. |
 | Rate limits | `IT/RateLimitingTests.cs`, `IT/AuthRateLimitLoggingTests.cs`, `IT/RateLimitingOptionsTests.cs`, `IT/DistributedRateLimiterWiringTests.cs`, `IT/MultiInstanceRateLimitTests.cs`, `IT/LoginCounterKeyProbeTests.cs`, `IT/SharedState/FixedWindowCounterContractTests.cs` | Kept. #1278 adds an options case for `auth-second-factor`. |
@@ -574,7 +582,7 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 - **G3.26** With the protector's ring replaced between start and confirm, confirm answers `Superseded`, deletes the payload, charges nothing and logs `Auth.SecondFactorKeyUnreadable`. Mutation: let the `CryptographicException` escape.
 - **G3.27** A user enrolled through `ConfirmEnrolmentAsync` signs in at the code step with a TOTP code and with one of the codes confirm returned, and a refresh cookie and a connected-app token minted before confirm are refused after it. Mutations: digest the code at confirm in a different case than at redemption; skip confirm's epoch bump.
 - **G3.28** A write method called with a `Modified` tracked user throws `InvalidOperationException`. Mutation: drop the check.
-- **G3.29** A reflection walk builds every concrete type of `SecondFactorCode` and `LoginStep`, and `ProofBinding` and `EnrolmentStart`, with a marker in each string member, and no `ToString` prints a marker. The floor is 5. Mutation: delete one override.
+- **G3.29** A reflection walk builds every concrete type of `SecondFactorCode` and `LoginStep`, and `ProofBinding` and `EnrolmentStart`, and each `ToString()` returns exactly `"[redacted]"`. The floor is 6. Mutation: delete one override.
 
 ### #1279: step-up
 
@@ -587,7 +595,7 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 ### #1280: turn off and reset
 
 - **G5.1** After a self turn-off, login asks for no code, the old key and the old recovery codes no longer verify, any pending payload is gone, other sessions and connected apps are refused, the acting session holds a fresh pair, and a call with an `Idempotency-Key` stores no idempotency record. An unenrolled user's turn-off answers 204, writes no `User.TwoFactorDisabled` row, mints nothing, and the acting session still works. Mutations: mint no fresh pair; take `/api/v1/auth/two-factor` off the not-cacheable list; bump on `NotEnrolled`.
-- **G5.2** After three wrong codes and an Owner reset, the target's key, codes and pending payload are gone, the daily count is 0 and its start null, and the target's pending challenge, step-up grant, access token and connected-app token are refused. A reset of an unenrolled user with a started enrolment answers 204, deletes the payload, writes no audit row, and leaves the target's access token and refresh row working. A non-Owner, an Owner of another farm, an Owner demoted while the request waits, and an Owner naming their own id are refused. Mutations: drop the epoch bump from `ClearAsync`; skip the count clear; bump on `NotEnrolled`; revoke on `NotEnrolled`; skip the delete on `NotEnrolled`; skip `RequireActiveOwnerAsync`; drop the self check.
+- **G5.2** After three wrong codes and an Owner reset, the target's key, codes and pending payload are gone, the daily count is 0 and its start null, and the target's pending challenge, step-up grant, access token and connected-app token are refused. A reset of an unenrolled user with a started enrolment answers 204, deletes the payload, writes `User.TwoFactorReset` with `pending: true`, and leaves the target's access token and refresh row working; with no started enrolment it writes no row. A non-Owner, an Owner of another farm, an Owner demoted while the request waits, and an Owner naming their own id are refused. Mutations: drop the epoch bump from `ClearAsync`; skip the count clear; bump on `NotEnrolled`; revoke on `NotEnrolled`; skip the delete on `NotEnrolled`; write no row for `PendingDeleted`; skip `RequireActiveOwnerAsync`; drop the self check.
 - **G5.3** `recover-admin` deletes every `Cluckwork` row without reading `Value`, under the ephemeral ring and the DML-only role, in the same transaction as the password reset; its one `User.BreakGlassReset` row says `twoFactorCleared: true`, the daily count is 0 and its start null, and `MustChangePassword` is set; for an unenrolled Owner the row says `false`. A test enrols an Owner, sends three wrong codes, runs the verb, then signs in with the temporary password without a code and is held at the forced change. The target's old access token and connected-app token are refused. Mutations: read the key before deleting it; drop the `mustChangePassword` argument; write `twoFactorCleared: true` for every outcome.
 
 ### #1277: enrolment routes and the Security section
@@ -602,7 +610,7 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 
 - **G6.1** A walk over every mapped route shows an unenrolled Owner reaches only the gate's allowed paths; the gate sits after `MustChangePasswordMiddleware` in `Program_PinsTheCompleteCredentialGateSequence`; a user with both flags changes the password, then reaches enrolment. Mutation: drop change-password from the gate's allowed paths.
 - **G6.2** A connected-app token issued to an unenrolled Owner before the gate existed gets 403 `Auth.TwoFactorEnrolmentRequired` on `/mcp`, with no `WWW-Authenticate` header, and an enrolled Owner's token is not refused. Mutations: exempt connected-app tokens from the gate; answer with the MCP 401 challenge.
-- **G6.3** `bootstrap-admin` and `provision-account` produce an Owner who signs in, changes the password, enrols and then reaches the app, in one test. A promotion to Owner forces enrolment at the next token. A demotion lifts it. Managers, Workers and ReadOnly users sign in without enrolling. The gate's constructor and `InvokeAsync` take no `IOptions<>`, `IConfiguration` or `IHostEnvironment`. Mutation: add an options flag the gate honours.
+- **G6.3** `bootstrap-admin` and `provision-account` produce an Owner who signs in, changes the password, enrols and then reaches the app, in one test. A promotion to Owner forces enrolment at the next token. A demotion lifts it. Managers, Workers and ReadOnly users sign in without enrolling. The gate runs in a unit test with an `HttpContext` whose `RequestServices` throws on any resolve and with claims as its only input: an Owner without `two_factor` gets 403, and one with it passes. Mutation: add an options flag the gate honours.
 - **G6.4** An Owner cannot turn their own two-factor off through either route: turn-off refuses an Owner, and the reset refuses the Owner's own id. Mutation: drop the Owner check from turn-off.
 - **G6.5** With the simulation Owner enrolled, Playwright signs in through `/connect` with a code and keeps the return path, approves a connected app with a code, and the `mutants.ts` role forgery and the two session specs cover the code step. Mutation: drop `location.state.from` at the code step.
 
@@ -620,15 +628,6 @@ The UI slices add these terms to `specs/product/GLOSSARY.md`, with their in-app 
 | **Reset two-factor authentication** | An Owner, or `recover-admin`, removes another user's second factor so they can enrol again. | #1280 |
 
 The **Step-up authentication** entry (`GLOSSARY.md:1488-1518`) changes in #1279. Its last sentence says TOTP step-up is deferred, and it gains the rule in decision 11.
-
-## Open questions for the maintainer
-
-Each has a default the slices follow unless you decide otherwise.
-
-1. **Step-up for an enrolled user: the password and a code, or the code alone?** Step-up guards actions such as creating an Owner or approving a connected app. Default: both (decision 11), because an unlocked phone holds the session and the authenticator app, so the code alone lets whoever holds the phone do those actions. The code alone saves only the password typing; either way each action needs a code from an unused 30-second step.
-2. **Must previous-certificate support for the Data Protection ring (`UnprotectKeysWithAnyCertificate`) ship before #1281 makes two-factor mandatory for Owners?** Without it, any certificate change makes every stored authenticator key unreadable: each user signs in with a recovery code and replaces the authenticator, and an Owner with no codes needs `recover-admin` or another Owner. Default: no, because recovery codes keep every user able to sign in (decision 13). A yes makes #1281 wait for that work.
-3. **Should `recover-admin` set `MustChangePassword = true`?** Today it clears the flag (`IdentityProvider.Passwords.cs:116-122`), so the temporary password it prints is never forced to change. Default: yes (decision 16): the Owner signs in with the printed password once, must pick a new one, and then enrols again. The alternative keeps today's behaviour. The Owner's reset of another user's password keeps clearing the flag either way.
-4. **The daily budget of 20 wrong authenticator codes, and the code step's 10 per 15 minutes per address.** Default: as written. Twenty a day keeps a password holder's chance of guessing the factor in a year near 3.6%, against about 58% with lockout alone (decision 6); a lower number throttles a user who mistypes sooner. The address policy is configuration; the budget is a constant.
 
 ## How it is enforced
 
