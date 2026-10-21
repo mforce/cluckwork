@@ -206,11 +206,25 @@ unresolved-tenant `db.UserRoles.Where(…)` + `RemoveRange` would delete every f
 grants with no refusal. Nothing in `src/` does that, and what holds the arm shut is #536's scanner
 (every `db.UserRoles` site is a classified candidate in `FilterFreeSetSites.cs`) — a guarded
 convention, not a mechanism; narrowing that entry is what reopens it.
-**Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins`, `AspNetUserTokens` and
+
+**`AspNetUserTokens` gets the same treatment before its first writer (#1276, 2026-10-21).**
+Two-factor authentication (#1274) stores the authenticator key and the recovery codes in this
+table, so it gains the `AspNetUserRoles` seam exactly: a shadow `AccountId`, the composite foreign
+key `(UserId, AccountId) → AspNetUsers(Id, AccountId)` with cascade, and one migration with the
+hand-inserted backfill and `DROP DEFAULT`. No query filter. The table stays on #536's non-tenant
+track, and both `db.UserTokens` sites, in `TwoFactorCredentials`, are classified rows that filter
+by `UserId` and `AccountId`. `TwoFactorCredentials` sets the row's `AccountId` itself rather than
+leaving it to the interceptor, because the login code step writes before the tenant resolves; the
+foreign key then proves the user belongs to that account. The unresolved-tenant `DELETE` arm
+described above for `AspNetUserRoles` applies here too, held shut the same way. Pinned by
+`UserTokenTenantWriteTests`, `UserTokenAccountIdModelTests`, `UserTokenAccountIdMigrationTests` and
+`TwoFactorCredentialsStorageTests`.
+
+**Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct
 `db.<Set>` access is already a #536 candidate requiring an allow-list entry, and `AspNetRoles` is
 global reference data. Two residuals no source walk can see: a future `UserManager`
-claim/login/token call — the same treatment as `AspNetUserRoles` is the fix the day one appears —
+claim/login call — the same treatment as `AspNetUserRoles` is the fix the day one appears —
 and `RoleManager.DeleteAsync`, which deletes a *global* role and, through
 `FK_AspNetUserRoles_AspNetRoles_RoleId … ON DELETE CASCADE`, every farm's grants of it with the
 change tracker never holding an `IdentityUserRole` row; no caller exists, and one would be a
@@ -435,11 +449,12 @@ Most of it is enforced by the guards named per section. The parts that are **not
 
 - the deploy-owned "replicas > 1 ⇒ Redis configured" invariant (§8) — **nothing in this
   repo enforces it**; it relies on the deployment repo;
-- the accepted risk on the four claim/login/token/role-claim Identity tables (§5, #670) —
+- the accepted risk on the three claim/login/role-claim Identity tables (§5, #670, #1276) —
   **nothing enforces that no writer appears**; a direct `db.<Set>` access is caught by #536's
-  scanner, a `UserManager` claim/login/token call is not, and relies on review;
-- the unresolved-tenant `DELETE` arm on `AspNetUserRoles` (§5, #670) — **held shut by #536's
-  scanner's classification of every `db.UserRoles` site, not by a write layer**; and
+  scanner, a `UserManager` claim/login call is not, and relies on review;
+- the unresolved-tenant `DELETE` arm on `AspNetUserRoles` and `AspNetUserTokens` (§5, #670,
+  #1276) — **held shut by #536's scanner's classification of every `db.UserRoles` and
+  `db.UserTokens` site, not by a write layer**; and
   `RoleManager.DeleteAsync`'s cascade across every farm's grants — **nothing enforces that no
   caller appears**; both rely on review;
 - the "no slug as a metric label" and "no `AccessFailedAsync` on the unknown-farm branch"
