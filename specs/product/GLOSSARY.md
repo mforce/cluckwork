@@ -1389,12 +1389,12 @@ movements) don't need one.
 farm's own timezone rather than UTC (#35, #155). This is what "today" means for
 every rule that turns on a date: whether an egg lot is still under **withdrawal
 restriction** and which lots a sale may draw on; whether a daily entry, bird
-movement, feed or water usage, purchase, stock correction, expense, payment or
-flock placement is dated in the future; the day a flock's **deplete** or
-**archive** is stamped with; and the default window and future guard on
-**reports**. They all read one boundary, so a lot can never count as sellable on
-one screen and restricted on another, and "in the future" cannot mean different
-things on two screens of the same farm.
+movement, feed or water usage, purchase, stock correction, expense, sales order,
+payment or flock placement is dated in the future; the day a flock's
+**deplete** or **archive** is stamped with; and the default window and future
+guard on **reports**. They all read one boundary, so a lot can never count as
+sellable on one screen and restricted on another, and "in the future" cannot
+mean different things on two screens of the same farm.
 
 It matters most around midnight. At 18:00 on July 15 in Los Angeles it is
 already July 16 in UTC, so on a UTC boundary a lot restricted through the 15th —

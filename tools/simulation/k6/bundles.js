@@ -23,7 +23,8 @@
 //   - The farm's seeded timezone (America/Chicago) is BEHIND UTC, so a
 //     UTC "today" date can land after the farm's own "today" for part of the
 //     day and trip the validator's not-future rule. Using UTC "yesterday" for
-//     the daily-entry write date is safe for any real timezone offset.
+//     the daily-entry write date and the sales-order date is safe for any
+//     real timezone offset.
 //   - AddOrderItem/CreateSalesOrder need only {customerId, orderDate} and
 //     {productId, quantity} — Unit/UnitPriceMinorUnits default from the
 //     product's own catalog row when omitted (AddOrderItemCommand.cs).
@@ -359,11 +360,12 @@ export function salesBundle(session, persona, idemKeyFn) {
 
   // A fresh Draft order every iteration: no natural key, never collides, and
   // being Draft never touches egg-lot stock — the safe hot-loop write
-  // (#243 load-model rule 2).
+  // (#243 load-model rule 2). UTC "yesterday", like the daily-entry write: the
+  // order date is refused after the farm's today (#1333).
   const createRes = authedPost(
     session,
     '/api/v1/sales',
-    { customerId: customer.id, orderDate: today() },
+    { customerId: customer.id, orderDate: daysAgo(1) },
     tagsFor(persona, 'sales', 'sales_create_order'),
     idemKeyFn(),
     [201],

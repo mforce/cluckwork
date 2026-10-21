@@ -1,4 +1,5 @@
 using Cluckwork.Application.Modules.Commerce.Contracts;
+using Cluckwork.Application.Modules.Commerce.Sales.CreateSalesOrder;
 using Cluckwork.Application.Modules.Commerce.Sales.RecordPayment;
 using Cluckwork.Application.Modules.Finance.Contracts;
 using Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense;
@@ -13,7 +14,7 @@ namespace Cluckwork.Application.Tests.Common;
 // accepted, the day after it is not. The dates are measured against a fixed
 // FixedFarmClock rather than the build machine, which is the point — under the
 // old rule these compared against UTC, so for a farm ahead of UTC its own today
-// was refused as being "in the future".
+// was refused as being "in the future". #1333 added the sales order pair.
 public sealed class FarmLocalDateRuleTests
 {
     private static readonly DateOnly FarmToday = FixedFarmClock.Today;
@@ -37,6 +38,24 @@ public sealed class FarmLocalDateRuleTests
         var v = new RecordPaymentValidator(FixedFarmClock.AtDefault());
         var result = await v.ValidateAsync(Payment(FarmTomorrow));
         Assert.Contains(result.Errors, e => e.PropertyName == nameof(RecordPaymentCommand.PaymentDate));
+    }
+
+    // --- Sales order (#1333) ---------------------------------------------
+    private static CreateSalesOrderCommand SalesOrder(DateOnly date) => new(CustomerId: Guid.NewGuid(), OrderDate: date);
+
+    [Fact]
+    public async Task SalesOrderDated_FarmToday_Passes()
+    {
+        var v = new CreateSalesOrderValidator(FixedFarmClock.AtDefault());
+        Assert.True((await v.ValidateAsync(SalesOrder(FarmToday))).IsValid);
+    }
+
+    [Fact]
+    public async Task SalesOrderDated_AfterFarmToday_Fails()
+    {
+        var v = new CreateSalesOrderValidator(FixedFarmClock.AtDefault());
+        var result = await v.ValidateAsync(SalesOrder(FarmTomorrow));
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(CreateSalesOrderCommand.OrderDate));
     }
 
     // --- Expense (create) ------------------------------------------------
