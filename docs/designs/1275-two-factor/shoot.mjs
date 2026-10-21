@@ -188,7 +188,7 @@ try {
     assert.equal(await page.getByRole('button',{name:'Use a recovery code',exact:true}).isDisabled(),true);
   }
   assert.deepEqual(errors, []);
-  writeFileSync(join(out, 'manifest.json'), JSON.stringify(results, null, 2) + '\n');
+  writeFileSync(join(out, 'manifest.json'), JSON.stringify(results.filter(result => !captureScreen || result.screen === captureScreen), null, 2) + '\n');
   console.log(`Checked ${results.length} frames; captured ${captures} at 1:1 into ${out}. No page errors or horizontal frame overflow. Interaction checks passed.`);
 } finally {
   await browser.close();
