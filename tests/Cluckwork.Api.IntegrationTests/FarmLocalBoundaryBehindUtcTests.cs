@@ -37,6 +37,7 @@ public sealed class FarmLocalBoundaryBehindUtcTests(CluckworkWebApplicationFacto
 
     private sealed record IdDto(Guid Id);
     private sealed record ProblemDto(string? Title);
+    private sealed record ValidationProblemDto(Dictionary<string, string[]>? ErrorCodes);
     private sealed record ProductionDayDto(DateOnly Date);
     private sealed record ProductionReportDto(List<ProductionDayDto> Days);
 
@@ -132,6 +133,28 @@ public sealed class FarmLocalBoundaryBehindUtcTests(CluckworkWebApplicationFacto
             new { flockId, date = FarmTomorrow, quantity = 5m, unit = "L", source = "Municipal", meterStart = (decimal?)null, meterEnd = (decimal?)null, note = (string?)null });
 
         await AssertRefusedAsAsync(response, "WaterUsage.FutureDate");
+    }
+
+    // CreateSalesOrderValidator (#1333)
+    [Fact]
+    public async Task SalesOrder_DatedTheFarmsTomorrow_IsRefused_ButItsTodayIsCreated()
+    {
+        var (client, _) = await FrozenFarmAsync();
+        var customer = await client.PostWithKeyAsync("/api/v1/customers", Guid.NewGuid().ToString(),
+            new { name = $"Buyer {Guid.NewGuid():N}"[..20], phone = "555-0100" });
+        Assert.Equal(HttpStatusCode.Created, customer.StatusCode);
+        var customerId = (await customer.Content.ReadFromJsonAsync<IdDto>())!.Id;
+
+        var response = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = FarmTomorrow });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDto>();
+        Assert.Equal(["SalesOrder.OrderDate.NotFuture"], problem!.ErrorCodes!.Single().Value);
+
+        var today = await client.PostWithKeyAsync("/api/v1/sales", Guid.NewGuid().ToString(),
+            new { customerId, orderDate = FarmToday });
+        Assert.Equal(HttpStatusCode.Created, today.StatusCode);
     }
 
     // ArchiveFlockHandler — the second stored stamp (Deplete is covered in the
