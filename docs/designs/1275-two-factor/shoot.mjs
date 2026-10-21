@@ -10,6 +10,7 @@ const installed = '/home/mforce/dev/cluckwork';
 const playwright = process.env.PLAYWRIGHT_DIR ?? join(existsSync(join(checkout, 'tools/simulation/ui/node_modules/playwright')) ? checkout : installed, 'tools/simulation/ui/node_modules/playwright');
 const font = process.env.INTER_WOFF2 ?? join(existsSync(join(checkout, 'web/node_modules/@fontsource-variable/inter')) ? checkout : installed, 'web/node_modules/@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2');
 const out = resolve(process.argv[2] ?? join(here, 'renders'));
+const captureScreen = process.argv[3];
 const { chromium } = await import(pathToFileURL(join(playwright, 'index.mjs')).href);
 const cache = join(homedir(), '.cache/ms-playwright');
 const shell = readdirSync(cache).filter(name => name.startsWith('chromium_headless_shell-')).sort().at(-1);
@@ -18,6 +19,7 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ executablePath });
 const errors = [];
 const results = [];
+let captures = 0;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
   page.on('pageerror', error => errors.push(error.message));
@@ -26,6 +28,7 @@ try {
   await page.addStyleTag({ content: `@font-face{font-family:"Inter Variable";src:url(data:font/woff2;base64,${fontData});font-weight:100 900}.lab,.labnote{display:none!important}.stage{padding:0;justify-content:flex-start}` });
   await page.evaluate(() => document.fonts.ready);
   const screens = await page.evaluate(() => window.LAB.screens);
+  assert(!captureScreen || Object.hasOwn(screens, captureScreen), `Unknown capture screen: ${captureScreen}`);
   for (const [screen, spec] of Object.entries(screens)) {
     for (const direction of Object.keys(spec.directions)) {
       for (const width of [1280, 390]) {
@@ -73,7 +76,10 @@ try {
               assert(geometry.content.bottom <= geometry.footer.top + 1, `${screen}/${direction}/${state}: content covers footer`);
             }
             const name = `${screen}-${direction}-${width}-${state}-${theme}.png`;
-            await page.locator('#frame').screenshot({ path: join(out, name), scale: 'css' });
+            if (!captureScreen || screen === captureScreen) {
+              await page.locator('#frame').screenshot({ path: join(out, name), scale: 'css' });
+              captures++;
+            }
             results.push({ screen, direction, width, state, theme, height: dimensions.height, file: name });
           }
         }
@@ -183,7 +189,7 @@ try {
   }
   assert.deepEqual(errors, []);
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(results, null, 2) + '\n');
-  console.log(`Captured ${results.length} frames at 1:1 into ${out}. No page errors or horizontal frame overflow. Interaction checks passed.`);
+  console.log(`Checked ${results.length} frames; captured ${captures} at 1:1 into ${out}. No page errors or horizontal frame overflow. Interaction checks passed.`);
 } finally {
   await browser.close();
 }
