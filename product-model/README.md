@@ -1,6 +1,6 @@
 # Product model
 
-This folder describes what Cluckwork does today: what it keeps, what each action does, who may do it, and when the app refuses it. Each file is plain Markdown with YAML front matter, and most link to the code behind them.
+This folder describes what Cluckwork does today: what it keeps, what each action does, who may do it, and when the app refuses it. The pages are Markdown, most with YAML front matter, and most link to the code behind them.
 
 It uses the format of [pdd-kit](https://github.com/itai-gendler/pdd-kit). The repo does not depend on pdd-kit's CLI or skills. To browse the model as a report, you can run `npx pdd-toolkit view mforce/cluckwork`. It is optional.
 
