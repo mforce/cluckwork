@@ -75,11 +75,12 @@ let saved = false;
 const SAMPLE_CODES = Array.from({ length: 10 }, () => {
   const alphabet = '23456789BCDFGHJKMNPQRTVWXY';
   const limit = Math.floor(256 / alphabet.length) * alphabet.length;
+  const per = limit / alphabet.length;
   let characters = '';
   while (characters.length < 16) {
     for (const value of crypto.getRandomValues(new Uint8Array(16 - characters.length))) {
       if (value >= limit) continue;
-      characters += alphabet[value % alphabet.length];
+      characters += alphabet[Math.floor(value / per)];
     }
   }
   return Array.from({length:4}, (_,group) => characters.slice(group * 4, group * 4 + 4)).join('-');
