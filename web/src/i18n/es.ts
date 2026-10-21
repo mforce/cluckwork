@@ -2758,7 +2758,7 @@ export const es = {
       "\"Hoy\" significa <strong>el hoy de su granja</strong>, no el reloj de alguna otra parte del mundo. "
       + "Puede registrar cualquier día hasta e incluyendo ese; un día que aún no ha ocurrido en la granja "
       + "se rechaza — aquí y en todos los demás lugares donde ingresa una fecha: uso de alimento y agua, "
-      + "compras de alimento y correcciones de existencias, gastos, pagos, y la fecha de colocación de un "
+      + "compras de alimento y correcciones de existencias, gastos, pedidos, pagos, y la fecha de colocación de un "
       + "lote. La misma fecha decide cuándo los huevos salen de un período de retiro, qué huevos puede "
       + "tomar una venta, el día en que un lote se agota o archiva, y el rango en que se abren los informes "
       + "— para que nada discrepe sobre qué día es.",
