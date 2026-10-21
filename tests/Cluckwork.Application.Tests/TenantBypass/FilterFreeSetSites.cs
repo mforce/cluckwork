@@ -181,7 +181,7 @@ internal static class FilterFreeSetSites
             "db.UserTokens", "c839b24d",
             "insert-only: adds one Cluckwork token row and sets its shadow AccountId to the caller's account; the interceptor checks it against a resolved tenant and the composite FK (UserId, AccountId) -> AspNetUsers refuses another farm's user (#1276)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.TwoFactorCredentials.Rows(Guid accountId, Guid userId)",
-            "db.UserTokens", "1700b8d6",
+            "db.UserTokens", "7fdf5c57",
             "scoped-by-user-and-account: the one query root for two-factor rows; filters UserId == userId, the shadow AccountId == accountId and LoginProvider == Cluckwork (#1276)."),
         new("Cluckwork.Infrastructure.Jobs.DurableJobWorker.ProcessPendingJobsAsync(CancellationToken ct)",
             "db.DurableJobs", "b4b9ba61",

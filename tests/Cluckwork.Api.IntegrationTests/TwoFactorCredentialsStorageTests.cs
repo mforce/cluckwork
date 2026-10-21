@@ -103,7 +103,8 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
             credentials.ReadProtectedAsync(user.AccountId, user.UserId, ProtectedTwoFactorValue.PendingAuthenticator, CancellationToken.None)));
     }
 
-    // Same farm isolates the user in the purpose; another farm isolates the account.
+    // The same-farm case is what isolates the user in the purpose. The account
+    // in the purpose has no observable effect: user ids are globally unique.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

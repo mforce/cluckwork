@@ -21,7 +21,7 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
 {
     internal const string LoginProvider = "Cluckwork";
     private const string RecoveryCodePrefix = "RecoveryCode:";
-    private const string AccountId = nameof(ApplicationUser.AccountId);
+    private const string AccountIdProperty = nameof(ApplicationUser.AccountId);
 
     // Part of every stored value: changing it makes every key unreadable.
     private const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
@@ -62,7 +62,7 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
     private IQueryable<IdentityUserToken<Guid>> Rows(Guid accountId, Guid userId) =>
         db.UserTokens.Where(t =>
             t.UserId == userId
-            && EF.Property<Guid>(t, AccountId) == accountId
+            && EF.Property<Guid>(t, AccountIdProperty) == accountId
             && t.LoginProvider == LoginProvider);
 
     // The account is set, not left to the interceptor, because the login code
@@ -72,7 +72,7 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
     {
         var row = new IdentityUserToken<Guid> { UserId = userId, LoginProvider = LoginProvider, Name = name, Value = value };
         db.UserTokens.Add(row);
-        db.Entry(row).Property(AccountId).CurrentValue = accountId;
+        db.Entry(row).Property(AccountIdProperty).CurrentValue = accountId;
     }
 
     private IDataProtector Protector(Guid accountId, Guid userId) =>

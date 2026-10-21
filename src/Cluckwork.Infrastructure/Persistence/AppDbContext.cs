@@ -243,8 +243,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
             .HasPrincipalKey(u => new { u.Id, u.AccountId })
             .OnDelete(DeleteBehavior.Cascade);
 
-        // #1276 — AspNetUserTokens gets the same seam before its first writer,
-        // TwoFactorCredentials, stores the authenticator key and the recovery
+        // #1276 — AspNetUserTokens gets the same seam before its first writer:
+        // TwoFactorCredentials stores the authenticator key and the recovery
         // codes there. Same reasons, same two layers, no query filter. Pinned by
         // UserTokenAccountIdModelTests, UserTokenTenantWriteTests and
         // UserTokenAccountIdMigrationTests.
