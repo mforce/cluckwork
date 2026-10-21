@@ -210,7 +210,7 @@ public abstract record FactorOutcome
 	private FactorOutcome() { }
 	public sealed record Accepted(int? RecoveryCodesLeft) : FactorOutcome;   // set when a recovery code was spent
 	public sealed record Rejected(bool Charged) : FactorOutcome;             // wrong (charged); reused or locked (not charged)
-	public sealed record Superseded : FactorOutcome;                         // disabled, epoch or stamp moved, two-factor off
+	public sealed record Superseded : FactorOutcome;                         // disabled, epoch, stamp or sign-in count moved, two-factor off
 	public sealed record Unavailable : FactorOutcome;                        // the key cannot be decrypted; not charged
 	public sealed record Throttled(TimeSpan RetryAfter) : FactorOutcome;
 }
