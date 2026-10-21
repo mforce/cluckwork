@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Cluckwork.Application.Tests.TenantBypass;
 
 namespace Cluckwork.Application.Tests.Documentation;
 
@@ -30,6 +31,7 @@ public sealed class TenancyDocsFreshnessTests
     {
         var root = RepoRoot();
         var offenders = new List<string>();
+        var filesRead = 0;
         foreach (var relative in TrackedFiles(root))
         {
             // The dated graphify-out/ snapshots DO match this pattern (10 of them
@@ -44,17 +46,21 @@ public sealed class TenancyDocsFreshnessTests
             if (!File.Exists(full)) continue;
             string text;
             try { text = File.ReadAllText(full); } catch (IOException) { continue; }
+            filesRead++;
             var match = Stale.Match(text);
             if (match.Success) offenders.Add($"{relative}: \"{match.Value}\"");
         }
+        // The skips above make a wrong root read nothing and pass (#1342). It read 2,561 files on 2026-10-21.
+        Assert.True(filesRead > 1000, $"Read only {filesRead} tracked files under {root}");
         Assert.True(offenders.Count == 0,
             "Tracked files still describe multi-tenancy as dormant:\n  " + string.Join("\n  ", offenders));
     }
 
-    // `git rev-parse`, not a walk looking for a .git DIRECTORY: in a git worktree
-    // .git is a FILE, so Directory.Exists walks past the root and returns null.
-    // This repo is worked in worktrees, so that is a real path, not a hypothetical.
-    internal static string RepoRoot() => Git("rev-parse --show-toplevel", AppContext.BaseDirectory).Trim();
+    // Never `git rev-parse` here: the pre-commit hook exports GIT_DIR without
+    // GIT_WORK_TREE, so git takes the test's bin directory as the top level.
+    internal static string RepoRoot() =>
+        GuardScanner.FindRepoRoot(AppContext.BaseDirectory)
+        ?? throw new InvalidOperationException("Cluckwork.slnx not found above " + AppContext.BaseDirectory);
 
     // -z: without it git quotes and octal-escapes any non-ASCII path, which then matches no prefix.
     internal static IEnumerable<string> TrackedFiles(string root) =>
@@ -74,5 +80,33 @@ public sealed class TenancyDocsFreshnessTests
         p.WaitForExit();
         Assert.Equal(0, p.ExitCode);
         return output;
+    }
+}
+
+[Collection(EnvironmentMutatingCollection.Name)]
+public sealed class TenancyDocsFreshnessRepoRootTests
+{
+    // In a linked worktree the pre-commit hook exports this worktree's real git dir.
+    // Asserting on `git ls-files` output would not catch the bug: it lists the whole
+    // index even when git takes the bin directory as the work tree.
+    [Fact]
+    public void RepoRoot_IgnoresTheGitDirThePreCommitHookExports()
+    {
+        var root = TenancyDocsFreshnessTests.RepoRoot();
+        var gitFile = Path.Combine(root, ".git");
+        var gitDir = File.Exists(gitFile)
+            ? Path.GetFullPath(File.ReadAllText(gitFile).Trim()["gitdir: ".Length..], root)
+            : gitFile;
+        var previous = Environment.GetEnvironmentVariable("GIT_DIR");
+        Environment.SetEnvironmentVariable("GIT_DIR", gitDir);
+        try
+        {
+            var hookRoot = TenancyDocsFreshnessTests.RepoRoot();
+            Assert.True(File.Exists(Path.Combine(hookRoot, "Cluckwork.slnx")), "RepoRoot() returned " + hookRoot);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GIT_DIR", previous);
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 Poultry egg-farm management system. Backend: .NET 10 (C#), layered DDD, Postgres via EF Core. Frontend: React 19 + Vite SPA in `web/`.
 
-This file is the index and the rules that apply everywhere. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, tests, schema changes, commit messages and dependencies. Read [`docs/architecture.md`](docs/architecture.md) before you move middleware or add an aggregate state, and [`specs/product/GLOSSARY.md`](specs/product/GLOSSARY.md) before you name or model a domain concept.
+This file is the index and the rules that apply everywhere. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, tests, schema changes, commit messages and dependencies. Read [`docs/architecture.md`](docs/architecture.md) before you move middleware or add an aggregate state, and [`specs/product/GLOSSARY.md`](specs/product/GLOSSARY.md) before you name or model a domain concept. [`product-model/`](product-model/README.md) says what each action does today, who may do it and when it is refused. It can lag the code, and the code wins.
 
 A `→` link points to the rule's decision record in [`docs/decisions/`](docs/decisions/). Read it before you change or work around the rule.
 
