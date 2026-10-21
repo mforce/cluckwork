@@ -15,6 +15,7 @@
 | RevokedByGrace | boolean | false | false |  |  |  |
 | ConcurrencyStamp | varchar(36) |  | false |  |  |  |
 | IssuedEpoch | integer | 0 | false |  |  |  |
+| SignedInAt | timestamp with time zone |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -64,6 +65,7 @@ erDiagram
   boolean RevokedByGrace
   varchar_36_ ConcurrencyStamp
   integer IssuedEpoch
+  timestamp_with_time_zone SignedInAt
 }
 ```
 

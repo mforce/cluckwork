@@ -33,7 +33,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.__EFMigrationsHistory](public.__EFMigrationsHistory.md) | 2 |  | BASE TABLE |
 | [public.Accounts](public.Accounts.md) | 22 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
-| [public.AspNetUsers](public.AspNetUsers.md) | 26 |  | BASE TABLE |
+| [public.AspNetUsers](public.AspNetUsers.md) | 31 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 13 |  | BASE TABLE |
 | [public.Customers](public.Customers.md) | 10 |  | BASE TABLE |
 | [public.DailyEntries](public.DailyEntries.md) | 22 |  | BASE TABLE |
@@ -46,14 +46,14 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.idempotency_records](public.idempotency_records.md) | 13 |  | BASE TABLE |
 | [public.InventoryItems](public.InventoryItems.md) | 13 |  | BASE TABLE |
 | [public.Products](public.Products.md) | 14 |  | BASE TABLE |
-| [public.refresh_tokens](public.refresh_tokens.md) | 11 |  | BASE TABLE |
+| [public.refresh_tokens](public.refresh_tokens.md) | 12 |  | BASE TABLE |
 | [public.simulation_seed_state](public.simulation_seed_state.md) | 3 |  | BASE TABLE |
 | [public.UserRoleAssignments](public.UserRoleAssignments.md) | 7 |  | BASE TABLE |
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
-| [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
+| [public.AspNetUserTokens](public.AspNetUserTokens.md) | 5 |  | BASE TABLE |
 | [public.SalesOrders](public.SalesOrders.md) | 16 |  | BASE TABLE |
 | [public.DailyEntryGrades](public.DailyEntryGrades.md) | 7 |  | BASE TABLE |
 | [public.EggLots](public.EggLots.md) | 13 |  | BASE TABLE |
@@ -94,6 +94,7 @@ erDiagram
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.SalesOrders" }o--|| "public.Customers" : "FOREIGN KEY (#quot;CustomerId#quot;) REFERENCES #quot;Customers#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 "public.DailyEntryGrades" }o--|| "public.DailyEntries" : "FOREIGN KEY (#quot;DailyEntryId#quot;) REFERENCES #quot;DailyEntries#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.DailyEntryGrades" }o--|| "public.EggGrades" : "FOREIGN KEY (#quot;EggGradeId#quot;) REFERENCES #quot;EggGrades#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
@@ -187,6 +188,11 @@ erDiagram
   integer StepUpLogoutEpoch
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer SecondFactorFailures
+  timestamp_with_time_zone SecondFactorFailuresSince
+  timestamp_with_time_zone SecondFactorRequiredSince
+  bigint SecondFactorSignIns
+  bigint SecondFactorWatermark
 }
 "public.AuditEvents" {
   uuid Id
@@ -381,6 +387,7 @@ erDiagram
   boolean RevokedByGrace
   varchar_36_ ConcurrencyStamp
   integer IssuedEpoch
+  timestamp_with_time_zone SignedInAt
 }
 "public.simulation_seed_state" {
   uuid AccountId
@@ -424,6 +431,7 @@ erDiagram
   text LoginProvider
   text Name
   text Value
+  uuid AccountId FK
 }
 "public.SalesOrders" {
   uuid Id

@@ -9,14 +9,14 @@ ASP.NET Identity, refresh tokens, per-flock role assignments.
 | Name | Columns | Comment | Type |
 | ---- | ------- | ------- | ---- |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
-| [public.AspNetUsers](public.AspNetUsers.md) | 26 |  | BASE TABLE |
-| [public.refresh_tokens](public.refresh_tokens.md) | 11 |  | BASE TABLE |
+| [public.AspNetUsers](public.AspNetUsers.md) | 31 |  | BASE TABLE |
+| [public.refresh_tokens](public.refresh_tokens.md) | 12 |  | BASE TABLE |
 | [public.UserRoleAssignments](public.UserRoleAssignments.md) | 7 |  | BASE TABLE |
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserLogins](public.AspNetUserLogins.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserRoles](public.AspNetUserRoles.md) | 3 |  | BASE TABLE |
-| [public.AspNetUserTokens](public.AspNetUserTokens.md) | 4 |  | BASE TABLE |
+| [public.AspNetUserTokens](public.AspNetUserTokens.md) | 5 |  | BASE TABLE |
 
 ## Relations
 
@@ -30,6 +30,7 @@ erDiagram
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 
 "public.AspNetRoles" {
   uuid Id
@@ -64,6 +65,11 @@ erDiagram
   integer StepUpLogoutEpoch
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer SecondFactorFailures
+  timestamp_with_time_zone SecondFactorFailuresSince
+  timestamp_with_time_zone SecondFactorRequiredSince
+  bigint SecondFactorSignIns
+  bigint SecondFactorWatermark
 }
 "public.refresh_tokens" {
   uuid Id
@@ -77,6 +83,7 @@ erDiagram
   boolean RevokedByGrace
   varchar_36_ ConcurrencyStamp
   integer IssuedEpoch
+  timestamp_with_time_zone SignedInAt
 }
 "public.UserRoleAssignments" {
   uuid Id
@@ -115,6 +122,7 @@ erDiagram
   text LoginProvider
   text Name
   text Value
+  uuid AccountId
 }
 ```
 

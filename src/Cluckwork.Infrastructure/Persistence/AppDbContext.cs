@@ -243,6 +243,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
             .HasPrincipalKey(u => new { u.Id, u.AccountId })
             .OnDelete(DeleteBehavior.Cascade);
 
+        // #1276 — AspNetUserTokens gets the same seam before its first writer,
+        // TwoFactorCredentials, stores the authenticator key and the recovery
+        // codes there. Same reasons, same two layers, no query filter. Pinned by
+        // UserTokenAccountIdModelTests, UserTokenTenantWriteTests and
+        // UserTokenAccountIdMigrationTests.
+        var userToken = builder.Entity<Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>>();
+        userToken.Property<Guid>(nameof(Entity<Guid>.AccountId));
+        userToken.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(nameof(Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>.UserId), nameof(Entity<Guid>.AccountId))
+            .HasPrincipalKey(u => new { u.Id, u.AccountId })
+            .OnDelete(DeleteBehavior.Cascade);
+
         // #562 — AccountId is a CONCURRENCY TOKEN on every entity that carries
         // one. EF then puts AccountId's ORIGINAL value into the WHERE clause of
         // every UPDATE and DELETE it emits, beside the primary key (and beside
