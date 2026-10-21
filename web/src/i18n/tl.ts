@@ -2859,7 +2859,7 @@ export const tl = {
       "Ang ibig sabihin ng \"Ngayon\" ay <strong>ang ngayon ng bukid mo</strong>, hindi ang oras sa ibang "
       + "bahagi ng mundo. Puwede kang magtala ng kahit anong araw hanggang at kasama ito; tatanggihan ang "
       + "isang araw na hindi pa nangyayari sa bukid — dito at sa lahat ng lugar na naglalagay ka ng petsa: "
-      + "paggamit ng feed at tubig, pagbili ng feed at pagtatama ng stock, gastos, bayad, at petsa ng "
+      + "paggamit ng feed at tubig, pagbili ng feed at pagtatama ng stock, gastos, order, bayad, at petsa ng "
       + "paglagay ng kawan. Ang parehong petsa ang nagdedesisyon kung kailan lumalabas ang itlog sa isang "
       + "withdrawal period, kung anong itlog ang puwedeng kunin ng isang benta, ang araw ng pag-ubos o "
       + "pag-archive ng isang kawan, at ang range na binubuksan ng mga report — para walang hindi "

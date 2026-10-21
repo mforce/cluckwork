@@ -3477,7 +3477,7 @@ export const en = {
       "\"Today\" means <strong>your farm's today</strong>, not the clock in some other part of the world. You "
       + "can record any day up to and including it; a day that has not happened yet on the farm is refused — "
       + "here and everywhere else you enter a date: feed and water use, feed purchases and stock corrections, "
-      + "expenses, payments, and a flock's placement date. The same date decides when eggs come out of a "
+      + "expenses, orders, payments, and a flock's placement date. The same date decides when eggs come out of a "
       + "withdrawal period, which eggs a sale can take, the day a flock is depleted or archived on, and the "
       + "range reports open on — so nothing disagrees about what day it is.",
     dailyEntryOnePerDay:
