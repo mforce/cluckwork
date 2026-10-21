@@ -37,6 +37,26 @@ try {
             const dimensions = await page.locator('#frame').evaluate(element => ({ width: element.clientWidth, scroll: element.scrollWidth, height: element.clientHeight }));
             assert.equal(dimensions.width, width);
             assert.equal(dimensions.scroll, width, `${screen}/${direction}/${state}/${width} overflows horizontally`);
+            if (width === 390 && (state.includes('daily') || state.endsWith('limited'))) {
+              await page.locator('.dlg-content').evaluateAll(contents => contents.forEach(content => { content.scrollTop = content.scrollHeight; }));
+              const visibility = await page.locator('#frame').evaluate(frame => {
+                const content = frame.querySelector('.dlg-content');
+                const captured = frame.getBoundingClientRect();
+                const clipped = content?.getBoundingClientRect() ?? captured;
+                const top = Math.max(captured.top, clipped.top);
+                const bottom = Math.min(captured.bottom, clipped.bottom);
+                const targets = {
+                  code: frame.querySelector('input[autocomplete="one-time-code"]').closest('.field'),
+                  notice: frame.querySelector('.alert.warning'),
+                  switch: frame.querySelector('[data-action="use-recovery"], [data-action="use-authenticator"]'),
+                };
+                return Object.entries(targets).map(([name, element]) => {
+                  const rect = element.getBoundingClientRect();
+                  return {name, visible: rect.top >= top && rect.bottom <= bottom && rect.left >= captured.left && rect.right <= captured.right};
+                });
+              });
+              for (const target of visibility) assert(target.visible, `${screen}/${direction}/${state}/${theme}: ${target.name} is outside the captured content viewport`);
+            }
             if (width === 390 && await page.locator('.dlg').count()) {
               const geometry = await page.locator('.dlg').evaluate(dialog => {
                 const content = dialog.querySelector('.dlg-content');
