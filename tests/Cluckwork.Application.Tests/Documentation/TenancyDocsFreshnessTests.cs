@@ -31,6 +31,7 @@ public sealed class TenancyDocsFreshnessTests
     {
         var root = RepoRoot();
         var offenders = new List<string>();
+        var filesRead = 0;
         foreach (var relative in TrackedFiles(root))
         {
             // The dated graphify-out/ snapshots DO match this pattern (10 of them
@@ -45,9 +46,12 @@ public sealed class TenancyDocsFreshnessTests
             if (!File.Exists(full)) continue;
             string text;
             try { text = File.ReadAllText(full); } catch (IOException) { continue; }
+            filesRead++;
             var match = Stale.Match(text);
             if (match.Success) offenders.Add($"{relative}: \"{match.Value}\"");
         }
+        // The skips above make a wrong root read nothing and pass (#1342). It read 2,561 files on 2026-10-21.
+        Assert.True(filesRead > 1000, $"Read only {filesRead} tracked files under {root}");
         Assert.True(offenders.Count == 0,
             "Tracked files still describe multi-tenancy as dormant:\n  " + string.Join("\n  ", offenders));
     }
