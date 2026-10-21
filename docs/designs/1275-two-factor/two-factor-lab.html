@@ -72,17 +72,13 @@ const REASONS = {
 };
 let cfg = { screen: 'account', direction: 'a', state: 'off', width: 1280, theme: 'light' };
 let saved = false;
+let sampleState = 0x1275;
 const SAMPLE_CODES = Array.from({ length: 10 }, () => {
   const alphabet = '23456789BCDFGHJKMNPQRTVWXY';
-  const limit = Math.floor(256 / alphabet.length) * alphabet.length;
-  const per = limit / alphabet.length;
-  let characters = '';
-  while (characters.length < 16) {
-    for (const value of crypto.getRandomValues(new Uint8Array(16 - characters.length))) {
-      if (value >= limit) continue;
-      characters += alphabet[Math.floor(value / per)];
-    }
-  }
+  const characters = Array.from({length:16}, () => {
+    sampleState = (Math.imul(sampleState, 1664525) + 1013904223) >>> 0;
+    return alphabet[Math.floor(sampleState / 2 ** 32 * alphabet.length)];
+  }).join('');
   return Array.from({length:4}, (_,group) => characters.slice(group * 4, group * 4 + 4)).join('-');
 });
 const frame = document.querySelector('#frame');

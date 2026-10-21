@@ -144,7 +144,7 @@ try {
     {screen:'stepup',state:'consent',direction:'a-password'},
     {screen:'users',state:'confirm',direction:'a-password'},
   ];
-  const draft = crypto.randomUUID();
+  const draft = samples[0].replaceAll('-', '');
   for (const config of proofCases) {
     await page.evaluate(config => window.configure({...config,width:390,theme:'light'}),config);
     const password=page.getByLabel('Your current password',{exact:true});
