@@ -37,6 +37,21 @@ try {
             const dimensions = await page.locator('#frame').evaluate(element => ({ width: element.clientWidth, scroll: element.scrollWidth, height: element.clientHeight }));
             assert.equal(dimensions.width, width);
             assert.equal(dimensions.scroll, width, `${screen}/${direction}/${state}/${width} overflows horizontally`);
+            if (width === 390 && await page.locator('.dlg').count()) {
+              const geometry = await page.locator('.dlg').evaluate(dialog => {
+                const content = dialog.querySelector('.dlg-content');
+                const footer = dialog.querySelector('.dlg-actions');
+                const action = footer.querySelector('button:last-child');
+                const box = element => { const rect=element.getBoundingClientRect(); return {top:rect.top,bottom:rect.bottom,left:rect.left,right:rect.right}; };
+                return {frame:box(document.querySelector('#frame')),dialog:box(dialog),content:box(content),footer:box(footer),action:box(action),inContent:content.contains(action),direction:getComputedStyle(footer).flexDirection};
+              });
+              assert.equal(geometry.inContent,false);
+              assert.equal(geometry.direction,'row');
+              assert(geometry.action.bottom <= geometry.frame.top + 844, `${screen}/${direction}/${state}: primary action falls below the phone viewport`);
+              assert(geometry.action.bottom <= geometry.dialog.bottom && geometry.action.top >= geometry.footer.top, `${screen}/${direction}/${state}: primary action clipped vertically`);
+              assert(geometry.action.left >= geometry.dialog.left && geometry.action.right <= geometry.dialog.right, `${screen}/${direction}/${state}: primary action clipped horizontally`);
+              assert(geometry.content.bottom <= geometry.footer.top + 1, `${screen}/${direction}/${state}: content covers footer`);
+            }
             const name = `${screen}-${direction}-${width}-${state}-${theme}.png`;
             await page.locator('#frame').screenshot({ path: join(out, name), scale: 'css' });
             results.push({ screen, direction, width, state, theme, height: dimensions.height, file: name });
@@ -49,7 +64,7 @@ try {
   const samples = await page.locator('.codes li').allTextContents();
   assert.equal(samples.length, 10);
   assert.equal(new Set(samples).size, 10);
-  for (const code of samples) assert.match(code, /^[23456789BCDFGHJKMNPQRTVWXY]{5}-[23456789BCDFGHJKMNPQRTVWXY]{5}$/);
+  for (const code of samples) assert.match(code, /^(?:[23456789BCDFGHJKMNPQRTVWXY]{4}-){3}[23456789BCDFGHJKMNPQRTVWXY]{4}$/);
   await page.getByRole('checkbox', { name: 'I saved my recovery codes somewhere safe.' }).check();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByText('8', { exact: true }).waitFor();
@@ -95,6 +110,56 @@ try {
     await page.getByText(/Enter your password and a code from your authenticator app/).waitFor();
     await page.evaluate(config => window.configure({ ...config, direction: 'a' }), config);
     assert.equal(await page.getByLabel('Your current password', { exact: true }).count(), 0);
+  }
+  const proofCases = [
+    {screen:'account',state:'regenerate',direction:'a'},
+    {screen:'account',state:'turn-off',direction:'a'},
+    {screen:'stepup',state:'dialog',direction:'a-password'},
+    {screen:'stepup',state:'consent',direction:'a-password'},
+    {screen:'users',state:'confirm',direction:'a-password'},
+  ];
+  const draft = crypto.randomUUID();
+  for (const config of proofCases) {
+    await page.evaluate(config => window.configure({...config,width:390,theme:'light'}),config);
+    const password=page.getByLabel('Your current password',{exact:true});
+    await password.fill(draft);
+    if (config.screen === 'stepup' && config.state === 'dialog') await page.getByLabel('New password',{exact:true}).fill(draft);
+    if (config.state === 'consent') await page.getByRole('checkbox',{name:'Read farm data',exact:true}).uncheck();
+    await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+    assert.equal(await page.getByLabel('Your current password',{exact:true}).inputValue(),draft);
+    if (config.screen === 'stepup' && config.state === 'dialog') assert.equal(await page.getByLabel('New password',{exact:true}).inputValue(),draft);
+    if (config.state === 'consent') assert.equal(await page.getByRole('checkbox',{name:'Read farm data',exact:true}).isChecked(),false);
+    const recovery=page.getByLabel('Your recovery code',{exact:true});
+    await recovery.fill(samples[0]);
+    assert.equal((await recovery.inputValue()).length,19);
+    await recovery.fill(samples[0].replaceAll('-',''));
+    assert.equal((await recovery.inputValue()).length,16);
+    assert.notEqual(await recovery.getAttribute('inputmode'),'numeric');
+    await page.getByRole('button',{name:'Use an authenticator code',exact:true}).click();
+    assert.equal(await page.getByLabel('Your current password',{exact:true}).inputValue(),draft);
+    assert.equal(await page.getByLabel('Your authenticator code',{exact:true}).inputValue(),'');
+  }
+  const throttleCases = [
+    {screen:'login',state:'daily',limited:'limited',direction:'a'},
+    {screen:'login',state:'connect-daily',limited:'connect-limited',direction:'a'},
+    {screen:'account',state:'regenerate-daily',limited:'regenerate-limited',direction:'a'},
+    {screen:'account',state:'turn-off-daily',limited:'turn-off-limited',direction:'a'},
+    {screen:'stepup',state:'daily',limited:'limited',direction:'a-password'},
+    {screen:'stepup',state:'consent-daily',limited:'consent-limited',direction:'a-password'},
+    {screen:'users',state:'daily',limited:'limited',direction:'a-password'},
+  ];
+  for (const config of throttleCases) {
+    await page.evaluate(config => window.configure(config),config);
+    assert.equal(await page.getByRole('button',{name:'Use a recovery code',exact:true}).isEnabled(),true);
+    await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+    await page.getByLabel(config.screen === 'login' ? 'Recovery code' : 'Your recovery code',{exact:true}).fill(samples[0]);
+    assert.equal(await page.locator('.btn.primary:disabled,.dlg-actions .btn.danger:disabled').count(),0);
+    if(config.screen === 'login' && config.state.startsWith('connect')) assert.match(await page.locator('.next-mobile').innerText(),/Farm Ledger/);
+    await page.getByRole('button',{name:'Use an authenticator code',exact:true}).click();
+    assert.equal(await page.locator('.btn.primary:disabled,.dlg-actions .btn.danger:disabled').count(),1);
+    assert.equal(await page.getByRole('button',{name:'Use a recovery code',exact:true}).isEnabled(),true);
+    await page.evaluate(config => window.configure({...config,state:config.limited}),config);
+    assert.equal(await page.getByRole('button',{name:'Use a recovery code',exact:true}).isDisabled(),true);
   }
   assert.deepEqual(errors, []);
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(results, null, 2) + '\n');

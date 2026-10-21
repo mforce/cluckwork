@@ -1,8 +1,8 @@
 # Two-factor authentication screens: selected directions
 
-On 2026-10-21, the maintainer answered "ok A both then" to "Enrolment A or B, Step-up A or B". The coordinator relayed that answer and asked to record the four single-design screens too. Those four had no competing direction, and the coordinator reported no objection to them.
+On 2026-10-21, I answered "ok A both then" to "Enrolment A or B, Step-up A or B". The coordinator relayed my answer and asked to record the four single-design screens too. Those four had no competing direction, and the coordinator reported no objection to them.
 
-The table records the picks for [#1275](https://github.com/mforce/cluckwork/issues/1275). The reasons describe the selected layouts, not additional quotations from the maintainer. The [renders comment](https://github.com/mforce/cluckwork/issues/1275#issuecomment-6295469949) shows the comparison frames.
+The table records the picks for [#1275](https://github.com/mforce/cluckwork/issues/1275). The reasons describe the selected layouts, not additional quotations from me. The [renders comment](https://github.com/mforce/cluckwork/issues/1275#issuecomment-6295469949) shows the comparison frames.
 
 | Screen | Pick | Representative frame names | Reason |
 | --- | --- | --- | --- |
@@ -17,11 +17,11 @@ Frame names refer to the ignored `renders/` directory beside this file. `node do
 
 ## Step-up uses the password and a code
 
-The maintainer decided on 2026-10-20 that an enrolled user steps up with the password and a code. Item 11 of [#1274](https://github.com/mforce/cluckwork/issues/1274), recorded in [#1334](https://github.com/mforce/cluckwork/pull/1334), owns that rule. The 2026-10-21 pick chooses layout A, not a different proof policy.
+I decided on 2026-10-20 that an enrolled user steps up with the password and a code. Item 11 of [#1274](https://github.com/mforce/cluckwork/issues/1274), recorded in [#1334](https://github.com/mforce/cluckwork/pull/1334), owns that rule. The 2026-10-21 pick chooses layout A, not a different proof policy.
 
 The selected frames use `a-password`, labelled A2 in the lab. A1 "code alone" is not used. The Users A1 frames in the renders comment show the inspector and the layout only. The Users A2 confirmation supplies the applicable password-plus-code proof.
 
-The lab retains the discarded B layouts and A1 proof variants as exploration history. They do not override these selections. A2 frames are currently light only. The implementation must verify password-plus-code forms in night mode too.
+The lab retains the discarded B layouts and A1 proof variants as exploration history. They do not override these selections. Selected A2 frames render in day and night mode at both widths. Recovery-code entry retains the password field. Account Regenerate and Turn off use the same password-plus-code proof.
 
 ## Copy terms
 
