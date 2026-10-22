@@ -214,13 +214,17 @@ key `(UserId, AccountId) → AspNetUsers(Id, AccountId)` with cascade, and one m
 hand-inserted backfill and `DROP DEFAULT`. No query filter. The table stays on #536's non-tenant
 track, and every `db.UserTokens` site is a classified row: each query filters by `UserId` and
 `AccountId`, and an add sets no `AccountId`, so the interceptor stamps it from the resolved tenant.
-Every add runs on a signed-in route, so an add under no tenant is refused by the foreign key, as on
-`AspNetUserRoles`. The unresolved-tenant `DELETE` arm described above for `AspNetUserRoles` applies
-here too, held shut the same way. Pinned by `UserTokenTenantWriteTests`, `UserTokenAccountIdModelTests`,
-`UserTokenAccountIdMigrationTests` and `TwoFactorCredentialsStorageTests`. That only
-`TwoFactorCredentials` writes these rows and the `SecondFactor*` columns is #1278's guard G3.20;
-until then `GlobalUserLookupGuardTests` refuses Identity's authenticator, recovery-code and token
-API anywhere in `src/`.
+Every add runs on a signed-in route, so `TwoFactorCredentials`' stage methods take the account
+from the resolved tenant and throw under none, and a raw add under no tenant is refused by the
+foreign key, as on `AspNetUserRoles`. The unresolved-tenant `DELETE` arm described above for
+`AspNetUserRoles` applies here too, held shut the same way, and so does the update of an existing
+row's value, which loads the row only through the same `UserId` and `AccountId` filter. Pinned by
+`UserTokenTenantWriteTests`, `UserTokenAccountIdModelTests`, `UserTokenAccountIdMigrationTests`
+and `TwoFactorCredentialsStorageTests`. That only `TwoFactorCredentials` writes these rows and the
+`SecondFactor*` columns is #1278's guard G3.20. Until then `GlobalUserLookupGuardTests` refuses, by
+name, `UserManager`'s authenticator, recovery-code and authentication-token methods and the
+recovery-code store's `ReplaceCodesAsync`, `RedeemCodeAsync` and `CountCodesAsync` in every `src/`
+file except the EF-generated migration files.
 
 **Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct

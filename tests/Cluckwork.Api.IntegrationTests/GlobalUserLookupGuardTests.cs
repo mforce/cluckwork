@@ -27,6 +27,14 @@ namespace Cluckwork.Api.IntegrationTests;
 // What it does cover is the three method names above plus SignInManager, where a
 // textual match is exact and the reintroduction it guards against is a
 // copy-paste of a familiar Identity call.
+//
+// #1276 — the same scan, with its own list and no allowed file, refuses
+// Identity's two-factor API: UserManager's authenticator and recovery-code
+// methods and the recovery-code store's methods, which would write
+// "[AspNetUserStore]" rows outside TwoFactorCredentials' protect site (#1274).
+// The store's GetTokenAsync, SetTokenAsync and RemoveTokenAsync are not listed:
+// HttpContext.GetTokenAsync shares the name. Both lists skip the EF-generated
+// migration files below.
 public sealed class GlobalUserLookupGuardTests
 {
     private static readonly string[] Banned =
@@ -38,10 +46,7 @@ public sealed class GlobalUserLookupGuardTests
         "SignInManager",
     ];
 
-    // #1276 — two-factor state belongs to TwoFactorCredentials alone (#1274):
-    // Identity's authenticator, recovery-code and token API would write
-    // "[AspNetUserStore]" rows outside its protect site. No file is allowed.
-    private static readonly string[] BannedEverywhere =
+    private static readonly string[] TwoFactorApi =
     [
         "SetAuthenticatorKeyAsync",
         "ResetAuthenticatorKeyAsync",
@@ -52,6 +57,9 @@ public sealed class GlobalUserLookupGuardTests
         "SetAuthenticationTokenAsync",
         "GetAuthenticationTokenAsync",
         "RemoveAuthenticationTokenAsync",
+        "ReplaceCodesAsync",
+        "RedeemCodeAsync",
+        "CountCodesAsync",
     ];
 
     // The one type allowed to make an account-scoped lookup out of a global
@@ -94,6 +102,18 @@ public sealed class GlobalUserLookupGuardTests
         Assert.True(offenders.Count == 0,
             "Globally-scoped Identity user lookups found in src/. Route them through "
             + "IAccountUserDirectory, or add a deliberate exclusion with a reason:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
+    [Fact]
+    public void NoProductionCode_CallsIdentitysTwoFactorApi()
+    {
+        var offenders = ScanFiles(
+            Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories), TwoFactorApi, allowedFiles: []);
+
+        Assert.True(offenders.Count == 0,
+            "Identity's two-factor API found in src/. Two-factor state is written only by "
+            + "TwoFactorCredentials (#1274), and no file is exempt:\n  "
             + string.Join("\n  ", offenders));
     }
 
@@ -164,7 +184,9 @@ public sealed class GlobalUserLookupGuardTests
 
     // This is the guard's single scanner. The repository-wide assertion and
     // focused fixture tests deliberately exercise this same code path.
-    private static List<string> ScanFiles(IEnumerable<string> files)
+    private static List<string> ScanFiles(IEnumerable<string> files) => ScanFiles(files, Banned, AllowedFiles);
+
+    private static List<string> ScanFiles(IEnumerable<string> files, string[] tokens, string[] allowedFiles)
     {
         var offenders = new List<string>();
         var sourceRoot = SourceRoot();
@@ -176,7 +198,7 @@ public sealed class GlobalUserLookupGuardTests
             // inherit the exemption silently.
             var relative = Path.GetRelativePath(sourceRoot, file)
                 .Replace(Path.DirectorySeparatorChar, '/');
-            var banned = AllowedFiles.Contains(relative) ? BannedEverywhere : [.. Banned, .. BannedEverywhere];
+            if (allowedFiles.Contains(relative)) continue;
 
             // Exempt only what EF GENERATES, and ONLY under a Migrations
             // directory. Two shapes, each matching exactly what `ef migrations`
@@ -222,7 +244,7 @@ public sealed class GlobalUserLookupGuardTests
                 var trimmed = line.TrimStart();
                 if (trimmed.StartsWith("//", StringComparison.Ordinal)) continue;
 
-                foreach (var token in banned)
+                foreach (var token in tokens)
                 {
                     if (line.Contains(token, StringComparison.Ordinal))
                         offenders.Add($"{fileName}:{i + 1}  {trimmed}");
