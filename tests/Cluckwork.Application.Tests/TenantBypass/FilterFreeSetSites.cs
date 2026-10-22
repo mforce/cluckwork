@@ -14,9 +14,9 @@ internal sealed record FilterFreeSetSite(string Symbol, string Set, string Signa
 //   TENANT track: sets whose entity carries an AccountId property (Users, RefreshTokens,
 //     IdempotencyRecord). Candidate = a site whose enclosing statement has no "AccountId" compare.
 //   NON-TENANT track: sets whose CLR entity declares no AccountId property (Roles, UserClaims, UserLogins,
-//     UserTokens, RoleClaims, DurableJob, and UserRoles, which since #670 carries a SHADOW AccountId column
-//     the write guards stamp and token, and stays on this stricter track). Candidate = EVERY db.<Table>
-//     access, because there is no AccountId to compare.
+//     RoleClaims, DurableJob, and UserRoles and UserTokens, which since #670 and #1276 carry a SHADOW
+//     AccountId column the write guards stamp and token, and stay on this stricter track). Candidate =
+//     EVERY db.<Table> access, because there is no AccountId to compare.
 //
 // Review P1-2 added the non-tenant track: the original leg walked only the tenant sets, so a future
 // unscoped query against db.UserRoles, db.Roles or db.DurableJobs would have passed silently.
@@ -47,9 +47,10 @@ internal sealed record FilterFreeSetSite(string Symbol, string Set, string Signa
 // Classifying a new query: run TenantBypassRealTreeTests. Each unclassified candidate prints its three
 // tab-separated identity fields and its file:line. Add a row with those fields copied exactly and a reason
 // naming the scoping mechanism (by-id, by-hash, by-key, scoped-by-join, scoped-by-user-id,
-// global-reference or non-tenant-sweep), or fix the query. The file:line is for finding the code and is
-// not part of the key. The reason is a human assertion, not a machine proof; `needs-review` is the
-// sentinel, and a row carrying it fails the test until the site is classified or the query is fixed.
+// scoped-by-account, global-reference, non-tenant-sweep, or insert-only for an Add that queries
+// nothing), or fix the query. The file:line is for finding the code and is not part of the key. The
+// reason is a human assertion, not a machine proof; `needs-review` is the sentinel, and a row carrying
+// it fails the test until the site is classified or the query is fixed.
 internal static class FilterFreeSetSites
 {
     internal static IReadOnlyList<FilterFreeSetSite> All { get; } =
@@ -177,12 +178,12 @@ internal static class FilterFreeSetSites
         new("Cluckwork.Infrastructure.Modules.Access.Identity.StepUpGrantService.ValidateAsync(Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct)",
             "db.Users", "ed4ecf61",
             "by-id: validates the grant's security stamp by user id (account-unique), then rejects when the persisted user's AccountId does not match the grant account; the read is no-tracking so a later account-locked mutation cannot identity-resolve this pre-lock row."),
-        new("Cluckwork.Infrastructure.Modules.Access.Identity.TwoFactorCredentials.AddRow(Guid accountId, Guid userId, string name, string? value)",
-            "db.UserTokens", "c839b24d",
-            "insert-only: adds one Cluckwork token row and sets its shadow AccountId to the caller's account; the interceptor checks it against a resolved tenant and the composite FK (UserId, AccountId) -> AspNetUsers refuses another farm's user (#1276)."),
+        new("Cluckwork.Infrastructure.Modules.Access.Identity.TwoFactorCredentials.AddRow(Guid userId, string name, string? value)",
+            "db.UserTokens", "7edc5d75",
+            "insert-only: adds one Cluckwork token row and queries nothing; the interceptor stamps its shadow AccountId from the resolved tenant, and the composite FK (UserId, AccountId) -> AspNetUsers refuses another farm's user and any add under no tenant (#1276)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.TwoFactorCredentials.Rows(Guid accountId, Guid userId)",
             "db.UserTokens", "7fdf5c57",
-            "scoped-by-user-and-account: the one query root for two-factor rows; filters UserId == userId, the shadow AccountId == accountId and LoginProvider == Cluckwork (#1276)."),
+            "scoped-by-account: the one query root for two-factor rows; filters UserId == userId, the shadow AccountId == accountId and LoginProvider == Cluckwork (#1276)."),
         new("Cluckwork.Infrastructure.Jobs.DurableJobWorker.ProcessPendingJobsAsync(CancellationToken ct)",
             "db.DurableJobs", "b4b9ba61",
             "non-tenant table: DurableJob has no AccountId column by design (#271 at-most-one-leader lease, single-leader gate); the worker runs with no tenant resolved and polls by status/RunAfter."),

@@ -25,7 +25,7 @@ public sealed class UserTokenTenantWriteTests(CluckworkWebApplicationFactory fac
         catch (Exception e) { return e; }
     }
 
-    private static bool IsForeignKeyRefusal(Exception? e) =>
+    internal static bool IsForeignKeyRefusal(Exception? e) =>
         e is DbUpdateException { InnerException: PostgresException { SqlState: "23503" } pg }
         && pg.ConstraintName == "FK_AspNetUserTokens_AspNetUsers_UserId_AccountId";
 
