@@ -105,16 +105,54 @@ public sealed class GlobalUserLookupGuardTests
             + string.Join("\n  ", offenders));
     }
 
+    // The source files the two-factor walk read on 2026-10-22, measured: 639,
+    // not counting the 42 generated files under obj/, which a fresh checkout
+    // lacks. A walk that reads fewer has lost files; one that reads none would
+    // pass vacuously.
+    private const int TwoFactorWalkFloor = 639;
+
     [Fact]
     public void NoProductionCode_CallsIdentitysTwoFactorApi()
     {
+        var inspected = new List<string>();
         var offenders = ScanFiles(
-            Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories), TwoFactorApi, allowedFiles: []);
+            Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories), TwoFactorApi, allowedFiles: [], inspected);
 
+        Assert.Contains("Cluckwork.Infrastructure/Modules/Access/Identity/TwoFactorCredentials.cs", inspected);
+        Assert.True(inspected.Count >= TwoFactorWalkFloor,
+            $"the two-factor walk read {inspected.Count} files, below its floor of {TwoFactorWalkFloor}");
         Assert.True(offenders.Count == 0,
             "Identity's two-factor API found in src/. Two-factor state is written only by "
-            + "TwoFactorCredentials (#1274), and no file is exempt:\n  "
+            + "TwoFactorCredentials (#1274); only EF-generated migration files are skipped:\n  "
             + string.Join("\n  ", offenders));
+    }
+
+    public static TheoryData<string> TwoFactorTokens => [.. TwoFactorApi];
+
+    // Proves each token reaches the scanner, and that the migration exemption is
+    // the only one. The probes live in a temporary directory, outside src/.
+    [Theory]
+    [MemberData(nameof(TwoFactorTokens))]
+    public void EachTwoFactorToken_IsCaughtInSource_AndSkippedInAMigrationFile(string token)
+    {
+        var root = Directory.CreateTempSubdirectory("cw-1276-");
+        try
+        {
+            var source = Path.Combine(root.FullName, "Identity", "Probe.cs");
+            var migration = Path.Combine(root.FullName, "Migrations", "20990101000000_Probe.cs");
+            foreach (var path in new[] { source, migration })
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, $"class Probe {{ void M(dynamic users) => users.{token}(null); }}\n");
+            }
+
+            Assert.Single(ScanFiles([source], TwoFactorApi, allowedFiles: []));
+            Assert.Empty(ScanFiles([migration], TwoFactorApi, allowedFiles: []));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
     }
 
     // #532 round 8 — the migration exemption is exercised by these two cases.
@@ -186,7 +224,8 @@ public sealed class GlobalUserLookupGuardTests
     // focused fixture tests deliberately exercise this same code path.
     private static List<string> ScanFiles(IEnumerable<string> files) => ScanFiles(files, Banned, AllowedFiles);
 
-    private static List<string> ScanFiles(IEnumerable<string> files, string[] tokens, string[] allowedFiles)
+    private static List<string> ScanFiles(
+        IEnumerable<string> files, string[] tokens, string[] allowedFiles, List<string>? inspected = null)
     {
         var offenders = new List<string>();
         var sourceRoot = SourceRoot();
@@ -236,6 +275,7 @@ public sealed class GlobalUserLookupGuardTests
                     continue;
             }
 
+            inspected?.Add(relative);
             var lines = File.ReadAllLines(file);
             for (var i = 0; i < lines.Length; i++)
             {
