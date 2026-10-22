@@ -224,7 +224,7 @@ and `TwoFactorCredentialsStorageTests`. That only `TwoFactorCredentials` writes 
 `SecondFactor*` columns is #1278's guard G3.20. Until then `GlobalUserLookupGuardTests` refuses, by
 name, `UserManager`'s authenticator, recovery-code and authentication-token methods and the
 recovery-code store's `ReplaceCodesAsync`, `RedeemCodeAsync` and `CountCodesAsync` in every `src/`
-file except the EF-generated migration files.
+file except migration-shaped ones: an EF migration or snapshot name under a `Migrations` directory.
 
 **Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct

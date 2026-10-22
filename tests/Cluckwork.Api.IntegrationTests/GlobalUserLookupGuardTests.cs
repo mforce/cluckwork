@@ -33,8 +33,8 @@ namespace Cluckwork.Api.IntegrationTests;
 // methods and the recovery-code store's methods, which would write
 // "[AspNetUserStore]" rows outside TwoFactorCredentials' protect site (#1274).
 // The store's GetTokenAsync, SetTokenAsync and RemoveTokenAsync are not listed:
-// HttpContext.GetTokenAsync shares the name. Both lists skip the EF-generated
-// migration files below.
+// HttpContext.GetTokenAsync shares the name. Both lists skip migration-shaped
+// files: an EF migration or snapshot name under a Migrations directory.
 public sealed class GlobalUserLookupGuardTests
 {
     private static readonly string[] Banned =
@@ -93,11 +93,31 @@ public sealed class GlobalUserLookupGuardTests
         return Path.Combine(dir!.FullName, "src");
     }
 
+    // src/ held 694 source files on 2026-10-22, measured without bin/ and obj/.
+    // The floor leaves about 20% headroom for deletions; a walk below it has
+    // lost files, and one that reads none would pass vacuously.
+    private const int SourceFileFloor = 550;
+
+    // Both walks enumerate here. Build output is skipped, so the count depends
+    // only on the checkout.
+    private static List<string> SourceFiles()
+    {
+        var root = SourceRoot();
+        var files = Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !Path.GetRelativePath(root, f).Split(Path.DirectorySeparatorChar)
+                .Any(segment => segment is "bin" or "obj"))
+            .ToList();
+
+        Assert.Contains(Path.Combine(root, "Cluckwork.Infrastructure", "Modules", "Access", "Identity", "TwoFactorCredentials.cs"), files);
+        Assert.True(files.Count >= SourceFileFloor,
+            $"the walk found {files.Count} source files under src/, below its floor of {SourceFileFloor}");
+        return files;
+    }
+
     [Fact]
     public void NoProductionCode_MakesAGloballyScopedIdentityUserLookup()
     {
-        var offenders = ScanFiles(
-            Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories));
+        var offenders = ScanFiles(SourceFiles());
 
         Assert.True(offenders.Count == 0,
             "Globally-scoped Identity user lookups found in src/. Route them through "
@@ -105,32 +125,51 @@ public sealed class GlobalUserLookupGuardTests
             + string.Join("\n  ", offenders));
     }
 
-    // The source files the two-factor walk read on 2026-10-22, measured: 639,
-    // not counting the 42 generated files under obj/, which a fresh checkout
-    // lacks. A walk that reads fewer has lost files; one that reads none would
-    // pass vacuously.
-    private const int TwoFactorWalkFloor = 639;
-
     [Fact]
     public void NoProductionCode_CallsIdentitysTwoFactorApi()
     {
-        var inspected = new List<string>();
-        var offenders = ScanFiles(
-            Directory.EnumerateFiles(SourceRoot(), "*.cs", SearchOption.AllDirectories), TwoFactorApi, allowedFiles: [], inspected);
+        var offenders = ScanForTwoFactorApi(SourceFiles());
 
-        Assert.Contains("Cluckwork.Infrastructure/Modules/Access/Identity/TwoFactorCredentials.cs", inspected);
-        Assert.True(inspected.Count >= TwoFactorWalkFloor,
-            $"the two-factor walk read {inspected.Count} files, below its floor of {TwoFactorWalkFloor}");
         Assert.True(offenders.Count == 0,
             "Identity's two-factor API found in src/. Two-factor state is written only by "
-            + "TwoFactorCredentials (#1274); only EF-generated migration files are skipped:\n  "
+            + "TwoFactorCredentials (#1274); only migration-shaped files are skipped:\n  "
             + string.Join("\n  ", offenders));
     }
 
-    public static TheoryData<string> TwoFactorTokens => [.. TwoFactorApi];
+    // The real walk and the fixtures below share this call, so the list the
+    // walk scans is the list the fixtures prove.
+    private static List<string> ScanForTwoFactorApi(IEnumerable<string> files) =>
+        ScanFiles(files, TwoFactorApi, allowedFiles: []);
 
-    // Proves each token reaches the scanner, and that the migration exemption is
-    // the only one. The probes live in a temporary directory, outside src/.
+    // Literals, never TwoFactorApi: deleting a name from the list must turn a
+    // test red.
+    private static readonly string[] PinnedTwoFactorNames =
+    [
+        "SetAuthenticatorKeyAsync",
+        "ResetAuthenticatorKeyAsync",
+        "GetAuthenticatorKeyAsync",
+        "GenerateNewTwoFactorRecoveryCodesAsync",
+        "RedeemTwoFactorRecoveryCodeAsync",
+        "CountRecoveryCodesAsync",
+        "SetAuthenticationTokenAsync",
+        "GetAuthenticationTokenAsync",
+        "RemoveAuthenticationTokenAsync",
+        "ReplaceCodesAsync",
+        "RedeemCodeAsync",
+        "CountCodesAsync",
+    ];
+
+    public static TheoryData<string> TwoFactorTokens => [.. PinnedTwoFactorNames];
+
+    [Fact]
+    public void TheTwoFactorList_IsExactlyThePinnedNames()
+    {
+        Assert.Equal(PinnedTwoFactorNames.Order(), TwoFactorApi.Order());
+    }
+
+    // Proves each token reaches the scanner, and that both migration-shaped
+    // names (a timestamped migration and the model snapshot under Migrations/)
+    // are skipped. The probes live in a temporary directory, outside src/.
     [Theory]
     [MemberData(nameof(TwoFactorTokens))]
     public void EachTwoFactorToken_IsCaughtInSource_AndSkippedInAMigrationFile(string token)
@@ -140,14 +179,16 @@ public sealed class GlobalUserLookupGuardTests
         {
             var source = Path.Combine(root.FullName, "Identity", "Probe.cs");
             var migration = Path.Combine(root.FullName, "Migrations", "20990101000000_Probe.cs");
-            foreach (var path in new[] { source, migration })
+            var snapshot = Path.Combine(root.FullName, "Migrations", "AppDbContextModelSnapshot.cs");
+            foreach (var path in new[] { source, migration, snapshot })
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
                 File.WriteAllText(path, $"class Probe {{ void M(dynamic users) => users.{token}(null); }}\n");
             }
 
-            Assert.Single(ScanFiles([source], TwoFactorApi, allowedFiles: []));
-            Assert.Empty(ScanFiles([migration], TwoFactorApi, allowedFiles: []));
+            Assert.Single(ScanForTwoFactorApi([source]));
+            Assert.Empty(ScanForTwoFactorApi([migration]));
+            Assert.Empty(ScanForTwoFactorApi([snapshot]));
         }
         finally
         {
@@ -225,7 +266,7 @@ public sealed class GlobalUserLookupGuardTests
     private static List<string> ScanFiles(IEnumerable<string> files) => ScanFiles(files, Banned, AllowedFiles);
 
     private static List<string> ScanFiles(
-        IEnumerable<string> files, string[] tokens, string[] allowedFiles, List<string>? inspected = null)
+        IEnumerable<string> files, string[] tokens, string[] allowedFiles)
     {
         var offenders = new List<string>();
         var sourceRoot = SourceRoot();
@@ -275,7 +316,6 @@ public sealed class GlobalUserLookupGuardTests
                     continue;
             }
 
-            inspected?.Add(relative);
             var lines = File.ReadAllLines(file);
             for (var i = 0; i < lines.Length; i++)
             {
