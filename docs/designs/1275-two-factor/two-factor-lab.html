@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cluckwork · Two-factor authentication design lab</title>
+<link rel="stylesheet" href="../../../web/src/styles/tokens.css">
+<style>
+@font-face{font-family:"Inter Variable";src:url("../../../web/node_modules/@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2");font-weight:100 900}
+*{box-sizing:border-box}body{margin:0;background:var(--surface-2);color:var(--ink);font:14px/20px var(--font)}
+button,input,select{font:inherit;color:inherit}button{cursor:pointer}button:disabled{cursor:default;color:var(--muted)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:3px}p{margin:0 0 12px}h1,h2,h3{margin:0 0 12px}
+h1,h2{font:600 24px/28px Georgia,serif}h3{font:600 15px/22px var(--font)}a{color:var(--ink)}
+.lab{padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--rule);display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.lab label{display:flex;align-items:center;gap:6px}.lab select,.lab button{padding:6px;border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+.lab strong{margin-right:auto}.labnote{margin:12px 20px;max-width:1000px;color:var(--muted)}.stage{padding:20px;display:flex;justify-content:center}
+#frame{width:1280px;min-height:800px;background:var(--canvas);position:relative;flex:none;overflow:hidden}
+#frame.phone{width:390px;min-height:844px;font-size:16px;line-height:24px}.phone h1,.phone h2{font-size:28px;line-height:32px}
+.muted{color:var(--muted)}.caption{font-size:12px;line-height:16px;color:var(--muted)}.eyebrow{font-size:12px;color:var(--muted);letter-spacing:.08em;margin-bottom:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid transparent;background:transparent;color:var(--stat-accent);border-radius:var(--r-input);padding:8px 16px;min-height:38px;font-size:15.2px;line-height:22px;font-weight:700;text-decoration:none;text-align:center}
+.btn.primary{background:var(--brand);color:var(--on-brand)}.btn.outlined{border-color:var(--stat-accent)}.btn.danger{background:var(--danger);color:var(--on-danger)}
+.btn.danger-text{color:var(--error);text-decoration:underline;text-underline-offset:3px;padding-inline:0}.btn:disabled{background:var(--tint-muted);color:var(--muted);border-color:var(--rule)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.phone .btn{min-height:44px}.phone .actions{flex-direction:column}.phone .actions .btn{width:100%}
+.field{position:relative;margin-top:24px;max-width:384px}.field label{position:absolute;top:-8px;left:10px;background:var(--surface);padding:0 4px;font-size:12px;line-height:16px;color:var(--muted)}
+.field input{height:56px;width:100%;border:1px solid var(--rule-strong);border-radius:var(--r-input);padding:16px 14px;background:transparent;font-size:16px;min-width:0}.field.error input{border-color:var(--error)}.field.error label,.error-text{color:var(--error)}
+.field .hint{margin:4px 14px 0;font-size:12px;line-height:16px}.field input:focus-visible{outline:none;border:2px solid var(--stat-accent)}.field input[disabled]{color:var(--muted);background:var(--tint-muted)}
+.alert{display:flex;gap:10px;padding:12px 16px;background:var(--tint-accent);border-radius:var(--r-input);margin:16px 0;font-size:14px;line-height:20px}.alert p{margin:0}.alert.error{background:var(--tint-danger)}.alert.warning{background:var(--tint-warn)}.alert.success{background:var(--tint-ok)}.alert svg{flex:none;color:var(--stat-accent)}.alert.error svg{color:var(--error)}.alert.warning svg{color:var(--warn)}.alert.success svg{color:var(--success)}
+.icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}.status{display:inline-flex;gap:6px;align-items:center;font-size:14px}.status i{width:8px;height:8px;border-radius:50%;background:var(--success)}.status.off i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--muted)}.status.pending i{background:var(--warn)}
+.app{display:flex;min-height:800px}.rail{width:244px;flex:none;background:var(--lavender);border-right:1px solid var(--rule);padding:24px 16px;display:flex;flex-direction:column}.farm{font-weight:700;color:var(--stat-accent);margin-bottom:32px}.nav-group{font-size:10px;letter-spacing:.1em;color:var(--muted);margin:20px 8px 8px}.navitem{padding:8px;font-size:14px}.navitem.active{border-left:2px solid var(--stat-accent);background:var(--tint-accent);color:var(--stat-accent);font-weight:600}.railfoot{margin-top:auto;border-top:1px solid var(--rule);padding-top:16px}
+.content{padding:36px 40px 56px;min-width:0;flex:1}.account{max-width:760px}.tabbar{display:none}.phone .app{display:block;min-height:844px;padding-bottom:64px}.phone .rail{display:none}.phone .content{padding:22px 16px 32px}.phone .tabbar{display:flex;justify-content:space-around;align-items:center;height:64px;border-top:1px solid var(--rule);background:var(--surface);position:absolute;bottom:0;width:100%;font-size:11px;color:var(--muted)}
+.acc{border:1px solid var(--rule);border-radius:var(--r-input);background:var(--surface);margin-top:12px;overflow:hidden}.acc>summary{padding:14px 18px;background:var(--surface-2);font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:12px}.accbody{padding:18px}.row{padding:16px 0;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:24px}.row:last-child{border:0}.row h3{margin-bottom:6px}.row .actions{margin:0;align-items:flex-start}.phone .row{flex-direction:column;gap:12px}.phone .row .actions{margin-top:4px}.count{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}.ruled{border-top:1px solid var(--rule);margin-top:20px;padding-top:18px}
+.setup-grid{display:grid;grid-template-columns:240px minmax(0,1fr);gap:30px;margin-top:20px}.phone .setup-grid{display:block}.qr{width:200px;height:200px;background:white;color:#1d1d1d;padding:12px;margin:0 0 8px}.qr svg{width:100%;height:100%}.qr-note{max-width:215px}.key{display:block;overflow-wrap:anywhere;letter-spacing:.06em;font:15px/24px ui-monospace,monospace;padding:12px;background:var(--surface-2);border:1px solid var(--rule);border-radius:var(--r-input);margin:12px 0}.phone .qr{margin-inline:auto}.phone .qr-note{max-width:none;text-align:center}.phone .scan-copy{margin-top:24px}.steps{display:flex;gap:16px;margin:0 0 20px;padding:0;list-style:none;font-size:13px;color:var(--muted)}.steps .current{font-weight:600;color:var(--stat-accent)}
+.codes{list-style:none;margin:20px 0;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;background:var(--surface-2);border:1px solid var(--rule);border-radius:var(--r-input);font:15px/22px ui-monospace,monospace}.check{display:flex;gap:8px;align-items:flex-start;margin:20px 0;font-size:15px}.check input{accent-color:var(--stat-accent);width:20px;height:20px;margin:1px 0;flex:none}.phone .check{padding-block:8px;min-height:44px}.phone .codes{grid-template-columns:1fr;gap:12px;font-size:14px;padding:12px}
+.authbg{min-height:800px;display:flex;align-items:center;justify-content:center;padding:28px;background:var(--surface-2)}.authcard{width:min(880px,100%);display:flex;border:1px solid var(--hairline);background:var(--surface)}.authside{width:50%;padding:38px;background:var(--brand);color:var(--on-brand);display:flex;flex-direction:column}.authside h1{font-size:40px;line-height:44px;color:var(--on-brand)}.authside .eyebrow,.authside .caption{color:var(--on-brand-mute)}.authside footer{margin-top:auto;padding-top:24px}.authmain{flex:1;min-width:0;padding:32px}.authmain h2{font-size:24px;line-height:28px}.identity{overflow-wrap:anywhere;font-weight:600}.next{border:1px solid var(--on-brand-mute);border-radius:var(--r-panel);padding:14px;margin-top:24px;font-size:15px;line-height:22px}.next p{margin:4px 0 0}.next-mobile{display:none}.phone .authbg{min-height:844px;padding:66px 14px 22px;align-items:flex-start}.phone .authcard{flex-direction:column}.phone .authside{width:auto;padding:20px}.phone .authside h1{font-size:28px;line-height:32px}.phone .authside .next{display:none}.phone .authside footer{padding-top:24px}.phone .authmain{padding:20px}.phone .next-mobile{display:block;padding:14px;margin-bottom:20px;background:var(--tint-accent);border:1px solid var(--rule);border-radius:var(--r-panel);font-size:15px;line-height:22px}
+.consentbg{min-height:800px;padding:32px;background:var(--surface-2)}.consent-wrap{max-width:432px;margin:auto}.consent-top{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;font-size:14px}.consent{background:var(--surface);padding:24px;border:1px solid var(--rule);border-radius:var(--r-panel)}.permissions{margin:16px 0}.permissions .check{padding:12px 0;border-block-end:1px solid var(--rule);margin:0}.role{border:1px solid var(--stat-accent);color:var(--stat-accent);padding:2px 10px;border-radius:var(--r-pill);font-size:13px}.phone .consentbg{padding:14px;min-height:844px}.phone .consent{padding:20px}.phone .consent h2{font-size:24px;line-height:28px}
+.tablewrap{overflow:auto;border:1px solid var(--rule);border-radius:var(--r-panel);background:var(--surface)}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--rule);white-space:nowrap}th{font-size:12px;font-weight:600}tr.selected{background:var(--tint-accent)}.inspector{margin-top:16px;border:1px solid var(--rule);border-radius:var(--r-panel);padding:18px;background:var(--surface)}.facts{display:flex;gap:24px;flex-wrap:wrap;margin:16px 0}.facts p{margin:0}.phone .facts{gap:12px 24px}.phone .tablewrap{margin-right:-16px;border-radius:0}.phone table{font-size:13px}.swipe{display:none}.phone .swipe{display:block;margin-top:8px}
+.scrim{position:absolute;inset:0;padding:24px 16px;background:var(--scrim);display:flex;align-items:center;justify-content:center}.dlg{position:relative;width:min(480px,100%);background:var(--surface);border-radius:var(--r-card);box-shadow:var(--shadow-dialog);max-height:calc(100% - 48px);display:flex;flex-direction:column;overflow:hidden}.dlg-head{padding:24px 24px 16px;flex-shrink:0}.dlg h2{font:700 17px/24px var(--font);padding-right:28px;margin:0}.dlg .close{position:absolute;top:12px;right:12px;border:0;background:none;width:40px;height:40px;display:grid;place-items:center;color:var(--muted)}.dlg-content{padding:0 24px 20px;min-height:0;overflow-y:auto}.dlg-actions{padding:8px 24px 16px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-shrink:0}.dlg-actions .btn{min-width:0;flex:0 1 auto}.phone .dlg h2{font-size:17px;line-height:24px}.phone .dlg .field{margin-top:22px}
+#frame:has(.dlg){height:800px}#frame.phone:has(.dlg){height:844px}
+#frame.long .identity{font-size:14px}
+</style>
+</head>
+<body>
+<div class="lab" aria-label="Design lab controls">
+<strong>Two-factor authentication · design lab</strong>
+<label>Screen <select id="screen"></select></label>
+<label>Direction <select id="direction"></select></label>
+<label>State <select id="state"></select></label>
+<label>Width <select id="width"><option>1280</option><option>390</option></select></label>
+<label>Theme <select id="theme"><option value="light">Day</option><option value="dark">Night</option></select></label>
+</div>
+<p class="labnote" id="labnote"></p>
+<div class="stage"><div id="frame"></div></div>
+<script>
+const TERMS = { twoFactor: 'two-factor authentication', authenticator: 'authenticator app', recovery: 'recovery code' };
+const cap = value => value[0].toUpperCase() + value.slice(1);
+const t = TERMS;
+const SCREENS = {
+  account: { name: '1 · Account security', recommended: 'a', directions: { a: 'A · Security accordion' }, states: ['off','setting-up','on','low','regenerate','regenerate-recovery','regenerate-daily','regenerate-daily-recovery','regenerate-daily-recovery-wrong','regenerate-limited','turn-off','turn-off-recovery','turn-off-daily','turn-off-daily-recovery','turn-off-daily-recovery-wrong','turn-off-limited','wrong','done'] },
+  enrolment: { name: '2 · Enrolment', recommended: 'a', directions: { a: 'A · Scan and confirm together', b: 'B · Separate scan and confirm' }, states: ['scan','manual','confirm','wrong','expired'] },
+  recovery: { name: '3 · Recovery codes', recommended: 'a', directions: { a: 'A · Save before leaving' }, states: ['new','copied','downloaded','saved','regenerated'] },
+  login: { name: '4 · Login code', recommended: 'a', directions: { a: 'A · Existing Login B card' }, states: ['code','wrong','recovery','recovery-wrong','expired','limited','daily','daily-recovery','daily-recovery-wrong','connect','connect-recovery','connect-recovery-wrong','connect-password','password','connect-wrong','connect-expired','connect-limited','connect-daily','connect-daily-recovery','connect-daily-recovery-wrong','long'] },
+  stepup: { name: '5 · Step-up', recommended: 'a-password', directions: { a: 'A1 · Superseded code-alone proof', 'a-password': 'A2 · Selected inline password plus code', b: 'B · Review then verify' }, states: ['dialog','verify','wrong','limited','daily','daily-recovery','daily-recovery-wrong','recovery','recovery-wrong','consent','consent-verify','consent-wrong','consent-limited','consent-daily','consent-daily-recovery','consent-daily-recovery-wrong','consent-recovery','consent-recovery-wrong'] },
+  users: { name: '6 · Reset another user', recommended: 'a-password', directions: { a: 'A1 · Inspector layout, superseded proof', 'a-password': 'A2 · Selected password-plus-code reset' }, states: ['selected','confirm','wrong','limited','daily','daily-recovery','daily-recovery-wrong','recovery','recovery-wrong','done','self'] },
+};
+const REASONS = {
+  account: 'A keeps status, the remaining codes and both actions inside the existing Account accordion pattern.',
+  enrolment: 'A puts the code field beside the QR and key. B shortens each step but adds a page change.',
+  recovery: 'A keeps every code visible and asks for an explicit saved confirmation before leaving.',
+  login: 'A keeps the chosen Login B card and the connected app name throughout the second step.',
+  stepup: 'Selected layout A keeps the action, target and identity proof together. Password plus code applies; A1 is superseded. B reduces field density but hides the draft while verifying.',
+  users: 'A adds the reset to the existing selected-user inspector and names both the target and the acting account in the confirmation.',
+};
+let cfg = { screen: 'account', direction: 'a', state: 'off', width: 1280, theme: 'light' };
+let saved = false;
+let sampleState = 0x1275;
+const SAMPLE_CODES = Array.from({ length: 10 }, () => {
+  const alphabet = '23456789BCDFGHJKMNPQRTVWXY';
+  const characters = Array.from({length:16}, () => {
+    sampleState = (Math.imul(sampleState, 1664525) + 1013904223) >>> 0;
+    return alphabet[Math.floor(sampleState / 2 ** 32 * alphabet.length)];
+  }).join('');
+  return Array.from({length:4}, (_,group) => characters.slice(group * 4, group * 4 + 4)).join('-');
+});
+const frame = document.querySelector('#frame');
+const paths = { shield: '<path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z"/><path d="m8 12 3 3 5-6"/>', alert: '<path d="m12 3 10 18H2z"/><path d="M12 9v5m0 3h.01"/>', close: '<path d="m6 6 12 12M18 6 6 18"/>', reset: '<path d="M3 11a9 9 0 1 1 2 7M3 4v7h7"/>', chevron: '<path d="m6 9 6 6 6-6"/>' };
+const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+const button = (label, action, style = '', disabled = false) => `<button class="btn ${style}" data-action="${action}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+const alert = (text, kind = 'error') => `<div class="alert ${kind}" role="${kind === 'error' ? 'alert' : 'status'}">${icon(kind === 'success' ? 'shield' : 'alert')}<p>${text}</p></div>`;
+function field(label, id, { error = '', hint = '', password = false, disabled = false, recovery = false, autocomplete = password ? 'new-password' : 'one-time-code' } = {}) {
+  return `<div class="field ${error ? 'error' : ''}"><label for="${id}">${label}</label><input id="${id}" name="${id}" type="${password ? 'password' : 'text'}" ${password ? `autocomplete="${autocomplete}"` : `autocomplete="one-time-code" ${recovery ? 'maxlength="19"' : 'inputmode="numeric" maxlength="6"'}`} ${error ? 'aria-invalid="true"' : ''} aria-describedby="${id}-hint" ${disabled ? 'disabled' : ''}><p id="${id}-hint" class="hint ${error ? 'error-text' : 'muted'}">${error || hint}</p></div>`;
+}
+function codeState() {
+  const recovery=cfg.state.includes('recovery'), daily=cfg.state.includes('daily'), limited=cfg.state.endsWith('limited');
+  return {recovery,daily,limited,wrong:cfg.state.endsWith('wrong'),blocked:limited || (daily && !recovery)};
+}
+const needsPassword = () => cfg.screen === 'account' || cfg.direction === 'a-password';
+function proofInstruction(purpose) {
+  const method = codeState().recovery ? `a ${t.recovery}` : `a code from your ${t.authenticator}`;
+  return `Enter ${needsPassword() ? 'your password and ' : ''}${method} to ${purpose}.`;
+}
+function proofFields() {
+  const {recovery,daily,limited,wrong,blocked} = codeState();
+  const password = needsPassword() ? field('Your current password','proof-password',{password:true,autocomplete:'current-password',disabled:limited}) : '';
+  const error = wrong ? (recovery ? `That ${t.recovery} did not work or has already been used.` : 'That code did not work. Try a new code.') + (cfg.screen === 'stepup' && cfg.state.startsWith('consent') ? ' Nothing was connected.' : '') : '';
+  const input = field(recovery ? `Your ${t.recovery}` : 'Your authenticator code','proof-code',{
+    recovery, error, disabled:blocked,
+    hint:recovery ? '16 characters, with or without the hyphens.' : `Enter the 6-digit code from your ${t.authenticator}.`,
+  });
+  const notice = daily ? alert(recovery ? `The daily authenticator-code limit is reached. ${cap(t.recovery)}s can still be used.` : `The daily authenticator-code limit is reached. Use a ${t.recovery}, or wait until the daily limit resets.`,'warning')
+    : limited ? alert('Too many requests from this address. Wait before trying again.','warning') : '';
+  return `${password}${input}${notice}<div class="actions">${button(recovery ? 'Use an authenticator code' : `Use a ${t.recovery}`,recovery ? 'use-authenticator' : 'use-recovery','',limited)}</div>`;
+}
+const proof = (purpose = 'confirm this change') => `<div class="ruled"><h3>Confirm it's you</h3><p class="muted">${proofInstruction(purpose)}</p><p class="caption">Signed in as ana@example.test</p>${proofFields()}</div>`;
+function accordion(title, body, open = false) { return `<details class="acc" ${open ? 'open' : ''}><summary>${title}${icon('chevron')}</summary><div class="accbody">${body}</div></details>`; }
+function shell(body, page = 'Account') {
+  return `<div class="app"><aside class="rail"><div class="farm">Cluckwork · Sunrise Farm</div><div class="navitem">Today</div><div class="navitem">Daily entry</div><div class="navitem">Sales</div><div class="navitem">Stock</div><div class="nav-group">SETUP</div><div class="navitem ${page === 'Users' ? 'active' : ''}">Users</div><div class="navitem">Farm settings</div><div class="railfoot"><div class="navitem ${page === 'Account' ? 'active' : ''}">Account</div><div class="navitem">Help</div><div class="navitem">Night mode</div><div class="navitem">Sign out</div></div></aside><div class="content"><div class="${page === 'Account' ? 'account' : ''}">${body}</div></div></div><nav class="tabbar" aria-label="Navigation"><span>Today</span><span>Daily entry</span><span>Sales</span><span>Stock</span><span>More</span></nav>`;
+}
+const status = state => `<span class="status ${state === 'On' ? '' : state === 'Off' ? 'off' : 'pending'}"><i></i>${state}</span>`;
+function account() {
+  const on = !['off','setting-up','done'].includes(cfg.state);
+  const title = on ? 'On' : cfg.state === 'setting-up' ? 'Set-up not finished' : 'Off';
+  const summary = `<div class="row"><div><h3>${cap(t.twoFactor)}</h3><p class="muted">Add a code from your ${t.authenticator} when you sign in.</p>${status(title)}</div>${!on ? `<div class="actions">${button(cfg.state === 'setting-up' ? 'Continue set-up' : 'Set up', 'enrol', 'primary')}</div>` : ''}</div>`;
+  const management = on ? `<div class="row"><div><h3>${cap(t.recovery)}s</h3><p><span class="count">${cfg.state === 'low' ? 1 : 8}</span> codes left</p><p class="caption">Each code works once if you cannot use your ${t.authenticator}.</p></div><div class="actions">${button('Regenerate', 'regenerate', 'outlined')}</div></div>${cfg.state === 'low' ? alert('You have 1 code left. Save a new set before you need it.', 'warning') : ''}<div class="row"><p class="muted">Remove the extra code at sign-in.</p>${button('Turn off', 'turn-off', 'danger-text')}</div>` : cfg.state === 'setting-up' ? `<p class="muted">Scan the QR code and confirm a code to finish. ${cap(t.twoFactor)} is still off.</p>` : `<p class="muted">You sign in with your password only.</p>`;
+  let html = shell(`<p class="eyebrow">Your account</p><h1>Account</h1><p class="muted">You are signed in as <strong>Ana · Admin</strong>.</p>${accordion('Preferences', '<p class="muted">Language · English</p><p class="muted">Entry unit · Tray</p>')}${accordion('Change password', '<p class="muted">Change the password for your account.</p>')}${accordion('Security', `${cfg.state === 'done' ? alert(`${cap(t.twoFactor)} is off.`, 'success') : ''}${summary}${management}`, true)}${accordion('Connected apps', '<p class="muted">1 connected app can act as you.</p>')}`);
+  if (cfg.state.startsWith('regenerate') || cfg.state.startsWith('turn-off') || cfg.state === 'wrong') {
+    const off = cfg.state.startsWith('turn-off');
+    const {blocked} = codeState();
+    html += dialog(off ? `Turn off ${t.twoFactor}?` : `Regenerate ${t.recovery}s?`, `<p>${off ? `You will sign in with your password only.` : 'The new set replaces every code you saved before. Save the new codes after this step.'}</p>${proof()}`, button('Cancel','account-on') + button(off ? 'Turn off' : 'Regenerate',off ? 'account-done' : 'regenerated-codes',off ? 'danger' : 'primary',blocked));
+  }
+  return html;
+}
+function qr() {
+  const blocks = Array.from({ length: 17 }, (_, y) => Array.from({ length: 17 }, (_, x) => ((x * 7 + y * 11 + x * y) % 5 < 2) ? `<rect x="${x + 2}" y="${y + 2}" width="1" height="1"/>` : '').join('')).join('');
+  return `<div class="qr" role="img" aria-label="QR code layout placeholder, not scannable"><svg viewBox="0 0 21 21" fill="currentColor" aria-hidden="true">${blocks}${[[1,1],[13,1],[1,13]].map(([x,y]) => `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x+1}" y="${y+1}" width="5" height="5" fill="white"/><rect x="${x+2}" y="${y+2}" width="3" height="3"/>`).join('')}</svg></div><p class="caption qr-note">QR preview · not scannable</p>`;
+}
+function enrolment() {
+  const separated = cfg.direction === 'b';
+  const confirming = separated && ['confirm','wrong'].includes(cfg.state);
+  const steps = `<ol class="steps" aria-label="Set-up steps"><li class="${confirming ? '' : 'current'}">1 · Scan</li><li class="${confirming ? 'current' : ''}">2 · Confirm</li><li>3 · Save codes</li></ol>`;
+  const manual = `<p class="muted">In your ${t.authenticator}, add a set-up key for Cluckwork.</p><code class="key">XXXX XXXX XXXX XXXX<br>XXXX XXXX XXXX XXXX</code>${button('Copy key','copy-key','outlined')}<p class="caption">Layout placeholder. This key does not work.</p>`;
+  const scan = `<div>${qr()}</div><div class="scan-copy"><h3>Add Cluckwork</h3><p class="muted">Open your ${t.authenticator} and scan this QR code.</p>${cfg.state === 'manual' ? manual : `<details><summary>Cannot scan the QR code?</summary>${manual}</details>`}</div>`;
+  const confirm = `<h3>Confirm a code</h3><p class="muted">Enter the code for Cluckwork in your ${t.authenticator}.</p>${field('Authenticator code','enrol-code',{error: cfg.state === 'wrong' ? 'That code did not work. Try the next code in your app.' : '', hint: '6 digits'})}`;
+  const body = `${steps}<h2>Set up ${t.twoFactor}</h2>${cfg.state === 'expired' ? `${alert('This set-up expired. Start again to get a new QR code.')}${button('Start again','scan','primary')}` : `${confirming ? confirm : `<div class="setup-grid">${scan}</div>${!separated ? `<div class="ruled">${confirm}</div>` : ''}`}<div class="actions">${button(confirming ? 'Back' : 'Cancel', confirming ? 'scan' : 'account-off')}${button(separated && !confirming ? 'Continue' : 'Confirm code', separated && !confirming ? 'confirm' : 'new-codes','primary')}</div>`}`;
+  return shell(`<p class="eyebrow">Account / Security</p><div class="acc"><div class="accbody">${body}</div></div>`);
+}
+function recovery() {
+  return shell(`<p class="eyebrow">Account / Security</p><div class="acc"><div class="accbody"><h2>Save your ${t.recovery}s</h2><p>${cap(t.twoFactor)} is on.</p>${cfg.state === 'regenerated' ? alert('These replace your previous codes. The old codes no longer work.','warning') : ''}<p class="muted">Use one if you cannot use your ${t.authenticator}. Each code works once. You cannot view these again.</p><ul class="codes" aria-label="${cap(t.recovery)}s, samples">${SAMPLE_CODES.map(code => `<li>${code}</li>`).join('')}</ul><p class="caption">Sample codes only. These codes do not work.</p><div class="actions">${button('Copy all codes','copy-codes','outlined')}${button('Download codes','download','outlined')}</div><div id="copy-status" role="status">${cfg.state === 'copied' ? alert('Codes copied. Keep them somewhere safe.','success') : cfg.state === 'downloaded' ? alert('Download started. Check the file before you leave.','success') : ''}</div><label class="check"><input type="checkbox" id="saved" ${cfg.state === 'saved' ? 'checked' : ''}>I saved my ${t.recovery}s somewhere safe.</label><div class="actions">${button('Done','finish','primary',cfg.state !== 'saved')}</div></div></div>`);
+}
+function login() {
+  const connect = cfg.state.startsWith('connect');
+  const app = cfg.state === 'long' ? 'Sunrise Farm reporting and stock reconciliation desktop application' : 'Farm Ledger';
+  const next = `<strong>Next, approve ${app}</strong><p>After you sign in, review what it asks for and choose whether to allow it.</p>`;
+  const {recovery,daily,limited,wrong,blocked} = codeState();
+  const expired = cfg.state.endsWith('expired');
+  const password = cfg.state.endsWith('password');
+  const form = password ? `${field('Password','return-password',{password:true})}<div class="actions">${button('Continue','login-code','primary')}</div>` : expired ? `${alert('This sign-in step expired. Sign in again to continue.')}<div class="actions">${button('Back to sign in','login-back','primary')}</div>` : `<p class="muted">${recovery ? `Enter one of the ${t.recovery}s you saved when you set up ${t.twoFactor}.` : `Enter the 6-digit code from your ${t.authenticator}.`}</p>${field(recovery ? cap(t.recovery) : 'Authenticator code','login-code',{recovery,error:wrong ? (recovery ? `That ${t.recovery} did not work or has already been used.` : 'That code did not work. Try a new code.') : '',hint:recovery ? '16 characters, with or without the hyphens.' : '',disabled:blocked})}${daily ? alert(recovery ? `The daily authenticator-code limit is reached. ${cap(t.recovery)}s can still be used.` : `The daily authenticator-code limit is reached. Use a ${t.recovery}, or wait until the daily limit resets.`,'warning') : limited ? alert('Too many requests from this address. Wait before trying again.','warning') : ''}<div class="actions">${button('Sign in','login-submit','primary',blocked)}${button(recovery ? 'Use an authenticator code' : `Use a ${t.recovery}`,recovery ? 'use-authenticator' : 'use-recovery','',limited)}${button('Back to sign in','login-back')}</div>`;
+  return `<main class="authbg"><div class="authcard"><div class="authside"><p class="eyebrow">Farm operations</p><h1>Cluckwork</h1>${connect || cfg.state === 'long' ? `<div class="next">${next}</div>` : `<p>Sunrise Farm</p>`}<footer class="caption">Sign in with your farm account.</footer></div><div class="authmain">${connect || cfg.state === 'long' ? `<div class="next-mobile">${next}</div>` : ''}<h2>${password ? 'Sign in' : recovery ? `Use a ${t.recovery}` : 'Verify your sign-in'}</h2><p class="identity">${cfg.state === 'long' ? 'ana.reconciliation-and-reports@example.test' : 'ana@example.test'}</p><p class="caption">Sunrise Farm${password ? '' : ' · Password confirmed'}</p>${form}</div></div></main>`;
+}
+function dialog(title, body, actions) {
+  return `<div class="scrim"><section class="dlg" role="dialog" aria-modal="true" aria-labelledby="dialog-title"><div class="dlg-head"><h2 id="dialog-title">${title}</h2><button class="close" data-action="close" aria-label="Close dialog">${icon('close')}</button></div><div class="dlg-content">${body}</div><footer class="dlg-actions">${actions}</footer></section></div>`;
+}
+function consent() {
+  const staged = cfg.direction === 'b' && cfg.state !== 'consent';
+  const {blocked} = codeState();
+  const verify = `<div class="ruled"><p class="muted">${proofInstruction('approve this app')}</p>${proofFields()}</div>`;
+  return `<main class="consentbg"><div class="consent-wrap"><div class="consent-top"><strong>Sunrise Farm</strong><strong class="identity">ana@example.test</strong></div><div class="consent"><h2>Let Farm Ledger act as you?</h2><p class="caption">Unverified app · Returns to this computer</p><p class="muted">Choose what this app can do.</p><div class="permissions"><label class="check"><input type="checkbox" checked>Read farm data</label><label class="check"><input type="checkbox" checked>Record daily entries</label></div><p>Acts as you, with only your access.</p><span class="role">Admin</span>${cfg.direction.startsWith('a') ? verify : `<div class="ruled"><p>Next, confirm with your ${t.authenticator}.</p></div>`}<div class="actions">${button(cfg.direction.startsWith('a') ? 'Allow' : 'Continue','consent-verify','primary',blocked)}${button('Cancel','consent-cancel')}</div><p class="caption" style="margin-top:16px">Disconnect it anytime in Account / Connected apps.</p><details class="ruled"><summary>Details</summary><p class="muted">This app chose its own name. Cluckwork has not verified it.</p><p>Signed in as ana@example.test</p></details></div></div></main>${staged ? dialog('Allow Farm Ledger?', `${proof('approve Farm Ledger')}<p class="caption">Read farm data · Record daily entries</p>`,button('Back','consent-back')+button('Allow','consent-done','primary',blocked)) : ''}`;
+}
+function stepup() {
+  if (cfg.state.startsWith('consent')) return consent();
+  const separate = cfg.direction === 'b';
+  const verify = separate && cfg.state !== 'dialog';
+  const {blocked} = codeState();
+  const fields = `<p class="identity">Ben · ben@example.test</p><p class="muted">Set a new password for this person.</p>${field('New password','new-password',{password:true,hint:'At least 12 characters'})}${field('Confirm new password','confirm-password',{password:true})}`;
+  const body = verify ? `<p>Set a password for <strong>ben@example.test</strong>.</p>${proof()}` : `${fields}${separate ? `<p class="muted ruled">Next, confirm it's you with your ${t.authenticator}.</p>` : proof()}`;
+  return users('selected',false) + dialog(verify ? 'Confirm password reset' : 'Set password',body,button(verify ? 'Back' : 'Cancel',verify ? 'stepup-back' : 'close') + button(separate && !verify ? 'Continue' : 'Set password',separate && !verify ? 'verify' : 'stepup-submit','primary',blocked));
+}
+function users(state = cfg.state, showDialog = true) {
+  const self = state === 'self';
+  const target = self ? 'Ana' : 'Ben';
+  const email = self ? 'ana@example.test' : 'ben@example.test';
+  const body = `<h1>Users</h1><p class="muted">Manage who can use this farm.</p>${state === 'done' ? alert(`${cap(t.twoFactor)} was reset for ben@example.test.`,'success') : ''}<div class="tablewrap"><table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr class="${self ? 'selected' : ''}"><td>ana@example.test</td><td>Ana</td><td>Admin</td><td>${status('On').replace('On','Active')}</td><td>Edit · Role</td></tr><tr class="${self ? '' : 'selected'}"><td>ben@example.test</td><td>Ben</td><td>Worker</td><td>${status('On').replace('On','Active')}</td><td>Edit · Role</td></tr></tbody></table></div><p class="caption swipe">Swipe to see more columns.</p><section class="inspector"><h3>${target}</h3><p class="identity">${email}</p><div class="facts"><p><span class="caption">Role</span><br>${self ? 'Admin' : 'Worker'}</p><p><span class="caption">${cap(t.twoFactor)}</span><br>${status(state === 'done' ? 'Off' : 'On')}</p></div><div class="actions">${button('Edit','no-op')}${button('Change role','no-op')}${button('Set password','set-password')}${!self && state !== 'done' ? button(`${icon('reset')}Reset ${t.twoFactor}`,'reset','danger-text') : ''}</div>${self ? `<p class="caption">Manage your own ${t.twoFactor} in Account / Security.</p>` : ''}</section>`;
+  let html = shell(body,'Users');
+  if (showDialog && !['selected','done','self'].includes(state)) html += dialog(`Reset ${t.twoFactor}?`, `<p class="identity">Ben · ben@example.test</p><p>Ben will need to set up an ${t.authenticator} again.</p><p class="muted">Their current authenticator and all saved ${t.recovery}s will stop working.</p>${proof()}`,button('Cancel','users-selected') + button(`Reset ${t.twoFactor}`,'reset-submit','danger',codeState().blocked));
+  return html;
+}
+function configure(next = {}) {
+  cfg = {...cfg,...(next.screen && next.screen !== cfg.screen && !next.direction ? {direction:SCREENS[next.screen].recommended} : {}),...next};
+  const screen = SCREENS[cfg.screen];
+  if (!screen.directions[cfg.direction]) cfg.direction = screen.recommended;
+  if (!screen.states.includes(cfg.state)) cfg.state = screen.states[0];
+  document.documentElement.dataset.theme = cfg.theme;
+  frame.className = `${cfg.width === 390 ? 'phone' : ''} ${cfg.state === 'long' ? 'long' : ''}`;
+  frame.dataset.screen = cfg.screen;
+  frame.innerHTML = ({account,enrolment,recovery,login,stepup,users}[cfg.screen])();
+  const modal = frame.querySelector('.scrim');
+  if (modal) for (const sibling of frame.children) if (sibling !== modal) sibling.inert = true;
+  for (const [id, values] of Object.entries({screen:Object.fromEntries(Object.entries(SCREENS).map(([key,value]) => [key,value.name])),direction:screen.directions,state:Object.fromEntries(screen.states.map(s => [s,s]))})) {
+    const select = document.getElementById(id);
+    select.innerHTML = Object.entries(values).map(([value,label]) => `<option value="${value}">${label}${id === 'direction' && value === screen.recommended ? ' · selected' : ''}</option>`).join('');
+    select.value = cfg[id];
+  }
+  document.querySelector('#width').value = cfg.width;
+  document.querySelector('#theme').value = cfg.theme;
+  document.querySelector('#labnote').textContent = `${REASONS[cfg.screen]} Prototype only. Buttons simulate states. Keys and the QR are placeholders. Recovery codes are generated samples.`;
+  saved = cfg.state === 'saved';
+}
+for (const id of ['screen','direction','state','width','theme']) document.getElementById(id).addEventListener('change', e => configure({[id]: id === 'width' ? Number(e.target.value) : e.target.value}));
+frame.addEventListener('change', e => {
+  if (e.target.id !== 'saved') return;
+  saved = e.target.checked;
+  frame.querySelector('[data-action="finish"]').disabled = !saved;
+});
+frame.addEventListener('keydown', e => {
+  const dlg = frame.querySelector('.dlg');
+  if (!dlg) return;
+  if (e.key === 'Escape') { e.preventDefault(); act('close'); }
+  if (e.key === 'Tab') {
+    const controls = [...dlg.querySelectorAll('button:not(:disabled),input:not(:disabled),summary')];
+    if (e.shiftKey && document.activeElement === controls[0]) { e.preventDefault(); controls.at(-1).focus(); }
+    else if (!e.shiftKey && document.activeElement === controls.at(-1)) { e.preventDefault(); controls[0].focus(); }
+  }
+});
+frame.addEventListener('click', e => { const control=e.target.closest('[data-action]'); if(control && !control.disabled) act(control.dataset.action); });
+function act(action) {
+  if (action === 'use-recovery' || action === 'use-authenticator') {
+    const passwordDraft = [...frame.querySelectorAll('input[type="password"]')].map(input => [input.id,input.value]);
+    const permissions = [...frame.querySelectorAll('.permissions input')].map(input => input.checked);
+    const recovery = action === 'use-recovery';
+    const daily = codeState().daily;
+    const method = daily ? `daily${recovery ? '-recovery' : ''}` : 'recovery';
+    let state;
+    if (cfg.screen === 'login') state = cfg.state.startsWith('connect') ? (daily || recovery ? `connect-${method}` : 'connect') : (daily || recovery ? method : 'code');
+    else if (cfg.screen === 'account') state = (cfg.state.startsWith('turn-off') ? 'turn-off' : 'regenerate') + (daily || recovery ? `-${method}` : '');
+    else if (cfg.screen === 'users') state = daily || recovery ? method : 'confirm';
+    else if (cfg.state.startsWith('consent')) state = daily || recovery ? `consent-${method}` : (cfg.direction === 'b' ? 'consent-verify' : 'consent');
+    else state = daily || recovery ? method : (cfg.direction === 'b' ? 'verify' : 'dialog');
+    configure({state});
+    for (const [id,value] of passwordDraft) frame.querySelector(`#${id}`).value = value;
+    frame.querySelectorAll('.permissions input').forEach((input,index) => { input.checked=permissions[index]; });
+    frame.querySelector('input[autocomplete="one-time-code"]').focus({preventScroll:true});
+    return;
+  }
+
+  const recoveryFailure = codeState().daily ? 'daily-recovery-wrong' : 'recovery-wrong';
+  const routes = {
+    enrol:{screen:'enrolment',state:'scan'},'account-off':{screen:'account',state:'off'},'regenerated-codes':{screen:'recovery',state:'regenerated'},'account-on':{screen:'account',state:'on'},'account-done':{screen:'account',state:'done'},
+    regenerate:{state:'regenerate'},'turn-off':{state:'turn-off'},'new-codes':{screen:'recovery',state:'new'},
+    scan:{state:'scan'},confirm:{state:'confirm'},verify:{state:'verify'},'login-code':{state:cfg.state.startsWith('connect') ? 'connect' : 'code'},
+    'login-submit':{state:cfg.state.startsWith('connect') ? (codeState().recovery ? `connect-${recoveryFailure}` : 'connect-wrong') : codeState().recovery ? recoveryFailure : 'wrong'},
+    'login-back':{state:cfg.state.startsWith('connect') ? 'connect-password' : 'password'},'stepup-back':{state:'dialog'},'stepup-submit':{state:codeState().recovery ? recoveryFailure : 'wrong'},
+    'set-password':{screen:'stepup',state:'dialog'},reset:{state:'confirm'},'reset-submit':{state:'done'},'users-selected':{screen:'users',state:'selected'},
+    'consent-verify':{state:cfg.direction === 'b' ? 'consent-verify' : codeState().recovery ? `consent-${recoveryFailure}` : 'consent-wrong'},'consent-back':{state:'consent'},'consent-done':{state:codeState().recovery ? `consent-${recoveryFailure}` : 'consent-wrong'},
+  };
+  if (action === 'consent-cancel') { frame.querySelector('.consent').innerHTML='<h2>Connection cancelled</h2><p>Nothing was connected.</p>'; return; }
+  if (action === 'finish') { if(saved) configure({screen:'account',state:'on'}); return; }
+  if (action === 'close') { configure(cfg.screen === 'account' ? {state:'on'} : cfg.screen === 'users' ? {state:'selected'} : cfg.state.startsWith('consent') ? {state:'consent'} : {screen:'users',state:'selected'}); return; }
+  if (action === 'copy-key') { document.querySelector('[data-action="copy-key"]').textContent='Key copied (preview)'; return; }
+  if (action === 'copy-codes' || action === 'download') {
+    if (action === 'download') {
+      const link=document.createElement('a');
+      link.href=URL.createObjectURL(new Blob([`Cluckwork design preview\nSample ${t.recovery}s only. These codes do not work.\n${SAMPLE_CODES.join('\n')}\n`],{type:'text/plain'}));
+      link.download='cluckwork-recovery-preview.txt'; link.click(); URL.revokeObjectURL(link.href);
+    }
+    configure({state:action === 'download' ? 'downloaded' : 'copied'}); return;
+  }
+  if (routes[action]) configure(routes[action]);
+  const focus = frame.querySelector('.dlg input:not(:disabled),.dlg .close');
+  if (focus) focus.focus({preventScroll:true});
+}
+window.configure=configure;
+window.LAB={screens:SCREENS};
+configure();
+</script>
+</body>
+</html>
