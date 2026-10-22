@@ -36,7 +36,8 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         using var scope = services.CreateScope();
         if (tenant is { } accountId) scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var credentials = new TwoFactorCredentials(db, scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>());
+        var credentials = new TwoFactorCredentials(
+            db, scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), scope.ServiceProvider.GetRequiredService<TenantContext>());
         return await action(db, credentials);
     }
 
@@ -64,11 +65,11 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
     }
 
     [Theory]
-    [InlineData(nameof(ProtectedTwoFactorValue.AuthenticatorKey), "AuthenticatorKey")]
-    [InlineData(nameof(ProtectedTwoFactorValue.PendingAuthenticator), "PendingAuthenticator")]
-    public async Task AProtectedValue_IsNotThePlaintext_AndReadsBackAfterARestartAndFromASecondInstance(string slotName, string rowName)
+    [InlineData(true, "AuthenticatorKey")]
+    [InlineData(false, "PendingAuthenticator")]
+    public async Task AProtectedValue_IsNotThePlaintext_AndReadsBackAfterARestartAndFromASecondInstance(bool liveKey, string rowName)
     {
-        var slot = Enum.Parse<ProtectedTwoFactorValue>(slotName);
+        var slot = liveKey ? ProtectedTwoFactorValue.AuthenticatorKey : ProtectedTwoFactorValue.PendingAuthenticator;
         var user = await SeedUserAsync();
         var key = NewKey();
 
@@ -76,7 +77,7 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         {
             await InScopeAsync(first.Services, user.AccountId, async (db, credentials) =>
             {
-                await credentials.StageProtectedAsync(user.AccountId, user.UserId, slot, key, CancellationToken.None);
+                await credentials.StageProtectedAsync(user.UserId, slot, key, CancellationToken.None);
                 return await db.SaveChangesAsync();
             });
         }
@@ -107,7 +108,7 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         {
             await InScopeAsync(factory.Services, user.AccountId, async (db, credentials) =>
             {
-                await credentials.StageProtectedAsync(user.AccountId, user.UserId, ProtectedTwoFactorValue.PendingAuthenticator, key, CancellationToken.None);
+                await credentials.StageProtectedAsync(user.UserId, ProtectedTwoFactorValue.PendingAuthenticator, key, CancellationToken.None);
                 return await db.SaveChangesAsync();
             });
         }
@@ -164,7 +165,7 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
 
         await InScopeAsync(factory.Services, owner.AccountId, async (db, credentials) =>
         {
-            await credentials.StageProtectedAsync(owner.AccountId, owner.UserId, ProtectedTwoFactorValue.AuthenticatorKey, NewKey(), CancellationToken.None);
+            await credentials.StageProtectedAsync(owner.UserId, ProtectedTwoFactorValue.AuthenticatorKey, NewKey(), CancellationToken.None);
             return await db.SaveChangesAsync();
         });
         await InsertRowAsync(other, "AuthenticatorKey", Assert.Single(await RowsAsync(owner)).Value!);
@@ -209,6 +210,15 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
             TwoFactorCredentials.RecoveryCodeName(Guid.Parse("0000000a-0000-0000-0000-000000001276"), typed));
     }
 
+    [Theory]
+    [InlineData("2222-3333-4444-555")]
+    [InlineData("2222-3333-4444-55556")]
+    [InlineData("")]
+    public void ARecoveryCodeDigest_RefusesACodeThatIsNot16CharactersAfterNormalizing(string typed)
+    {
+        Assert.Throws<ArgumentException>(() => TwoFactorCredentials.RecoveryCodeName(Guid.NewGuid(), typed));
+    }
+
     [Fact]
     public void ARecoveryCodeDigest_IgnoresCase()
     {
@@ -228,10 +238,11 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
             TwoFactorCredentials.RecoveryCodeName(Guid.NewGuid(), code));
     }
 
-    // #1274 decision 15: every add runs on a signed-in route, so an add under no
-    // resolved tenant is refused by the foreign key, even for the right farm.
+    // #1274 decision 15: every add runs on a signed-in route, so a stage call
+    // under no resolved tenant throws before it writes. The raw add's foreign-key
+    // refusal is UserTokenTenantWriteTests.Add_UnderNoResolvedTenant_IsRefusedByTheForeignKey.
     [Fact]
-    public async Task UnderNoResolvedTenant_EveryAdd_IsRefusedByTheForeignKey_AndNothingIsStored()
+    public async Task UnderNoResolvedTenant_EveryStage_Throws_AndNothingIsStored()
     {
         var user = await SeedUserAsync();
 
@@ -242,13 +253,37 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         }));
         var key = await Record.ExceptionAsync(() => InScopeAsync(factory.Services, tenant: null, async (db, credentials) =>
         {
-            await credentials.StageProtectedAsync(user.AccountId, user.UserId, ProtectedTwoFactorValue.AuthenticatorKey, NewKey(), CancellationToken.None);
+            await credentials.StageProtectedAsync(user.UserId, ProtectedTwoFactorValue.AuthenticatorKey, NewKey(), CancellationToken.None);
             return await db.SaveChangesAsync();
         }));
 
-        Assert.True(UserTokenTenantWriteTests.IsForeignKeyRefusal(codes), $"recovery codes: {codes?.GetType().Name ?? "none"}");
-        Assert.True(UserTokenTenantWriteTests.IsForeignKeyRefusal(key), $"authenticator key: {key?.GetType().Name ?? "none"}");
+        Assert.IsType<InvalidOperationException>(codes);
+        Assert.IsType<InvalidOperationException>(key);
         Assert.Empty(await RowsAsync(user));
+    }
+
+    // The stage call protects and stamps under the resolved tenant, so the value
+    // reads back with that account and is invisible to any other.
+    [Fact]
+    public async Task AValueStagedUnderATenant_ReadsBackWithThatAccountOnly()
+    {
+        var user = await SeedUserAsync();
+        var key = NewKey();
+
+        await InScopeAsync(factory.Services, user.AccountId, async (db, credentials) =>
+        {
+            await credentials.StageProtectedAsync(user.UserId, ProtectedTwoFactorValue.AuthenticatorKey, key, CancellationToken.None);
+            return await db.SaveChangesAsync();
+        });
+        var stamped = await factory.WithTenantScopeAsync(user.AccountId, db =>
+            db.UserTokens.AsNoTracking().Where(t => t.UserId == user.UserId)
+                .Select(t => EF.Property<Guid>(t, "AccountId")).SingleAsync());
+        var other = await InScopeAsync(factory.Services, user.AccountId, (_, credentials) =>
+            credentials.ReadProtectedAsync(Guid.NewGuid(), user.UserId, ProtectedTwoFactorValue.AuthenticatorKey, CancellationToken.None));
+
+        Assert.Equal(user.AccountId, stamped);
+        Assert.Equal(key, await ReadKeyAsync(user));
+        Assert.Null(other);
     }
 
     // G1.4 — ProtectPersonalData stays off (#1274 decision 13): it would encrypt

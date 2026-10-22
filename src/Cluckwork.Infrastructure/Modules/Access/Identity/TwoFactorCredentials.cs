@@ -7,60 +7,69 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 
-internal enum ProtectedTwoFactorValue
+// The two protected rows, a closed set. The row name is stored with every
+// value: renaming one orphans every stored key.
+internal sealed class ProtectedTwoFactorValue
 {
-    AuthenticatorKey,
-    PendingAuthenticator,
+    internal static readonly ProtectedTwoFactorValue AuthenticatorKey = new("AuthenticatorKey");
+    internal static readonly ProtectedTwoFactorValue PendingAuthenticator = new("PendingAuthenticator");
+
+    private ProtectedTwoFactorValue(string rowName) => RowName = rowName;
+
+    internal string RowName { get; }
 }
 
 // #1274 "The state it owns": the one owner of two-factor state. #1276 builds
 // the storage; #1278 onward add the methods that call it. Every row is
 // LoginProvider "Cluckwork", so Identity's own "[AspNetUserStore]" rows are
 // never written. The stage methods write nothing; the caller's save does.
-internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvider dataProtection)
+internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvider dataProtection, TenantContext tenant)
 {
-    // Stored with every row or value: renaming one makes every stored key
+    // Stored with every row or value: changing one makes every stored key
     // unreadable or orphaned.
-    internal const string LoginProvider = "Cluckwork";
-    internal const string AuthenticatorKeyName = "AuthenticatorKey";
-    internal const string PendingAuthenticatorName = "PendingAuthenticator";
-    internal const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
+    private const string LoginProvider = "Cluckwork";
+    private const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
     private const string RecoveryCodePrefix = "RecoveryCode:";
 
     private const string AccountIdProperty = nameof(ApplicationUser.AccountId);
 
+    // Every add runs on a signed-in route (#1274 decision 15), so the stage
+    // methods take the account from the resolved tenant: a value protected
+    // under one account and stamped with another could never be read.
     internal async Task StageProtectedAsync(
-        Guid accountId, Guid userId, ProtectedTwoFactorValue slot, string plaintext, CancellationToken ct)
+        Guid userId, ProtectedTwoFactorValue slot, string plaintext, CancellationToken ct)
     {
+        var accountId = ResolvedAccountId();
         var value = Protector(accountId, userId).Protect(plaintext);
-        var name = RowName(slot);
-        var row = await Rows(accountId, userId).SingleOrDefaultAsync(t => t.Name == name, ct);
-        if (row is null) AddRow(userId, name, value);
+        var row = await Rows(accountId, userId).SingleOrDefaultAsync(t => t.Name == slot.RowName, ct);
+        if (row is null) AddRow(userId, slot.RowName, value);
         else row.Value = value;
     }
 
+    // Takes the account, because login reads before the tenant resolves.
     // Null when no row exists. Throws CryptographicException when the key ring
     // cannot read the value (a certificate change, or a value copied from
     // another user's row).
     internal async Task<string?> ReadProtectedAsync(
         Guid accountId, Guid userId, ProtectedTwoFactorValue slot, CancellationToken ct)
     {
-        var name = RowName(slot);
         var value = await Rows(accountId, userId).AsNoTracking()
-            .Where(t => t.Name == name).Select(t => t.Value).SingleOrDefaultAsync(ct);
+            .Where(t => t.Name == slot.RowName).Select(t => t.Value).SingleOrDefaultAsync(ct);
         return value is null ? null : Protector(accountId, userId).Unprotect(value);
     }
 
     // #1274 decision 9: one row per code, named by its digest, with no value.
     internal void StageRecoveryCodes(Guid userId, IEnumerable<string> codes)
     {
+        ResolvedAccountId();
         foreach (var code in codes)
             AddRow(userId, RecoveryCodeName(userId, code), value: null);
     }
 
     // The one digest function, so the stage and verify sites cannot disagree on
     // the normal form: spaces and hyphens removed, upper case, then
-    // XXXX-XXXX-XXXX-XXXX. Rejecting a malformed code is the parser's job (#1278).
+    // XXXX-XXXX-XXXX-XXXX. The #1278 parser rejects malformed input before it
+    // gets here; the length check fails closed if a caller skips it.
     internal static string RecoveryCodeName(Guid userId, string code)
     {
         var compact = code.Replace(" ", "").Replace("-", "").ToUpperInvariant();
@@ -71,12 +80,9 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
             SHA256.HashData(Encoding.UTF8.GetBytes($"{userId:D}:{normalized}")));
     }
 
-    private static string RowName(ProtectedTwoFactorValue slot) => slot switch
-    {
-        ProtectedTwoFactorValue.AuthenticatorKey => AuthenticatorKeyName,
-        ProtectedTwoFactorValue.PendingAuthenticator => PendingAuthenticatorName,
-        _ => throw new ArgumentOutOfRangeException(nameof(slot)),
-    };
+    private Guid ResolvedAccountId() => tenant.IsResolved
+        ? tenant.AccountId
+        : throw new InvalidOperationException("Two-factor rows are staged only under a resolved tenant.");
 
     private IQueryable<IdentityUserToken<Guid>> Rows(Guid accountId, Guid userId) =>
         db.UserTokens.Where(t =>
@@ -85,8 +91,7 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
             && t.LoginProvider == LoginProvider);
 
     // The interceptor stamps AccountId from the resolved tenant, and the
-    // composite foreign key refuses a user of another farm. Every add runs on a
-    // signed-in route, so an add under no tenant is refused (decision 15).
+    // composite foreign key refuses a user of another farm.
     private void AddRow(Guid userId, string name, string? value) =>
         db.UserTokens.Add(new IdentityUserToken<Guid> { UserId = userId, LoginProvider = LoginProvider, Name = name, Value = value });
 
