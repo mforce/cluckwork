@@ -59,8 +59,9 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
     }
 
     // #1274 decision 9: one row per code, named by its digest, with no value.
-    // Refuses before tracking anything: no tenant, or any malformed code, stages
-    // no row at all.
+    // No tenant, or a malformed code, throws before any row is tracked. A
+    // duplicate code throws on its second add, after the first row is tracked,
+    // so #1278's generator must return distinct codes.
     internal void StageRecoveryCodes(Guid userId, IEnumerable<string> codes)
     {
         _ = ResolvedAccountId();
