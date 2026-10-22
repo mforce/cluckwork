@@ -212,13 +212,15 @@ Two-factor authentication (#1274) stores the authenticator key and the recovery 
 table, so it gains the `AspNetUserRoles` seam exactly: a shadow `AccountId`, the composite foreign
 key `(UserId, AccountId) → AspNetUsers(Id, AccountId)` with cascade, and one migration with the
 hand-inserted backfill and `DROP DEFAULT`. No query filter. The table stays on #536's non-tenant
-track, and both `db.UserTokens` sites, in `TwoFactorCredentials`, are classified rows that filter
-by `UserId` and `AccountId`. `TwoFactorCredentials` sets the row's `AccountId` itself rather than
-leaving it to the interceptor, because the login code step writes before the tenant resolves; the
-foreign key then proves the user belongs to that account. The unresolved-tenant `DELETE` arm
-described above for `AspNetUserRoles` applies here too, held shut the same way. Pinned by
-`UserTokenTenantWriteTests`, `UserTokenAccountIdModelTests`, `UserTokenAccountIdMigrationTests` and
-`TwoFactorCredentialsStorageTests`.
+track, and every `db.UserTokens` site is a classified row: each query filters by `UserId` and
+`AccountId`, and an add sets no `AccountId`, so the interceptor stamps it from the resolved tenant.
+Every add runs on a signed-in route, so an add under no tenant is refused by the foreign key, as on
+`AspNetUserRoles`. The unresolved-tenant `DELETE` arm described above for `AspNetUserRoles` applies
+here too, held shut the same way. Pinned by `UserTokenTenantWriteTests`, `UserTokenAccountIdModelTests`,
+`UserTokenAccountIdMigrationTests` and `TwoFactorCredentialsStorageTests`. That only
+`TwoFactorCredentials` writes these rows and the `SecondFactor*` columns is #1278's guard G3.20;
+until then `GlobalUserLookupGuardTests` refuses Identity's authenticator, recovery-code and token
+API anywhere in `src/`.
 
 **Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct

@@ -38,6 +38,22 @@ public sealed class GlobalUserLookupGuardTests
         "SignInManager",
     ];
 
+    // #1276 — two-factor state belongs to TwoFactorCredentials alone (#1274):
+    // Identity's authenticator, recovery-code and token API would write
+    // "[AspNetUserStore]" rows outside its protect site. No file is allowed.
+    private static readonly string[] BannedEverywhere =
+    [
+        "SetAuthenticatorKeyAsync",
+        "ResetAuthenticatorKeyAsync",
+        "GetAuthenticatorKeyAsync",
+        "GenerateNewTwoFactorRecoveryCodesAsync",
+        "RedeemTwoFactorRecoveryCodeAsync",
+        "CountRecoveryCodesAsync",
+        "SetAuthenticationTokenAsync",
+        "GetAuthenticationTokenAsync",
+        "RemoveAuthenticationTokenAsync",
+    ];
+
     // The one type allowed to make an account-scoped lookup out of a global
     // primitive, plus break-glass, which is cross-account BY DESIGN (#265): an
     // operator recovering an account may not know which farm it is in, and
@@ -160,7 +176,7 @@ public sealed class GlobalUserLookupGuardTests
             // inherit the exemption silently.
             var relative = Path.GetRelativePath(sourceRoot, file)
                 .Replace(Path.DirectorySeparatorChar, '/');
-            if (AllowedFiles.Contains(relative)) continue;
+            var banned = AllowedFiles.Contains(relative) ? BannedEverywhere : [.. Banned, .. BannedEverywhere];
 
             // Exempt only what EF GENERATES, and ONLY under a Migrations
             // directory. Two shapes, each matching exactly what `ef migrations`
@@ -206,9 +222,9 @@ public sealed class GlobalUserLookupGuardTests
                 var trimmed = line.TrimStart();
                 if (trimmed.StartsWith("//", StringComparison.Ordinal)) continue;
 
-                foreach (var banned in Banned)
+                foreach (var token in banned)
                 {
-                    if (line.Contains(banned, StringComparison.Ordinal))
+                    if (line.Contains(token, StringComparison.Ordinal))
                         offenders.Add($"{fileName}:{i + 1}  {trimmed}");
                 }
             }
