@@ -64,6 +64,8 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         return string.Join('-', raw.Chunk(4).Select(c => new string(c)));
     }
 
+    // The row names stay literals, never ProtectedTwoFactorValue.RowName: a
+    // rename of the stored name must turn this red.
     [Theory]
     [InlineData(true, "AuthenticatorKey")]
     [InlineData(false, "PendingAuthenticator")]
@@ -238,6 +240,22 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
             TwoFactorCredentials.RecoveryCodeName(Guid.NewGuid(), code));
     }
 
+    [Fact]
+    public async Task AMalformedCode_StagesNoRowAtAll()
+    {
+        var user = await SeedUserAsync();
+
+        var tracked = await InScopeAsync(factory.Services, user.AccountId, (db, credentials) =>
+        {
+            var thrown = Record.Exception(() =>
+                credentials.StageRecoveryCodes(user.UserId, [NewRecoveryCode(), "2222-3333"]));
+            Assert.IsType<ArgumentException>(thrown);
+            return Task.FromResult(db.ChangeTracker.Entries<IdentityUserToken<Guid>>().Count());
+        });
+
+        Assert.Equal(0, tracked);
+    }
+
     // #1274 decision 15: every add runs on a signed-in route, so a stage call
     // under no resolved tenant throws before it writes. The raw add's foreign-key
     // refusal is UserTokenTenantWriteTests.Add_UnderNoResolvedTenant_IsRefusedByTheForeignKey.
@@ -262,8 +280,8 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         Assert.Empty(await RowsAsync(user));
     }
 
-    // The stage call protects and stamps under the resolved tenant, so the value
-    // reads back with that account and is invisible to any other.
+    // The stage call stamps the row with the resolved tenant and reads back
+    // with that account. A read naming any other account id finds no row.
     [Fact]
     public async Task AValueStagedUnderATenant_ReadsBackWithThatAccountOnly()
     {

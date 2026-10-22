@@ -59,11 +59,14 @@ internal sealed class TwoFactorCredentials(AppDbContext db, IDataProtectionProvi
     }
 
     // #1274 decision 9: one row per code, named by its digest, with no value.
+    // Refuses before tracking anything: no tenant, or any malformed code, stages
+    // no row at all.
     internal void StageRecoveryCodes(Guid userId, IEnumerable<string> codes)
     {
-        ResolvedAccountId();
-        foreach (var code in codes)
-            AddRow(userId, RecoveryCodeName(userId, code), value: null);
+        _ = ResolvedAccountId();
+        var names = codes.Select(code => RecoveryCodeName(userId, code)).ToList();
+        foreach (var name in names)
+            AddRow(userId, name, value: null);
     }
 
     // The one digest function, so the stage and verify sites cannot disagree on
