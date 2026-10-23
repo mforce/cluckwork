@@ -145,8 +145,9 @@ jobs:
         run: |
           set -euo pipefail
           docker pull "$PLAYWRIGHT_IMAGE"
-          lock="$(jq -r '.packages["node_modules/@playwright/test"].version' tools/simulation/ui/package-lock.json)"
-          image="$(docker run --rm "$PLAYWRIGHT_IMAGE" cat /ms-playwright/.docker-info | jq -r .driverVersion)"
+          # A missing or empty version must fail, not compare as "null".
+          lock="$(jq -er '(.packages["node_modules/@playwright/test"].version | select(type == "string" and length > 0)) // error("package-lock.json has no @playwright/test version")' tools/simulation/ui/package-lock.json)"
+          image="$(docker run --rm "$PLAYWRIGHT_IMAGE" cat /ms-playwright/.docker-info | jq -er '(.driverVersion | select(type == "string" and length > 0)) // error("the image has no driverVersion in /ms-playwright/.docker-info")')"
           if [ "$image" != "$lock" ]; then
             echo "::error::PLAYWRIGHT_IMAGE holds Playwright $image but package-lock.json resolves @playwright/test $lock. Pin mcr.microsoft.com/playwright:v$lock-resolute by its digest in e2e-smoke.yml."
             exit 1
