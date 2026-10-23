@@ -62,8 +62,9 @@
 # (PLAYWRIGHT_IMAGE, through tools/simulation/ui/in-playwright-image.sh), which
 # ships that build and its system libraries. `playwright install --with-deps`
 # used to fetch them with apt on every run, and on 2026-10-23 a slow Ubuntu
-# mirror held that step past the 10-minute cap on three shards. The job itself
-# stays on the runner, because reset.sh drives the host's Docker compose.
+# mirror made that step take so long that three jobs hit the 10-minute cap.
+# The job itself stays on the runner, because reset.sh drives the host's
+# Docker compose.
 
 name: E2E smoke
 
