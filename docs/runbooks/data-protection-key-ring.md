@@ -18,6 +18,14 @@ through authorization again; see
 [`oauth-authorization-server.md`](oauth-authorization-server.md#d-after-the-key-ring-is-replaced-or-lost).
 Signed-in sessions are not affected; they use JWTs.
 
+A certificate change or a ring deletion also makes every two-factor authenticator unreadable
+(#1274). Recovery codes do not depend on the ring, but each one works once. To recover alone,
+a signed-out user needs two unused recovery codes: one to sign in, and one for the step-up
+that replacing the authenticator needs. A signed-in user needs one. A user with fewer needs an
+Owner to reset their two-factor authentication, and an Owner with fewer needs another Owner or
+`recover-admin`
+([`break-glass-account-recovery.md`](break-glass-account-recovery.md)).
+
 **Prerequisites:** the ability to change the deployment's configuration secrets, to stop
 and start every serving instance, and SQL access to the Production database.
 

@@ -49,4 +49,13 @@ public sealed class ApplicationUser : IdentityUser<Guid>, IMutableRecord
     // (#364). Durable in Postgres, not Redis (a never-re-touched key is exactly
     // what maxmemory-LRU evicts first). 0 for every existing row — no backfill.
     public int StepUpLogoutEpoch { get; set; }
+
+    // #1274 "The state it owns": two-factor state, written only by
+    // TwoFactorCredentials. The migration gives the counters a database
+    // default of 0, so raw-SQL user fixtures keep inserting.
+    public long SecondFactorWatermark { get; set; }
+    public long SecondFactorSignIns { get; set; }
+    public int SecondFactorFailures { get; set; }
+    public DateTimeOffset? SecondFactorFailuresSince { get; set; }
+    public DateTimeOffset? SecondFactorRequiredSince { get; set; }
 }

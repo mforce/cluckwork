@@ -17,7 +17,7 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1788,6 +1788,21 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
+                    b.Property<int>("SecondFactorFailures")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("SecondFactorFailuresSince")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("SecondFactorRequiredSince")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("SecondFactorSignIns")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SecondFactorWatermark")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
@@ -1862,6 +1877,9 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("SignedInAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
@@ -2077,10 +2095,16 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("AccountId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Value")
                         .HasColumnType("text");
 
                     b.HasKey("UserId", "LoginProvider", "Name");
+
+                    b.HasIndex("UserId", "AccountId");
 
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
@@ -2719,6 +2743,13 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
                     b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId", "AccountId")
+                        .HasPrincipalKey("Id", "AccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

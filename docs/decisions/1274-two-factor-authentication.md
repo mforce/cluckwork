@@ -685,4 +685,4 @@ The **Step-up authentication** entry (`GLOSSARY.md:1488-1518`) changes in #1279.
 
 ## How it is enforced
 
-Nothing enforces this record yet; it relies on review until the slices land. Each slice adds the guards listed for it above and the `src/AGENTS.md` line for the rules it lands.
+#1276's guards, G1.1 to G1.4, enforce the storage. The rest relies on review until the slices land. Each slice adds the guards listed for it above and the `src/AGENTS.md` line for the rules it lands.

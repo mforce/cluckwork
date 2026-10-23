@@ -30,6 +30,9 @@ public sealed class RefreshToken
     // cannot be leap-frogged down the chain to extend a stolen session.
     public bool RevokedByGrace { get; set; }
 
+    // #1274 decision 8 — the lineage's last full sign-in. #1278 sets and reads it.
+    public DateTimeOffset? SignedInAt { get; set; }
+
     // #176 — optimistic-concurrency token, regenerated on every rotation. Two
     // concurrent presentations of the same token both load the same stamp; only
     // the first UPDATE (WHERE ConcurrencyStamp = old) matches a row, so the loser
