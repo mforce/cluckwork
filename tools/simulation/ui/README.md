@@ -76,7 +76,9 @@ not start at all). A **system** Chromium works and is what the suite finds.
    thing.
 2. The first system Chromium present (`/run/current-system/sw/bin/chromium`, then
    the ordinary Linux locations).
-3. Playwright's own download — which is correct, and is the path CI takes.
+3. Playwright's own download — which is correct, and is the path CI takes:
+   `e2e-smoke.yml` runs the suite through `in-playwright-image.sh`, inside a
+   pinned Microsoft Playwright image that ships the browser and its libraries.
 
 `CLUCKWORK_E2E_BUNDLED_BROWSER=1` forces (3). The run prints which one it chose.
 
@@ -102,6 +104,7 @@ src/
   preflight.ts   globalSetup: is the stack up and the fixture real?
 mutation-check.sh   baseline GREEN -> mutants RED -> restore GREEN
 run-canary.sh       canary, optionally concurrent with k6
+in-playwright-image.sh  runs a command in the pinned Playwright image (CI)
 ```
 
 ## Conventions that are load-bearing
