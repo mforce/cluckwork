@@ -50,13 +50,21 @@
 # The suite resolves Chromium at run time (tools/simulation/ui/src/browser.ts).
 # On the NixOS dev box it finds a SYSTEM chromium, because Playwright's
 # downloaded binaries do not launch there. A GitHub runner is the mirror image:
-# no system chromium, and `playwright install` is the working path.
+# no system chromium, and Playwright's own build is the working path.
 #
 # So there are two live paths, and **this workflow is the only thing that
 # exercises the downloaded one** — routinely now, since every covered PR runs
 # it. `CLUCKWORK_E2E_BUNDLED_BROWSER=1` below pins it explicitly rather than
 # relying on the absence of a system binary, so the run proves the path on
 # purpose instead of by accident.
+#
+# The suite and the canary run inside Microsoft's Playwright image
+# (PLAYWRIGHT_IMAGE, through tools/simulation/ui/in-playwright-image.sh), which
+# ships that build and its system libraries. `playwright install --with-deps`
+# used to fetch them with apt on every run, and on 2026-10-23 a slow Ubuntu
+# mirror made that step take so long that three jobs hit the 10-minute cap.
+# The job itself stays on the runner, because reset.sh drives the host's
+# Docker compose.
 
 name: E2E smoke
 
@@ -117,6 +125,9 @@ jobs:
     # fast, not burn minutes). Dispatch stays generous because a `slow: true`
     # run spends 16 of these minutes asleep on purpose.
     timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 45 }}
+    env:
+      # Its version must equal @playwright/test in tools/simulation/ui/package-lock.json (checked below).
+      PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
 
     steps:
       - uses: actions/checkout@v7
@@ -126,6 +137,23 @@ jobs:
           shard=$(( ${{ strategy.job-index }} + 1 ))
           test "${{ matrix.shard }}" -eq "$shard"
           echo "SHARD=$shard/${{ strategy.job-total }}" >> "$GITHUB_ENV"
+
+      # Dependabot does not watch tools/simulation/ui, so a lock bump arrives
+      # by hand; fail here, not after the image build, when the two disagree.
+      # Read the version from the pulled image, because the digest, not the
+      # tag text, decides what runs.
+      - name: Pull the Playwright image and check it matches the lock
+        run: |
+          set -euo pipefail
+          docker pull "$PLAYWRIGHT_IMAGE"
+          # A missing or empty version must fail, not compare as "null".
+          lock="$(jq -er '(.packages["node_modules/@playwright/test"].version | select(type == "string" and length > 0)) // error("package-lock.json has no @playwright/test version")' tools/simulation/ui/package-lock.json)"
+          image="$(docker run --rm "$PLAYWRIGHT_IMAGE" cat /ms-playwright/.docker-info | jq -er '(.driverVersion | select(type == "string" and length > 0)) // error("the image has no driverVersion in /ms-playwright/.docker-info")')"
+          if [ "$image" != "$lock" ]; then
+            echo "::error::PLAYWRIGHT_IMAGE holds Playwright $image but package-lock.json resolves @playwright/test $lock. Pin mcr.microsoft.com/playwright:v$lock-resolute by its digest in e2e-smoke.yml."
+            exit 1
+          fi
+          echo "Playwright $lock in both the image and the lock"
 
       - uses: actions/setup-node@v7
         with:
@@ -191,22 +219,16 @@ jobs:
 
       - name: Install suite dependencies
         working-directory: tools/simulation/ui
-        # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD is deliberately NOT set here — unlike
-        # the NixOS dev box, the downloaded browser is the one that works.
         run: npm ci
-
-      - name: Install Chromium
-        working-directory: tools/simulation/ui
-        run: npx playwright install --with-deps chromium
 
       - name: Run the smoke suite
         working-directory: tools/simulation/ui
         env:
-          # Force the downloaded browser rather than inferring it from the
+          # Force the image's bundled browser rather than inferring it from the
           # absence of a system one — see the header.
           CLUCKWORK_E2E_BUNDLED_BROWSER: "1"
           CLUCKWORK_E2E_SLOW: ${{ inputs.slow && '1' || '' }}
-        run: npm test -- --shard="$SHARD"
+        run: bash in-playwright-image.sh npm test -- --shard="$SHARD"
 
       - name: Run the canary probe
         # One probe per dispatch, not one per shard: the canary has its own
@@ -219,7 +241,7 @@ jobs:
         # previous run's per-screen vitals. Calling the npm script directly
         # bypasses that and can mix stale screens into a fresh run's output
         # (PR #392 review round 2).
-        run: bash run-canary.sh
+        run: bash in-playwright-image.sh bash run-canary.sh
 
       # DO NOT UPLOAD THE PLAYWRIGHT HTML REPORT. It is credential-bearing by
       # construction: Playwright embeds a base64 copy of the run's data inside
