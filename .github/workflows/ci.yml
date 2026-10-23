@@ -639,8 +639,10 @@ jobs:
             exit 1
           fi
           # Any other failure (network, a missing package) would pass the check
-          # above without proving --locked-mode, so require the lock-file error.
-          grep -q NU1004 "$log" \
+          # above without proving --locked-mode, so require NuGet's lock-file
+          # diagnostic. Docker's failure excerpt quotes Dockerfile lines, and a
+          # comment there names NU1004, so the bare code is not enough.
+          grep -q 'error NU1004:' "$log" \
             || { cat "$log"; echo "::error::Docker restore failed, but not with NU1004 (stale lock file)"; exit 1; }
           echo "OK: a stale lock correctly failed the Docker --locked-mode restore with NU1004"
 
