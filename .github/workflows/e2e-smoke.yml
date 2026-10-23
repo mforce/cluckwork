@@ -139,14 +139,16 @@ jobs:
 
       # Dependabot does not watch tools/simulation/ui, so a lock bump arrives
       # by hand; fail here, not after the image build, when the two disagree.
-      - name: Check the Playwright image matches the lock
+      # Read the version from the pulled image, because the digest, not the
+      # tag text, decides what runs.
+      - name: Pull the Playwright image and check it matches the lock
         run: |
           set -euo pipefail
+          docker pull "$PLAYWRIGHT_IMAGE"
           lock="$(jq -r '.packages["node_modules/@playwright/test"].version' tools/simulation/ui/package-lock.json)"
-          image="${PLAYWRIGHT_IMAGE#*:v}"
-          image="${image%%-*}"
+          image="$(docker run --rm "$PLAYWRIGHT_IMAGE" cat /ms-playwright/.docker-info | jq -r .driverVersion)"
           if [ "$image" != "$lock" ]; then
-            echo "::error::PLAYWRIGHT_IMAGE is Playwright $image but package-lock.json resolves @playwright/test $lock. Pin mcr.microsoft.com/playwright:v$lock-resolute by digest in e2e-smoke.yml."
+            echo "::error::PLAYWRIGHT_IMAGE holds Playwright $image but package-lock.json resolves @playwright/test $lock. Pin mcr.microsoft.com/playwright:v$lock-resolute by its digest in e2e-smoke.yml."
             exit 1
           fi
           echo "Playwright $lock in both the image and the lock"
@@ -216,9 +218,6 @@ jobs:
       - name: Install suite dependencies
         working-directory: tools/simulation/ui
         run: npm ci
-
-      - name: Pull the Playwright image
-        run: docker pull "$PLAYWRIGHT_IMAGE"
 
       - name: Run the smoke suite
         working-directory: tools/simulation/ui
