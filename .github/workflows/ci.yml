@@ -625,19 +625,26 @@ jobs:
           git archive HEAD | tar -x -C "$work"
           cd "$work"
           # #684 — versions live in Directory.Packages.props (Central Package
-          # Management), so the perturbation edits the PackageVersion there.
-          sed -i 's#<PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" #<PackageVersion Include="Microsoft.OpenApi" Version="2.12.1" #' \
-            Directory.Packages.props
-          # Fail loudly (don't silently pass) if the pin used as the perturbation
-          # target has since moved — the guard must be kept pointing at a real pin.
-          grep -q '<PackageVersion Include="Microsoft.OpenApi" Version="2.12.1" ' \
-            Directory.Packages.props \
-            || { echo "::error::drift-guard perturbation target not found; update the Microsoft.OpenApi version it edits"; exit 1; }
-          if docker build --target build -f src/Cluckwork.Api/Dockerfile -t cluckwork-lockdrift:ci . ; then
+          # Management), so the perturbation edits the PackageVersion there. The
+          # version is read, not hard-coded, so a Dependabot bump of the pin
+          # cannot leave the guard without a target (#1350).
+          pin='<PackageVersion Include="Microsoft.OpenApi" Version="'
+          current="$(sed -n "s#.*${pin}\([^\"]*\)\".*#\1#p" Directory.Packages.props)"
+          [ -n "$current" ] \
+            || { echo "::error::drift-guard perturbation target not found: no Microsoft.OpenApi PackageVersion in Directory.Packages.props"; exit 1; }
+          sed -i "s#${pin}${current}\"#${pin}${current}-lockdrift\"#" Directory.Packages.props
+          grep -qF "${pin}${current}-lockdrift\"" Directory.Packages.props \
+            || { echo "::error::drift-guard could not perturb Microsoft.OpenApi ${current}"; exit 1; }
+          log="$(mktemp)"
+          if docker build --progress=plain --target build -f src/Cluckwork.Api/Dockerfile -t cluckwork-lockdrift:ci . > "$log" 2>&1 ; then
             echo "::error::Docker restore succeeded with a stale packages.lock.json — --locked-mode is not enforced"
             exit 1
           fi
-          echo "OK: a stale lock correctly failed the Docker --locked-mode restore"
+          # Any other failure (network, a missing package) would pass the check
+          # above without proving --locked-mode, so require the lock-file error.
+          grep -q NU1004 "$log" \
+            || { cat "$log"; echo "::error::Docker restore failed, but not with NU1004 (stale lock file)"; exit 1; }
+          echo "OK: a stale lock correctly failed the Docker --locked-mode restore with NU1004"
 
       # #266 — smoke test: prove the freshly built image actually BOOTS and SERVES,
       # not merely that it builds. Runs the real run-then-exit
