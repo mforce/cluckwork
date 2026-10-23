@@ -633,8 +633,6 @@ jobs:
           [ -n "$current" ] \
             || { echo "::error::drift-guard perturbation target not found: no Microsoft.OpenApi PackageVersion in Directory.Packages.props"; exit 1; }
           sed -i "s#${pin}${current}\"#${pin}${current}-lockdrift\"#" Directory.Packages.props
-          grep -qF "${pin}${current}-lockdrift\"" Directory.Packages.props \
-            || { echo "::error::drift-guard could not perturb Microsoft.OpenApi ${current}"; exit 1; }
           log="$(mktemp)"
           if docker build --progress=plain --target build -f src/Cluckwork.Api/Dockerfile -t cluckwork-lockdrift:ci . > "$log" 2>&1 ; then
             echo "::error::Docker restore succeeded with a stale packages.lock.json — --locked-mode is not enforced"
