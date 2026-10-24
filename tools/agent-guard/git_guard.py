@@ -154,7 +154,7 @@ MESSAGES = {
                      "Run `git branch --unset-upstream`, then `git push -u origin <that-branch>`.",
     "shared": "this is the shared checkout, the main worktree other agents' worktrees hang off; git commands that "
               "change its HEAD, index, files or refs are refused here. Run it in your own worktree: "
-              "`cd <your worktree> && git ...`.",
+              "`cd <your worktree> && git ...`. To update a clean main here, run `git pull --ff-only`.",
     "unresolved": "git-guard cannot tell which checkout each git step targets here (a subshell, wrapper, "
                   "variable assignment or directory change it cannot follow), and it may be the shared checkout. "
                   "Run each git command as its own simple command, or join simple steps with &&, ; or newlines.",
@@ -371,7 +371,8 @@ class Repo:
         return result.stdout.strip().removeprefix("refs/heads/") or None
 
     def is_clean_main(self):
-        """True on main with no tracked change; untracked files stay, since a fast-forward never removes them."""
+        """True on main with no tracked change. Untracked files may stay: git refuses a fast-forward that would
+        overwrite one, though it does overwrite an ignored file at a path the incoming commit starts tracking."""
         if self.branch() != MAIN:
             return False
         result = self.git("status", "--porcelain", "--untracked-files=no")
@@ -610,8 +611,10 @@ def check_git(args, cwd, shown):
             block("shallow", shown)
         if command not in SHARED_CHECKOUT_SAFE or writes_anyway(command, rest):
             repo = Repo(cwd, options, shown)
-            # no -c: url.*.insteadOf or core.sshCommand would change where the pull comes from
-            fast_forward = command == "pull" and rest in FF_ONLY_PULLS and "-c" not in options
+            # Only -C may precede it: --git-dir/--work-tree would move a ref or files the clean check never saw, and
+            # -c a one-shot url.*.insteadOf or core.sshCommand. Known limit: `git remote set-url` or a stored
+            # url.*.insteadOf still redirects it, as an agent can already edit files here directly.
+            fast_forward = command == "pull" and rest in FF_ONLY_PULLS and set(options[::2]) <= {"-C"}
             if repo.is_shared_checkout() and not (fast_forward and repo.is_clean_main()):
                 block("shared", shown)
     if command not in ("commit", "push", "update-ref"):

@@ -265,6 +265,12 @@ CASES += [  # a fast-forward pull brings a clean shared main up to date; every o
     ("git pull --ff-only --depth 1", "sharedmain", "block"),
     ("git pull --ff-only --no-verify", "sharedmain", "block"),
     ("git -c url.file:///tmp/other.insteadOf=origin pull --ff-only", "sharedmain", "block"),
+    # only -C may precede it: --git-dir and --work-tree point the pull at files the clean check did not cover
+    ("git --git-dir=../sharedmain/.git --work-tree=../sharedmain-wt pull --ff-only", "sharedmain", "block"),
+    ("git --git-dir ../sharedmain/.git pull --ff-only", "sharedmain", "block"),
+    ("git --work-tree=../sharedmain-wt pull --ff-only", "sharedmain", "block"),
+    ("git --no-pager pull --ff-only", "sharedmain", "block"),
+    ("git -C .. -C sharedmain pull --ff-only", "linked", "allow"),
     ("git status && git pull --ff-only", "sharedmain", "block"),
 ]
 CASES += [  # abbreviated shallow options, as git accepts them (round 1)
