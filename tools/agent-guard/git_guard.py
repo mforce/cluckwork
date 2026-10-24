@@ -137,7 +137,8 @@ MESSAGES = {
     ),
     "merge": "a PR merge goes through `gh pr merge`, never the API's merge route. Run `gh pr merge <number>` as its "
              "own command instead.",
-    "alias": "a gh alias can hide `gh pr merge`. Run the gh command it stands for directly.",
+    "alias": "a gh alias can hide a `gh api` write, or any command through `--shell`. Run the command it stands for "
+             "directly.",
     "git-config": "a `-c` override of alias.*, push.*, remote.*, branch.* or core.hooksPath can change what the command does. "
                   "Run it without the override.",
     "refspec": "a src:dst push can land one branch's commits on another branch (#900). " + PUSH_YOUR_BRANCH,

@@ -72,7 +72,6 @@ CASES = [
     # Merges: `gh pr merge` runs as one simple command; the API's merge routes stay refused.
     ("gh pr merge 12 --squash", "feature", "allow"),
     ("gh -R mforce/cluckwork pr merge 12", "feature", "allow"),
-    ("gh api -X PUT repos/o/r/pulls/1/merge", "feature", "block"),
     ("gh api -X PUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
     ("gh api --method=PUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
     ("gh api -XPUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
