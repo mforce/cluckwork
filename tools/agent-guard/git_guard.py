@@ -610,7 +610,9 @@ def check_git(args, cwd, shown):
             block("shallow", shown)
         if command not in SHARED_CHECKOUT_SAFE or writes_anyway(command, rest):
             repo = Repo(cwd, options, shown)
-            if repo.is_shared_checkout() and not (command == "pull" and rest in FF_ONLY_PULLS and repo.is_clean_main()):
+            # no -c: url.*.insteadOf or core.sshCommand would change where the pull comes from
+            fast_forward = command == "pull" and rest in FF_ONLY_PULLS and "-c" not in options
+            if repo.is_shared_checkout() and not (fast_forward and repo.is_clean_main()):
                 block("shared", shown)
     if command not in ("commit", "push", "update-ref"):
         return

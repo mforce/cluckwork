@@ -264,6 +264,7 @@ CASES += [  # a fast-forward pull brings a clean shared main up to date; every o
     ("git pull --ff-only upstream main", "sharedmain", "block"),
     ("git pull --ff-only --depth 1", "sharedmain", "block"),
     ("git pull --ff-only --no-verify", "sharedmain", "block"),
+    ("git -c url.file:///tmp/other.insteadOf=origin pull --ff-only", "sharedmain", "block"),
     ("git status && git pull --ff-only", "sharedmain", "block"),
 ]
 CASES += [  # abbreviated shallow options, as git accepts them (round 1)
