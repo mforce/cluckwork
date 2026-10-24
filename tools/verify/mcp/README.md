@@ -7,7 +7,7 @@ what each proves are in [`../features/mcp.md`](../features/mcp.md).
 | --- | --- |
 | `tls-proxy.mjs` | Terminates TLS for the http sim stack, keeps `Host`, sets `X-Forwarded-Proto`. |
 | `client.ts` | The official TypeScript MCP SDK client. `connect` runs discovery, dynamic registration, PKCE and `resource`, and drives the consent screen with Playwright; `tools`, `call` and `disconnect` use a saved token. Speaks MCP 2025-11-25. |
-| `probe.cs` | The C# `ModelContextProtocol` 2.2.0 client (the server's SDK), as a file-based app, for MCP 2026-07-28. |
+| `probe.cs` | The C# `ModelContextProtocol` 2.2.0 client, as a file-based app, for MCP 2026-07-28. It is older than the server's SDK, so it checks that an older client still works. |
 
 ```sh
 npm ci                                   # Node 22.18+ runs client.ts directly

@@ -276,6 +276,15 @@
           "YamlDotNet": "16.3.0"
         }
       },
+      "MessagePack": {
+        "type": "Transitive",
+        "resolved": "2.5.307",
+        "contentHash": "P9LNJ2bz/wx8J5W0EQW4Bh7G5BiEikXiiDqGvw/WOMRyRI0QcxVvRM4XkqhidGJG6uzMT7iF89o0uYGLwmGifQ==",
+        "dependencies": {
+          "MessagePack.Annotations": "2.5.307",
+          "Microsoft.NET.StringTools": "17.6.3"
+        }
+      },
       "MessagePack.Annotations": {
         "type": "Transitive",
         "resolved": "2.5.307",
@@ -945,8 +954,7 @@
           "Aspire.Hosting.JavaScript": "[13.6.3, )",
           "Aspire.Hosting.Orchestration.linux-x64": "[13.5.0, )",
           "Aspire.Hosting.PostgreSQL": "[13.6.3, )",
-          "Aspire.Hosting.Redis": "[13.6.3, )",
-          "MessagePack": "[2.5.307, )"
+          "Aspire.Hosting.Redis": "[13.6.3, )"
         }
       },
       "Aspire.Hosting.JavaScript": {
@@ -1074,16 +1082,6 @@
         "requested": "[3.*, )",
         "resolved": "3.36.1",
         "contentHash": "77AqPEoaY1ODE+syYBHti0jXiwQq0J/fUr/fRyYhNlc9oKtH5dZZEr/OLKtdKNVG83PRnCYB2r8B80ZrObzOGQ=="
-      },
-      "MessagePack": {
-        "type": "CentralTransitive",
-        "requested": "[2.5.307, )",
-        "resolved": "2.5.307",
-        "contentHash": "P9LNJ2bz/wx8J5W0EQW4Bh7G5BiEikXiiDqGvw/WOMRyRI0QcxVvRM4XkqhidGJG6uzMT7iF89o0uYGLwmGifQ==",
-        "dependencies": {
-          "MessagePack.Annotations": "2.5.307",
-          "Microsoft.NET.StringTools": "17.6.3"
-        }
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "CentralTransitive",

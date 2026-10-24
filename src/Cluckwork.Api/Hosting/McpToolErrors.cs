@@ -9,7 +9,7 @@ using ModelContextProtocol.Server;
 
 namespace Cluckwork.Api.Hosting;
 
-// #1227 — the SDK (2.2.0, McpServerImpl) logs every exception a tool call throws at Error
+// #1227 — the SDK (2.3.0, McpServerImpl) logs every exception a tool call throws at Error
 // with its stack trace, and passes the model only an McpException's message. Two failures
 // are normal, and this filter answers both with the error result the SDK would write, so
 // neither reaches the Error log. An argument that does not bind is found before the tool
@@ -51,7 +51,7 @@ internal static partial class McpToolErrors
 
     private sealed record Refusal(string Message, string Argument);
 
-    // AIFunctionFactory's binding (Microsoft.Extensions.AI 10.8.3): a parameter the input
+    // AIFunctionFactory's binding (Microsoft.Extensions.AI 10.11.0): a parameter the input
     // schema lists is read from the argument of that name with the tool's serializer, and
     // a missing one takes its default or fails. The SDK puts the method first in Metadata.
     private static Refusal? BadArgument(McpServerTool tool, IDictionary<string, JsonElement>? arguments)
