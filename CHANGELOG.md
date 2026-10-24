@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.2.0) (2026-10-24)
+
+
+### Bug fixes
+
+* **sales:** refuse a sales order dated after the farm's today ([#1344](https://github.com/mforce/cluckwork/issues/1344)) ([e85b33f](https://github.com/mforce/cluckwork/commit/e85b33f9731876200251a22640f34b6b50e73cd4))
+
+
+### Documentation
+
+* add a pdd-kit Product Model ([#1332](https://github.com/mforce/cluckwork/issues/1332)) ([b0a9585](https://github.com/mforce/cluckwork/commit/b0a95850c615940f0820256f322c098c033c067f))
+* **auth:** record the two-factor authentication design ([#1334](https://github.com/mforce/cluckwork/issues/1334)) ([ea67740](https://github.com/mforce/cluckwork/commit/ea67740806cd72153f4fb76cbfebc14c5d617a08))
+* **design:** two-factor authentication screen lab and picks ([#1339](https://github.com/mforce/cluckwork/issues/1339)) ([f15f728](https://github.com/mforce/cluckwork/commit/f15f72861616a0168c7d59e04c752ade296a79a0))
+* **product-model:** add a README and point AGENTS.md at the model ([#1341](https://github.com/mforce/cluckwork/issues/1341)) ([de7d8cc](https://github.com/mforce/cluckwork/commit/de7d8cc8f6d81236c8fe9ebe23a4f4c36c55a978))
+
 ## [1.1.2](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.1.2) (2026-10-19)
 
 
