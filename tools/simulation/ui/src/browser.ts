@@ -9,10 +9,10 @@
 //     error that says nothing about the real cause. Probed live while building
 //     this suite: the bundled Firefox does not start at all. A system Chromium
 //     from the Nix store DOES, and drives the SPA correctly.
-//   * A GitHub runner is the mirror image: Ubuntu, no system Chromium in the
-//     image by default, and `npx playwright install chromium` is the working
-//     path. An executablePath pinned to a Nix store path would simply not
-//     exist there.
+//   * CI is the mirror image: the suite runs in Microsoft's Playwright image
+//     (in-playwright-image.sh), which has no system Chromium and ships
+//     Playwright's own build. An executablePath pinned to a Nix store path
+//     would simply not exist there.
 //
 // So resolution is: an explicit override, else the first system Chromium that
 // is actually present and executable, else `undefined` — which is Playwright's
