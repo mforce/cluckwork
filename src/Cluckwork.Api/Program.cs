@@ -252,7 +252,7 @@ app.UseSerilogRequestLogging(options =>
             : exception is OperationCanceledException canceled
               && httpContext.RequestAborted.IsCancellationRequested
               && (canceled.CancellationToken == httpContext.RequestAborted
-                  // MCP SDK 2.2.0 links RequestAborted with its transport-disposed
+                  // MCP SDK 2.3.0 links RequestAborted with its transport-disposed
                   // token (StreamableHttpServerTransport.cs:243), and a linked
                   // token cannot be traced back to its source.
                   || CluckworkMcp.IsPath(httpContext.Request.Path))
