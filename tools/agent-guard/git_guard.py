@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Pre-command hook for Claude Code, Codex, Pi and Hermes: blocks agent git commands
-that take a merge away from the maintainer or rewrite main (AGENTS.md, "Git / PR workflow").
+that rewrite main or merge outside `gh pr merge` (AGENTS.md, "Git / PR workflow").
 
 Every harness sends one JSON object on stdin with the shell string in
 `tool_input.command` and a directory in `cwd`, and blocks the call on exit 2 with
@@ -135,7 +135,8 @@ MESSAGES = {
         "Allowed forms: `git push -u origin <branch>`, `cd <dir> && git commit -m \"<message>\"`. "
         "For a multi-line message use `git commit -F <file>` or repeated `-m`."
     ),
-    "merge": "only the maintainer merges a PR. Report the PR as ready instead.",
+    "merge": "a PR merge goes through `gh pr merge`, never the API's merge route. Run `gh pr merge <number>` as its "
+             "own command instead.",
     "alias": "a gh alias can hide `gh pr merge`. Run the gh command it stands for directly.",
     "git-config": "a `-c` override of alias.*, push.*, remote.*, branch.* or core.hooksPath can change what the command does. "
                   "Run it without the override.",
@@ -171,7 +172,7 @@ MESSAGES = {
                     "change either unseen. Run the git command directly, and leave the hooks as configured.",
     "no-verify": "--no-verify skips .githooks/pre-push, the backstop behind this guard. Push without it.",
     "graphql-write": "this mutation can merge a PR, commit, move a branch or change main's protection outside a PR. "
-                     "Only the maintainer merges; push changes on your branch instead. Read-only queries are allowed.",
+                     "Merge a PR with `gh pr merge`; push changes on your branch. Read-only queries are allowed.",
     "query-file": "git-guard cannot read the GraphQL query from that source (a regular file with the query, or JSON "
                   "with a string `query` for --input; never stdin or a device), so it cannot tell what it mutates. "
                   "Pass the query inline with `-f query='…'`.",
@@ -732,8 +733,6 @@ def is_read_chain(steps):
 def check_gh(args, shown, cwd):
     words = gh_words(args)
     names = [word for _, word in words]
-    if names == ["pr", "merge"]:
-        block("merge", shown)
     if names[:1] == ["alias"] and names[1:] != ["list"]:
         block("alias", shown)
     if names[:1] == ["api"]:
