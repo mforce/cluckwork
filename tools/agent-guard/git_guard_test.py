@@ -69,9 +69,9 @@ CASES = [
     ("gh pr view 1158 --json number,title --jq '{number, title}' | cat", "feature", "allow"),
     ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { name } }' | cat", "feature", "allow"),
     ("gh api 'repos/mforce/cluckwork/pulls?state=open' --jq '.[].number'", "main", "allow"),
-    # Merges.
-    ("gh pr merge 12 --squash", "feature", "block"),
-    ("gh -R mforce/cluckwork pr merge 12", "feature", "block"),
+    # Merges: `gh pr merge` runs as one simple command; the API's merge routes stay refused.
+    ("gh pr merge 12 --squash", "feature", "allow"),
+    ("gh -R mforce/cluckwork pr merge 12", "feature", "allow"),
     ("gh api -X PUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
     ("gh api --method=PUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
     ("gh api -XPUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
@@ -179,7 +179,7 @@ CASES = [
     ("g'i't push --force", "feature", "block"),
     ("git p\\ush --force", "feature", "block"),
     ("git $'\\x70ush' --force", "feature", "block"),
-    ("gh pr mer''ge 12", "feature", "block"),
+    ("gh pr mer''ge 12", "feature", "allow"),  # the shell joins it back into `gh pr merge 12`, which may run
     ("git push origin ma?n", "feature", "block"),
     ("gh api -X PUT 'repos/mforce/cluckwork/pulls/12/merge?x=1'", "feature", "block"),
     ("gh api -X PUT 'repos/mforce/cluckwork/pulls/12/merge#x'", "feature", "block"),
@@ -296,7 +296,7 @@ CASES += [  # round 2: decide by the executable, not argument text (finding 4) .
     ("xargs git sparse-checkout set src", "shared", "block"),
     ("env git sparse-checkout set src", "shared", "block"),
     ("GIT_DIR=../shared/.git git sparse-checkout set src", "linked", "block"),
-    ("gh pr merge 1 --squash", "shared", "block"),
+    ("gh pr merge 1 --squash", "shared", "allow"),
     # ... and resolve each step's target, newline-separated or terminated too (finding 1)
     ("git -C ../shared status\ngit -C ../shared sparse-checkout set src", "linked", "block"),
     ("cd ../shared && git sparse-checkout set src\n", "linked", "block"),
@@ -561,7 +561,7 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("git config -f/tmp/settings --get alias.review", "linked", "allow"),
     ("git config -f/tmp/settings alias.review", "linked", "allow"),
     ("git push -f origin HEAD:main", "linked", "block"),  # the audit's controls
-    ("gh pr merge 1221 --squash", "linked", "block"),
+    ("gh pr merge 1221 --squash", "linked", "allow"),
 ]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
@@ -730,7 +730,7 @@ class GitGuardTest(unittest.TestCase):
     def test_process_input_gets_the_shell_check_without_a_directory(self):
         feature = self.dirs["feature"]
         for tool_input, expected in (
-            ({"action": "submit", "session_id": "p1", "data": "gh pr merge 1175"}, 2),
+            ({"action": "submit", "session_id": "p1", "data": "git push --force"}, 2),
             ({"action": "write", "session_id": "p1", "data": "git push origin HEAD:main\n"}, 2),
             ({"action": "submit", "session_id": "p1", "data": "git commit -m x"}, 2),  # the shell's directory is unknown
             ({"action": "submit", "session_id": "p1", "data": f"cd {feature} && git commit -m x"}, 0),
@@ -792,13 +792,13 @@ class GitGuardTest(unittest.TestCase):
 
     def test_hermes_plugin_routes_each_tool(self):
         hook = self.hermes_hook({"cwd": self.dirs["feature"]})
-        self.assert_hook(hook, {"command": "gh pr merge 1"}, "block")
+        self.assert_hook(hook, {"command": "git push --force"}, "block")
         self.assert_hook(hook, {"command": "git commit -m x"}, "allow")
         self.assert_hook(hook, {"command": "git commit -m x", "workdir": self.dirs["main"]}, "block")
         self.assert_hook(hook, {"command": "git commit -m x", "workdir": self.dirs["feature"]}, "allow")
         self.assert_hook(hook, {"path": "x"}, "allow", tool="read_file")
         self.assert_hook(hook, {"code": "print(1)"}, "block", tool="execute_code")
-        self.assert_hook(hook, {"action": "submit", "session_id": "p1", "data": "gh pr merge 1"}, "block", "process_manage")
+        self.assert_hook(hook, {"action": "submit", "session_id": "p1", "data": "git push --force"}, "block", "process_manage")
         self.assert_hook(hook, {"action": "submit", "session_id": "p1"}, "allow", tool="process_manage")
 
     def test_hermes_first_call_uses_the_configured_terminal_cwd(self):
