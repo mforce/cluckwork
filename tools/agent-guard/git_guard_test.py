@@ -27,6 +27,8 @@ HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plu
 #   solo      repo on feat/x whose only remote, `backup`, has push = HEAD:refs/heads/main
 #   shared    a main worktree on feat/s with a linked worktree beside it: the shared checkout (#1205)
 #   linked    that linked worktree, on feat/l
+#   sharedmain  another shared checkout, on main with a committed file and an untracked one; shareddirty, the same
+#             with that committed file modified
 #   spaced    a linked worktree of another shared checkout whose path has a space, `p with space`
 #   tagged    repo on main that also has a tag named main
 #   feature also has remotes `matchall` (push = :), `mirror2` (mirror = 2), `nomirror` (mirror = false)
@@ -248,6 +250,21 @@ CASES += [
     ("git --version", "shared", "allow"),
     ("git sparse-checkout set src", "linked", "allow"),
     ("(git status)", "linked", "allow"),
+]
+CASES += [  # a fast-forward pull brings a clean shared main up to date; every other pull still writes the shared checkout
+    ("git pull --ff-only", "sharedmain", "allow"),
+    ("git pull --ff-only origin main", "sharedmain", "allow"),
+    ("git -C ../sharedmain pull --ff-only", "linked", "allow"),
+    ("git pull --ff-only", "shareddirty", "block"),
+    ("git pull --ff-only", "shared", "block"),  # on feat/s
+    ("git pull", "sharedmain", "block"),
+    ("git pull --rebase", "sharedmain", "block"),
+    ("git pull --ff-only --rebase", "sharedmain", "block"),
+    ("git pull --ff-only origin other", "sharedmain", "block"),
+    ("git pull --ff-only upstream main", "sharedmain", "block"),
+    ("git pull --ff-only --depth 1", "sharedmain", "block"),
+    ("git pull --ff-only --no-verify", "sharedmain", "block"),
+    ("git status && git pull --ff-only", "sharedmain", "block"),
 ]
 CASES += [  # abbreviated shallow options, as git accepts them (round 1)
     ("git fetch --dep=1 origin", "linked", "block"),
@@ -617,7 +634,8 @@ class GitGuardTest(unittest.TestCase):
                     "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root,
                     "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged"),
                     "shared": os.path.join(root, "shared"), "linked": os.path.join(root, "linked"),
-                    "spaced": os.path.join(root, "spaced")}
+                    "spaced": os.path.join(root, "spaced"), "sharedmain": os.path.join(root, "sharedmain"),
+                    "shareddirty": os.path.join(root, "shareddirty")}
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
@@ -643,6 +661,17 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
         git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
+        for name in ("sharedmain", "shareddirty"):
+            checkout = cls.dirs[name]
+            git("init", "-q", "-b", "main", checkout)
+            for file, text in (("tracked.txt", "a"), ("untracked.txt", "u")):
+                with open(os.path.join(checkout, file), "w") as f:
+                    f.write(text)
+            git("-C", checkout, "add", "tracked.txt")
+            git("-C", checkout, "commit", "-q", "--no-verify", "-m", "init")
+            git("-C", checkout, "worktree", "add", "-q", "-b", f"feat/{name}", checkout + "-wt")
+        with open(os.path.join(cls.dirs["shareddirty"], "tracked.txt"), "w") as f:
+            f.write("b")
         for name, text in (("mutation.graphql", "mutation { updateRef(input: {}) { clientMutationId } }"),
                            ("read.graphql", "query { viewer { login } }")):
             with open(os.path.join(cls.dirs["linked"], name), "w") as f:
@@ -714,6 +743,18 @@ class GitGuardTest(unittest.TestCase):
             body = json.dumps(payload("claude", "(git status)", self.dirs[where]))
             result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, expected, f"{where}: {result.stderr}")
+
+    def test_ff_only_pull_refuses_when_the_status_lookup_fails(self):
+        shim = os.path.join(self.tmp.name, "status-bin")
+        os.makedirs(shim, exist_ok=True)
+        with open(os.path.join(shim, "git"), "w") as f:
+            f.write(f'#!/bin/sh\ncase "$*" in *"status --porcelain"*) exit 128;; esac\nexec {shutil.which("git")} "$@"\n')
+        os.chmod(os.path.join(shim, "git"), 0o755)
+        env = {**os.environ, "PATH": shim + os.pathsep + os.environ["PATH"]}
+        body = json.dumps(payload("claude", "git pull --ff-only", self.dirs["sharedmain"]))
+        result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("working tree status", result.stderr)
 
     def test_other_tools_pass(self):
         for name in ("Read", "read_file"):

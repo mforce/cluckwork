@@ -22,8 +22,9 @@ still a read.
 
 The shared checkout is a main worktree that has linked worktrees: agents work in
 the linked ones, and all of them share its `.git` (#1205). There, only the
-SHARED_CHECKOUT_SAFE subcommands run. In every worktree, `git stash` and shallow
-fetches are refused, because the stash list and the shallow state are shared too.
+SHARED_CHECKOUT_SAFE subcommands run, plus FF_ONLY_PULLS when main is checked out
+with no tracked change. In every worktree, `git stash` and shallow fetches are
+refused, because the stash list and the shallow state are shared too.
 GIT_GUARD_ALLOW_SHARED=1 lifts those three rules wherever it is set. It is for the
 maintainer, on one command in their own shell (CONTRIBUTING.md); set for a harness,
 every agent started from it would inherit it.
@@ -83,6 +84,8 @@ SHALLOW = re.compile(r"\b(?:fetch|pull)\b.*\s--(?:de|sh|un|up)", re.S)
 SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
                         "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
                         "shortlog", "show", "status", "version", "worktree"}
+# The one write allowed there, on a clean main: a fast-forward that brings the checkout (and this guard) up to date.
+FF_ONLY_PULLS = (["--ff-only"], ["--ff-only", "origin", MAIN])
 GIT_WORD = re.compile(r"\bgit\b")
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 # Text that can move a git command's target to another checkout.
@@ -367,6 +370,15 @@ class Repo:
             raise self.lookup_failed("the current branch", result)
         return result.stdout.strip().removeprefix("refs/heads/") or None
 
+    def is_clean_main(self):
+        """True on main with no tracked change; untracked files stay, since a fast-forward never removes them."""
+        if self.branch() != MAIN:
+            return False
+        result = self.git("status", "--porcelain", "--untracked-files=no")
+        if result.returncode != 0:
+            raise self.lookup_failed("the working tree status", result)
+        return not result.stdout.strip()
+
     def is_shared_checkout(self):
         """True in a main worktree that has linked worktrees, the checkout other agents' worktrees share."""
         dirs = self.git("rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir")
@@ -598,7 +610,7 @@ def check_git(args, cwd, shown):
             block("shallow", shown)
         if command not in SHARED_CHECKOUT_SAFE or writes_anyway(command, rest):
             repo = Repo(cwd, options, shown)
-            if repo.is_shared_checkout():
+            if repo.is_shared_checkout() and not (command == "pull" and rest in FF_ONLY_PULLS and repo.is_clean_main()):
                 block("shared", shown)
     if command not in ("commit", "push", "update-ref"):
         return
