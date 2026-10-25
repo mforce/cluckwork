@@ -14,6 +14,12 @@
 # rather than one per package. Security fixes are deliberately left OUT of the
 # groups: an advisory fix should arrive as its own PR that can be read and
 # merged on its own, not buried in a bulk bump.
+#
+# The PR title prefix decides whether a bump reaches the release notes:
+# release-please-config.json shows `deps` and hides `chore`. Updates that ship
+# to users use `deps(...)`: NuGet packages, web runtime packages and Docker base
+# images. Build-time tooling stays `chore(...)`: GitHub Actions, web dev
+# dependencies and the web linter.
 
 version: 2
 updates:
@@ -43,7 +49,8 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(web)"
+      prefix: "deps(web)"
+      prefix-development: "chore(web)"
     groups:
       # Build/test tooling churns fastest and never reaches a user's browser —
       # keep it out of the way of runtime dependency review.
@@ -90,7 +97,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "deps"
     # Microsoft.EntityFrameworkCore.Design pulls Microsoft.CodeAnalysis.Workspaces.MSBuild,
     # which pins Workspaces.Common to its own Roslyn version exactly. Moving
     # these two ahead of EF fails restore with NU1608 (#1110). Lift the hold
@@ -116,7 +123,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(docker)"
+      prefix: "deps(docker)"
     groups:
       docker-base-images:
         patterns: ["*"]

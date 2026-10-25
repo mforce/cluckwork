@@ -195,6 +195,7 @@ free-form — the area touched.
 | `perf` | Performance | `perf(reports): stream the CSV export instead of buffering it` |
 | `refactor` | Refactoring | `refactor(api): extract service registration from Program` |
 | `docs` | Documentation | `docs(agents): record the guard-writing rules #407 paid five rounds for` |
+| `deps` | Dependencies | `deps(web): Bump the production-minor-patch group in /web with 6 updates` |
 | `ci` | *hidden* | `ci(e2e): workflow_dispatch job for the Playwright smoke suite` |
 | `test` | *hidden* | `test(e2e): Playwright smoke suite for the SPA over the #243 sim fixture` |
 | `build` | *hidden* | `build(deps): bump Npgsql to 10.0.2` |
