@@ -4,13 +4,13 @@
     "net10.0": {
       "Aspire.Hosting.Testing": {
         "type": "Direct",
-        "requested": "[13.6.3, )",
-        "resolved": "13.6.3",
-        "contentHash": "97THsqcXxSsWZOBhscGrFrnL6uKjiEUooJ2OYlIQXdpqmV70DaNGV+QlSdnUMbXowF4/9W3drsKcwQPwtGaEfw==",
+        "requested": "[13.6.4, )",
+        "resolved": "13.6.4",
+        "contentHash": "9uRiuuhVYZw6FC86fm/aDlDubZM/+kFi4ij3pcm9E4mEFcv+sm2EVB2x6HRy0xi7ZJB4+tA9LBswHsjzYaep2g==",
         "dependencies": {
           "AspNetCore.HealthChecks.Uris": "9.0.0",
-          "Aspire.Hosting": "13.6.3",
-          "Aspire.Hosting.AppHost": "13.6.3",
+          "Aspire.Hosting": "13.6.4",
+          "Aspire.Hosting.AppHost": "13.6.4",
           "Google.Protobuf": "3.36.1",
           "Grpc.AspNetCore": "2.83.0",
           "Grpc.Net.ClientFactory": "2.83.0",
@@ -85,8 +85,8 @@
       },
       "Aspire.Hosting": {
         "type": "Transitive",
-        "resolved": "13.6.3",
-        "contentHash": "CKPYA+DScm85BbnADc9yVmdiBmfrYdbeXkWm5ooLZLPVYv3txAyuypNi9ExJVIskxdKBtkNX4hDGIkr7j4olkQ==",
+        "resolved": "13.6.4",
+        "contentHash": "B9H7ttsmjUB+6dbkPTZ6yck25+RRj7gAGWRlqPbeWnn1FtoENET3QFgx8NZ8McFzTzSyPcmgy7OmsaYepEJ3GQ==",
         "dependencies": {
           "AspNetCore.HealthChecks.Uris": "9.0.0",
           "Google.Protobuf": "3.36.1",
@@ -122,11 +122,11 @@
       },
       "Aspire.Hosting.AppHost": {
         "type": "Transitive",
-        "resolved": "13.6.3",
-        "contentHash": "93mUttjq+jQab2xKtgVFfdtZ18xx0sZGctWD/WzwJsdDntCfYQypzQgYy9aLAzB3T7/PLYzw4PxjH0th+StcXQ==",
+        "resolved": "13.6.4",
+        "contentHash": "bHDwJmvFRVsOTFhgaIUDIQO8Qqq22ZcnUfDflTiaq95rDBBiNjattsAATkwpHDp6/JuKHF0dBB/nF22V0/rUtA==",
         "dependencies": {
           "AspNetCore.HealthChecks.Uris": "9.0.0",
-          "Aspire.Hosting": "13.6.3",
+          "Aspire.Hosting": "13.6.4",
           "Google.Protobuf": "3.36.1",
           "Grpc.AspNetCore": "2.83.0",
           "Grpc.Net.ClientFactory": "2.83.0",
@@ -951,20 +951,20 @@
         "dependencies": {
           "Aspire.Dashboard.Sdk.linux-x64": "[13.5.0, )",
           "Aspire.Hosting.AppHost": "[13.5.0, )",
-          "Aspire.Hosting.JavaScript": "[13.6.3, )",
+          "Aspire.Hosting.JavaScript": "[13.6.4, )",
           "Aspire.Hosting.Orchestration.linux-x64": "[13.5.0, )",
-          "Aspire.Hosting.PostgreSQL": "[13.6.3, )",
-          "Aspire.Hosting.Redis": "[13.6.3, )"
+          "Aspire.Hosting.PostgreSQL": "[13.6.4, )",
+          "Aspire.Hosting.Redis": "[13.6.4, )"
         }
       },
       "Aspire.Hosting.JavaScript": {
         "type": "CentralTransitive",
-        "requested": "[13.6.3, )",
-        "resolved": "13.6.3",
-        "contentHash": "g7vq3NzAeAyP6P6tOZgTlf6WjIOwDgTCld96USnij6lzDogu7ogESUPNmaUX5QwOYUWFnIK09aS6aBGEpacJJQ==",
+        "requested": "[13.6.4, )",
+        "resolved": "13.6.4",
+        "contentHash": "wCO4v+jsPpq8fQsmGu9EtNQBd5/B+5FYN2KDbjgx5mVqz6NtlhOSDBbtrkoBF5du3L2eZ9sPmbJYTdk79gfAfg==",
         "dependencies": {
           "AspNetCore.HealthChecks.Uris": "9.0.0",
-          "Aspire.Hosting": "13.6.3",
+          "Aspire.Hosting": "13.6.4",
           "Google.Protobuf": "3.36.1",
           "Grpc.AspNetCore": "2.83.0",
           "Grpc.Net.ClientFactory": "2.83.0",
@@ -998,13 +998,13 @@
       },
       "Aspire.Hosting.PostgreSQL": {
         "type": "CentralTransitive",
-        "requested": "[13.6.3, )",
-        "resolved": "13.6.3",
-        "contentHash": "4//hK3EAd+aOkbuiezCPQxF8wE5OcqlfgL2IOBVDLUXNJCAPSmwUwZbcD2KU3Klc5F6pHTtstElHw77tc7WLUQ==",
+        "requested": "[13.6.4, )",
+        "resolved": "13.6.4",
+        "contentHash": "ps9k26WrErB3VXaFQznIm9VMVgWSGYlrISUOkAVMPSNDbhT9pzLqrDh7yt2Jcb2Qz3X4TtkIgJFFxSgHu7l42A==",
         "dependencies": {
           "AspNetCore.HealthChecks.NpgSql": "9.0.0",
           "AspNetCore.HealthChecks.Uris": "9.0.0",
-          "Aspire.Hosting": "13.6.3",
+          "Aspire.Hosting": "13.6.4",
           "Google.Protobuf": "3.36.1",
           "Grpc.AspNetCore": "2.83.0",
           "Grpc.Net.ClientFactory": "2.83.0",
@@ -1038,13 +1038,13 @@
       },
       "Aspire.Hosting.Redis": {
         "type": "CentralTransitive",
-        "requested": "[13.6.3, )",
-        "resolved": "13.6.3",
-        "contentHash": "QEOeHvY9YqcBWQKsojEib3NxiP4hIjVTH68jp/R5e4jnxBPyrpegu5cjrfJWH9BSEtBSfIRUgbPJ1gVrNRtd2g==",
+        "requested": "[13.6.4, )",
+        "resolved": "13.6.4",
+        "contentHash": "KQ+8JaTulWTdIuUmEju3VQVTUeYb6Q5LzfC5NLGKuqvSh4orRX/vCH9kRGV66Y+YUwrui+Gf67KD1Ad0iYSaiw==",
         "dependencies": {
           "AspNetCore.HealthChecks.Redis": "9.0.0",
           "AspNetCore.HealthChecks.Uris": "9.0.0",
-          "Aspire.Hosting": "13.6.3",
+          "Aspire.Hosting": "13.6.4",
           "Google.Protobuf": "3.36.1",
           "Grpc.AspNetCore": "2.83.0",
           "Grpc.Net.ClientFactory": "2.83.0",
