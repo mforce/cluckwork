@@ -22,8 +22,9 @@ still a read.
 
 The shared checkout is a main worktree that has linked worktrees: agents work in
 the linked ones, and all of them share its `.git` (#1205). There, only the
-SHARED_CHECKOUT_SAFE subcommands run. In every worktree, `git stash` and shallow
-fetches are refused, because the stash list and the shallow state are shared too.
+SHARED_CHECKOUT_SAFE subcommands run, plus FF_ONLY_PULLS when main is checked out
+with no tracked change. In every worktree, `git stash` and shallow fetches are
+refused, because the stash list and the shallow state are shared too.
 GIT_GUARD_ALLOW_SHARED=1 lifts those three rules wherever it is set. It is for the
 maintainer, on one command in their own shell (CONTRIBUTING.md); set for a harness,
 every agent started from it would inherit it.
@@ -83,6 +84,8 @@ SHALLOW = re.compile(r"\b(?:fetch|pull)\b.*\s--(?:de|sh|un|up)", re.S)
 SHARED_CHECKOUT_SAFE = {"blame", "branch", "cat-file", "config", "describe", "diff", "fetch", "for-each-ref", "grep",
                         "help", "log", "ls-files", "ls-tree", "merge-tree", "remote", "rev-list", "rev-parse",
                         "shortlog", "show", "status", "version", "worktree"}
+# The one write allowed there, on a clean main: a fast-forward that brings the checkout (and this guard) up to date.
+FF_ONLY_PULLS = (["--ff-only"], ["--ff-only", "origin", MAIN])
 GIT_WORD = re.compile(r"\bgit\b")
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 # Text that can move a git command's target to another checkout.
@@ -151,7 +154,7 @@ MESSAGES = {
                      "Run `git branch --unset-upstream`, then `git push -u origin <that-branch>`.",
     "shared": "this is the shared checkout, the main worktree other agents' worktrees hang off; git commands that "
               "change its HEAD, index, files or refs are refused here. Run it in your own worktree: "
-              "`cd <your worktree> && git ...`.",
+              "`cd <your worktree> && git ...`. To update a clean main here, run `git pull --ff-only`.",
     "unresolved": "git-guard cannot tell which checkout each git step targets here (a subshell, wrapper, "
                   "variable assignment or directory change it cannot follow), and it may be the shared checkout. "
                   "Run each git command as its own simple command, or join simple steps with &&, ; or newlines.",
@@ -366,6 +369,16 @@ class Repo:
         if result.returncode not in (0, 1):
             raise self.lookup_failed("the current branch", result)
         return result.stdout.strip().removeprefix("refs/heads/") or None
+
+    def is_clean_main(self):
+        """True on main with no tracked change. Untracked files may stay: git refuses a fast-forward that would
+        overwrite one, though it does overwrite an ignored file at a path the incoming commit starts tracking."""
+        if self.branch() != MAIN:
+            return False
+        result = self.git("status", "--porcelain", "--untracked-files=no")
+        if result.returncode != 0:
+            raise self.lookup_failed("the working tree status", result)
+        return not result.stdout.strip()
 
     def is_shared_checkout(self):
         """True in a main worktree that has linked worktrees, the checkout other agents' worktrees share."""
@@ -598,7 +611,11 @@ def check_git(args, cwd, shown):
             block("shallow", shown)
         if command not in SHARED_CHECKOUT_SAFE or writes_anyway(command, rest):
             repo = Repo(cwd, options, shown)
-            if repo.is_shared_checkout():
+            # Only -C may precede it: --git-dir/--work-tree would move a ref or files the clean check never saw, and
+            # -c a one-shot url.*.insteadOf or core.sshCommand. Known limit: `git remote set-url` or a stored
+            # url.*.insteadOf still redirects it, as an agent can already edit files here directly.
+            fast_forward = command == "pull" and rest in FF_ONLY_PULLS and set(options[::2]) <= {"-C"}
+            if repo.is_shared_checkout() and not (fast_forward and repo.is_clean_main()):
                 block("shared", shown)
     if command not in ("commit", "push", "update-ref"):
         return
