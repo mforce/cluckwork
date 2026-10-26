@@ -450,56 +450,68 @@ public sealed class StepUpGrantRegistryTests : IClassFixture<CluckworkWebApplica
         Assert.NotNull(other);
         var otherUserId = other.Id;
 
-        for (var round = 0; round < rounds; round++)
+        // The racers park pool threads at the barrier. Without spare threads the
+        // pool grows about one a second, which stalled every test running beside
+        // this one for seconds (#1372).
+        ThreadPool.GetMinThreads(out var minWorkers, out var minIo);
+        ThreadPool.SetMinThreads(minWorkers + racers * 2, minIo);
+        try
         {
-            await InitializeAsync();
-            var jti = Guid.NewGuid();
-            var now = T.AddMinutes(round);
-
-            using var start = new Barrier(racers * 2);
-            var winners = 0;
-            // DbContext is not thread-safe: each racer gets its own context
-            // (and its own registry instance over the shared claim store).
-            // That is exactly the multi-request topology — the in-process
-            // claim store is what decides the single winner.
-            var racerDbs = Enumerable.Range(0, racers).Select(_ => NewDb()).ToArray();
-            var writerDbs = Enumerable.Range(0, racers).Select(_ => NewDb()).ToArray();
-            var claimOnce = new InProcessClaimOnceStore(FixedFakeTimeProvider.At(now));
-
-            var tasks = new List<Task>();
-            for (var i = 0; i < racers; i++)
+            for (var round = 0; round < rounds; round++)
             {
-                var consumeDb = racerDbs[i];
-                tasks.Add(Task.Run(async () =>
-                {
-                    start.SignalAndWait();
-                    if (await new PersistentStepUpGrantRegistry(claimOnce, consumeDb)
-                            .TryConsumeIfNotLoggedOutAsync(
-                                _userId, jti, grantEpoch: 0, now.AddMinutes(5), now))
-                        Interlocked.Increment(ref winners);
-                }));
+                await InitializeAsync();
+                var jti = Guid.NewGuid();
+                var now = T.AddMinutes(round);
 
-                // Logouts for ANOTHER user: they must not affect this round's
-                // outcome, but they keep the epoch column under concurrent
-                // mutation while the consumes run. Each writer has its own
-                // context — DbContext is not thread-safe.
-                var writerDb = writerDbs[i];
-                tasks.Add(Task.Run(async () =>
+                using var start = new Barrier(racers * 2);
+                var winners = 0;
+                // DbContext is not thread-safe: each racer gets its own context
+                // (and its own registry instance over the shared claim store).
+                // That is exactly the multi-request topology — the in-process
+                // claim store is what decides the single winner.
+                var racerDbs = Enumerable.Range(0, racers).Select(_ => NewDb()).ToArray();
+                var writerDbs = Enumerable.Range(0, racers).Select(_ => NewDb()).ToArray();
+                var claimOnce = new InProcessClaimOnceStore(FixedFakeTimeProvider.At(now));
+
+                var tasks = new List<Task>();
+                for (var i = 0; i < racers; i++)
                 {
-                    start.SignalAndWait();
-                    await new PersistentStepUpGrantRegistry(
-                        new InProcessClaimOnceStore(FixedFakeTimeProvider.At(now)),
-                        writerDb).RecordLogoutAsync(otherUserId);
-                }));
+                    var consumeDb = racerDbs[i];
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        start.SignalAndWait();
+                        if (await new PersistentStepUpGrantRegistry(claimOnce, consumeDb)
+                                .TryConsumeIfNotLoggedOutAsync(
+                                    _userId, jti, grantEpoch: 0, now.AddMinutes(5), now))
+                            Interlocked.Increment(ref winners);
+                    }));
+
+                    // Logouts for ANOTHER user: they must not affect this round's
+                    // outcome, but they keep the epoch column under concurrent
+                    // mutation while the consumes run. Each writer has its own
+                    // context — DbContext is not thread-safe.
+                    var writerDb = writerDbs[i];
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        start.SignalAndWait();
+                        await new PersistentStepUpGrantRegistry(
+                            new InProcessClaimOnceStore(FixedFakeTimeProvider.At(now)),
+                            writerDb).RecordLogoutAsync(otherUserId);
+                    }));
+                }
+
+                await Task.WhenAll(tasks);
+                var allDbs = new List<AppDbContext>(racerDbs);
+                allDbs.AddRange(writerDbs);
+                foreach (var db in allDbs)
+                    await db.DisposeAsync();
+
+                Assert.Equal(1, winners);
             }
-
-            await Task.WhenAll(tasks);
-            var allDbs = new List<AppDbContext>(racerDbs);
-            allDbs.AddRange(writerDbs);
-            foreach (var db in allDbs)
-                await db.DisposeAsync();
-
-            Assert.Equal(1, winners);
+        }
+        finally
+        {
+            ThreadPool.SetMinThreads(minWorkers, minIo);
         }
     }
 }
