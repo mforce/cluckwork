@@ -19,7 +19,7 @@ RUN mkdir /web/sourcemaps && \
     find /web/dist -name '*.map' -exec mv {} /web/sourcemaps/ \;
 
 # --- API build: restore + publish the .NET app ---
-FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0@sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b AS build
 WORKDIR /src
 # #315 — copy EVERY restore input (Directory.Build.props + each project file AND
 # its packages.lock.json, for the API project and the projects it references)
@@ -56,7 +56,7 @@ RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --n
 # Separately, do NOT set InvariantGlobalization=true: it does not break tz lookup
 # on Linux (tzdata is read independently of ICU), but it breaks culture-dependent
 # currency/locale formatting the app relies on. Keep ICU (the default here).
-FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee AS runtime
 WORKDIR /app
 EXPOSE 8080
 
