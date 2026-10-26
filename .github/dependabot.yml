@@ -20,6 +20,11 @@
 # to users use `deps(...)`: NuGet packages, web runtime packages and Docker base
 # images. Build-time tooling stays `chore(...)`: GitHub Actions, web dev
 # dependencies and the web linter.
+#
+# Dependabot has no manual trigger for version updates. A merged change to this
+# file starts an immediate check of every entry below, so a comment edit is the
+# way to pick up an urgent release (the .NET 10.0.14 base images, 2026-10-26)
+# before the weekly run.
 
 version: 2
 updates:
