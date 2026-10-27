@@ -32,7 +32,9 @@ for rel in "${LOCKS[@]}"; do
   # outside pr/, for example over these trusted scripts.
   [ "$(realpath -m "pr/$rel")" = "$root/pr/$rel" ] \
     || { echo "lock path goes through a symlink: $rel"; exit 1; }
-  [ "$(git -C pr ls-files -s -- "$rel" | cut -c1-6)" = 100644 ] \
+  # ls-tree names the entry itself; ls-files would list a file inside a
+  # directory committed at this path.
+  [ "$(git -C pr ls-tree --format='%(objectmode) %(path)' HEAD -- "$rel")" = "100644 $rel" ] \
     || { echo "lock is not a tracked regular file: $rel"; exit 1; }
   cp "$src" "pr/$rel"
 done
@@ -47,7 +49,7 @@ set -e
 
 case "$verdict" in
   3) echo "No lock changes after restore — nothing to do."; exit 0 ;;
-  0) : ;;  # commit below
+  4) : ;;  # commit below
   *) echo "Classifier refused (exit $verdict) — not committing."; exit 1 ;;
 esac
 
