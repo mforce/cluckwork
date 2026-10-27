@@ -121,6 +121,9 @@ updates:
   # security fix. Dependabot opens the digest-bump PR; the weekly image-scan.yml
   # reports on the published result. Grouped so the three bump together as one
   # reviewable PR; security fixes still arrive ungrouped (Dependabot's default).
+  # The tags are exact versions, so Dependabot can also offer a new major
+  # (.NET 11, Node 27). Moving to a new major is a planned upgrade, not a weekly
+  # bump, so majors are ignored here.
   - package-ecosystem: "docker"
     directory: "/src/Cluckwork.Api"
     schedule:
@@ -128,6 +131,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps(docker)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       docker-base-images:
         patterns: ["*"]
