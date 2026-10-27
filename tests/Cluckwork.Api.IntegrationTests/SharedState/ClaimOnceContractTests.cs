@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using Cluckwork.Infrastructure.SharedState;
 
 namespace Cluckwork.Api.IntegrationTests.SharedState;
@@ -80,5 +82,105 @@ public sealed class ClaimOnceContractTests
         fixture.Clock.Advance(TimeSpan.FromMinutes(5)); // exactly to expiry
 
         Assert.True(fixture.Store.TryClaim("k", TimeSpan.FromMinutes(5)));
+    }
+
+    // #1372 — the race guard for single use. Eight threads claim each of 2,000 keys
+    // together, and every key must have exactly one winner. It is probabilistic: a
+    // racy store fails it only when two claims for one key overlap between a check
+    // and its write. A prototype of this test caught a check-then-act store on two
+    // and four cores, and this code caught it on four; one core is unverified.
+    //
+    // The workers are dedicated threads, not pool threads, so their barrier waits
+    // starve nothing else. A claim that throws is recorded and its worker stays in
+    // the barrier, so an unlocked store still shows its double admissions.
+    [Fact]
+    public void ConcurrentClaims_EveryKeyHasExactlyOneWinner()
+    {
+        const int threads = 8;
+        const int keys = 2000;
+        var barrierWatchdog = TimeSpan.FromSeconds(30);
+        var joinWatchdog = TimeSpan.FromSeconds(60);
+        var store = new Fixture().Store;
+        var winners = new int[keys];
+        var faults = new ConcurrentQueue<Exception>();
+        var barrierTimeouts = 0;
+        // Neither is disposed while a worker may still run: a late worker would
+        // touch a disposed object and take the test host down.
+        var stop = new CancellationTokenSource();
+        var barrier = new Barrier(threads);
+
+        void Claim()
+        {
+            try
+            {
+                for (var k = 0; k < keys && !stop.IsCancellationRequested; k++)
+                {
+                    if (!barrier.SignalAndWait(barrierWatchdog, stop.Token))
+                    {
+                        Interlocked.Increment(ref barrierTimeouts);
+                        stop.Cancel();
+                        return;
+                    }
+                    try
+                    {
+                        if (store.TryClaim($"k{k}", TimeSpan.FromMinutes(5)))
+                            Interlocked.Increment(ref winners[k]);
+                    }
+                    catch (Exception ex)
+                    {
+                        faults.Enqueue(ex);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (stop.IsCancellationRequested)
+            {
+            }
+            catch (Exception ex)
+            {
+                faults.Enqueue(ex);
+                stop.Cancel();
+            }
+        }
+
+        var started = new List<Thread>();
+        var hung = 0;
+        try
+        {
+            for (var i = 0; i < threads; i++)
+            {
+                var worker = new Thread(Claim) { IsBackground = true };
+                worker.Start();
+                started.Add(worker);
+            }
+        }
+        finally
+        {
+            // One deadline for all joins, so a hang fails in one watchdog period.
+            var joinStarted = Stopwatch.GetTimestamp();
+            foreach (var worker in started)
+            {
+                var left = joinWatchdog - Stopwatch.GetElapsedTime(joinStarted);
+                if (!worker.Join(left > TimeSpan.Zero ? left : TimeSpan.Zero))
+                {
+                    hung++;
+                    stop.Cancel();
+                }
+            }
+            if (hung == 0)
+            {
+                barrier.Dispose();
+                stop.Dispose();
+            }
+        }
+
+        var doubleWon = winners.Count(w => w > 1);
+        var unclaimed = winners.Count(w => w == 0);
+        var failure = hung > 0 || barrierTimeouts > 0 ? "WATCHDOG"
+            : doubleWon > 0 || unclaimed > 0 ? "INVARIANT"
+            : faults.IsEmpty ? null : "FAULT";
+        Assert.True(failure is null,
+            $"{failure}: hung={hung} barrierTimeouts={barrierTimeouts} doubleWon={doubleWon} unclaimed={unclaimed} " +
+            $"faults={faults.Count} " +
+            string.Join(" | ", faults.Take(3).Select(e => $"{e.GetType().Name}: {e.Message} @ {e.StackTrace?.Split('\n')[0].Trim()}")));
     }
 }
