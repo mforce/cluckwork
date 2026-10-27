@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.1.3](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.1.3) (2026-10-27)
+
+
+### Bug fixes
+
+* **sales:** refuse a sales order dated after the farm's today ([#1344](https://github.com/mforce/cluckwork/issues/1344)) ([e85b33f](https://github.com/mforce/cluckwork/commit/e85b33f9731876200251a22640f34b6b50e73cd4))
+
+
+### Documentation
+
+* add a pdd-kit Product Model ([#1332](https://github.com/mforce/cluckwork/issues/1332)) ([b0a9585](https://github.com/mforce/cluckwork/commit/b0a95850c615940f0820256f322c098c033c067f))
+* **auth:** record the two-factor authentication design ([#1334](https://github.com/mforce/cluckwork/issues/1334)) ([ea67740](https://github.com/mforce/cluckwork/commit/ea67740806cd72153f4fb76cbfebc14c5d617a08))
+* **design:** two-factor authentication screen lab and picks ([#1339](https://github.com/mforce/cluckwork/issues/1339)) ([f15f728](https://github.com/mforce/cluckwork/commit/f15f72861616a0168c7d59e04c752ade296a79a0))
+* **product-model:** add a README and point AGENTS.md at the model ([#1341](https://github.com/mforce/cluckwork/issues/1341)) ([de7d8cc](https://github.com/mforce/cluckwork/commit/de7d8cc8f6d81236c8fe9ebe23a4f4c36c55a978))
+
+
+### Dependencies
+
+* Bump the nuget-minor-patch group with 1 update ([#1378](https://github.com/mforce/cluckwork/issues/1378)) ([7a5752c](https://github.com/mforce/cluckwork/commit/7a5752cc5f5931853c9082c1b731ba0397716f4c))
+* Bump the nuget-minor-patch group with 4 updates ([#1367](https://github.com/mforce/cluckwork/issues/1367)) ([ebe2c3f](https://github.com/mforce/cluckwork/commit/ebe2c3f77c2e62ad12d414a9fcdc1f3f6cf63672))
+* **docker:** Bump node from `0b36e8c` to `40cd011` in /src/Cluckwork.Api in the docker-base-images group ([#1363](https://github.com/mforce/cluckwork/issues/1363)) ([0d2525d](https://github.com/mforce/cluckwork/commit/0d2525d9d7af5377f3844f2df1e1805a2387c325))
+* **docker:** bump the docker-base-images group in /src/Cluckwork.Api with 2 updates ([#1369](https://github.com/mforce/cluckwork/issues/1369)) ([41f438c](https://github.com/mforce/cluckwork/commit/41f438c19ad7e9ed4b27d17cebb76cb59abc658c))
+* **web:** bump the production-minor-patch group across 1 directory with 2 updates ([#1371](https://github.com/mforce/cluckwork/issues/1371)) ([eec4d13](https://github.com/mforce/cluckwork/commit/eec4d13616488beb8bec5c6b9a43fb9b76c25828))
+* **web:** Bump the production-minor-patch group in /web with 2 updates ([#1365](https://github.com/mforce/cluckwork/issues/1365)) ([af1771b](https://github.com/mforce/cluckwork/commit/af1771ba39e21a7864a478dc81ef0777e908f259))
+* **web:** bump the production-minor-patch group in /web with 2 updates ([#1377](https://github.com/mforce/cluckwork/issues/1377)) ([484be3e](https://github.com/mforce/cluckwork/commit/484be3e03ae210333c26e42a96f85aba43b32535))
+
+
+### Chores
+
+* release 1.1.3 as a patch ([782c0e6](https://github.com/mforce/cluckwork/commit/782c0e694882529816d1fbdefd7ad08cb663710c))
+
 ## [1.1.2](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.1.2) (2026-10-19)
 
 
