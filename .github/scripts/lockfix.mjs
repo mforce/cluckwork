@@ -18,6 +18,7 @@
 //
 // Usage: git status --porcelain -z | node .github/scripts/lockfix.mjs
 
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // The exact, closed set of lock files in the solution's reference chain. An
@@ -92,4 +93,5 @@ async function main() {
   process.exitCode = EXIT[action];
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+// realpath: through a symlink the guard would skip main() and exit 0 ("commit").
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) await main();

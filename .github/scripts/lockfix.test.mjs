@@ -7,7 +7,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { changedPaths, classify, LOCK_FILES } from "./lockfix.mjs";
 
 // Build a `git status --porcelain -z` stream: each record is `XY <path>` and
@@ -90,4 +93,88 @@ test("a copy that drags in a non-lock SOURCE is caught", () => {
   const r = classify("C  src/Cluckwork.Api/packages.lock.json\0evil/copied.txt\0");
   assert.equal(r.action, "abort");
   assert.ok(r.foreign.includes("evil/copied.txt"));
+});
+
+test("the CLI classifies when invoked through a symlink", () => {
+  const link = join(mkdtempSync(join(tmpdir(), "lockfix-link-")), "lockfix.mjs");
+  symlinkSync(new URL("./lockfix.mjs", import.meta.url).pathname, link);
+  const run = spawnSync(process.execPath, [link], { input: z(" M nuget.config"), encoding: "utf8" });
+  assert.equal(run.status, 2, run.stdout + run.stderr);
+});
+
+// Runs lockfix-apply.sh in a scratch workspace laid out like the commit job:
+// trusted/ scripts, a pr/ checkout of a pushed branch, and an artifact of new
+// locks. `tamper(pr, git, commit)` shapes the PR checkout before the run.
+function runApply(tamper = () => {}) {
+  const dir = mkdtempSync(join(tmpdir(), "lockfix-apply-"));
+  const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+  const scripts = join(dir, "trusted/.github/scripts");
+  mkdirSync(scripts, { recursive: true });
+  for (const f of ["lockfix.mjs", "lockfix-apply.sh"]) {
+    copyFileSync(new URL(`./${f}`, import.meta.url), join(scripts, f));
+  }
+  const pr = join(dir, "pr");
+  git(dir, "init", "-q", "--bare", "remote.git");
+  git(dir, "init", "-q", "-b", "main", "pr");
+  for (const lock of LOCK_FILES) {
+    for (const [root, body] of [[pr, "{}\n"], [join(dir, "art"), '{"new":1}\n']]) {
+      mkdirSync(dirname(join(root, lock)), { recursive: true });
+      writeFileSync(join(root, lock), body);
+    }
+  }
+  const commit = (msg) => git(pr, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", msg);
+  git(pr, "add", ".");
+  commit("base");
+  git(pr, "remote", "add", "origin", join(dir, "remote.git"));
+  git(pr, "push", "-q", "origin", "main");
+  tamper(pr, git, commit);
+  const run = spawnSync("bash", [join(scripts, "lockfix-apply.sh")], {
+    cwd: dir,
+    encoding: "utf8",
+    env: { ...process.env, ARTIFACT_DIR: join(dir, "art"), HEAD_BRANCH: "pr" },
+  });
+  const pushed = spawnSync("git", ["-C", join(dir, "remote.git"), "show", `pr:${LOCK_FILES[0]}`], { encoding: "utf8" });
+  return { run, pushed: pushed.stdout, applyScript: readFileSync(join(scripts, "lockfix-apply.sh"), "utf8") };
+}
+
+const API_LOCK = LOCK_FILES[0];
+const APPLY_SH = readFileSync(new URL("./lockfix-apply.sh", import.meta.url), "utf8");
+const TO_APPLY_SH = "../../../trusted/.github/scripts/lockfix-apply.sh";
+
+test("apply: regular tracked locks -> commit and push", () => {
+  const { run, pushed } = runApply();
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.equal(pushed, '{"new":1}\n');
+});
+
+test("apply: a lock committed as a symlink -> abort without writing through it", () => {
+  const { run, pushed, applyScript } = runApply((pr, git, commit) => {
+    rmSync(join(pr, API_LOCK));
+    symlinkSync(TO_APPLY_SH, join(pr, API_LOCK));
+    commit("symlink");
+  });
+  assert.notEqual(run.status, 0);
+  assert.equal(applyScript, APPLY_SH);
+  assert.equal(pushed, "");
+});
+
+test("apply: a symlink in the working tree over a 100644 entry -> abort without writing through it", () => {
+  const { run, pushed, applyScript } = runApply((pr) => {
+    rmSync(join(pr, API_LOCK));
+    symlinkSync(TO_APPLY_SH, join(pr, API_LOCK));
+  });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /goes through a symlink/);
+  assert.equal(applyScript, APPLY_SH);
+  assert.equal(pushed, "");
+});
+
+test("apply: a lock tracked with any mode but 100644 -> abort", () => {
+  const { run, pushed } = runApply((pr, git) => {
+    git(pr, "update-index", "--chmod=+x", API_LOCK);
+    git(pr, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "exec");
+  });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /not a tracked regular file/);
+  assert.equal(pushed, "");
 });

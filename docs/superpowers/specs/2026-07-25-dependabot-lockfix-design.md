@@ -107,9 +107,11 @@ So restore and the write credential never coexist in one job:
 - **Job `commit`** — `needs: compute`, `permissions: contents: write`. Runs **zero** project
   code. Obtains `lockfix.mjs` and the path allowlist from the **trusted default-branch**
   checkout (never from the PR), downloads the artifact, validates each entry (exact path from
-  the 7-file allowlist, regular file, parses as JSON), applies them onto a checkout of the
+  the allowlist, regular file, parses as JSON), applies them onto a checkout of the
   same immutable PR head SHA, classifies the working tree, and on a clean lock-only diff
-  commits and pushes.
+  commits and pushes. The PR tree controls each destination, so before every copy it
+  refuses a path that resolves through a symlink or is not tracked as a mode `100644` file:
+  a symlinked lock path would otherwise write through to the trusted scripts (#1373).
 
 This is the actual control for Goal #2; the post-restore file check is only a secondary
 data-hygiene guard, not a security boundary (restore-time code runs before it and could hide
