@@ -22,11 +22,20 @@ LOCKS=(
 
 # Apply each artifact file onto its exact allowlisted path, after checking it is
 # a regular file and parses as JSON (reject a poisoned artifact).
+root="$(pwd -P)"
 for rel in "${LOCKS[@]}"; do
   src="$ARTIFACT_DIR/$rel"
   [ -f "$src" ] || { echo "missing regenerated lock: $rel"; exit 1; }
   node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$src" \
     || { echo "regenerated lock is not valid JSON: $rel"; exit 1; }
+  # The PR tree controls the destination: a symlink on its path would write
+  # outside pr/, for example over these trusted scripts.
+  [ "$(realpath -m "pr/$rel")" = "$root/pr/$rel" ] \
+    || { echo "lock path goes through a symlink: $rel"; exit 1; }
+  # ls-tree names the entry itself; ls-files would list a file inside a
+  # directory committed at this path.
+  [ "$(git -C pr ls-tree --format='%(objectmode) %(path)' HEAD -- "$rel")" = "100644 $rel" ] \
+    || { echo "lock is not a tracked regular file: $rel"; exit 1; }
   cp "$src" "pr/$rel"
 done
 
@@ -40,7 +49,7 @@ set -e
 
 case "$verdict" in
   3) echo "No lock changes after restore — nothing to do."; exit 0 ;;
-  0) : ;;  # commit below
+  4) : ;;  # commit below
   *) echo "Classifier refused (exit $verdict) — not committing."; exit 1 ;;
 esac
 
