@@ -4,8 +4,9 @@
 # re-tagged "latest 10.0". Dependabot's `docker` ecosystem opens the bump PR when
 # a newer digest ships a security fix; refresh with
 #   docker buildx imagetools inspect <image>:<tag> --format '{{.Manifest.Digest}}'
-# Each tag is the exact version the digest resolves to, so the bump PR names the
-# version change (10.0.13 -> 10.0.14), not only two hashes.
+# Each tag is the exact version the digest resolves to, so a bump PR that moves
+# the version names both versions (10.0.13 -> 10.0.14). A rebuild under the same
+# tag still shows only the two hashes.
 FROM node:26.12.1-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS web-build
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
