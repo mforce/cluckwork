@@ -11,15 +11,16 @@ namespace Cluckwork.Api.IntegrationTests;
 // A smoke test, not the race guard. Racers on their own registry contexts consume
 // one jti while logouts for an unrelated user write StepUpLogoutEpoch on the same
 // database, and exactly one consumer must win. Whether the racers overlap inside
-// the claim is luck, so this test catches a store that always admits but not a
-// racy one. The race guard is ClaimOnceContractTests.ConcurrentClaims_EveryKeyHasExactlyOneWinner;
+// the claim is luck, so this test catches a store that always admits but not
+// reliably a racy one. The race guard is ClaimOnceContractTests.ConcurrentClaims_EveryKeyHasExactlyOneWinner;
 // the call shape and the consume-before-read order are pinned by
 // StepUpAuthTests.ValidateAsync_MakesTheAdmissionDecisionInOneAtomicRegistryCall and
 // StepUpGrantRegistrySharedStoreTests.ALogoutLandingInTheGapBetweenConsumeAndRead_IsCaught.
 //
 // The racers wait on an async gate and hold no pool threads. A Barrier here once
-// parked 16 pool threads and stalled every test running beside it for seconds (#1372).
-// The class still runs alone so its burst of database traffic slows no other test.
+// parked 16 pool threads, which can delay other thread-pool work in the process for
+// seconds (#1372). The class still runs alone so its burst of database traffic
+// slows no other test.
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class StepUpGrantRegistryConcurrencySmokeCollection
 {

@@ -85,9 +85,11 @@ public sealed class ClaimOnceContractTests
     }
 
     // #1372 — the race guard for single use. Eight threads claim each of 2,000 keys
-    // together, and every key must have exactly one winner. It is probabilistic and
-    // needs at least two cores to overlap the claims: a check-then-act store
-    // double-admitted 15 to 158 keys per run on four cores, and 3 to 10 on two.
+    // together, and every key must have exactly one winner. It is probabilistic: a
+    // racy store fails it only when two claims for one key overlap between a check
+    // and its write, which needs the threads to run at the same moment on separate
+    // cores. A prototype of this test caught a check-then-act store on two and four
+    // cores, and this code caught it on four; one core is unverified.
     //
     // The workers are dedicated threads, not pool threads, so their barrier waits
     // starve nothing else. A claim that throws is recorded and its worker stays in
