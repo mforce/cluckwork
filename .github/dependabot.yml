@@ -120,7 +120,10 @@ updates:
   # never floats, so without this it silently rots past the next base-image
   # security fix. Dependabot opens the digest-bump PR; the weekly image-scan.yml
   # reports on the published result. Grouped so the three bump together as one
-  # reviewable PR; security fixes still arrive ungrouped (Dependabot's default).
+  # reviewable PR. Dependabot has no separate security-update path for docker,
+  # so a base-image security fix arrives in this group; image-scan.yml reports
+  # vulnerabilities. A major .NET or Node upgrade is planned on its own, so
+  # majors are ignored here.
   - package-ecosystem: "docker"
     directory: "/src/Cluckwork.Api"
     schedule:
@@ -128,6 +131,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "deps(docker)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       docker-base-images:
         patterns: ["*"]
