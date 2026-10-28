@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.3...v1.2.0) (2026-10-28)
+
+
+### Features
+
+* **auth:** give AspNetUserTokens a tenant guard and store two-factor secrets protected ([#1345](https://github.com/mforce/cluckwork/issues/1345)) ([34d00f6](https://github.com/mforce/cluckwork/commit/34d00f6365254f0bf3e17bac0f47f47666e72477))
+
 ## [1.1.3](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.1.3) (2026-10-27)
 
 
