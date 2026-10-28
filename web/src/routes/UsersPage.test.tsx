@@ -1299,7 +1299,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
           unauthenticatedReason: null,
-          login: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={me}>
@@ -3091,7 +3091,7 @@ describe("UsersPage step-up authentication (#308)", () => {
           // first-run set-password gate.
           mustChangePassword: false,
           unauthenticatedReason: null,
-          login: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={me}>
@@ -3657,7 +3657,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
           unauthenticatedReason: null,
-          login: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={me}>

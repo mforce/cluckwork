@@ -103,7 +103,8 @@ export function login(user) {
 
   if (!ok) {
     throw new Error(
-      `login failed for ${user.email}: status=${res.status} body=${res.body}`
+      // The status and title only: a failed login's body can carry a sign-in challenge (#1274).
+      `login failed for ${user.email}: status=${res.status} title=${body && body.title}`
     );
   }
 
@@ -166,7 +167,7 @@ export function refresh(session) {
 
     if (!ok) {
       throw new Error(
-        `refresh failed for ${session.email}: status=${res.status} body=${res.body}`
+        `refresh failed for ${session.email}: status=${res.status} title=${body && body.title}`
       );
     }
 

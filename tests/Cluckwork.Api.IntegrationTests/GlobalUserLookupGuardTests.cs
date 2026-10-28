@@ -116,49 +116,55 @@ public sealed class GlobalUserLookupGuardTests
             .ToList();
     }
 
-    // Checked on the files the scanner read, after its own skips, so a skip that
-    // drops TwoFactorCredentials.cs or a subtree fails here.
-    private static void AssertScanned(List<string> scanned)
+    private sealed record ScanResult(List<string> Offenders, List<string> Scanned);
+
+    // Checked on the files the scanner read, after its own skips. A skip fails
+    // here only when it drops TwoFactorCredentials.cs or takes the count below
+    // the floor, that is more than about SourceFileFloor's headroom of files.
+    private static void AssertScanned(string walk, ScanResult result)
     {
-        Assert.True(scanned.Contains(TwoFactorCredentialsFile),
-            $"the scan did not read {TwoFactorCredentialsFile}. If the file moved or was renamed, "
+        Assert.True(result.Scanned.Contains(TwoFactorCredentialsFile),
+            $"the {walk} walk did not read {TwoFactorCredentialsFile}. If the file moved or was renamed, "
             + "update TwoFactorCredentialsFile here. If the scanner now skips it, the two-factor ban "
-            + "no longer covers the one file that owns two-factor state.");
-        Assert.True(scanned.Count >= SourceFileFloor,
-            $"the scan read {scanned.Count} source files under src/, below its floor of {SourceFileFloor}");
+            + "no longer covers the one file that owns two-factor state. It read:\n  "
+            + string.Join("\n  ", result.Scanned));
+        Assert.True(result.Scanned.Count >= SourceFileFloor,
+            $"the {walk} walk read {result.Scanned.Count} source files under src/, below its floor of "
+            + $"{SourceFileFloor}:\n  " + string.Join("\n  ", result.Scanned));
     }
 
     [Fact]
     public void NoProductionCode_MakesAGloballyScopedIdentityUserLookup()
     {
-        var scanned = new List<string>();
-        var offenders = ScanFiles(SourceFiles(), Banned, AllowedFiles, scanned);
+        var result = ScanForLookups(SourceFiles());
 
-        AssertScanned(scanned);
+        AssertScanned("lookup", result);
 
-        Assert.True(offenders.Count == 0,
+        Assert.True(result.Offenders.Count == 0,
             "Globally-scoped Identity user lookups found in src/. Route them through "
             + "IAccountUserDirectory, or add a deliberate exclusion with a reason:\n  "
-            + string.Join("\n  ", offenders));
+            + string.Join("\n  ", result.Offenders));
     }
 
     [Fact]
     public void NoProductionCode_CallsIdentitysTwoFactorApi()
     {
-        var scanned = new List<string>();
-        var offenders = ScanForTwoFactorApi(SourceFiles(), scanned);
+        var result = ScanForTwoFactorApi(SourceFiles());
 
-        AssertScanned(scanned);
-        Assert.True(offenders.Count == 0,
+        AssertScanned("two-factor", result);
+        Assert.True(result.Offenders.Count == 0,
             "Identity's two-factor API found in src/. Two-factor state is written only by "
             + "TwoFactorCredentials (#1274); only build output and migration-shaped files are skipped:\n  "
-            + string.Join("\n  ", offenders));
+            + string.Join("\n  ", result.Offenders));
     }
 
-    // The real walk and the fixtures below share this call, so the list the
-    // walk scans is the list the fixtures prove.
-    private static List<string> ScanForTwoFactorApi(IEnumerable<string> files, List<string>? scanned = null) =>
-        ScanFiles(files, TwoFactorApi, allowedFiles: [], scanned);
+    // Each real walk and its fixtures share one of these calls, so the list a
+    // walk scans is the list its fixtures prove.
+    private static ScanResult ScanForTwoFactorApi(IEnumerable<string> files) =>
+        ScanFiles(files, TwoFactorApi, allowedFiles: []);
+
+    private static ScanResult ScanForLookups(IEnumerable<string> files) =>
+        ScanFiles(files, Banned, AllowedFiles);
 
     // Literals, never TwoFactorApi: deleting a name from the list must turn a
     // test red.
@@ -205,9 +211,35 @@ public sealed class GlobalUserLookupGuardTests
                 File.WriteAllText(path, $"class Probe {{ void M(dynamic users) => users.{token}(null); }}\n");
             }
 
-            Assert.Single(ScanForTwoFactorApi([source]));
-            Assert.Empty(ScanForTwoFactorApi([migration]));
-            Assert.Empty(ScanForTwoFactorApi([snapshot]));
+            Assert.Single(ScanForTwoFactorApi([source]).Offenders);
+            Assert.Empty(ScanForTwoFactorApi([migration]).Offenders);
+            Assert.Empty(ScanForTwoFactorApi([snapshot]).Offenders);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    // 1: Scanned holds only the files the scanner read, after its skips.
+    [Fact]
+    public void Scanned_HoldsOnlyTheFilesReadAfterTheSkips()
+    {
+        var root = Directory.CreateTempSubdirectory("cw-1278-");
+        try
+        {
+            var source = Path.Combine(root.FullName, "Identity", "Probe.cs");
+            var migration = Path.Combine(root.FullName, "Migrations", "20990101000000_Probe.cs");
+            var snapshot = Path.Combine(root.FullName, "Migrations", "AppDbContextModelSnapshot.cs");
+            foreach (var path in new[] { source, migration, snapshot })
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, "class Probe { }\n");
+            }
+
+            var scanned = ScanForTwoFactorApi([source, migration, snapshot]).Scanned;
+
+            Assert.Equal([Path.GetRelativePath(SourceRoot(), source).Replace(Path.DirectorySeparatorChar, '/')], scanned);
         }
         finally
         {
@@ -239,13 +271,13 @@ public sealed class GlobalUserLookupGuardTests
             var prodDir = Path.Combine(srcRoot, "Cluckwork.Infrastructure", "Modules", "Access", "Identity");
             var prodPath = Path.Combine(prodDir, "20990101000000_TempExemptionTest.cs");
             File.Move(filePath, prodPath);
-            var caughtOffenders = ScanFiles([prodPath]);
+            var caughtOffenders = ScanForLookups([prodPath]).Offenders;
             Assert.True(caughtOffenders.Count > 0,
                 "same filename OUTSIDE a Migrations directory must be CAUGHT");
             File.Move(prodPath, filePath);
 
             // Back under Migrations with the migration-shaped name: EXEMPT.
-            var exemptOffenders = ScanFiles([filePath]);
+            var exemptOffenders = ScanForLookups([filePath]).Offenders;
             Assert.True(exemptOffenders.Count == 0,
                 "migration-shaped file under Migrations/ must be EXEMPT");
         }
@@ -269,7 +301,7 @@ public sealed class GlobalUserLookupGuardTests
             File.WriteAllText(filePath,
                 "namespace T;\npublic class UserLookupModelSnapshot\n{\n    public const string S = \"FindByEmailAsync\";\n}\n");
 
-            var offenders = ScanFiles([filePath]);
+            var offenders = ScanForLookups([filePath]).Offenders;
             Assert.True(offenders.Count > 0,
                 "UserLookupModelSnapshot.cs (production-shaped, not the EF-generated "
                 + "AppDbContextModelSnapshot.cs) must be CAUGHT even under Migrations/");
@@ -280,14 +312,12 @@ public sealed class GlobalUserLookupGuardTests
         }
     }
 
-    // This is the guard's single scanner. The repository-wide assertion and
-    // focused fixture tests deliberately exercise this same code path.
-    private static List<string> ScanFiles(IEnumerable<string> files) => ScanFiles(files, Banned, AllowedFiles);
-
-    private static List<string> ScanFiles(
-        IEnumerable<string> files, string[] tokens, string[] allowedFiles, List<string>? scanned = null)
+    // The guard's single scanner. Both walks and their fixtures reach it through
+    // ScanForLookups and ScanForTwoFactorApi.
+    private static ScanResult ScanFiles(IEnumerable<string> files, string[] tokens, string[] allowedFiles)
     {
         var offenders = new List<string>();
+        var scanned = new List<string>();
         var sourceRoot = SourceRoot();
 
         foreach (var file in files)
@@ -335,8 +365,8 @@ public sealed class GlobalUserLookupGuardTests
                     continue;
             }
 
-            scanned?.Add(relative);
             var lines = File.ReadAllLines(file);
+            scanned.Add(relative);
             for (var i = 0; i < lines.Length; i++)
             {
                 var line = lines[i];
@@ -352,6 +382,6 @@ public sealed class GlobalUserLookupGuardTests
             }
         }
 
-        return offenders;
+        return new ScanResult(offenders, scanned);
     }
 }

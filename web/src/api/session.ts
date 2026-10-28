@@ -9,6 +9,7 @@ import { accountIdFromToken } from "../auth/claims";
 import { newId } from "../lib/ids";
 import type { AccessTokenResponse, LoginRequest } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
+import { ApiError } from "./errors";
 import { StaleSessionError, revokeSupersededCookie, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS, abortInFlightAuthCookieOperation } from "./authCookieLock";
 import { apiFetch, apiPost, refreshInFlight } from "./refresh";
@@ -60,7 +61,37 @@ export async function settledLogin(): Promise<void> {
   }
 }
 
-export function login(body: LoginRequest): Promise<void> {
+// #1274 decision 10 — an enrolled user's correct password answers 401 with
+// this title and a challenge for the code step.
+export const SECOND_FACTOR_REQUIRED = "Auth.SecondFactorRequired";
+
+export type LoginOutcome =
+  | { kind: "signedIn" }
+  | { kind: "secondFactor"; challenge: string; expiresAt: string };
+
+export async function login(body: LoginRequest): Promise<LoginOutcome> {
+  try {
+    await signIn("/auth/login", body);
+    return { kind: "signedIn" };
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.status !== 401 || err.title !== SECOND_FACTOR_REQUIRED) throw err;
+    // The challenge is a credential until it is used: taken off the error at
+    // once, so no generic catch can print or report it.
+    const { challenge, challengeExpiresAt } = err.extensions;
+    delete err.extensions.challenge;
+    if (typeof challenge !== "string" || typeof challengeExpiresAt !== "string") throw err;
+    return { kind: "secondFactor", challenge, expiresAt: challengeExpiresAt };
+  }
+}
+
+// #1274 — the code step mints the session exactly as login does, so it is the
+// same flight: the same cross-tab lock, deadline, generation check and stale
+// cookie revoke.
+export function completeSecondFactor(challenge: string, code: string): Promise<void> {
+  return signIn("/auth/login/second-factor", { challenge, code });
+}
+
+function signIn(path: string, body: unknown): Promise<void> {
   // #310 — bump first, and SYNCHRONOUSLY, before this login queues for the
   // lock: login is a NEWER session than anything already in flight (a
   // bootstrap refresh, say), so its resolution must be the one that wins, and
@@ -68,7 +99,7 @@ export function login(body: LoginRequest): Promise<void> {
   const generation = ++sessionGeneration;
   // #438 — published before the first await, so a request that parks while
   // this login is still queued can find it.
-  const flight = performLogin(body, generation).finally(() => {
+  const flight = performLogin(path, body, generation).finally(() => {
     if (loginInFlight === flight) loginInFlight = null;
   });
   loginInFlight = flight;
@@ -82,7 +113,7 @@ export function login(body: LoginRequest): Promise<void> {
 // arrival order to decide whose Set-Cookie survives. Ordering is the fix a
 // page-owned lock can actually give — any in-flight refresh settles, cookie
 // applied, before this login sends a byte, so login's cookie is provably last.
-async function performLogin(body: LoginRequest, generation: number): Promise<void> {
+async function performLogin(path: string, body: unknown, generation: number): Promise<void> {
   // #648 review — `withAuthCookieLock`'s own timeout starts when this login's
   // TURN arrives, so it caps the request and not the wait for the turn. That was
   // enough while every holder of this lock was itself bounded, but
@@ -133,7 +164,7 @@ async function performLogin(body: LoginRequest, generation: number): Promise<voi
               new DOMException("Abandoned before its turn on the auth cookie lock.", "AbortError"),
             )
           : raw<AccessTokenResponse>(
-            "/auth/login",
+            path,
             {
               method: "POST",
               body: JSON.stringify(body),

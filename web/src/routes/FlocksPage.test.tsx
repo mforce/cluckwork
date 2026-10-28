@@ -785,7 +785,7 @@ describe("FlocksPage role gating", () => {
         <AuthContext.Provider value={{
           isAuthenticated: true, isLoading: false, isAdmin, role: (isAdmin ? "Admin" : "Worker") as Role,
           userId: "u1", mustChangePassword: false, unauthenticatedReason: null,
-          login: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >
           <FlocksPage />

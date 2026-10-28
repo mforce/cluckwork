@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-import { Alert, Box, IconButton, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, IconButton, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { AuthShell } from "../components/AuthShell";
@@ -76,9 +76,33 @@ function messageFor(err: unknown): string {
   return i18n.t("auth:apiDown");
 }
 
+// #1274 "What a caller sees": the code step's answers. Expired and suspended
+// send the user back to the password step; every other refusal keeps them here.
+const SECOND_FACTOR_INCORRECT = "Auth.SecondFactorIncorrect";
+const SECOND_FACTOR_KEY_UNAVAILABLE = "Auth.SecondFactorKeyUnavailable";
+const SECOND_FACTOR_THROTTLED = "Auth.SecondFactorThrottled";
+
+function codeStepMessage(err: unknown, typed: string): { message: string; restart: boolean } {
+  if (err instanceof ApiError) {
+    if (err.title === FARM_SUSPENDED) return { message: i18n.t("auth:farmSuspended"), restart: true };
+    if (err.status === 401) return { message: i18n.t("auth:secondFactorExpired"), restart: true };
+    // The clock hint helps only an authenticator code (maintainer, #1278).
+    if (err.title === SECOND_FACTOR_INCORRECT)
+      return {
+        message: /^\d{6}$/.test(typed.replace(/ /g, ""))
+          ? `${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`
+          : i18n.t("auth:secondFactorIncorrect"),
+        restart: false,
+      };
+    if (err.title === SECOND_FACTOR_KEY_UNAVAILABLE) return { message: i18n.t("auth:secondFactorKeyUnavailable"), restart: false };
+    if (err.title === SECOND_FACTOR_THROTTLED) return { message: i18n.t("auth:secondFactorThrottled"), restart: false };
+  }
+  return { message: messageFor(err), restart: false };
+}
+
 export function Login() {
   const { t } = useTranslation("auth");
-  const { login, isAuthenticated, isLoading, unauthenticatedReason } = useAuth();
+  const { login, completeSecondFactor, isAuthenticated, isLoading, unauthenticatedReason } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = returnPath((location.state as LocationState | null)?.from);
@@ -198,6 +222,9 @@ export function Login() {
   // returns, so nothing extra is requested and nobody who is not actually
   // trying to sign in is told anything.
   const [needsSetup, setNeedsSetup] = useState(false);
+  // #1274 — the challenge lives in this state only, never in storage or a URL.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -206,7 +233,13 @@ export function Login() {
     await run("signin", async () => {
       setError(null);
       try {
-        await login(farmCode, email, password);
+        const outcome = await login(farmCode, email, password);
+        if (outcome.kind === "secondFactor") {
+          setPassword("");
+          setCode("");
+          setChallenge(outcome.challenge);
+          return;
+        }
         navigate(from, { replace: true });
       } catch (err) {
         // The server distinguishes "the default account has no Owner" from an
@@ -226,6 +259,28 @@ export function Login() {
         setError(noOwner ? null : messageFor(err));
       }
     });
+  }
+
+  async function onSubmitCode(e: FormEvent) {
+    e.preventDefault();
+    if (challenge === null) return;
+    await run("signin", async () => {
+      setError(null);
+      try {
+        await completeSecondFactor(farmCode, challenge, code);
+        navigate(from, { replace: true });
+      } catch (err) {
+        const { message, restart } = codeStepMessage(err, code);
+        if (restart) setChallenge(null);
+        setError(message);
+      }
+    });
+  }
+
+  function backToPassword() {
+    setChallenge(null);
+    setCode("");
+    setError(null);
   }
 
   return (
@@ -253,6 +308,32 @@ export function Login() {
         />
       ) : undefined}
     >
+      {challenge !== null ? (
+        <Stack component="form" spacing={2} onSubmit={onSubmitCode}>
+          <Typography variant="h2">{t("secondFactorTitle")}</Typography>
+          <Typography variant="body2" color="text.secondary">{t("secondFactorIntro")}</Typography>
+          <TextField
+            label={t("secondFactorCode")}
+            id="one-time-code"
+            name="code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoComplete="one-time-code"
+            required
+            autoFocus
+            slotProps={{
+              htmlInput: { autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, maxLength: 32 },
+            }}
+          />
+          {error && <Alert severity="error">{error}</Alert>}
+          <BusyButton variant="contained" type="submit" busy={busy}>
+            {busy ? t("secondFactorVerifying") : t("secondFactorSubmit")}
+          </BusyButton>
+          <Button variant="text" type="button" disabled={busy} onClick={backToPassword}>
+            {t("secondFactorBack")}
+          </Button>
+        </Stack>
+      ) : (
       <Stack component="form" spacing={2} onSubmit={onSubmit}>
         <Typography variant="h2">{t("title")}</Typography>
         {needsSetup && (
@@ -365,6 +446,7 @@ export function Login() {
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
       </Stack>
+      )}
       {confirmDialog}
     </AuthShell>
   );

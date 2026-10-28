@@ -50,8 +50,8 @@ public static class SecurityEvents
     public const string RefreshRevocationFailed = "Auth.RefreshRevocationFailed";
 
     // Fires when the fixed-window limiter rejects a request with 429 under any
-    // policy except client-errors: login, refresh and the four OAuth policies
-    // (#1164). Deliberately excludes the client-errors policy (#217) — that
+    // policy except client-errors: login, refresh, the login code step
+    // (auth-second-factor, #1278) and the four OAuth policies (#1164). Deliberately excludes the client-errors policy (#217) — that
     // budget guards log-pipeline volume, not a credential, so its rejections
     // carry no security-event line.
     public const string RateLimitRejected = "Auth.RateLimitRejected";

@@ -20,14 +20,25 @@
 import { API_PREFIX, BASE_URL } from "./env";
 import type { CastMember } from "./cast";
 
+// The status and the problem title, never the body: a failed login's body can
+// carry a sign-in challenge (#1274), which is a credential.
 export class ApiProbeError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly body: string,
+    readonly title: string | null,
   ) {
     super(message);
     this.name = "ApiProbeError";
+  }
+}
+
+async function problemTitle(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { title?: unknown };
+    return typeof body.title === "string" ? body.title : null;
+  } catch {
+    return null;
   }
 }
 
@@ -46,11 +57,21 @@ export async function signInForToken(member: CastMember): Promise<string> {
     }),
   });
   if (!res.ok) {
+    const title = await problemTitle(res);
+    // #1278 — an enrolled member's password step answers 401 with a challenge.
+    // Completing the code step for the cast is #1281's work.
+    if (title === "Auth.SecondFactorRequired")
+      throw new ApiProbeError(
+        `${member.email} has two-factor authentication on, and signInForToken does not complete `
+          + `the code step yet (#1281). Sign in as an unenrolled member.`,
+        res.status,
+        title,
+      );
     throw new ApiProbeError(
-      `Sign-in failed for ${member.email} (${res.status}). The cast file and the seeded `
+      `Sign-in failed for ${member.email} (${res.status} ${title}). The cast file and the seeded `
         + `database have diverged — re-run \`bash tools/simulation/reset.sh\`.`,
       res.status,
-      await res.text(),
+      title,
     );
   }
   const body = (await res.json()) as { accessToken: string };
@@ -63,7 +84,7 @@ export async function apiGet<T>(token: string, path: string): Promise<T> {
     headers: { authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    throw new ApiProbeError(`GET ${path} -> ${res.status}`, res.status, await res.text());
+    throw new ApiProbeError(`GET ${path} -> ${res.status}`, res.status, await problemTitle(res));
   }
   return (await res.json()) as T;
 }

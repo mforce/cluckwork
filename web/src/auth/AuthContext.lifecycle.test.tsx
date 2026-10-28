@@ -61,7 +61,7 @@ describe("AuthProvider lifecycle", () => {
         new Promise((resolve) => {
           resolveLogin = () => {
             setStoredToken({ sub: "u1", role: "Sales" }); // server issued a Sales token
-            resolve(); // login now returns void; the token comes from the store
+            resolve({ kind: "signedIn" }); // the token comes from the store
           };
         }),
     );
@@ -96,6 +96,7 @@ describe("AuthProvider lifecycle", () => {
     mockApiLogin.mockImplementation(async () => {
       bindAccount("new-acct"); // what the real client.ts login does
       setStoredToken({ sub: "u1", role: "Sales" });
+      return { kind: "signedIn" as const };
     });
     await act(async () => {
       renderAuth();
@@ -117,6 +118,7 @@ describe("AuthProvider lifecycle", () => {
     mockApiLogin.mockImplementation(async () => {
       bindAccount("acct-A"); // same account as the one that wrote the cache
       setStoredToken({ sub: "u1", role: "Sales" });
+      return { kind: "signedIn" as const };
     });
     await act(async () => {
       renderAuth();
@@ -349,7 +351,7 @@ describe("AuthProvider lifecycle", () => {
   // unless login resets it.
   it("clears the splash-shown marker on login, so a new sign-in shows it again", async () => {
     sessionStorage.setItem("cluckwork.splashShown", "1");
-    mockApiLogin.mockResolvedValue(undefined);
+    mockApiLogin.mockResolvedValue({ kind: "signedIn" });
     renderAuth();
 
     await act(async () => {
@@ -454,7 +456,7 @@ describe("AuthProvider remembers farm codes on successful login", () => {
 
   it("appends the code when apiLogin resolves", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
-    mockApiLogin.mockResolvedValue(undefined);
+    mockApiLogin.mockResolvedValue({ kind: "signedIn" });
     renderAuth();
 
     await act(async () => {
@@ -480,7 +482,7 @@ describe("AuthProvider remembers farm codes on successful login", () => {
 
   it("stores a mixed-case input normalised", async () => {
     setStoredToken({ sub: "u1", role: "Admin" });
-    mockApiLogin.mockResolvedValue(undefined);
+    mockApiLogin.mockResolvedValue({ kind: "signedIn" });
     render(<AuthProvider><MixedProbe /></AuthProvider>);
 
     await act(async () => {
