@@ -27,6 +27,8 @@ HERMES_PLUGIN = os.path.join(os.path.dirname(GUARD), "..", "..", ".hermes", "plu
 #   solo      repo on feat/x whose only remote, `backup`, has push = HEAD:refs/heads/main
 #   shared    a main worktree on feat/s with a linked worktree beside it: the shared checkout (#1205)
 #   linked    that linked worktree, on feat/l
+#   sharedmain  another shared checkout, on main with a committed file and an untracked one; shareddirty, the same
+#             with that committed file modified
 #   spaced    a linked worktree of another shared checkout whose path has a space, `p with space`
 #   tagged    repo on main that also has a tag named main
 #   feature also has remotes `matchall` (push = :), `mirror2` (mirror = 2), `nomirror` (mirror = false)
@@ -69,9 +71,9 @@ CASES = [
     ("gh pr view 1158 --json number,title --jq '{number, title}' | cat", "feature", "allow"),
     ("gh api graphql -f query='query { repository(owner:\"mforce\", name:\"cluckwork\") { name } }' | cat", "feature", "allow"),
     ("gh api 'repos/mforce/cluckwork/pulls?state=open' --jq '.[].number'", "main", "allow"),
-    # Merges.
-    ("gh pr merge 12 --squash", "feature", "block"),
-    ("gh -R mforce/cluckwork pr merge 12", "feature", "block"),
+    # Merges: `gh pr merge` runs as one simple command; the API's merge routes stay refused.
+    ("gh pr merge 12 --squash", "feature", "allow"),
+    ("gh -R mforce/cluckwork pr merge 12", "feature", "allow"),
     ("gh api -X PUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
     ("gh api --method=PUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
     ("gh api -XPUT repos/mforce/cluckwork/pulls/12/merge", "feature", "block"),
@@ -179,7 +181,7 @@ CASES = [
     ("g'i't push --force", "feature", "block"),
     ("git p\\ush --force", "feature", "block"),
     ("git $'\\x70ush' --force", "feature", "block"),
-    ("gh pr mer''ge 12", "feature", "block"),
+    ("gh pr mer''ge 12", "feature", "allow"),  # the shell joins it back into `gh pr merge 12`, which may run
     ("git push origin ma?n", "feature", "block"),
     ("gh api -X PUT 'repos/mforce/cluckwork/pulls/12/merge?x=1'", "feature", "block"),
     ("gh api -X PUT 'repos/mforce/cluckwork/pulls/12/merge#x'", "feature", "block"),
@@ -249,6 +251,28 @@ CASES += [
     ("git sparse-checkout set src", "linked", "allow"),
     ("(git status)", "linked", "allow"),
 ]
+CASES += [  # a fast-forward pull brings a clean shared main up to date; every other pull still writes the shared checkout
+    ("git pull --ff-only", "sharedmain", "allow"),
+    ("git pull --ff-only origin main", "sharedmain", "allow"),
+    ("git -C ../sharedmain pull --ff-only", "linked", "allow"),
+    ("git pull --ff-only", "shareddirty", "block"),
+    ("git pull --ff-only", "shared", "block"),  # on feat/s
+    ("git pull", "sharedmain", "block"),
+    ("git pull --rebase", "sharedmain", "block"),
+    ("git pull --ff-only --rebase", "sharedmain", "block"),
+    ("git pull --ff-only origin other", "sharedmain", "block"),
+    ("git pull --ff-only upstream main", "sharedmain", "block"),
+    ("git pull --ff-only --depth 1", "sharedmain", "block"),
+    ("git pull --ff-only --no-verify", "sharedmain", "block"),
+    ("git -c url.file:///tmp/other.insteadOf=origin pull --ff-only", "sharedmain", "block"),
+    # only -C may precede it: --git-dir and --work-tree point the pull at files the clean check did not cover
+    ("git --git-dir=../sharedmain/.git --work-tree=../sharedmain-wt pull --ff-only", "sharedmain", "block"),
+    ("git --git-dir ../sharedmain/.git pull --ff-only", "sharedmain", "block"),
+    ("git --work-tree=../sharedmain-wt pull --ff-only", "sharedmain", "block"),
+    ("git --no-pager pull --ff-only", "sharedmain", "block"),
+    ("git -C .. -C sharedmain pull --ff-only", "linked", "allow"),
+    ("git status && git pull --ff-only", "sharedmain", "block"),
+]
 CASES += [  # abbreviated shallow options, as git accepts them (round 1)
     ("git fetch --dep=1 origin", "linked", "block"),
     ("git fetch --dee=1 origin", "linked", "block"),
@@ -296,7 +320,7 @@ CASES += [  # round 2: decide by the executable, not argument text (finding 4) .
     ("xargs git sparse-checkout set src", "shared", "block"),
     ("env git sparse-checkout set src", "shared", "block"),
     ("GIT_DIR=../shared/.git git sparse-checkout set src", "linked", "block"),
-    ("gh pr merge 1 --squash", "shared", "block"),
+    ("gh pr merge 1 --squash", "shared", "allow"),
     # ... and resolve each step's target, newline-separated or terminated too (finding 1)
     ("git -C ../shared status\ngit -C ../shared sparse-checkout set src", "linked", "block"),
     ("cd ../shared && git sparse-checkout set src\n", "linked", "block"),
@@ -561,7 +585,7 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("git config -f/tmp/settings --get alias.review", "linked", "allow"),
     ("git config -f/tmp/settings alias.review", "linked", "allow"),
     ("git push -f origin HEAD:main", "linked", "block"),  # the audit's controls
-    ("gh pr merge 1221 --squash", "linked", "block"),
+    ("gh pr merge 1221 --squash", "linked", "allow"),
 ]
 
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
@@ -617,7 +641,8 @@ class GitGuardTest(unittest.TestCase):
                     "tracking": os.path.join(root, "tracking"), "matching": os.path.join(root, "matching"), "plain": root,
                     "solo": os.path.join(root, "solo"), "tagged": os.path.join(root, "tagged"),
                     "shared": os.path.join(root, "shared"), "linked": os.path.join(root, "linked"),
-                    "spaced": os.path.join(root, "spaced")}
+                    "spaced": os.path.join(root, "spaced"), "sharedmain": os.path.join(root, "sharedmain"),
+                    "shareddirty": os.path.join(root, "shareddirty")}
         feature, tracking, remote = cls.dirs["feature"], cls.dirs["tracking"], os.path.join(root, "remote.git")
         git("init", "-q", "-b", "main", main)
         git("init", "-q", "-b", "feat/x", feature)
@@ -643,6 +668,17 @@ class GitGuardTest(unittest.TestCase):
         git("init", "-q", "-b", "feat/s", cls.dirs["shared"])
         git("-C", cls.dirs["shared"], "commit", "-q", "--no-verify", "--allow-empty", "-m", "init")
         git("-C", cls.dirs["shared"], "worktree", "add", "-q", "-b", "feat/l", cls.dirs["linked"])
+        for name in ("sharedmain", "shareddirty"):
+            checkout = cls.dirs[name]
+            git("init", "-q", "-b", "main", checkout)
+            for file, text in (("tracked.txt", "a"), ("untracked.txt", "u")):
+                with open(os.path.join(checkout, file), "w") as f:
+                    f.write(text)
+            git("-C", checkout, "add", "tracked.txt")
+            git("-C", checkout, "commit", "-q", "--no-verify", "-m", "init")
+            git("-C", checkout, "worktree", "add", "-q", "-b", f"feat/{name}", checkout + "-wt")
+        with open(os.path.join(cls.dirs["shareddirty"], "tracked.txt"), "w") as f:
+            f.write("b")
         for name, text in (("mutation.graphql", "mutation { updateRef(input: {}) { clientMutationId } }"),
                            ("read.graphql", "query { viewer { login } }")):
             with open(os.path.join(cls.dirs["linked"], name), "w") as f:
@@ -715,6 +751,18 @@ class GitGuardTest(unittest.TestCase):
             result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, expected, f"{where}: {result.stderr}")
 
+    def test_ff_only_pull_refuses_when_the_status_lookup_fails(self):
+        shim = os.path.join(self.tmp.name, "status-bin")
+        os.makedirs(shim, exist_ok=True)
+        with open(os.path.join(shim, "git"), "w") as f:
+            f.write(f'#!/bin/sh\ncase "$*" in *"status --porcelain"*) exit 128;; esac\nexec {shutil.which("git")} "$@"\n')
+        os.chmod(os.path.join(shim, "git"), 0o755)
+        env = {**os.environ, "PATH": shim + os.pathsep + os.environ["PATH"]}
+        body = json.dumps(payload("claude", "git pull --ff-only", self.dirs["sharedmain"]))
+        result = subprocess.run([sys.executable, GUARD], input=body, capture_output=True, text=True, env=env)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("working tree status", result.stderr)
+
     def test_other_tools_pass(self):
         for name in ("Read", "read_file"):
             code, _ = run_guard(json.dumps({"tool_name": name, "tool_input": {"command": "git push --force"}}))
@@ -730,7 +778,7 @@ class GitGuardTest(unittest.TestCase):
     def test_process_input_gets_the_shell_check_without_a_directory(self):
         feature = self.dirs["feature"]
         for tool_input, expected in (
-            ({"action": "submit", "session_id": "p1", "data": "gh pr merge 1175"}, 2),
+            ({"action": "submit", "session_id": "p1", "data": "git push --force"}, 2),
             ({"action": "write", "session_id": "p1", "data": "git push origin HEAD:main\n"}, 2),
             ({"action": "submit", "session_id": "p1", "data": "git commit -m x"}, 2),  # the shell's directory is unknown
             ({"action": "submit", "session_id": "p1", "data": f"cd {feature} && git commit -m x"}, 0),
@@ -792,13 +840,13 @@ class GitGuardTest(unittest.TestCase):
 
     def test_hermes_plugin_routes_each_tool(self):
         hook = self.hermes_hook({"cwd": self.dirs["feature"]})
-        self.assert_hook(hook, {"command": "gh pr merge 1"}, "block")
+        self.assert_hook(hook, {"command": "git push --force"}, "block")
         self.assert_hook(hook, {"command": "git commit -m x"}, "allow")
         self.assert_hook(hook, {"command": "git commit -m x", "workdir": self.dirs["main"]}, "block")
         self.assert_hook(hook, {"command": "git commit -m x", "workdir": self.dirs["feature"]}, "allow")
         self.assert_hook(hook, {"path": "x"}, "allow", tool="read_file")
         self.assert_hook(hook, {"code": "print(1)"}, "block", tool="execute_code")
-        self.assert_hook(hook, {"action": "submit", "session_id": "p1", "data": "gh pr merge 1"}, "block", "process_manage")
+        self.assert_hook(hook, {"action": "submit", "session_id": "p1", "data": "git push --force"}, "block", "process_manage")
         self.assert_hook(hook, {"action": "submit", "session_id": "p1"}, "allow", tool="process_manage")
 
     def test_hermes_first_call_uses_the_configured_terminal_cwd(self):

@@ -22,7 +22,8 @@ are deliberately excluded — Docker, slow; CI is the authority. Skip once with
 
 In the shared checkout (a main worktree with linked worktrees beside it), `pre-commit`
 refuses commits. The agent guard (`tools/agent-guard/git_guard.py`) runs only inside agent
-harnesses; there it refuses git writes in the shared checkout, `git stash` and shallow
+harnesses; there it refuses git writes in the shared checkout (except `git pull --ff-only`
+on a clean `main`), `git stash` and shallow
 fetches anywhere, and the routes around the hooks (`git push --no-verify`, `git config
 core.hooksPath`, `git send-pack`, `gh api` writes to main's history or protection). For a
 deliberate commit there, put the override on that one command in your own shell:
@@ -194,6 +195,7 @@ free-form — the area touched.
 | `perf` | Performance | `perf(reports): stream the CSV export instead of buffering it` |
 | `refactor` | Refactoring | `refactor(api): extract service registration from Program` |
 | `docs` | Documentation | `docs(agents): record the guard-writing rules #407 paid five rounds for` |
+| `deps` | Dependencies | `deps(web): Bump the production-minor-patch group in /web with 6 updates` |
 | `ci` | *hidden* | `ci(e2e): workflow_dispatch job for the Playwright smoke suite` |
 | `test` | *hidden* | `test(e2e): Playwright smoke suite for the SPA over the #243 sim fixture` |
 | `build` | *hidden* | `build(deps): bump Npgsql to 10.0.2` |

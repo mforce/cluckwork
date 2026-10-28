@@ -63,7 +63,7 @@ breaking change in the changelog and changes no digit. `chore`/`ci`/`test`/
 `style` are hidden from the changelog *text*, and a changelog with no entries
 opens no release PR. So merges of only hidden types wait; the release PR
 appears with the first visible entry (`feat`, `fix`, `perf`, `refactor`,
-`docs`), and the branch's strategy then chooses the version. A
+`docs`, `deps`), and the branch's strategy then chooses the version. A
 `BREAKING CHANGE:` footer does nothing here, because the squash commit has no
 body (see [Forcing a version](#forcing-a-version)).
 

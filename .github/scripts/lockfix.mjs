@@ -10,14 +10,16 @@
 // It reads `git status --porcelain -z` on stdin — NUL-delimited, so a path with
 // a space or newline is a single field, not several — and answers with an exit
 // code:
-//   0  every changed path is one of the known lock files -> commit
+//   4  every changed path is one of the known lock files -> commit
 //   2  a path OUTSIDE that set is dirty -> abort, do not commit (fail closed)
 //   3  nothing changed -> no-op
-// Any other exit (a crash) the caller also treats as abort: a classifier that
-// cannot tell must never green-light a commit.
+// Any other exit the caller also treats as abort: a crash, or 0 from a run
+// that never reached main(). A classifier that cannot tell must never
+// green-light a commit.
 //
 // Usage: git status --porcelain -z | node .github/scripts/lockfix.mjs
 
+import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // The exact, closed set of lock files in the solution's reference chain. An
@@ -70,7 +72,7 @@ export function classify(porcelainZ) {
   return { action: "commit", foreign: [], locks: paths };
 }
 
-const EXIT = { commit: 0, abort: 2, noop: 3 };
+const EXIT = { commit: 4, abort: 2, noop: 3 };
 
 async function readStdin() {
   const chunks = [];
@@ -92,4 +94,5 @@ async function main() {
   process.exitCode = EXIT[action];
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+// realpath: through a symlink the guard would skip main() and exit 0 (abort).
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) await main();

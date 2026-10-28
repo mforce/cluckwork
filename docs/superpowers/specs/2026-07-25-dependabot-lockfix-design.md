@@ -107,9 +107,11 @@ So restore and the write credential never coexist in one job:
 - **Job `commit`** — `needs: compute`, `permissions: contents: write`. Runs **zero** project
   code. Obtains `lockfix.mjs` and the path allowlist from the **trusted default-branch**
   checkout (never from the PR), downloads the artifact, validates each entry (exact path from
-  the 7-file allowlist, regular file, parses as JSON), applies them onto a checkout of the
+  the allowlist, regular file, parses as JSON), applies them onto a checkout of the
   same immutable PR head SHA, classifies the working tree, and on a clean lock-only diff
-  commits and pushes.
+  commits and pushes. The PR tree controls each destination, so before every copy it
+  refuses a path that resolves through a symlink or is not tracked as a mode `100644` file:
+  a symlinked lock path would otherwise write through to the trusted scripts (#1373).
 
 This is the actual control for Goal #2; the post-restore file check is only a secondary
 data-hygiene guard, not a security boundary (restore-time code runs before it and could hide
@@ -155,11 +157,12 @@ queued second run re-checks out the now-fixed branch, restore comes back clean �
 
 Pure classifier, mirroring the existing `vuln-gate.mjs` pattern. Reads
 `git status --porcelain -z` (NUL-delimited — safe for unusual paths) on stdin; the exact
-7-path lock-file allowlist is built in. Exit codes:
-- `0` — every changed path is one of the 7 known `packages.lock.json` files → caller commits
+10-path lock-file allowlist is built in. Exit codes:
+- `4` — every changed path is one of the 10 known `packages.lock.json` files → caller commits
 - `2` — a path outside the allowlist is dirty → caller aborts (do not commit)
 - `3` — nothing changed → caller no-ops
-- any other exit (crash/exception) → caller treats as **abort** (fail closed)
+- any other exit (a crash, or `0` from a run that never reached `main()`) → caller treats as
+  **abort** (fail closed)
 
 `node:test` self-tests wired into CI (a step in `ci.yml`, like the vuln-gate self-test). The
 `commit` job runs this copy from the trusted default-branch checkout, never the PR's.

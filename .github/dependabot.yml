@@ -14,6 +14,16 @@
 # rather than one per package. Security fixes are deliberately left OUT of the
 # groups: an advisory fix should arrive as its own PR that can be read and
 # merged on its own, not buried in a bulk bump.
+#
+# The PR title prefix decides whether a bump reaches the release notes:
+# release-please-config.json shows `deps` and hides `chore`. Updates that ship
+# to users use `deps(...)`: NuGet packages, web runtime packages and Docker base
+# images. Build-time tooling stays `chore(...)`: GitHub Actions, web dev
+# dependencies and the web linter.
+#
+# A version-update run cannot be dispatched or re-run from Actions. Merging a
+# change to this file, even a comment edit, should start a check before the
+# next weekly run.
 
 version: 2
 updates:
@@ -43,7 +53,8 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(web)"
+      prefix: "deps(web)"
+      prefix-development: "chore(web)"
     groups:
       # Build/test tooling churns fastest and never reaches a user's browser —
       # keep it out of the way of runtime dependency review.
@@ -90,7 +101,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "deps"
     # Microsoft.EntityFrameworkCore.Design pulls Microsoft.CodeAnalysis.Workspaces.MSBuild,
     # which pins Workspaces.Common to its own Roslyn version exactly. Moving
     # these two ahead of EF fails restore with NU1608 (#1110). Lift the hold
@@ -109,14 +120,20 @@ updates:
   # never floats, so without this it silently rots past the next base-image
   # security fix. Dependabot opens the digest-bump PR; the weekly image-scan.yml
   # reports on the published result. Grouped so the three bump together as one
-  # reviewable PR; security fixes still arrive ungrouped (Dependabot's default).
+  # reviewable PR. Dependabot has no separate security-update path for docker,
+  # so a base-image security fix arrives in this group; image-scan.yml reports
+  # vulnerabilities. A major .NET or Node upgrade is planned on its own, so
+  # majors are ignored here.
   - package-ecosystem: "docker"
     directory: "/src/Cluckwork.Api"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore(docker)"
+      prefix: "deps(docker)"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       docker-base-images:
         patterns: ["*"]

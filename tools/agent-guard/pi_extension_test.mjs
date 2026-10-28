@@ -18,9 +18,9 @@ test("blocks what git_guard.py refuses and lets the rest run", async (t) => {
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   execFileSync("git", ["init", "-q", "-b", "main", repo]);
 
-  const merge = await toolCall("bash", "gh pr merge 1158 --squash", repo);
-  assert.equal(merge.block, true);
-  assert.match(merge.reason, /git-guard: .*only the maintainer merges/);
+  const force = await toolCall("bash", "git push --force", repo);
+  assert.equal(force.block, true);
+  assert.match(force.reason, /git-guard: .*never a rewrite of pushed history/);
 
   const commitOnMain = await toolCall("bash", "git commit -m x", repo);
   assert.equal(commitOnMain.block, true);
@@ -31,5 +31,5 @@ test("blocks what git_guard.py refuses and lets the rest run", async (t) => {
   const powershell = await toolCall("powershell", "Get-ChildItem", repo);
   assert.equal(powershell.block, true);
   assert.match(powershell.reason, /powershell tool is blocked in this repository: use the bash tool/);
-  assert.equal(await toolCall("read", "gh pr merge 1158", repo), undefined);
+  assert.equal(await toolCall("read", "git push --force", repo), undefined);
 });
