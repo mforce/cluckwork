@@ -68,8 +68,8 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
         return (response.StatusCode, body.GetProperty("title").GetString(), body.GetProperty("detail").GetString());
     }
 
-    private async Task<HttpResponseMessage> PostCodeAsync(string challenge, string code) =>
-        await factory.PostSecondFactorAsync(challenge, code);
+    private Task<HttpResponseMessage> PostCodeAsync(string challenge, string code) =>
+        factory.PostSecondFactorAsync(challenge, code);
 
     [Fact]
     public async Task AnEnrolledUser_SignsInWithTheirAuthenticatorCode()

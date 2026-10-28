@@ -38,7 +38,7 @@ internal static class TotpMatcher
         var reused = false;
         for (var step = current - Window; step <= current + Window; step++)
         {
-            if ((Compute(key, step) ^ code) != 0) continue;
+            if (Compute(key, step) != code) continue;
             if (step > watermark) accepted ??= step;
             else reused = true;
         }
