@@ -75,6 +75,11 @@ erDiagram
   integer StepUpLogoutEpoch
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer SecondFactorFailures
+  timestamp_with_time_zone SecondFactorFailuresSince
+  timestamp_with_time_zone SecondFactorRequiredSince
+  bigint SecondFactorSignIns
+  bigint SecondFactorWatermark
 }
 "public.AspNetRoles" {
   uuid Id

@@ -56,8 +56,8 @@ public sealed class AccountIdConcurrencyTokenModelTests
             string.Join("\n  ", wrongType));
 
         // Proves the walk walked: a discovery that finds nothing passes vacuously.
-        Assert.True(carriers.Count >= 29,
-            $"Expected at least 29 AccountId-bearing entity types, found {carriers.Count}: " +
+        Assert.True(carriers.Count >= 31,
+            $"Expected at least 31 AccountId-bearing entity types, found {carriers.Count}: " +
             string.Join(", ", carriers.Select(c => c.Type.ShortName())));
         Assert.Contains(carriers, c => c.Type.ClrType == typeof(DailyEntry));
         Assert.Contains(carriers, c => c.Type.ClrType == typeof(InventoryItem));
@@ -66,6 +66,8 @@ public sealed class AccountIdConcurrencyTokenModelTests
         // #670 — a SHADOW AccountId is a carrier too: the walk discovers it by
         // name, so IdentityUserRole<Guid> is covered with no walk change.
         Assert.Contains(carriers, c => c.Type.ClrType == typeof(Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>));
+        // #1276 — the same for IdentityUserToken<Guid>.
+        Assert.Contains(carriers, c => c.Type.ClrType == typeof(Microsoft.AspNetCore.Identity.IdentityUserToken<Guid>));
 
         var notTokens = carriers
             .Where(c => !c.AccountId!.IsConcurrencyToken)

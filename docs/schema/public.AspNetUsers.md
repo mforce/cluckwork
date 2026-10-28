@@ -5,7 +5,7 @@
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
 | Id | uuid |  | false | [public.AspNetUserClaims](public.AspNetUserClaims.md) [public.AspNetUserLogins](public.AspNetUserLogins.md) [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) |  |  |
-| AccountId | uuid |  | false | [public.AspNetUserRoles](public.AspNetUserRoles.md) | [public.Accounts](public.Accounts.md) |  |
+| AccountId | uuid |  | false | [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) | [public.Accounts](public.Accounts.md) |  |
 | DisplayName | text |  | true |  |  |  |
 | Language | varchar(16) |  | true |  |  |  |
 | MustChangePassword | boolean |  | false |  |  |  |
@@ -30,6 +30,11 @@
 | StepUpLogoutEpoch | integer | 0 | false |  |  |  |
 | CreatedAtUtc | timestamp with time zone |  | false |  |  |  |
 | UpdatedAtUtc | timestamp with time zone |  | false |  |  |  |
+| SecondFactorFailures | integer | 0 | false |  |  |  |
+| SecondFactorFailuresSince | timestamp with time zone |  | true |  |  |  |
+| SecondFactorRequiredSince | timestamp with time zone |  | true |  |  |  |
+| SecondFactorSignIns | bigint | 0 | false |  |  |  |
+| SecondFactorWatermark | bigint | 0 | false |  |  |  |
 
 ## Viewpoints
 
@@ -53,6 +58,9 @@
 | AspNetUsers_NormalizedEmail_not_null | n | NOT NULL "NormalizedEmail" |
 | AspNetUsers_NormalizedUserName_not_null | n | NOT NULL "NormalizedUserName" |
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
+| AspNetUsers_SecondFactorFailures_not_null | n | NOT NULL "SecondFactorFailures" |
+| AspNetUsers_SecondFactorSignIns_not_null | n | NOT NULL "SecondFactorSignIns" |
+| AspNetUsers_SecondFactorWatermark_not_null | n | NOT NULL "SecondFactorWatermark" |
 | AspNetUsers_StepUpLogoutEpoch_not_null | n | NOT NULL "StepUpLogoutEpoch" |
 | AspNetUsers_TwoFactorEnabled_not_null | n | NOT NULL "TwoFactorEnabled" |
 | AspNetUsers_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
@@ -87,6 +95,7 @@ erDiagram
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 
 "public.AspNetUsers" {
@@ -116,6 +125,11 @@ erDiagram
   integer StepUpLogoutEpoch
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer SecondFactorFailures
+  timestamp_with_time_zone SecondFactorFailuresSince
+  timestamp_with_time_zone SecondFactorRequiredSince
+  bigint SecondFactorSignIns
+  bigint SecondFactorWatermark
 }
 "public.AspNetUserClaims" {
   integer Id
@@ -139,6 +153,7 @@ erDiagram
   text LoginProvider
   text Name
   text Value
+  uuid AccountId FK
 }
 "public.Accounts" {
   uuid Id

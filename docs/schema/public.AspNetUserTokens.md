@@ -8,6 +8,7 @@
 | LoginProvider | text |  | false |  |  |  |
 | Name | text |  | false |  |  |  |
 | Value | text |  | true |  |  |  |
+| AccountId | uuid |  | false |  | [public.AspNetUsers](public.AspNetUsers.md) |  |
 
 ## Viewpoints
 
@@ -19,17 +20,20 @@
 
 | Name | Type | Definition |
 | ---- | ---- | ---------- |
+| AspNetUserTokens_AccountId_not_null | n | NOT NULL "AccountId" |
 | AspNetUserTokens_LoginProvider_not_null | n | NOT NULL "LoginProvider" |
 | AspNetUserTokens_Name_not_null | n | NOT NULL "Name" |
 | AspNetUserTokens_UserId_not_null | n | NOT NULL "UserId" |
 | FK_AspNetUserTokens_AspNetUsers_UserId | FOREIGN KEY | FOREIGN KEY ("UserId") REFERENCES "AspNetUsers"("Id") ON DELETE CASCADE |
 | PK_AspNetUserTokens | PRIMARY KEY | PRIMARY KEY ("UserId", "LoginProvider", "Name") |
+| FK_AspNetUserTokens_AspNetUsers_UserId_AccountId | FOREIGN KEY | FOREIGN KEY ("UserId", "AccountId") REFERENCES "AspNetUsers"("Id", "AccountId") ON DELETE CASCADE |
 
 ## Indexes
 
 | Name | Definition |
 | ---- | ---------- |
 | PK_AspNetUserTokens | CREATE UNIQUE INDEX "PK_AspNetUserTokens" ON public."AspNetUserTokens" USING btree ("UserId", "LoginProvider", "Name") |
+| IX_AspNetUserTokens_UserId_AccountId | CREATE INDEX "IX_AspNetUserTokens_UserId_AccountId" ON public."AspNetUserTokens" USING btree ("UserId", "AccountId") |
 
 ## Relations
 
@@ -37,12 +41,14 @@
 erDiagram
 
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 
 "public.AspNetUserTokens" {
   uuid UserId FK
   text LoginProvider
   text Name
   text Value
+  uuid AccountId FK
 }
 "public.AspNetUsers" {
   uuid Id
@@ -71,6 +77,11 @@ erDiagram
   integer StepUpLogoutEpoch
   timestamp_with_time_zone CreatedAtUtc
   timestamp_with_time_zone UpdatedAtUtc
+  integer SecondFactorFailures
+  timestamp_with_time_zone SecondFactorFailuresSince
+  timestamp_with_time_zone SecondFactorRequiredSince
+  bigint SecondFactorSignIns
+  bigint SecondFactorWatermark
 }
 ```
 
