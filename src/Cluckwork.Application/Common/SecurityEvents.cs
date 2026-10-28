@@ -85,4 +85,21 @@ public static class SecurityEvents
     // and does not try, so a deployment backend should alert on a RUN of these
     // for one tenant, never on a single one.
     public const string TenantWriteRefusedByDatabase = "Tenant.WriteRefusedByDatabase";
+
+    // #1274 decision 20. A wrong authenticator or recovery code at the login
+    // code step. ClientIp only, like LoginFailed, so a right password with a
+    // wrong code stays distinguishable from a wrong password.
+    public const string SecondFactorFailed = "Auth.SecondFactorFailed";
+
+    // The code step refused an expired, forged or used challenge, or one whose
+    // account changed after it was issued. ClientIp only.
+    public const string SecondFactorChallengeExpired = "Auth.SecondFactorChallengeExpired";
+
+    // The wrong code that spent a user's daily budget of 20 (decision 6).
+    // Fires once per window. UserId and ClientIp: it follows a correct password.
+    public const string SecondFactorBudgetSpent = "Auth.SecondFactorBudgetSpent";
+
+    // Operational, no fields: a stored authenticator key or pending payload no
+    // longer decrypts (a certificate change or a ring deletion, #794).
+    public const string SecondFactorKeyUnreadable = "Auth.SecondFactorKeyUnreadable";
 }

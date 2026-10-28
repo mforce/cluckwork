@@ -174,6 +174,16 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // Infrastructure extension because the concrete type is internal.
         services.AddPersistentStepUpGrantRegistry();
         services.AddScoped<IStepUpGrantService, StepUpGrantService>();
+        // #1274 — the one owner of two-factor state; internal, so registered
+        // through its Infrastructure extension like the registry above.
+        services.AddTwoFactorCredentials();
+        services.AddOptions<EnrolledSessionOptions>()
+            .Bind(configuration.GetSection(EnrolledSessionOptions.SectionName))
+            .Validate(
+                options => options.EnrolledSessionMaxDays is >= EnrolledSessionOptions.MinDays and <= EnrolledSessionOptions.MaxDays,
+                $"{EnrolledSessionOptions.SectionName}:{nameof(EnrolledSessionOptions.EnrolledSessionMaxDays)} must be a whole number "
+                + $"from {EnrolledSessionOptions.MinDays} to {EnrolledSessionOptions.MaxDays}.")
+            .ValidateOnStart();
 
         AddUserFeatures(services);
 

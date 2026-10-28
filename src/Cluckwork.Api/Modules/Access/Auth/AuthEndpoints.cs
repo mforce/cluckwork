@@ -37,6 +37,20 @@ public static partial class AuthEndpoints
             .WithName("Login")
             .WithSummary("Exchange credentials for an access token; sets the refresh-token cookie.");
 
+        // #1274 — the code step for an enrolled user. Anonymous and blanking
+        // its ambient principal for login's reason (#532): another farm's bearer
+        // would resolve that farm, and the interceptor would refuse the charge
+        // to the victim's lockout. Under /auth/login, so ResponseNotCacheable
+        // keeps it out of IdempotentUnit, whose rollback would undo a refused
+        // code's charge. A challenge (a capped JWT) and a code fit in 8 KB.
+        group.MapPost("/login/second-factor", LoginSecondFactor)
+            .AllowAnonymous()
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
+            .RequireRateLimiting(RateLimitingOptions.SecondFactorPolicyName)
+            .WithMaxRequestBodyBytes(8192)
+            .WithName("LoginSecondFactor")
+            .WithSummary("Exchange a sign-in challenge and an authenticator or recovery code for an access token.");
+
         // Looser limit — refresh guards a high-entropy token AND carries
         // legitimate automatic session traffic, so it must not share login's
         // budget (several users behind one NAT IP would starve it). The refresh
@@ -128,6 +142,8 @@ public static partial class AuthEndpoints
 }
 
 public sealed record LoginRequest(string FarmCode, string Email, string Password);
+
+public sealed record SecondFactorLoginRequest(string Challenge, string Code);
 
 public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
 

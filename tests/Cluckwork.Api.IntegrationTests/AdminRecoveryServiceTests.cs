@@ -67,7 +67,7 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             var idp = s.ServiceProvider.GetRequiredService<IIdentityProvider>();
             var login = await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, _factory.AdminPassword);
             Assert.True(login.IsSuccess, "seeded admin should log in before recovery: " + (login.IsFailure ? login.Error.Code + " " + login.Error.Description : ""));
-            oldRefreshToken = login.Value.RefreshToken;
+            oldRefreshToken = ((Cluckwork.Application.Modules.Access.Contracts.LoginStep.SignedIn)login.Value).Tokens.RefreshToken;
 
             var db = s.ServiceProvider.GetRequiredService<AppDbContext>();
             var admin = await db.Users.SingleAsync(u => u.Email == _factory.AdminEmail);
