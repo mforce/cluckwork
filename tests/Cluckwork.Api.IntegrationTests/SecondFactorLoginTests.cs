@@ -114,6 +114,7 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
 
         var routes = AuthorizedRoutes();
         Assert.True(routes.Count >= 50, $"the walk found {routes.Count} authorized routes, below its floor of 50");
+        Assert.Contains(routes, route => route.Path == "/mcp");
         var admitted = new List<string>();
         foreach (var (method, path) in routes)
         {
@@ -303,14 +304,13 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
             new JwtSecurityToken(options.Issuer, audience, claims, now, now.AddMinutes(5), credentials));
     }
 
-    // Every route that demands an authenticated caller, with a placeholder for
-    // each route parameter.
+    // Every method of every route that demands an authenticated caller, /mcp
+    // included, with a placeholder for each route parameter.
     private List<(string Method, string Path)> AuthorizedRoutes() =>
         [.. factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
             .Where(e => e.Metadata.GetMetadata<IAuthorizeData>() is not null && e.Metadata.GetMetadata<IAllowAnonymous>() is null)
-            .Where(e => e.RoutePattern.RawText is { } raw && raw.StartsWith("/api/", StringComparison.Ordinal))
-            .Select(e => (
-                Method: e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.FirstOrDefault() ?? "GET",
-                Path: string.Join('/', e.RoutePattern.RawText!.Split('/').Select(segment =>
-                    segment.StartsWith('{') ? Guid.NewGuid().ToString() : segment))))];
+            .SelectMany(e => (e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["GET"]).Select(method => (
+                Method: method,
+                Path: "/" + string.Join('/', e.RoutePattern.RawText!.Trim('/').Split('/').Select(segment =>
+                    segment.StartsWith('{') ? Guid.NewGuid().ToString() : segment)))))];
 }
