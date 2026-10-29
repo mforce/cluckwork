@@ -137,14 +137,19 @@ public sealed class TwoFactorOwnershipTests
             .Where(l => l.Token.ValueText == ProtectorPurpose))
             yield return At(literal, "owned", "protector purpose");
 
-        // A column named in SQL or any other string, except the EF migrations
-        // and model snapshot, which describe the schema rather than use it.
-        if (!IsMigrationShaped(file))
-            foreach (var text in root.DescendantTokens().Where(t => t.IsKind(SyntaxKind.StringLiteralToken)
-                    || t.IsKind(SyntaxKind.InterpolatedStringTextToken) || t.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
-                    || t.IsKind(SyntaxKind.MultiLineRawStringLiteralToken)))
-                foreach (var column in ownedColumns.Where(c => text.ValueText.Contains(c, StringComparison.Ordinal)))
-                    yield return At(text.Parent!, "owned", column + " in a string");
+        // A column named in SQL or any other string. Schema text is exempt: the
+        // ApplicationUser entity configuration, and a migration's or the
+        // snapshot's strings except a migrationBuilder.Sql argument, which uses
+        // the schema rather than describing it.
+        var migration = GuardScanner.IsMigrationShaped(file);
+        foreach (var text in root.DescendantTokens().Where(t => t.IsKind(SyntaxKind.StringLiteralToken)
+                || t.IsKind(SyntaxKind.InterpolatedStringTextToken) || t.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
+                || t.IsKind(SyntaxKind.MultiLineRawStringLiteralToken)))
+        {
+            if (migration ? !IsSqlArgument(text.Parent!) : IsEntityConfiguration(text.Parent!, model)) continue;
+            foreach (var column in ownedColumns.Where(c => text.ValueText.Contains(c, StringComparison.Ordinal)))
+                yield return At(text.Parent!, "owned", column + " in a string");
+        }
 
         foreach (var name in root.DescendantNodes().OfType<SimpleNameSyntax>())
         {
@@ -187,18 +192,17 @@ public sealed class TwoFactorOwnershipTests
 
             if (symbol is IPropertySymbol property && IsUserColumn(property))
             {
-                var written = IsWrite(name, model);
                 if (property.Name == "CredentialEpoch")
                 {
-                    if (written) yield return At(name, "epoch-write", "CredentialEpoch");
+                    if (IsWrite(name, model)) yield return At(name, "epoch-write", "CredentialEpoch");
                     continue;
                 }
                 if (!ownedColumns.Contains(property.Name)) continue;
                 if (IsEntityConfiguration(name, model)) continue;
-                if (!written && ReadAnywhere.Contains(property.Name))
+                if (ReadAnywhere.Contains(property.Name) && IsConsumingRead(name, model))
                     yield return At(name, "allowed-read", property.Name);
                 else
-                    yield return At(name, "owned", property.Name + (written ? ":write" : ":read"));
+                    yield return At(name, "owned", property.Name + (IsWrite(name, model) ? ":write" : ":read"));
             }
         }
     }
@@ -269,14 +273,46 @@ public sealed class TwoFactorOwnershipTests
             && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { Name: "SetProperty" };
     }
 
-    // GlobalUserLookupGuardTests' rule: an EF snapshot, or a 14-digit timestamped
-    // migration and its designer, under a Migrations directory.
-    private static bool IsMigrationShaped(string file)
+    // A read the walk can see the value of being used: compared, tested,
+    // returned, passed, interpolated, assigned to a variable, or called on.
+    // Anything else needs no proof to be owned: a write target, a lambda
+    // selector such as Entry(user).Property(u => u.X), nameof, or a reference
+    // the operation tree does not bind.
+    private static bool IsConsumingRead(SimpleNameSyntax name, SemanticModel model)
     {
-        var parts = file.Split('/');
-        if (parts.Length < 2 || parts[^2] != "Migrations") return false;
-        var name = parts[^1];
-        return name == "AppDbContextModelSnapshot.cs"
-            || (name.Length > 15 && name[14] == '_' && name[..14].All(char.IsAsciiDigit));
+        SyntaxNode node = name.Parent switch
+        {
+            MemberAccessExpressionSyntax access when access.Name == name => access,
+            MemberBindingExpressionSyntax binding => binding,
+            _ => name,
+        };
+        var current = model.GetOperation(node);
+        if (current is not IPropertyReferenceOperation) return false;
+        while (current.Parent is { } parent)
+        {
+            switch (parent)
+            {
+                case IConversionOperation or IParenthesizedOperation:
+                case IConditionalAccessOperation access when access.WhenNotNull == current:
+                    current = parent;
+                    continue;
+                case IBinaryOperation or IUnaryOperation or IInterpolationOperation or IVariableInitializerOperation
+                    or IIsPatternOperation or IArgumentOperation:
+                    return true;
+                case IInvocationOperation invocation:
+                    return invocation.Instance == current;
+                case IConditionalOperation conditional:
+                    return conditional.Condition == current;
+                case IReturnOperation:
+                    return parent.Parent?.Parent is not IAnonymousFunctionOperation;
+                default:
+                    return false;
+            }
+        }
+        return false;
     }
+
+    private static bool IsSqlArgument(SyntaxNode node) =>
+        node.Ancestors().OfType<InvocationExpressionSyntax>().Any(invocation => invocation.Expression is MemberAccessExpressionSyntax
+            { Name.Identifier.ValueText: "Sql" or "SqlRaw" or "ExecuteSqlRaw" or "ExecuteSqlInterpolated" });
 }
