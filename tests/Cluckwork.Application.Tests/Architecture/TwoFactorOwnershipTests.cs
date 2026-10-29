@@ -105,11 +105,11 @@ public sealed class TwoFactorOwnershipTests
     }
 
     // #1274 decision 8: a factor change ends every session minted before it.
-    // This reads only the owner's methods: the properties each one's operation
-    // tree assigns, increments or names as a SetProperty target. A write in an
-    // OutsideReaders member is not checked; its row is reviewed instead.
+    // This reads every method, constructor and accessor in src/: the user
+    // properties each one's operation tree assigns, increments or names as a
+    // SetProperty target.
     [Fact]
-    public void EveryOwnerMethodThatAssignsTwoFactorEnabled_AlsoAssignsCredentialEpoch()
+    public void EveryMethodThatAssignsTwoFactorEnabled_AlsoAssignsCredentialEpoch()
     {
         var hits = RealTree.Value.Where(h => h.Kind == "assigns").ToList();
         var enabling = hits.Where(h => h.Member == "TwoFactorEnabled").Select(h => h.Method).ToHashSet();
@@ -157,8 +157,8 @@ public sealed class TwoFactorOwnershipTests
 
         Hit At(SyntaxNode node, string kind, string member)
         {
-            var enclosing = node is MethodDeclarationSyntax declaration
-                ? model.GetDeclaredSymbol(declaration)
+            var enclosing = node is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax
+                ? model.GetDeclaredSymbol(node)
                 : model.GetEnclosingSymbol(node.SpanStart);
             var method = enclosing;
             while (method is IMethodSymbol { MethodKind: MethodKind.AnonymousFunction or MethodKind.LocalFunction })
@@ -235,22 +235,21 @@ public sealed class TwoFactorOwnershipTests
                 yield return At(name, "owned", property.Name);
         }
 
-        // The owner's assignments, for the epoch rule.
-        foreach (var body in root.DescendantNodes().OfType<MethodDeclarationSyntax>()
-            .Where(m => model.GetDeclaredSymbol(m)?.ContainingType.ToDisplayString() == Owner))
-            foreach (var target in AssignedProperties(model.GetOperation(body)))
-                yield return At(body, "assigns", target);
+        // Every member's user-column assignments, for the epoch rule.
+        foreach (var body in root.DescendantNodes().Where(n => n is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax))
+            foreach (var target in AssignedProperties(model.GetOperation(body)).Where(IsUserColumn))
+                yield return At(body, "assigns", target.Name);
     }
 
-    private static IEnumerable<string> AssignedProperties(IOperation? body) =>
+    private static IEnumerable<IPropertySymbol> AssignedProperties(IOperation? body) =>
         body is null ? [] : body.Descendants().SelectMany(operation => operation switch
         {
-            IIncrementOrDecrementOperation { Target: IPropertyReferenceOperation target } => [target.Property.Name],
-            IAssignmentOperation { Target: IPropertyReferenceOperation target } => [target.Property.Name],
+            IIncrementOrDecrementOperation { Target: IPropertyReferenceOperation target } => [target.Property],
+            IAssignmentOperation { Target: IPropertyReferenceOperation target } => [target.Property],
             IDeconstructionAssignmentOperation { Target: ITupleOperation tuple } =>
-                tuple.Elements.OfType<IPropertyReferenceOperation>().Select(element => element.Property.Name),
+                tuple.Elements.OfType<IPropertyReferenceOperation>().Select(element => element.Property),
             IInvocationOperation { TargetMethod.Name: "SetProperty", Arguments: [var target, ..] } =>
-                target.Value.Descendants().OfType<IPropertyReferenceOperation>().Take(1).Select(reference => reference.Property.Name),
+                target.Value.Descendants().OfType<IPropertyReferenceOperation>().Take(1).Select(reference => reference.Property),
             _ => [],
         });
 
