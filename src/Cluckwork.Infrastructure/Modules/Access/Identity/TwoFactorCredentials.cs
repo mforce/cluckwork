@@ -343,7 +343,8 @@ internal sealed class TwoFactorCredentials(
         return user;
     }
 
-    // A refused outcome writes nothing beyond a window rollover.
+    // A refused outcome writes nothing beyond a window rollover, or a spent
+    // budget's missing window start.
     private async Task SaveIfChangedAsync(ApplicationUser user)
     {
         if (db.Entry(user).State == EntityState.Modified) await SaveAsync(user);

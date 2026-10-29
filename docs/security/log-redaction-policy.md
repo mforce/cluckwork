@@ -134,7 +134,7 @@ check does not reveal.
 | Event ID | Fires when | Fields |
 |---|---|---|
 | `SharedState.RedisUnavailable` | A shared-state (Redis) operation throws and the caller degrades: grant-replay fails closed, and the auth limiter and the report-concurrency lease fall back to their in-process implementations (#543/#544/#545). A sustained rate means a limiter is silently stuck in per-instance fallback. | `capability` (which port degraded). |
-| `Auth.SecondFactorKeyUnreadable` | A stored authenticator key or a pending enrolment no longer decrypts, after a certificate change or a key-ring deletion (#794, #1278). The user can still sign in with a recovery code. A sustained rate means the ring changed under enrolled users. | None. |
+| `Auth.SecondFactorKeyUnreadable` | A stored authenticator key or a pending enrolment cannot be used: it no longer decrypts, after a certificate change or a key-ring deletion (#794), or the stored key is missing, not base32 or shorter than 128 bits, or the pending payload decodes to nothing or has no usable key (#1278). The user can still sign in with a recovery code. A sustained rate means the ring changed under enrolled users; a single one can also be a data fault, which the event does not tell apart. | None. |
 | `ReportConcurrency.OverCapacity` | A running report's lease lapsed (a reachable backend rejected the renewal) and no free slot was available to re-count it — the account is over its per-instance report-concurrency ceiling with this report on top (#545). Bounded and self-healing as reports finish; a persistent rate means the shared store is dropping slots under load or during outage recovery. | `capability`. |
 
 ### Tenant-isolation events
