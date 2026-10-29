@@ -940,4 +940,15 @@ describe("Login code step (#1278)", () => {
     expect(await screen.findByText(i18n.t("auth:secondFactorKeyUnavailable"))).toBeInTheDocument();
     expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:secondFactorCode")}`))).toBeInTheDocument();
   });
+
+  // The address limit's 429 has no code-step title, so the sign-in page's own
+  // wording answers it.
+  it("answers any other refusal at the code step with the sign-in page's message", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Too Many Requests", "Too many requests."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:tooManyAttempts"))).toBeInTheDocument();
+  });
 });
