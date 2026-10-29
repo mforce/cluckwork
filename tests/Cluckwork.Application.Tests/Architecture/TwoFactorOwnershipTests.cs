@@ -16,11 +16,11 @@ namespace Cluckwork.Application.Tests.Architecture;
 // their names.
 public sealed class TwoFactorOwnershipTests
 {
-    private const string Owner = "Cluckwork.Infrastructure.Modules.Access.Identity.TwoFactorCredentials";
-    private const string Matcher = "Cluckwork.Infrastructure.Modules.Access.Identity.TotpMatcher";
-    private const string UserType = "Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser";
-    private const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
     private const string Identity = "Cluckwork.Infrastructure.Modules.Access.Identity.";
+    private const string Owner = Identity + "TwoFactorCredentials";
+    private const string Matcher = Identity + "TotpMatcher";
+    private const string UserType = Identity + "ApplicationUser";
+    private const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
 
     // The owned columns are read off ApplicationUser itself: TwoFactorEnabled
     // and every property named SecondFactor*, so a new one is owned at once.
@@ -301,24 +301,20 @@ public sealed class TwoFactorOwnershipTests
             && type.AllInterfaces.Any(i => i.OriginalDefinition.ToDisplayString() == "Microsoft.EntityFrameworkCore.IEntityTypeConfiguration<TEntity>"
                 && i.TypeArguments.Single().ToDisplayString() == UserType));
 
-    // EF's schema operations and the snapshot's model builder calls name a
-    // column; a literal is exempt only as one of their direct arguments.
+    // EF's schema operations and the snapshot's Property and HasIndex name a
+    // column. A literal is exempt only as an argument that names one, so a
+    // filter: or defaultValueSql: argument, which is SQL, still fails.
     private static readonly HashSet<string> SchemaOperations =
-    [
-        "AddColumn", "AlterColumn", "DropColumn", "RenameColumn", "CreateIndex", "DropIndex", "RenameIndex",
-        "AddForeignKey", "DropForeignKey", "AddPrimaryKey", "AddUniqueConstraint", "AddCheckConstraint",
-        "Property", "HasIndex", "HasKey", "HasColumnName", "HasDatabaseName",
-    ];
+        ["AddColumn", "AlterColumn", "DropColumn", "RenameColumn", "CreateIndex", "DropIndex", "Property", "HasIndex"];
+
+    private static readonly HashSet<string> ColumnParameters = ["name", "newName", "column", "columns"];
 
     private static bool IsSchemaOperationName(SyntaxNode literal)
     {
-        var argument = literal.Parent switch
-        {
-            ArgumentSyntax direct => direct,
-            CollectionElementSyntax or InitializerExpressionSyntax => literal.Ancestors().OfType<ArgumentSyntax>().FirstOrDefault(),
-            _ => null,
-        };
-        return argument?.Parent?.Parent is InvocationExpressionSyntax invocation
+        // A column list, such as columns: new[] { ... }, sits two levels below its argument.
+        var argument = literal.Parent as ArgumentSyntax ?? literal.Parent?.Parent?.Parent as ArgumentSyntax;
+        return argument is { Parent.Parent: InvocationExpressionSyntax invocation }
+            && (argument.NameColon is null || ColumnParameters.Contains(argument.NameColon.Name.Identifier.ValueText))
             && (invocation.Expression switch
             {
                 MemberAccessExpressionSyntax access => access.Name,
