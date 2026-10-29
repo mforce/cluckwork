@@ -131,12 +131,15 @@ public sealed class TwoFactorOwnershipTests
     [Fact]
     public void EveryMethodThatAssignsTwoFactorEnabled_AlsoAssignsCredentialEpoch()
     {
-        var hits = RealTree.Value.Where(h => h.Kind == "assigns").ToList();
-        var enabling = hits.Where(h => h.Member == "TwoFactorEnabled").Select(h => h.Method).ToHashSet();
+        var hits = RealTree.Value.Where(h => h.Kind is "assigns" or "selects").ToList();
+        var enabling = hits.Where(h => h.Member == "TwoFactorEnabled").GroupBy(h => h.Method)
+            .ToDictionary(g => g.Key ?? "", g => g.Any(h => h.Kind == "assigns")
+                ? "assigns it"
+                : "selects it through Entry(...).Property, which counts as a write even when it only reads");
         Assert.NotEmpty(enabling);
-        var bumping = hits.Where(h => h.Member == "CredentialEpoch").Select(h => h.Method).ToHashSet();
-        var missing = enabling.Where(m => !bumping.Contains(m)).ToList();
-        Assert.True(missing.Count == 0, "TwoFactorEnabled is assigned without a CredentialEpoch assignment in:\n  " + string.Join("\n  ", missing));
+        var bumping = hits.Where(h => h.Kind == "assigns" && h.Member == "CredentialEpoch").Select(h => h.Method ?? "").ToHashSet();
+        var missing = enabling.Where(e => !bumping.Contains(e.Key)).Select(e => $"{e.Key} {e.Value}").ToList();
+        Assert.True(missing.Count == 0, "TwoFactorEnabled is written without a CredentialEpoch write in:\n  " + string.Join("\n  ", missing));
     }
 
     private static string SourceRoot() => Path.Combine(
@@ -257,11 +260,17 @@ public sealed class TwoFactorOwnershipTests
                 yield return At(name, "owned", property.Name);
         }
 
-        // Every user-column assignment, keyed by its member, for the epoch rule.
+        // Every user-column assignment and every flag selection through an EF
+        // property entry, keyed by its member, for the epoch rule.
         foreach (var node in root.DescendantNodes().Where(n => n is AssignmentExpressionSyntax
                      or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax or InvocationExpressionSyntax))
-            foreach (var target in AssignedProperties(model.GetOperation(node)).Where(IsUserColumn))
+        {
+            var operation = model.GetOperation(node);
+            foreach (var target in AssignedProperties(operation).Where(IsUserColumn))
                 yield return At(node, "assigns", target.Name);
+            if (operation is IInvocationOperation invocation && EntrySelection(invocation).Any(p => p.Name == "TwoFactorEnabled" && IsUserColumn(p)))
+                yield return At(node, "selects", "TwoFactorEnabled");
+        }
     }
 
     private static string Key(ISymbol symbol) => $"{symbol.ContainingAssembly?.Name}: {symbol.ToDisplayString()}";
@@ -272,7 +281,6 @@ public sealed class TwoFactorOwnershipTests
         IIncrementOrDecrementOperation increment => Targets(increment.Target),
         IInvocationOperation { TargetMethod.Name: "SetProperty" } setter =>
             setter.Arguments.Where(a => a.Parameter?.Name == "propertyExpression").SelectMany(a => Selected(a.Value)),
-        IInvocationOperation entry => EntrySelection(entry).Where(property => property.Name == "TwoFactorEnabled"),
         _ => [],
     };
 
@@ -285,18 +293,23 @@ public sealed class TwoFactorOwnershipTests
     };
 
     // The property an EF property entry selects, the entry given inline or as
-    // a local initialized from Entry(...).Property(selector).
+    // a local initialized from Entry(...).Property(selector). A local's
+    // reassignment is not followed, and an initializer through ?. or a local
+    // with none resolves to nothing.
     private static IEnumerable<IPropertySymbol> EntryOf(IOperation entry) => entry switch
     {
         IInvocationOperation invocation => EntrySelection(invocation),
         ILocalReferenceOperation local => local.Local.DeclaringSyntaxReferences
-            .Select(reference => reference.GetSyntax())
-            .OfType<VariableDeclaratorSyntax>()
-            .Select(declarator => declarator.Initializer is { } initializer ? local.SemanticModel?.GetOperation(initializer.Value) : null)
+            .Select(reference => local.SemanticModel?.GetOperation(reference.GetSyntax()))
+            .OfType<IVariableDeclaratorOperation>()
+            .Select(declarator => Unconverted(declarator.Initializer?.Value))
             .OfType<IInvocationOperation>()
             .SelectMany(EntrySelection),
         _ => [],
     };
+
+    private static IOperation? Unconverted(IOperation? operation) =>
+        operation is IConversionOperation conversion ? Unconverted(conversion.Operand) : operation;
 
     private static IEnumerable<IPropertySymbol> EntrySelection(IInvocationOperation invocation) =>
         invocation.TargetMethod is { Name: "Property" } method
