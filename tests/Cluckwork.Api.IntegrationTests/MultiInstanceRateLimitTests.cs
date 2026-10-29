@@ -112,6 +112,9 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         // and a boundary crossing mid-loop turns the expected 429 into a 401
         // (#840's 2026-09-16 CI specimens).
         psi.Environment["RateLimiting__Login__WindowSeconds"] = "86400";
+        // #1278: the code step's address policy, the same budget and window.
+        psi.Environment["RateLimiting__SecondFactor__PermitLimit"] = PermitLimit.ToString();
+        psi.Environment["RateLimiting__SecondFactor__WindowSeconds"] = "86400";
         return ServingSubprocess.StartReadyAsync(psi, ReadyTimeout);
     }
 
@@ -160,6 +163,27 @@ public sealed class MultiInstanceRateLimitTests : IAsyncLifetime
         var overLimit = await httpB.PostAsJsonAsync(
             "/api/v1/auth/login",
             new { farmCode = TestHarness.DefaultFarmCode, email = "nobody@example.com", password = "WrongPassw0rd!" });
+        Assert.Equal(HttpStatusCode.TooManyRequests, overLimit.StatusCode);
+    }
+
+    // #1278: the code step's auth-second-factor policy is one combined
+    // per-address budget across the two instances too. A dead challenge is
+    // refused with a 401 after the limiter has counted it.
+    [Fact]
+    public async Task SecondFactor_budget_is_shared_across_two_instances_over_one_redis()
+    {
+        await using var instanceA = await StartServingInstanceAsync();
+        using var httpA = new HttpClient { BaseAddress = instanceA.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
+        await using var instanceB = await StartServingInstanceAsync();
+        using var httpB = new HttpClient { BaseAddress = instanceB.BaseUrl, Timeout = TimeSpan.FromSeconds(30) };
+        var body = new { challenge = "not-a-challenge", code = "123456" };
+
+        HttpClient[] split = [httpA, httpA, httpA, httpB, httpB];
+        Assert.Equal(PermitLimit, split.Length);
+        foreach (var client in split)
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync(TestHarness.SecondFactorPath, body)).StatusCode);
+
+        var overLimit = await httpB.PostAsJsonAsync(TestHarness.SecondFactorPath, body);
         Assert.Equal(HttpStatusCode.TooManyRequests, overLimit.StatusCode);
     }
 }
