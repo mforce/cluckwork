@@ -22,14 +22,17 @@ import type { CastMember } from "./cast";
 
 // The status and the problem title, never the body: a failed login's body can
 // carry a sign-in challenge (#1274), which is a credential.
+// Plain fields, not parameter properties, so Node's type stripping can run this
+// file for the harness login guard (tools/simulation/harness-login-body.test.mjs).
 export class ApiProbeError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly title: string | null,
-  ) {
+  readonly status: number;
+  readonly title: string | null;
+
+  constructor(message: string, status: number, title: string | null) {
     super(message);
     this.name = "ApiProbeError";
+    this.status = status;
+    this.title = title;
   }
 }
 
@@ -83,10 +86,8 @@ export async function apiGet<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
     headers: { authorization: `Bearer ${token}` },
   });
-  if (!res.ok) {
-    const title = await problemTitle(res);
-    throw new ApiProbeError(`GET ${path} -> ${res.status}`, res.status, title);
-  }
+  if (!res.ok)
+    throw new ApiProbeError(`GET ${path} -> ${res.status}`, res.status, await problemTitle(res));
   return (await res.json()) as T;
 }
 
