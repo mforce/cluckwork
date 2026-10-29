@@ -141,7 +141,11 @@ public static partial class AuthEndpoints
     private static bool CookieSecure(IWebHostEnvironment env) => !env.IsDevelopment();
 }
 
-public sealed record LoginRequest(string FarmCode, string Email, string Password);
+// The password is a credential, so the record never prints it.
+public sealed record LoginRequest(string FarmCode, string Email, string Password)
+{
+    public override string ToString() => "[redacted]";
+}
 
 // Both members are credentials, so the record never prints them.
 public sealed record SecondFactorLoginRequest(string Challenge, string Code)
@@ -149,7 +153,10 @@ public sealed record SecondFactorLoginRequest(string Challenge, string Code)
     public override string ToString() => "[redacted]";
 }
 
-public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
+public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword)
+{
+    public override string ToString() => "[redacted]";
+}
 
 // #145 — the refresh token is delivered as a cookie, so the body returns only
 // the access token and its expiry.

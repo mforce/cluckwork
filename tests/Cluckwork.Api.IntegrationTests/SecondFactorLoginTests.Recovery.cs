@@ -196,17 +196,39 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // Review round 1, item 9: states the writes never leave fail closed, never 500.
-    [Fact]
-    public async Task AKeyThatDecryptsButIsNotBase32_IsUnavailable_NotAServerError()
+    // A key that decrypts but is not one: not base32, empty, or shorter than
+    // 128 bits, which would make its codes guessable.
+    [Theory]
+    [InlineData("not base32!")]
+    [InlineData("")]
+    [InlineData("ABCDEFGHIJKLMNOPQRSTUVWXY")]
+    public async Task AKeyThatDecryptsButIsNotAUsableKey_IsUnavailable_NotAServerError(string stored)
     {
         var (email, factor) = await SeedEnrolledAsync();
         using (var scope = factory.Services.CreateScope())
         {
             scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(factor.AccountId);
             var credentials = scope.ServiceProvider.GetRequiredService<TwoFactorCredentials>();
-            await credentials.StageProtectedAsync(factor.UserId, ProtectedTwoFactorValue.AuthenticatorKey, "not base32!", default);
+            await credentials.StageProtectedAsync(factor.UserId, ProtectedTwoFactorValue.AuthenticatorKey, stored, default);
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().SaveChangesAsync();
         }
+        await AssertKeyUnreadableAsync(email, factor);
+    }
+
+    [Fact]
+    public async Task AMissingKeyRow_IsUnavailable_NotAServerError()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        using (var scope = factory.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().UserTokens
+                .Where(t => t.UserId == factor.UserId && t.LoginProvider == "Cluckwork" && t.Name == "AuthenticatorKey")
+                .ExecuteDeleteAsync();
+
+        await AssertKeyUnreadableAsync(email, factor);
+    }
+
+    private async Task AssertKeyUnreadableAsync(string email, EnrolledFactor factor)
+    {
         factory.Sink.Events.Clear();
 
         var answer = await PostCodeAsync((await factory.PasswordStepAsync(email)).Challenge, CodeAt(factor, 1));
@@ -215,16 +237,21 @@ public sealed partial class SecondFactorLoginTests
         Assert.Single(factory.EventsFor(SecurityEvents.SecondFactorKeyUnreadable));
     }
 
+    // The window starts now, so it ends a day later rather than never.
     [Fact]
-    public async Task ASpentBudgetWithNoWindowStart_IsThrottled_NotAServerError()
+    public async Task ASpentBudgetWithNoWindowStart_StartsItsWindowNow()
     {
         var (email, factor) = await SeedEnrolledAsync();
+        factory.Clock.Freeze();
         await SetBudgetAsync(factor, failures: 20, since: null);
 
         var answer = await PostCodeAsync((await factory.PasswordStepAsync(email)).Challenge, CodeAt(factor, 1));
 
         Assert.Equal(HttpStatusCode.TooManyRequests, answer.StatusCode);
-        Assert.True(int.Parse(answer.Headers.GetValues("Retry-After").Single()) >= 1);
+        Assert.Equal("86400", answer.Headers.GetValues("Retry-After").Single());
+        factory.Clock.Advance(TimeSpan.FromHours(24) + TimeSpan.FromSeconds(1));
+        var pending = await factory.PasswordStepAsync(email);
+        Assert.Equal(HttpStatusCode.OK, (await PostCodeAsync(pending.Challenge, CodeAt(factor, 0))).StatusCode);
     }
 
     [Fact]

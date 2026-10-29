@@ -33,7 +33,7 @@ public abstract record SecondFactorCode
             return true;
         }
 
-        if (NormalizeRecovery(digits) is not { } normalized) return false;
+        if (NormalizeRecovery(raw) is not { } normalized) return false;
         code = new Recovery(normalized);
         return true;
     }

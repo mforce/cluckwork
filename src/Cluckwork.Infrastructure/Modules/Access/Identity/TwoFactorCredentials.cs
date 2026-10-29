@@ -77,7 +77,7 @@ internal sealed class TwoFactorCredentials(
         };
     }
 
-    // Steps 3 to 6 for an authenticator code, with at most one save.
+    // Steps 3 to 6 for an authenticator code.
     private async Task<FactorOutcome> VerifyTotpAsync(
         Guid accountId, ApplicationUser user, SecondFactorCode.Totp totp, ProofBinding binding, CancellationToken ct)
     {
@@ -90,27 +90,32 @@ internal sealed class TwoFactorCredentials(
         if (user.SecondFactorFailures >= DailyBudget)
         {
             // A spent budget with no window start is not a state the writes
-            // leave; a full window fails closed.
-            var ends = (user.SecondFactorFailuresSince ?? now) + DailyWindow;
-            return new FactorOutcome.Throttled(ends - now);
+            // leave; it starts now, so it ends a day later.
+            user.SecondFactorFailuresSince ??= now;
+            await SaveIfChangedAsync(user);
+            return new FactorOutcome.Throttled(user.SecondFactorFailuresSince.Value + DailyWindow - now);
         }
 
         // Only an authenticator code reads the key, so recovery codes keep
-        // working when it cannot be read.
-        TotpMatch match;
+        // working when it cannot be read. A missing, undecryptable, short or
+        // non-base32 key is unreadable: never a 500, and never a weak key.
+        string? key;
         try
         {
-            var key = await ReadProtectedAsync(accountId, user.Id, ProtectedTwoFactorValue.AuthenticatorKey, ct)
-                ?? throw new CryptographicException("An enrolled user has no authenticator key.");
-            match = TotpMatcher.MatchStep(key, totp.Value, user.SecondFactorWatermark, now);
+            key = await ReadProtectedAsync(accountId, user.Id, ProtectedTwoFactorValue.AuthenticatorKey, ct);
         }
-        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        catch (CryptographicException)
+        {
+            key = null;
+        }
+        if (!TotpMatcher.IsKey(key))
         {
             securityEvents.SecondFactorKeyUnreadable();
             await SaveIfChangedAsync(user);
             return new FactorOutcome.Unavailable();
         }
 
+        var match = TotpMatcher.MatchStep(key, totp.Value, user.SecondFactorWatermark, now);
         if (match.Reused)
         {
             await SaveIfChangedAsync(user);
@@ -118,9 +123,15 @@ internal sealed class TwoFactorCredentials(
         }
         if (match.Step is not { } step)
         {
+            var outcome = await ChargeAsync(user);
+            // After the lockout charge, as the record orders it. A UserManager
+            // save, so it takes no request token and throws if it is lost.
             user.SecondFactorFailuresSince ??= now;
             user.SecondFactorFailures++;
-            return await ChargeAsync(user, spendsBudget: user.SecondFactorFailures == DailyBudget);
+            await SaveAsync(user);
+            if (user.SecondFactorFailures == DailyBudget)
+                securityEvents.SecondFactorBudgetSpent(user.Id);
+            return outcome;
         }
 
         user.SecondFactorWatermark = step;
@@ -134,22 +145,20 @@ internal sealed class TwoFactorCredentials(
         // One DELETE that removes one row, so one code cannot be spent twice.
         var name = RecoveryCodeName(user.Id, recovery.Normalized);
         if (await Rows(accountId, user.Id).Where(t => t.Name == name).ExecuteDeleteAsync(ct) != 1)
-            return await ChargeAsync(user, spendsBudget: false);
+            return await ChargeAsync(user);
 
         user.SecondFactorFailures = 0;
         user.SecondFactorFailuresSince = null;
         return await AcceptAsync(user, binding, await RecoveryCodesLeftAsync(accountId, user.Id, ct));
     }
 
-    // Step 5. AccessFailedAsync's UserManager save also carries any daily-count
-    // change; under the lock it cannot lose its concurrency check.
-    private async Task<FactorOutcome> ChargeAsync(ApplicationUser user, bool spendsBudget)
+    // Step 5's lockout charge, shared by both factors. AccessFailedAsync is a
+    // UserManager save, which takes no request token.
+    private async Task<FactorOutcome> ChargeAsync(ApplicationUser user)
     {
         securityEvents.SecondFactorFailed();
         if (await AccountLockout.RecordFailedAccessAsync(userManager, db, user))
             securityEvents.AccountLockedOut(user.Id);
-        if (spendsBudget)
-            securityEvents.SecondFactorBudgetSpent(user.Id);
         return new FactorOutcome.Rejected(Charged: true);
     }
 
@@ -193,12 +202,17 @@ internal sealed class TwoFactorCredentials(
             .SingleOrDefaultAsync(t => t.Name == ProtectedTwoFactorValue.PendingAuthenticator.RowName, ct);
         if (pendingRow is null) return new ConfirmOutcome.Superseded();
 
-        PendingPayload payload;
+        PendingPayload? payload;
         try
         {
-            payload = JsonSerializer.Deserialize<PendingPayload>(Protector(accountId, userId).Unprotect(pendingRow.Value!))!;
+            payload = JsonSerializer.Deserialize<PendingPayload>(Protector(accountId, userId).Unprotect(pendingRow.Value!));
         }
         catch (Exception ex) when (ex is CryptographicException or JsonException)
+        {
+            payload = null;
+        }
+        // An undecryptable, undecodable or field-less payload ends the enrolment.
+        if (payload is null || !TotpMatcher.IsKey(payload.Key) || payload.SecurityStampHash is null)
         {
             RemoveRow(pendingRow);
             await db.SaveChangesAsync(ct);

@@ -309,7 +309,7 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
     private List<(string Method, string Path)> AuthorizedRoutes() =>
         [.. factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
             .Where(e => e.Metadata.GetMetadata<IAuthorizeData>() is not null && e.Metadata.GetMetadata<IAllowAnonymous>() is null)
-            .SelectMany(e => (e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["GET"]).Select(method => (
+            .SelectMany(e => (e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods is { Count: > 0 } methods ? methods : ["GET"]).Select(method => (
                 Method: method,
                 Path: "/" + string.Join('/', e.RoutePattern.RawText!.Trim('/').Split('/').Select(segment =>
                     segment.StartsWith('{') ? Guid.NewGuid().ToString() : segment)))))];

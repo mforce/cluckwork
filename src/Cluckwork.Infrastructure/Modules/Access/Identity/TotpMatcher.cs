@@ -45,6 +45,14 @@ internal static class TotpMatcher
         return new TotpMatch(accepted, accepted is null && reused);
     }
 
+    // RFC 4226 asks for at least 128 bits; UserManager.GenerateNewAuthenticatorKey
+    // gives 160, as 32 characters. A shorter or empty key would make codes
+    // guessable, so it is unreadable rather than used.
+    private const int MinKeyLength = 26;
+
+    internal static bool IsKey([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value) =>
+        value is { Length: >= MinKeyLength } && value.All(c => Base32Alphabet.Contains(c));
+
     // The 32-character key UserManager.GenerateNewAuthenticatorKey returns, A-Z2-7, unpadded.
     internal static byte[] DecodeBase32(string value)
     {

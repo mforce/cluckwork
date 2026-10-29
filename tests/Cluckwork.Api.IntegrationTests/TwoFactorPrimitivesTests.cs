@@ -83,11 +83,13 @@ public sealed class TwoFactorPrimitivesTests
             .Append(typeof(ProofBinding))
             .Append(typeof(EnrolmentStart))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.SecondFactorLoginRequest))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.LoginRequest))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.ChangeOwnPasswordRequest))
             .Append(typeof(TwoFactorCredentials).GetNestedType("PendingPayload", System.Reflection.BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("TwoFactorCredentials.PendingPayload is gone; update this walk"))
             .ToList();
 
-        Assert.True(types.Count >= 8, $"the walk found {types.Count} types, below its floor of 8");
+        Assert.True(types.Count >= 10, $"the walk found {types.Count} types, below its floor of 10");
         foreach (var type in types)
             Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
     }

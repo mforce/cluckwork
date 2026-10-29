@@ -168,6 +168,27 @@ public sealed class TwoFactorEnrolmentTests(SecondFactorFactory factory) : IDisp
         Assert.Single(factory.EventsFor(SecurityEvents.SecondFactorKeyUnreadable));
     }
 
+    // A payload that decrypts to JSON null or has no key ends the enrolment, as
+    // an undecryptable one does, never a 500.
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{}")]
+    public async Task AFieldlessPayload_IsDeleted_AndConfirmIsRefused(string json)
+    {
+        var user = await SeedAsync();
+        var start = await StartAsync(user);
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(user.AccountId);
+            await scope.ServiceProvider.GetRequiredService<TwoFactorCredentials>()
+                .StageProtectedAsync(user.UserId, ProtectedTwoFactorValue.PendingAuthenticator, json, default);
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().SaveChangesAsync();
+        }
+
+        Assert.IsType<ConfirmOutcome.Superseded>(await ConfirmAsync(user, CodeFor(start)));
+        Assert.Empty(await PendingValuesAsync(user));
+    }
+
     // G3.28: the lock reloads the row, which would discard the caller's change.
     public static TheoryData<string> WriteMethods => ["VerifyAsync", "StartEnrolmentAsync", "ConfirmEnrolmentAsync"];
 
