@@ -37,9 +37,9 @@ const problem = (sentinel, title = "Auth.SecondFactorRequired") => ({
 });
 
 // A thrown error may hold only these fields, each a primitive data property,
-// and its native stack. Any other own property, an accessor or a member its
-// class adds is a problem, so an error cannot keep a body, a response, a Map
-// or a getter over either.
+// and its native stack holding a string. Any other own property, an accessor
+// or a member its class adds is a problem, so an error cannot keep a body, a
+// response, a Map or a getter over either.
 const ERROR_FIELDS = new Set(["name", "message", "status", "title"]);
 
 function errorShape(error) {
@@ -53,7 +53,8 @@ function errorShape(error) {
   const nativeStack = proto ? Object.getOwnPropertyDescriptor(new proto.constructor(), "stack") : {};
   for (const key of Reflect.ownKeys(error)) {
     const descriptor = Object.getOwnPropertyDescriptor(error, key);
-    if (key === "stack" && descriptor.get === nativeStack.get && descriptor.set === nativeStack.set) strings.push(String(error.stack));
+    if (key === "stack" && descriptor.get === nativeStack.get && descriptor.set === nativeStack.set && typeof error.stack === "string")
+      strings.push(error.stack);
     else if (ERROR_FIELDS.has(key) && "value" in descriptor && Object(descriptor.value) !== descriptor.value) strings.push(String(descriptor.value));
     else problems.push(`the thrown error holds ${String(key)}, which is not one of its primitive fields`);
   }
@@ -69,8 +70,20 @@ function asScript(source, allowedImports) {
   return source.replace(/^import[\s\S]*?from\s+["'][^"']+["'];\n/gm, "").replace(/^export /gm, "");
 }
 
+// k6 prints a logged object as JSON, so toJSON and getters run; inspect at
+// full depth with getters and hidden properties covers what JSON leaves out.
+function render(value) {
+  let json = "";
+  try {
+    json = JSON.stringify(value) ?? "";
+  } catch {
+    // A cycle or a BigInt; inspect still renders it.
+  }
+  return `${inspect(value, { depth: null, getters: true, showHidden: true })} ${json}`;
+}
+
 function capturingConsole(output) {
-  const sink = (...values) => output.push(values.map((v) => (typeof v === "string" ? v : inspect(v, { depth: null }))).join(" "));
+  const sink = (...values) => output.push(values.map((v) => (typeof v === "string" ? v : render(v))).join(" "));
   return { log: sink, error: sink, warn: sink, info: sink, debug: sink };
 }
 

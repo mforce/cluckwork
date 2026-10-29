@@ -124,7 +124,9 @@ public sealed class TwoFactorOwnershipTests
     // an expression-bodied member, a field initializer or a lambda), keyed by
     // its member: a plain, compound or null-conditional assignment, an
     // increment, a deconstruction element at any depth, an object initializer,
-    // a SetProperty target and an EF Entry(...).Property(...).CurrentValue.
+    // a SetProperty target, and any EF Entry(...).Property(selector), counted
+    // as a write whether or not its CurrentValue is set, so a property entry
+    // kept in a local is seen too.
     [Fact]
     public void EveryMethodThatAssignsTwoFactorEnabled_AlsoAssignsCredentialEpoch()
     {
@@ -257,7 +259,7 @@ public sealed class TwoFactorOwnershipTests
         // Every user-column assignment, keyed by its member, for the epoch rule.
         foreach (var node in root.DescendantNodes().Where(n => n is AssignmentExpressionSyntax
                      or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax
-                     or InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "SetProperty" } }))
+                     or InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "SetProperty" or "Property" } }))
             foreach (var target in AssignedProperties(model.GetOperation(node)).Where(IsUserColumn))
                 yield return At(node, "assigns", target.Name);
     }
@@ -270,13 +272,14 @@ public sealed class TwoFactorOwnershipTests
         IIncrementOrDecrementOperation increment => Targets(increment.Target),
         IInvocationOperation { TargetMethod.Name: "SetProperty" } setter =>
             setter.Arguments.Where(a => a.Parameter?.Name == "propertyExpression").SelectMany(a => Selected(a.Value)),
+        IInvocationOperation { TargetMethod.Name: "Property" } entry
+            when entry.TargetMethod.ContainingType.OriginalDefinition.ToDisplayString() == "Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<TEntity>" =>
+            entry.Arguments.Where(a => a.Parameter?.Name == "propertyExpression").SelectMany(a => Selected(a.Value)),
         _ => [],
     };
 
     private static IEnumerable<IPropertySymbol> Targets(IOperation target) => target switch
     {
-        IPropertyReferenceOperation { Property.Name: "CurrentValue", Instance: IInvocationOperation { TargetMethod.Name: "Property" } entry } =>
-            entry.Arguments.SelectMany(a => Selected(a.Value)),
         IPropertyReferenceOperation reference => [reference.Property],
         ITupleOperation tuple => tuple.Elements.SelectMany(Targets),
         _ => [],
