@@ -2,6 +2,7 @@ using Cluckwork.Application.Tests.TenantBypass;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cluckwork.Application.Tests.Architecture;
 
@@ -18,12 +19,10 @@ public sealed class TwoFactorOwnershipTests
     private const string UserType = "Cluckwork.Infrastructure.Modules.Access.Identity.ApplicationUser";
     private const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
 
-    // Written only by the owner, and read only by it except the two below.
-    private static readonly HashSet<string> OwnedColumns =
-    [
-        "TwoFactorEnabled", "SecondFactorWatermark", "SecondFactorSignIns", "SecondFactorFailures",
-        "SecondFactorFailuresSince", "SecondFactorRequiredSince",
-    ];
+    // The owned columns are read off ApplicationUser itself: TwoFactorEnabled
+    // and every property named SecondFactor*, so a new one is owned at once.
+    // The six #1276 shipped are the floor.
+    private const int OwnedColumnFloor = 6;
 
     // Login and refresh read these from the row they already loaded.
     private static readonly HashSet<string> ReadAnywhere = ["TwoFactorEnabled", "SecondFactorSignIns"];
@@ -43,8 +42,8 @@ public sealed class TwoFactorOwnershipTests
         "GetAuthenticationTokenAsync", "RemoveAuthenticationTokenAsync",
     ];
 
-    // On 2026-10-28 TwoFactorCredentials held over 40 owned references.
-    private const int OwnedFloor = 4;
+    // TwoFactorCredentials held 25 owned references on 2026-10-29.
+    private const int OwnedFloor = 20;
 
     private sealed record Hit(string Kind, string Container, string? Method, string Member, string Location);
 
@@ -101,14 +100,19 @@ public sealed class TwoFactorOwnershipTests
                 CompatibilityExceptionScanner.ImplicitUsings + CompatibilityExceptionScanner.WebImplicitUsings,
                 CompatibilityExceptionScanner.References(CompatibilityExceptionScanner.SemanticProject).Append(infrastructure.ToMetadataReference())));
 
+        var user = infrastructure.GetTypeByMetadataName(UserType) ?? throw new InvalidOperationException(UserType + " not found");
+        var owned = user.GetMembers().OfType<IPropertySymbol>().Select(p => p.Name)
+            .Where(n => n.StartsWith("SecondFactor", StringComparison.Ordinal)).Append("TwoFactorEnabled").ToHashSet();
+        Assert.True(owned.Count >= OwnedColumnFloor, $"found {owned.Count} owned columns on {UserType}, below its floor of {OwnedColumnFloor}");
+
         var hits = new List<Hit>();
         foreach (var compilation in dependents.Prepend(infrastructure))
             foreach (var tree in compilation.SyntaxTrees.Where(t => t.FilePath.Length > 0))
-                hits.AddRange(WalkTree(compilation.GetSemanticModel(tree), tree, srcRoot));
+                hits.AddRange(WalkTree(compilation.GetSemanticModel(tree), tree, srcRoot, owned));
         return hits;
     }
 
-    private static IEnumerable<Hit> WalkTree(SemanticModel model, SyntaxTree tree, string srcRoot)
+    private static IEnumerable<Hit> WalkTree(SemanticModel model, SyntaxTree tree, string srcRoot, HashSet<string> ownedColumns)
     {
         var root = tree.GetRoot();
         var file = Path.GetRelativePath(srcRoot, tree.FilePath).Replace('\\', '/');
@@ -132,6 +136,15 @@ public sealed class TwoFactorOwnershipTests
         foreach (var literal in root.DescendantNodes().OfType<LiteralExpressionSyntax>()
             .Where(l => l.Token.ValueText == ProtectorPurpose))
             yield return At(literal, "owned", "protector purpose");
+
+        // A column named in SQL or any other string, except the EF migrations
+        // and model snapshot, which describe the schema rather than use it.
+        if (!IsMigrationShaped(file))
+            foreach (var text in root.DescendantTokens().Where(t => t.IsKind(SyntaxKind.StringLiteralToken)
+                    || t.IsKind(SyntaxKind.InterpolatedStringTextToken) || t.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
+                    || t.IsKind(SyntaxKind.MultiLineRawStringLiteralToken)))
+                foreach (var column in ownedColumns.Where(c => text.ValueText.Contains(c, StringComparison.Ordinal)))
+                    yield return At(text.Parent!, "owned", column + " in a string");
 
         foreach (var name in root.DescendantNodes().OfType<SimpleNameSyntax>())
         {
@@ -180,7 +193,7 @@ public sealed class TwoFactorOwnershipTests
                     if (written) yield return At(name, "epoch-write", "CredentialEpoch");
                     continue;
                 }
-                if (!OwnedColumns.Contains(property.Name)) continue;
+                if (!ownedColumns.Contains(property.Name)) continue;
                 if (IsEntityConfiguration(name, model)) continue;
                 if (!written && ReadAnywhere.Contains(property.Name))
                     yield return At(name, "allowed-read", property.Name);
@@ -237,17 +250,33 @@ public sealed class TwoFactorOwnershipTests
             && type.AllInterfaces.Any(i => i.OriginalDefinition.ToDisplayString() == "Microsoft.EntityFrameworkCore.IEntityTypeConfiguration<TEntity>"
                 && i.TypeArguments.Single().ToDisplayString() == UserType));
 
-    // An assignment or increment target, an object-initializer member, or the
-    // property an EF SetProperty call names.
+    // An assignment, compound or deconstruction target, an increment, or the
+    // property an EF SetProperty call names, bound through the operation tree.
     private static bool IsWrite(SimpleNameSyntax name, SemanticModel model)
     {
-        SyntaxNode target = name.Parent is MemberAccessExpressionSyntax access && access.Name == name ? access : name;
-        if (target.Parent is AssignmentExpressionSyntax assignment && assignment.Left == target) return true;
-        if (target.Parent?.Kind() is SyntaxKind.PostIncrementExpression or SyntaxKind.PostDecrementExpression
-            or SyntaxKind.PreIncrementExpression or SyntaxKind.PreDecrementExpression) return true;
+        SyntaxNode node = name.Parent is MemberAccessExpressionSyntax access && access.Name == name ? access : name;
+        var current = model.GetOperation(node);
+        while (current?.Parent is { } parent)
+        {
+            if (parent is IIncrementOrDecrementOperation) return true;
+            if (parent is IAssignmentOperation assignment) return assignment.Target == current;
+            if (parent is not ITupleOperation) break;
+            current = parent;
+        }
         var argument = name.Ancestors().OfType<ArgumentSyntax>().FirstOrDefault();
         return argument?.Parent?.Parent is InvocationExpressionSyntax invocation
             && ((ArgumentListSyntax)argument.Parent).Arguments.IndexOf(argument) == 0
             && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { Name: "SetProperty" };
+    }
+
+    // GlobalUserLookupGuardTests' rule: an EF snapshot, or a 14-digit timestamped
+    // migration and its designer, under a Migrations directory.
+    private static bool IsMigrationShaped(string file)
+    {
+        var parts = file.Split('/');
+        if (parts.Length < 2 || parts[^2] != "Migrations") return false;
+        var name = parts[^1];
+        return name == "AppDbContextModelSnapshot.cs"
+            || (name.Length > 15 && name[14] == '_' && name[..14].All(char.IsAsciiDigit));
     }
 }
