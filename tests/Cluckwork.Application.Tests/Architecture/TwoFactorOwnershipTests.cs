@@ -294,8 +294,8 @@ public sealed class TwoFactorOwnershipTests
 
     // The property an EF property entry selects, the entry given inline or as
     // a local initialized from Entry(...).Property(selector). A local's
-    // reassignment is not followed, and an initializer through ?. or a local
-    // with none resolves to nothing.
+    // reassignment is not followed, and an initializer through ?. or a
+    // user-defined conversion, or a local with none, resolves to nothing.
     private static IEnumerable<IPropertySymbol> EntryOf(IOperation entry) => entry switch
     {
         IInvocationOperation invocation => EntrySelection(invocation),
@@ -308,8 +308,10 @@ public sealed class TwoFactorOwnershipTests
         _ => [],
     };
 
+    // Built-in conversions only: a user-defined one could turn the entry into a
+    // type with its own CurrentValue.
     private static IOperation? Unconverted(IOperation? operation) =>
-        operation is IConversionOperation conversion ? Unconverted(conversion.Operand) : operation;
+        operation is IConversionOperation { OperatorMethod: null } conversion ? Unconverted(conversion.Operand) : operation;
 
     private static IEnumerable<IPropertySymbol> EntrySelection(IInvocationOperation invocation) =>
         invocation.TargetMethod is { Name: "Property" } method
