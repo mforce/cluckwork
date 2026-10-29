@@ -1,9 +1,10 @@
 // #1278 G3.21: an enrolled user's failed login carries a sign-in challenge,
 // which is a credential. Every harness that signs in is driven through its real
 // failure path against a 401 whose challenge is a fresh sentinel. The harness
-// must report that failure in its own words, and the sentinel must appear in
-// nothing it throws or prints. The sentinel is matched whole: a harness has no
-// reason to encode a body before printing it.
+// must report that failure in its own words, the sentinel must appear in
+// nothing it prints or throws, and a thrown error may hold only its primitive
+// fields. The sentinel is matched whole: a harness has no reason to encode a
+// body before printing it.
 // Run: node --test tools/simulation/harness-login-body.test.mjs
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -35,20 +36,28 @@ const problem = (sentinel, title = "Auth.SecondFactorRequired") => ({
   challengeExpiresAt: "2099-01-01T00:00:00Z",
 });
 
-// Every string a thrown value holds, however deep or long: its message and
-// stack, and each own property, enumerable or not, walked with a cycle guard.
-function everyString(value, seen = new Set()) {
-  if (value === null || value === undefined) return [];
-  if (typeof value !== "object" && typeof value !== "function") return [String(value)];
-  if (seen.has(value)) return [];
-  seen.add(value);
-  const strings = value instanceof Error ? [String(value.message), String(value.stack)] : [];
-  for (const key of Reflect.ownKeys(value)) {
-    strings.push(String(key));
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (descriptor && "value" in descriptor) strings.push(...everyString(descriptor.value, seen));
+// A thrown error may hold only these fields, each a primitive data property,
+// and its native stack. Any other own property, an accessor or a member its
+// class adds is a problem, so an error cannot keep a body, a response, a Map
+// or a getter over either.
+const ERROR_FIELDS = new Set(["name", "message", "status", "title"]);
+
+function errorShape(error) {
+  if (typeof error !== "object" || error === null) return { problems: [], strings: [String(error)] };
+  const problems = [];
+  const strings = [];
+  let proto = Object.getPrototypeOf(error);
+  for (; proto && proto.constructor?.name !== "Error"; proto = Object.getPrototypeOf(proto))
+    for (const key of Reflect.ownKeys(proto)) if (key !== "constructor") problems.push(`the thrown error's class adds ${String(key)}`);
+  // The stack accessor of the error's own realm: the vm's, or the test's for a stand-in.
+  const nativeStack = proto ? Object.getOwnPropertyDescriptor(new proto.constructor(), "stack") : {};
+  for (const key of Reflect.ownKeys(error)) {
+    const descriptor = Object.getOwnPropertyDescriptor(error, key);
+    if (key === "stack" && descriptor.get === nativeStack.get && descriptor.set === nativeStack.set) strings.push(String(error.stack));
+    else if (ERROR_FIELDS.has(key) && "value" in descriptor && Object(descriptor.value) !== descriptor.value) strings.push(String(descriptor.value));
+    else problems.push(`the thrown error holds ${String(key)}, which is not one of its primitive fields`);
   }
-  return strings;
+  return { problems, strings };
 }
 
 // A module's top-level code with its imports removed and its exports made
@@ -61,7 +70,7 @@ function asScript(source, allowedImports) {
 }
 
 function capturingConsole(output) {
-  const sink = (...values) => output.push(values.map((v) => (typeof v === "string" ? v : inspect(v))).join(" "));
+  const sink = (...values) => output.push(values.map((v) => (typeof v === "string" ? v : inspect(v, { depth: null }))).join(" "));
   return { log: sink, error: sink, warn: sink, info: sink, debug: sink };
 }
 
@@ -77,8 +86,14 @@ async function driveK6(sentinel) {
         return { status: 401, headers: {}, body, json: () => JSON.parse(body) };
       },
     },
-    // k6's check runs every predicate against the response.
-    check: (response, checks) => Object.values(checks).map((predicate) => predicate(response)).every(Boolean),
+    // k6's check prints each check's name and runs its predicate; fail throws.
+    check: (response, checks) => {
+      output.push(...Object.keys(checks));
+      return Object.values(checks).map((predicate) => predicate(response)).every(Boolean);
+    },
+    fail: (message) => {
+      throw new Error(message);
+    },
     BASE_URL: "http://127.0.0.1:1",
     AUTH_PATHS: { LOGIN: "/api/v1/auth/login", REFRESH: "/api/v1/auth/refresh" },
     CSRF_HEADER_NAME: "X-Cluckwork-Auth",
@@ -98,7 +113,8 @@ async function driveK6(sentinel) {
   // ReferenceError from a sandbox that no longer fits the file.
   if (error?.constructor?.name !== "Error" || !/status=401/.test(String(error.message)))
     unmet.push(`login() did not throw its own failure naming status=401: ${String(error)}`);
-  return { unmet, text: [...output, ...everyString(error)].join("\n") };
+  const shape = errorShape(error);
+  return { unmet: [...unmet, ...shape.problems], text: [...output, ...shape.strings].join("\n") };
 }
 
 // signInForToken names the pending answer and every other refusal on two
@@ -107,12 +123,8 @@ async function driveProbeApi(sentinel) {
   const output = [];
   let title;
   let fetched = 0;
-  // A real Response, with the raw body as an own property too, so an error
-  // that keeps the response is caught by the walk.
-  const response = () => {
-    const body = JSON.stringify(problem(sentinel, title));
-    return Object.assign(new Response(body, { status: 401, headers: { "content-type": "application/problem+json" } }), { rawBody: body });
-  };
+  const response = () =>
+    new Response(JSON.stringify(problem(sentinel, title)), { status: 401, headers: { "content-type": "application/problem+json" } });
   const context = vm.createContext({
     console: capturingConsole(output),
     fetch: async () => {
@@ -123,7 +135,7 @@ async function driveProbeApi(sentinel) {
     API_PREFIX: "/api/v1", BASE_URL: "http://127.0.0.1:1",
   });
   const source = stripTypeScriptTypes(read("tools/simulation/ui/src/api.ts"));
-  vm.runInContext(asScript(source, ["./env", "./cast"]), context);
+  vm.runInContext(asScript(source, ["./env"]), context);
   const member = { email: "probe@example.invalid", password: randomUUID(), farmCode: "default-farm" };
   const unmet = [];
   const strings = [];
@@ -141,7 +153,9 @@ async function driveProbeApi(sentinel) {
     }
     if (error?.name !== "ApiProbeError" || error.status !== 401 || error.title !== answer)
       unmet.push(`${name} with ${answer} did not throw ApiProbeError(401, ${answer}): ${String(error)}`);
-    strings.push(...everyString(error));
+    const shape = errorShape(error);
+    unmet.push(...shape.problems.map((issue) => `${name} with ${answer}: ${issue}`));
+    strings.push(...shape.strings);
   }
   if (fetched !== 3) unmet.push(`fetch was called ${fetched} times, not 3`);
   return { unmet, text: [...output, ...strings].join("\n") };
