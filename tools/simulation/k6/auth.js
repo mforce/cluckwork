@@ -101,9 +101,9 @@ export function login(user) {
     'login: Set-Cookie has per-farm refresh cookie': () => cookie !== null,
   });
 
+  // The status and title only: a failed login's body can carry a sign-in challenge (#1274).
   if (!ok) {
     throw new Error(
-      // The status and title only: a failed login's body can carry a sign-in challenge (#1274).
       `login failed for ${user.email}: status=${res.status} title=${body && body.title}`
     );
   }

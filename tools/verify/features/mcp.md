@@ -88,7 +88,7 @@ credentials come from `.sim-cast.json` and are never printed. `jq` reads the rep
 ```sh
 S=~/.tmp/mcp-verify; C="--cacert $S/cert.pem"; MCP=https://localhost:8495; APP=http://127.0.0.1:8081
 CAST=../../simulation/.sim-cast.json; T=$S/owner-read.token; W=$S/worker-read.token; WO=$S/owner-write.token
-login() { jq "$1" $CAST | curl -s $APP/api/v1/auth/login -H 'content-type: application/json' -d @- | jq -r '.accessToken // "sign-in failed: \(.status) \(.title)"'; }
+login() { jq "$1" $CAST | curl -s $APP/api/v1/auth/login -H 'content-type: application/json' -d @- | jq -r '.accessToken // ("sign-in failed: \(.status) \(.title)\n" | halt_error)'; }
 JWT=$(login '{farmCode:"default-farm",email:.owner.email,password:.owner.password}')
 WJWT=$(login '{farmCode:"default-farm"} + ([.cast[]|select(.role=="Worker")][0]|{email,password})')
 rpc() { curl -si $C -X POST $MCP/mcp -H "Authorization: Bearer $1" -H 'content-type: application/json' \

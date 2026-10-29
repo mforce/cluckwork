@@ -68,7 +68,7 @@ export async function signInForToken(member: CastMember): Promise<string> {
         title,
       );
     throw new ApiProbeError(
-      `Sign-in failed for ${member.email} (${res.status} ${title}). The cast file and the seeded `
+      `Sign-in failed for ${member.email} (${res.status}${title ? ` ${title}` : ""}). The cast file and the seeded `
         + `database have diverged — re-run \`bash tools/simulation/reset.sh\`.`,
       res.status,
       title,
@@ -84,7 +84,8 @@ export async function apiGet<T>(token: string, path: string): Promise<T> {
     headers: { authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    throw new ApiProbeError(`GET ${path} -> ${res.status}`, res.status, await problemTitle(res));
+    const title = await problemTitle(res);
+    throw new ApiProbeError(`GET ${path} -> ${res.status}`, res.status, title);
   }
   return (await res.json()) as T;
 }

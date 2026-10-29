@@ -126,9 +126,10 @@ def post(path, body, token=None, idempotency_key=None):
         # The status and title only: a failed login's body can carry a sign-in
         # challenge (#1274), which is a credential.
         try:
-            title = json.loads(exc.read()).get("title")
+            problem = json.loads(exc.read())
         except ValueError:
-            title = None
+            problem = None
+        title = problem.get("title") if isinstance(problem, dict) else None
         print(f"FAILED: POST {path} -> {exc.code} {title}", file=sys.stderr)
         sys.exit(1)
 
