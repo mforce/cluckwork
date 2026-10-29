@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -68,77 +69,99 @@ internal sealed class TwoFactorCredentials(
         if (await userManager.IsLockedOutAsync(user))
             return new FactorOutcome.Rejected(Charged: false);
 
+        return code switch
+        {
+            SecondFactorCode.Totp totp => await VerifyTotpAsync(accountId, user, totp, binding, ct),
+            SecondFactorCode.Recovery recovery => await VerifyRecoveryAsync(accountId, user, recovery, binding, ct),
+            _ => throw new UnreachableException(),
+        };
+    }
+
+    // Steps 3 to 6 for an authenticator code, with at most one save.
+    private async Task<FactorOutcome> VerifyTotpAsync(
+        Guid accountId, ApplicationUser user, SecondFactorCode.Totp totp, ProofBinding binding, CancellationToken ct)
+    {
         var now = timeProvider.GetUtcNow();
-        long? matchedStep = null;
-        bool matched;
-        if (code is SecondFactorCode.Totp totp)
-        {
-            if (user.SecondFactorFailuresSince is { } since && now - since > DailyWindow)
-            {
-                user.SecondFactorFailures = 0;
-                user.SecondFactorFailuresSince = null;
-                await SaveAsync(user);
-            }
-            if (user.SecondFactorFailures >= DailyBudget)
-                return new FactorOutcome.Throttled(user.SecondFactorFailuresSince!.Value + DailyWindow - now);
-
-            // Only a TOTP code reads the key, so recovery codes keep working
-            // when it cannot be decrypted.
-            string? key;
-            try
-            {
-                key = await ReadProtectedAsync(accountId, userId, ProtectedTwoFactorValue.AuthenticatorKey, ct);
-            }
-            catch (CryptographicException)
-            {
-                securityEvents.SecondFactorKeyUnreadable();
-                return new FactorOutcome.Unavailable();
-            }
-            if (key is null) return new FactorOutcome.Unavailable();
-
-            var match = TotpMatcher.MatchStep(key, totp.Value, user.SecondFactorWatermark, now);
-            if (match.Reused) return new FactorOutcome.Rejected(Charged: false);
-            matchedStep = match.Step;
-            matched = matchedStep is not null;
-        }
-        else
-        {
-            // One DELETE that removes one row, so one code cannot be spent twice.
-            var name = RecoveryCodeName(userId, ((SecondFactorCode.Recovery)code).Normalized);
-            matched = await Rows(accountId, userId).Where(t => t.Name == name).ExecuteDeleteAsync(ct) == 1;
-        }
-
-        if (!matched)
-        {
-            securityEvents.SecondFactorFailed();
-            if (await AccountLockout.RecordFailedAccessAsync(userManager, db, user))
-                securityEvents.AccountLockedOut(user.Id);
-            if (code is SecondFactorCode.Totp)
-            {
-                user.SecondFactorFailuresSince ??= now;
-                user.SecondFactorFailures++;
-                await SaveAsync(user);
-                if (user.SecondFactorFailures == DailyBudget)
-                    securityEvents.SecondFactorBudgetSpent(user.Id);
-            }
-            return new FactorOutcome.Rejected(Charged: true);
-        }
-
-        user.AccessFailedCount = 0;
-        if (matchedStep is { } step)
-        {
-            user.SecondFactorWatermark = step;
-        }
-        else
+        if (user.SecondFactorFailuresSince is { } since && now - since > DailyWindow)
         {
             user.SecondFactorFailures = 0;
             user.SecondFactorFailuresSince = null;
         }
+        if (user.SecondFactorFailures >= DailyBudget)
+        {
+            // A spent budget with no window start is not a state the writes
+            // leave; a full window fails closed.
+            var ends = (user.SecondFactorFailuresSince ?? now) + DailyWindow;
+            return new FactorOutcome.Throttled(ends - now);
+        }
+
+        // Only an authenticator code reads the key, so recovery codes keep
+        // working when it cannot be read.
+        TotpMatch match;
+        try
+        {
+            var key = await ReadProtectedAsync(accountId, user.Id, ProtectedTwoFactorValue.AuthenticatorKey, ct)
+                ?? throw new CryptographicException("An enrolled user has no authenticator key.");
+            match = TotpMatcher.MatchStep(key, totp.Value, user.SecondFactorWatermark, now);
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            securityEvents.SecondFactorKeyUnreadable();
+            await SaveIfChangedAsync(user);
+            return new FactorOutcome.Unavailable();
+        }
+
+        if (match.Reused)
+        {
+            await SaveIfChangedAsync(user);
+            return new FactorOutcome.Rejected(Charged: false);
+        }
+        if (match.Step is not { } step)
+        {
+            user.SecondFactorFailuresSince ??= now;
+            user.SecondFactorFailures++;
+            return await ChargeAsync(user, spendsBudget: user.SecondFactorFailures == DailyBudget);
+        }
+
+        user.SecondFactorWatermark = step;
+        return await AcceptAsync(user, binding, recoveryCodesLeft: null);
+    }
+
+    // Steps 4 to 6 for a recovery code, which never reads the key or the budget.
+    private async Task<FactorOutcome> VerifyRecoveryAsync(
+        Guid accountId, ApplicationUser user, SecondFactorCode.Recovery recovery, ProofBinding binding, CancellationToken ct)
+    {
+        // One DELETE that removes one row, so one code cannot be spent twice.
+        var name = RecoveryCodeName(user.Id, recovery.Normalized);
+        if (await Rows(accountId, user.Id).Where(t => t.Name == name).ExecuteDeleteAsync(ct) != 1)
+            return await ChargeAsync(user, spendsBudget: false);
+
+        user.SecondFactorFailures = 0;
+        user.SecondFactorFailuresSince = null;
+        return await AcceptAsync(user, binding, await RecoveryCodesLeftAsync(accountId, user.Id, ct));
+    }
+
+    // Step 5. AccessFailedAsync's UserManager save also carries any daily-count
+    // change; under the lock it cannot lose its concurrency check.
+    private async Task<FactorOutcome> ChargeAsync(ApplicationUser user, bool spendsBudget)
+    {
+        securityEvents.SecondFactorFailed();
+        if (await AccountLockout.RecordFailedAccessAsync(userManager, db, user))
+            securityEvents.AccountLockedOut(user.Id);
+        if (spendsBudget)
+            securityEvents.SecondFactorBudgetSpent(user.Id);
+        return new FactorOutcome.Rejected(Charged: true);
+    }
+
+    // Step 6.
+    private async Task<FactorOutcome> AcceptAsync(ApplicationUser user, ProofBinding binding, int? recoveryCodesLeft)
+    {
+        user.AccessFailedCount = 0;
         // Decision 2: every accepted login, by either factor, ends the challenge it used.
         if (binding.SignIns is not null)
             user.SecondFactorSignIns++;
         await SaveAsync(user);
-        return new FactorOutcome.Accepted(matchedStep is null ? await RecoveryCodesLeftAsync(accountId, userId, ct) : null);
+        return new FactorOutcome.Accepted(recoveryCodesLeft);
     }
 
     public async Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct)
@@ -175,7 +198,7 @@ internal sealed class TwoFactorCredentials(
         {
             payload = JsonSerializer.Deserialize<PendingPayload>(Protector(accountId, userId).Unprotect(pendingRow.Value!))!;
         }
-        catch (CryptographicException)
+        catch (Exception ex) when (ex is CryptographicException or JsonException)
         {
             RemoveRow(pendingRow);
             await db.SaveChangesAsync(ct);
@@ -261,14 +284,12 @@ internal sealed class TwoFactorCredentials(
     // The one digest function, so the stage and verify sites cannot disagree on
     // the normal form: spaces and hyphens removed, upper case, then
     // XXXX-XXXX-XXXX-XXXX. The verify site parses first (SecondFactorCode), so
-    // malformed input never reaches here; the length check fails closed if a
-    // caller skips it.
+    // malformed input never reaches here; the normal-form check fails closed if
+    // a caller skips it.
     internal static string RecoveryCodeName(Guid userId, string code)
     {
-        var compact = code.Replace(" ", "").Replace("-", "").ToUpperInvariant();
-        if (compact.Length != SecondFactorCode.RecoveryLength)
-            throw new ArgumentException("A recovery code has 16 characters.", nameof(code));
-        var normalized = string.Join('-', compact.Chunk(4).Select(c => new string(c)));
+        var normalized = SecondFactorCode.NormalizeRecovery(code)
+            ?? throw new ArgumentException("A recovery code has 16 characters of the recovery alphabet.", nameof(code));
         return RecoveryCodePrefix + Convert.ToHexStringLower(
             SHA256.HashData(Encoding.UTF8.GetBytes($"{userId:D}:{normalized}")));
     }
@@ -279,8 +300,8 @@ internal sealed class TwoFactorCredentials(
         var codes = new List<string>(RecoveryCodeCount);
         while (codes.Count < RecoveryCodeCount)
         {
-            var raw = RandomNumberGenerator.GetString(SecondFactorCode.RecoveryAlphabet, SecondFactorCode.RecoveryLength);
-            var code = string.Join('-', raw.Chunk(4).Select(c => new string(c)));
+            var code = SecondFactorCode.NormalizeRecovery(
+                RandomNumberGenerator.GetString(SecondFactorCode.RecoveryAlphabet, SecondFactorCode.RecoveryLength))!;
             if (!codes.Contains(code)) codes.Add(code);
         }
         return codes;
@@ -306,6 +327,12 @@ internal sealed class TwoFactorCredentials(
         if (user is not null)
             await db.Entry(user).ReloadAsync(ct);
         return user;
+    }
+
+    // A refused outcome writes nothing beyond a window rollover.
+    private async Task SaveIfChangedAsync(ApplicationUser user)
+    {
+        if (db.Entry(user).State == EntityState.Modified) await SaveAsync(user);
     }
 
     private async Task SaveAsync(ApplicationUser user)
@@ -344,5 +371,8 @@ internal sealed class TwoFactorCredentials(
     // The pending enrolment, protected as one value: the new key, the epoch
     // and stamp it was started under, its issue time and its wrong confirms.
     private sealed record PendingPayload(
-        string Key, int CredentialEpoch, string SecurityStampHash, DateTimeOffset IssuedAt, int WrongConfirms);
+        string Key, int CredentialEpoch, string SecurityStampHash, DateTimeOffset IssuedAt, int WrongConfirms)
+    {
+        public override string ToString() => "[redacted]";
+    }
 }

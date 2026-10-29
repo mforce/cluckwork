@@ -143,7 +143,11 @@ public static partial class AuthEndpoints
 
 public sealed record LoginRequest(string FarmCode, string Email, string Password);
 
-public sealed record SecondFactorLoginRequest(string Challenge, string Code);
+// Both members are credentials, so the record never prints them.
+public sealed record SecondFactorLoginRequest(string Challenge, string Code)
+{
+    public override string ToString() => "[redacted]";
+}
 
 public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
 

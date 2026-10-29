@@ -194,4 +194,56 @@ public sealed partial class SecondFactorLoginTests
         Assert.IsType<FactorOutcome.Accepted>(
             await VerifyInOwnScopeAsync(factor, Parsed(factor.RecoveryCodes[0]), await StepUpBindingAsync(factor)));
     }
+
+    // Review round 1, item 9: states the writes never leave fail closed, never 500.
+    [Fact]
+    public async Task AKeyThatDecryptsButIsNotBase32_IsUnavailable_NotAServerError()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        using (var scope = factory.Services.CreateScope())
+        {
+            scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(factor.AccountId);
+            var credentials = scope.ServiceProvider.GetRequiredService<TwoFactorCredentials>();
+            await credentials.StageProtectedAsync(factor.UserId, ProtectedTwoFactorValue.AuthenticatorKey, "not base32!", default);
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().SaveChangesAsync();
+        }
+        factory.Sink.Events.Clear();
+
+        var answer = await PostCodeAsync((await factory.PasswordStepAsync(email)).Challenge, CodeAt(factor, 1));
+
+        Assert.Equal((HttpStatusCode.BadRequest, SecondFactorErrorCodes.KeyUnavailable), (answer.StatusCode, (await ProblemOf(answer)).Title));
+        Assert.Single(factory.EventsFor(SecurityEvents.SecondFactorKeyUnreadable));
+    }
+
+    [Fact]
+    public async Task ASpentBudgetWithNoWindowStart_IsThrottled_NotAServerError()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        await SetBudgetAsync(factor, failures: 20, since: null);
+
+        var answer = await PostCodeAsync((await factory.PasswordStepAsync(email)).Challenge, CodeAt(factor, 1));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, answer.StatusCode);
+        Assert.True(int.Parse(answer.Headers.GetValues("Retry-After").Single()) >= 1);
+    }
+
+    [Fact]
+    public async Task AWindowThatEndsThisSecond_AsksTheClientToWaitAtLeastOneSecond()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        factory.Clock.Freeze();
+        await SetBudgetAsync(factor, failures: 20, since: factory.Clock.GetUtcNow() - TimeSpan.FromHours(24));
+
+        var answer = await PostCodeAsync((await factory.PasswordStepAsync(email)).Challenge, CodeAt(factor, 1));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, answer.StatusCode);
+        Assert.Equal("1", answer.Headers.GetValues("Retry-After").Single());
+    }
+
+    private async Task SetBudgetAsync(EnrolledFactor factor, int failures, DateTimeOffset? since)
+    {
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Users.Where(u => u.Id == factor.UserId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.SecondFactorFailures, failures).SetProperty(u => u.SecondFactorFailuresSince, since));
+    }
 }

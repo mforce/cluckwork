@@ -27,7 +27,7 @@ public static partial class AuthEndpoints
     // and active farms to be indistinguishable. The trade was made explicitly:
     // telling a farm's own staff their password is wrong is a lie that generates
     // support load, and farm existence is already disclosed by the branch above.
-    public const string FarmSuspendedCode = "Auth.FarmSuspended";
+    public const string FarmSuspendedCode = SecondFactorErrorCodes.FarmSuspended;
 
     private static async Task<IResult> Login(
         LoginRequest request, IAccessModule access, IValidator<LoginRequest> validator,
@@ -174,7 +174,8 @@ public static partial class AuthEndpoints
         switch (result.Error)
         {
             case RetryLaterError retry:
-                response.Headers.RetryAfter = Math.Ceiling(retry.RetryAfter.TotalSeconds)
+                // At least 1: a window that ends this second still refuses now.
+                response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
                     .ToString(System.Globalization.CultureInfo.InvariantCulture);
                 return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
             case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:

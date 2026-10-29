@@ -23,7 +23,7 @@ public sealed partial class IdentityProvider
     {
         // The challenge first, so a malformed code on a dead challenge gets the 401.
         if (SecondFactorChallenge.Read(challenge, jwtOptions.Value, timeProvider.GetUtcNow()) is not { } claims)
-            return ChallengeExpired();
+            return LogAndRefuseExpiredChallenge();
         // Parsed before anything digests it: malformed input is refused, uncharged.
         if (!SecondFactorCode.TryParse(code, out var parsed))
             return Result.Failure<TokenPair>(SecondFactorIncorrect);
@@ -34,7 +34,7 @@ public sealed partial class IdentityProvider
             .Where(account => account.Id == claims.AccountId)
             .Select(account => (bool?)account.IsActive)
             .FirstOrDefaultAsync(ct);
-        if (accountIsActive is null) return ChallengeExpired();
+        if (accountIsActive is null) return LogAndRefuseExpiredChallenge();
         if (accountIsActive == false)
             return Result.Failure<TokenPair>(Error.Validation(
                 SecondFactorErrorCodes.FarmSuspended, "This farm is suspended. Contact your administrator."));
@@ -51,7 +51,9 @@ public sealed partial class IdentityProvider
                 var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, parsed, claims.Binding, token);
                 if (outcome is not FactorOutcome.Accepted accepted)
                 {
-                    await transaction.CommitAsync(token);
+                    // A refused outcome's charge stands even if the client has
+                    // gone: a cancelled commit would roll it back.
+                    await transaction.CommitAsync(CancellationToken.None);
                     return Refused(outcome);
                 }
 
@@ -84,13 +86,13 @@ public sealed partial class IdentityProvider
 
     private Result<TokenPair> Refused(FactorOutcome outcome) => outcome switch
     {
-        FactorOutcome.Superseded => ChallengeExpired(),
+        FactorOutcome.Superseded => LogAndRefuseExpiredChallenge(),
         FactorOutcome.Unavailable => Result.Failure<TokenPair>(SecondFactorKeyUnavailable),
         FactorOutcome.Throttled throttled => Result.Failure<TokenPair>(new RetryLaterError(throttled.RetryAfter)),
         _ => Result.Failure<TokenPair>(SecondFactorIncorrect),
     };
 
-    private Result<TokenPair> ChallengeExpired()
+    private Result<TokenPair> LogAndRefuseExpiredChallenge()
     {
         securityEvents.SecondFactorChallengeExpired();
         return Result.Failure<TokenPair>(Error.Validation(

@@ -90,6 +90,8 @@ public sealed partial class SecondFactorLoginTests
         Assert.InRange(retryAfter, spentAt + TimeSpan.FromHours(24) - factory.Clock.GetUtcNow() - TimeSpan.FromSeconds(5),
             spentAt + TimeSpan.FromHours(24) - factory.Clock.GetUtcNow() + TimeSpan.FromSeconds(5));
 
+        // A second host on the same database. It shares this process, so a count
+        // held in a static would pass here; the column assertions above catch that.
         using (var secondInstance = factory.WithWebHostBuilder(_ => { }))
         {
             using var again = await secondInstance.CreateClient().PostAsJsonAsync(

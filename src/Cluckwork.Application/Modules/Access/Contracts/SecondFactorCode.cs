@@ -33,23 +33,18 @@ public abstract record SecondFactorCode
             return true;
         }
 
-        var compact = digits.Replace("-", "").ToUpperInvariant();
-        if (compact.Length != RecoveryLength || !compact.All(RecoveryAlphabet.Contains))
-            return false;
-        code = new Recovery(string.Join('-', compact.Chunk(4).Select(c => new string(c))));
+        if (NormalizeRecovery(digits) is not { } normalized) return false;
+        code = new Recovery(normalized);
         return true;
     }
-}
 
-public abstract record LoginStep
-{
-    private LoginStep() { }
-
-    public sealed record SignedIn(TokenPair Tokens) : LoginStep;
-
-    // The challenge is a credential until it is used: never logged, never in a
-    // URL, an event or an audit row (#1274 decision 2).
-    public sealed record SecondFactorRequired(string Challenge, DateTimeOffset ExpiresAt) : LoginStep;
-
-    public sealed override string ToString() => "[redacted]";
+    // The one normal form (decision 9): spaces and hyphens removed, upper case,
+    // 16 characters of the alphabet, then XXXX-XXXX-XXXX-XXXX. Null otherwise.
+    public static string? NormalizeRecovery(string raw)
+    {
+        var compact = raw.Replace(" ", "").Replace("-", "").ToUpperInvariant();
+        return compact.Length == RecoveryLength && compact.All(RecoveryAlphabet.Contains)
+            ? string.Join('-', compact.Chunk(4).Select(c => new string(c)))
+            : null;
+    }
 }

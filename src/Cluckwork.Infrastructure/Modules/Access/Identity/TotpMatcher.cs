@@ -54,6 +54,8 @@ internal static class TotpMatcher
         {
             var digit = Base32Alphabet.IndexOf(c);
             if (digit < 0) throw new FormatException("An authenticator key is base32.");
+            // At most 12 bits are pending (7 left over plus 5 new), so the
+            // mask keeps the buffer from overflowing on a long input.
             buffer = ((buffer << 5) | digit) & 0xFFF;
             bits += 5;
             if (bits < 8) continue;

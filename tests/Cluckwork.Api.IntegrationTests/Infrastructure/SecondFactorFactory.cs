@@ -84,7 +84,8 @@ internal sealed class SettableClock : TimeProvider
 
     public void Freeze()
     {
-        lock (_gate) _frozenAt ??= DateTimeOffset.UtcNow + _offset;
+        // A whole second, so a value written to timestamptz reads back equal.
+        lock (_gate) _frozenAt ??= DateTimeOffset.FromUnixTimeSeconds((DateTimeOffset.UtcNow + _offset).ToUnixTimeSeconds());
     }
 
     public void Reset()

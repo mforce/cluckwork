@@ -158,8 +158,9 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, refresh.StatusCode);
     }
 
-    // G3.16: the lock lets a reset land only after the mint, and the reset's
-    // epoch bump refuses what the code step minted.
+    // G3.16: a reset that commits after the code step's mint supersedes what it
+    // minted. Sequential: the lock is what keeps a concurrent reset to this
+    // order, and the record names no mutation that isolates it.
     [Fact]
     public async Task APasswordResetRightAfterTheCodeStep_RefusesTheNewSession()
     {

@@ -6,6 +6,7 @@ public static class SecondFactorErrorCodes
 {
     public const string Required = "Auth.SecondFactorRequired";
     public const string ChallengeExpired = "Auth.SecondFactorChallengeExpired";
+    // Also login's and the credential-epoch check's answer for a suspended farm.
     public const string FarmSuspended = "Auth.FarmSuspended";
     public const string Incorrect = "Auth.SecondFactorIncorrect";
     public const string KeyUnavailable = "Auth.SecondFactorKeyUnavailable";
