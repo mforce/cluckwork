@@ -17,7 +17,10 @@ namespace Cluckwork.Application.Tests.Architecture;
 public sealed class TwoFactorOwnershipTests
 {
     private const string Identity = "Cluckwork.Infrastructure.Modules.Access.Identity.";
-    private const string Owner = Identity + "TwoFactorCredentials";
+    // Members and types are keyed by assembly and symbol, so a same-named
+    // declaration in another assembly matches no row and is not the owner.
+    private const string InInfrastructure = "Cluckwork.Infrastructure: ";
+    private const string Owner = InInfrastructure + Identity + "TwoFactorCredentials";
     private const string Matcher = Identity + "TotpMatcher";
     private const string UserType = Identity + "ApplicationUser";
     private const string ProtectorPurpose = "Cluckwork.TwoFactorCredentials";
@@ -28,25 +31,27 @@ public sealed class TwoFactorOwnershipTests
     private const int OwnedColumnFloor = 6;
 
     // The members outside TwoFactorCredentials allowed to reference an owned
-    // column, keyed by the member's symbol and the property (#859). Maintainer,
-    // 2026-10-29: "List the read sites". A new reader adds one reviewed row; a
-    // row its member no longer uses fails, and so does a repeated row.
+    // column, keyed by the member's assembly and symbol and the property (#859).
+    // Maintainer, 2026-10-29: "List the read sites". A new reader adds one
+    // reviewed row. A row must name an owned column and exactly one declared
+    // method or accessor; a row its member no longer uses fails, and so does a
+    // repeated row.
     private sealed record OutsideReader(string Member, string Property, string Reason);
 
     private static readonly OutsideReader[] OutsideReaders =
     [
         new(PasswordStepRead, "SecondFactorSignIns", "the challenge carries the count the code step compares (decision 2)"),
-        new(Identity + "IdentityProvider.LoginAsync(System.Guid, string, string, System.Threading.CancellationToken)",
+        new(InInfrastructure + Identity + "IdentityProvider.LoginAsync(System.Guid, string, string, System.Threading.CancellationToken)",
             "TwoFactorEnabled", "a correct password asks an enrolled user for a code (decision 5)"),
-        new(Identity + "IdentityProvider.RefreshAsync(string, System.Threading.CancellationToken, System.Guid?)",
+        new(InInfrastructure + Identity + "IdentityProvider.RefreshAsync(string, System.Threading.CancellationToken, System.Guid?)",
             "TwoFactorEnabled", "an enrolled lineage ends a fixed time after its last sign-in (decision 8)"),
-        new(Identity + "JwtTokenService.CreateTokenPair(" + Identity + "ApplicationUser, System.Collections.Generic.IReadOnlyCollection<string>, string)",
+        new(InInfrastructure + Identity + "JwtTokenService.CreateTokenPair(" + Identity + "ApplicationUser, System.Collections.Generic.IReadOnlyCollection<string>, string)",
             "TwoFactorEnabled", "the two_factor claim the SPA shows step-up's code field from"),
     ];
 
     // The password step's read of the sign-in count, which the challenge
     // carries (decision 2): the record requires the walk to find it.
-    private const string PasswordStepRead = Identity + "SecondFactorChallenge.Issue(" + Identity + "ApplicationUser, " + Identity + "JwtOptions, System.DateTimeOffset)";
+    private const string PasswordStepRead = InInfrastructure + Identity + "SecondFactorChallenge.Issue(" + Identity + "ApplicationUser, " + Identity + "JwtOptions, System.DateTimeOffset)";
 
     private static readonly HashSet<string> BannedStores =
     [
@@ -61,6 +66,8 @@ public sealed class TwoFactorOwnershipTests
         "ResetAuthenticatorKeyAsync", "GetAuthenticatorKeyAsync", "GenerateNewTwoFactorRecoveryCodesAsync",
         "RedeemTwoFactorRecoveryCodeAsync", "CountRecoveryCodesAsync", "SetAuthenticationTokenAsync",
         "GetAuthenticationTokenAsync", "RemoveAuthenticationTokenAsync",
+        // It moves the flag with no CredentialEpoch write the epoch rule could see.
+        "SetTwoFactorEnabledAsync",
     ];
 
     // TwoFactorCredentials held 25 owned references on 2026-10-29.
@@ -89,8 +96,16 @@ public sealed class TwoFactorOwnershipTests
     [Fact]
     public void EveryOutsideReaderRow_IsUsedOnce()
     {
-        var used = RealTree.Value.Where(h => h.Kind == "owned").Select(h => (h.Method ?? "", h.Member)).ToHashSet();
+        var hits = RealTree.Value;
+        var used = hits.Where(h => h.Kind == "owned").Select(h => (h.Method ?? "", h.Member)).ToHashSet();
         Assert.True(OutsideReaders.Length >= 4, $"OutsideReaders holds {OutsideReaders.Length} rows, below its floor of 4");
+        var columns = hits.Where(h => h.Kind == "column").Select(h => h.Member).ToHashSet();
+        var notColumns = OutsideReaders.Where(r => !columns.Contains(r.Property)).Select(r => $"{r.Member} {r.Property}").ToList();
+        Assert.True(notColumns.Count == 0, "OutsideReaders rows whose property is not an owned column:\n  " + string.Join("\n  ", notColumns));
+        var declared = hits.Where(h => h.Kind == "declares").GroupBy(h => h.Member).ToDictionary(g => g.Key, g => g.Count());
+        var unmatched = OutsideReaders.Where(r => declared.GetValueOrDefault(r.Member) != 1)
+            .Select(r => $"{r.Member}: {declared.GetValueOrDefault(r.Member)} declarations").ToList();
+        Assert.True(unmatched.Count == 0, "OutsideReaders rows that do not name exactly one declared member:\n  " + string.Join("\n  ", unmatched));
         var stale = OutsideReaders.Where(r => !used.Contains((r.Member, r.Property))).Select(r => $"{r.Member} {r.Property}").ToList();
         Assert.True(stale.Count == 0, "OutsideReaders rows no reference uses; delete them:\n  " + string.Join("\n  ", stale));
         var repeated = OutsideReaders.GroupBy(r => (r.Member, r.Property)).Where(g => g.Count() > 1).Select(g => g.Key.ToString()).ToList();
@@ -105,9 +120,11 @@ public sealed class TwoFactorOwnershipTests
     }
 
     // #1274 decision 8: a factor change ends every session minted before it.
-    // This reads every method, constructor and accessor in src/: the user
-    // properties each one's operation tree assigns, increments or names as a
-    // SetProperty target.
+    // Every assignment in src/ counts, wherever it sits (a method, an accessor,
+    // an expression-bodied member, a field initializer or a lambda), keyed by
+    // its member: a plain, compound or null-conditional assignment, an
+    // increment, a deconstruction element at any depth, an object initializer,
+    // a SetProperty target and an EF Entry(...).Property(...).CurrentValue.
     [Fact]
     public void EveryMethodThatAssignsTwoFactorEnabled_AlsoAssignsCredentialEpoch()
     {
@@ -143,7 +160,7 @@ public sealed class TwoFactorOwnershipTests
             .Where(n => n.StartsWith("SecondFactor", StringComparison.Ordinal)).Append("TwoFactorEnabled").ToHashSet();
         Assert.True(owned.Count >= OwnedColumnFloor, $"found {owned.Count} owned columns on {UserType}, below its floor of {OwnedColumnFloor}");
 
-        var hits = new List<Hit>();
+        var hits = owned.Select(column => new Hit("column", UserType, null, column, UserType)).ToList();
         foreach (var compilation in dependents.Prepend(infrastructure))
             foreach (var tree in compilation.SyntaxTrees.Where(t => t.FilePath.Length > 0))
                 hits.AddRange(WalkTree(compilation.GetSemanticModel(tree), tree, srcRoot, owned));
@@ -157,17 +174,19 @@ public sealed class TwoFactorOwnershipTests
 
         Hit At(SyntaxNode node, string kind, string member)
         {
-            var enclosing = node is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax
-                ? model.GetDeclaredSymbol(node)
-                : model.GetEnclosingSymbol(node.SpanStart);
+            var enclosing = model.GetEnclosingSymbol(node.SpanStart);
             var method = enclosing;
             while (method is IMethodSymbol { MethodKind: MethodKind.AnonymousFunction or MethodKind.LocalFunction })
                 method = method.ContainingSymbol;
             var container = enclosing?.ContainingType ?? enclosing as INamedTypeSymbol;
             while (container?.ContainingType is { } outer) container = outer;
             var line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-            return new Hit(kind, container?.ToDisplayString() ?? "<none>", method?.ToDisplayString(), member, $"{file}:{line}");
+            return new Hit(kind, container is null ? "<none>" : Key(container), method is null ? null : Key(method), member, $"{file}:{line}");
         }
+
+        foreach (var declaration in root.DescendantNodes().Where(n => n is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax))
+            if (model.GetDeclaredSymbol(declaration) is IMethodSymbol declared && declared.PartialImplementationPart is null)
+                yield return new Hit("declares", "", null, Key(declared), file);
 
         foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>()
             .Where(m => BannedManagerMembers.Contains(m.Identifier.ValueText) || StoreMemberNames.Contains(m.Identifier.ValueText)))
@@ -179,14 +198,14 @@ public sealed class TwoFactorOwnershipTests
 
         // A column named in SQL or any other string. Schema text is exempt: the
         // ApplicationUser entity configuration, and in a migration or the
-        // snapshot a literal passed straight to a schema operation. Anything
-        // else, Sql, UpdateData or a local the SQL is built in, fails.
+        // snapshot a literal bound to a column-naming parameter of EF's schema
+        // API. Anything else, Sql, UpdateData, a filter or a local, fails.
         var migration = GuardScanner.IsMigrationShaped(file);
         foreach (var text in root.DescendantTokens().Where(t => t.IsKind(SyntaxKind.StringLiteralToken)
                 || t.IsKind(SyntaxKind.InterpolatedStringTextToken) || t.IsKind(SyntaxKind.SingleLineRawStringLiteralToken)
                 || t.IsKind(SyntaxKind.MultiLineRawStringLiteralToken)))
         {
-            if (migration ? IsSchemaOperationName(text.Parent!) : IsEntityConfiguration(text.Parent!, model)) continue;
+            if (migration ? IsSchemaColumnName(text.Parent!, model) : IsEntityConfiguration(text.Parent!, model)) continue;
             foreach (var column in ownedColumns.Where(c => text.ValueText.Contains(c, StringComparison.Ordinal)))
                 yield return At(text.Parent!, "owned", column + " in a string");
         }
@@ -235,23 +254,37 @@ public sealed class TwoFactorOwnershipTests
                 yield return At(name, "owned", property.Name);
         }
 
-        // Every member's user-column assignments, for the epoch rule.
-        foreach (var body in root.DescendantNodes().Where(n => n is BaseMethodDeclarationSyntax or AccessorDeclarationSyntax))
-            foreach (var target in AssignedProperties(model.GetOperation(body)).Where(IsUserColumn))
-                yield return At(body, "assigns", target.Name);
+        // Every user-column assignment, keyed by its member, for the epoch rule.
+        foreach (var node in root.DescendantNodes().Where(n => n is AssignmentExpressionSyntax
+                     or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax
+                     or InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "SetProperty" } }))
+            foreach (var target in AssignedProperties(model.GetOperation(node)).Where(IsUserColumn))
+                yield return At(node, "assigns", target.Name);
     }
 
-    private static IEnumerable<IPropertySymbol> AssignedProperties(IOperation? body) =>
-        body is null ? [] : body.Descendants().SelectMany(operation => operation switch
-        {
-            IIncrementOrDecrementOperation { Target: IPropertyReferenceOperation target } => [target.Property],
-            IAssignmentOperation { Target: IPropertyReferenceOperation target } => [target.Property],
-            IDeconstructionAssignmentOperation { Target: ITupleOperation tuple } =>
-                tuple.Elements.OfType<IPropertyReferenceOperation>().Select(element => element.Property),
-            IInvocationOperation { TargetMethod.Name: "SetProperty", Arguments: [var target, ..] } =>
-                target.Value.Descendants().OfType<IPropertyReferenceOperation>().Take(1).Select(reference => reference.Property),
-            _ => [],
-        });
+    private static string Key(ISymbol symbol) => $"{symbol.ContainingAssembly?.Name}: {symbol.ToDisplayString()}";
+
+    private static IEnumerable<IPropertySymbol> AssignedProperties(IOperation? operation) => operation switch
+    {
+        IAssignmentOperation assignment => Targets(assignment.Target),
+        IIncrementOrDecrementOperation increment => Targets(increment.Target),
+        IInvocationOperation { TargetMethod.Name: "SetProperty" } setter =>
+            setter.Arguments.Where(a => a.Parameter?.Name == "propertyExpression").SelectMany(a => Selected(a.Value)),
+        _ => [],
+    };
+
+    private static IEnumerable<IPropertySymbol> Targets(IOperation target) => target switch
+    {
+        IPropertyReferenceOperation { Property.Name: "CurrentValue", Instance: IInvocationOperation { TargetMethod.Name: "Property" } entry } =>
+            entry.Arguments.SelectMany(a => Selected(a.Value)),
+        IPropertyReferenceOperation reference => [reference.Property],
+        ITupleOperation tuple => tuple.Elements.SelectMany(Targets),
+        _ => [],
+    };
+
+    // The property a selector lambda such as u => u.TwoFactorEnabled names.
+    private static IEnumerable<IPropertySymbol> Selected(IOperation selector) =>
+        selector.DescendantsAndSelf().OfType<IPropertyReferenceOperation>().Take(1).Select(reference => reference.Property);
 
     // The banned stores' member names, so no method in src/ can take one.
     private static readonly HashSet<string> StoreMemberNames =
@@ -259,19 +292,27 @@ public sealed class TwoFactorOwnershipTests
         "ReplaceCodesAsync", "RedeemCodeAsync", "CountCodesAsync",
         "SetTokenAsync", "RemoveTokenAsync", "GetTokenAsync",
         "SetAuthenticatorKeyAsync", "GetAuthenticatorKeyAsync",
+        "SetTwoFactorEnabledAsync",
     ];
 
     // A store member is banned by its declaring interface, or by implementing one.
     private static bool IsBannedIdentityMember(IMethodSymbol method)
     {
         var declaring = method.ContainingType.OriginalDefinition;
-        if (BannedStores.Contains(declaring.ToDisplayString())) return true;
+        if (IsBannedStoreMember(method)) return true;
         if (declaring.ToDisplayString() == "Microsoft.AspNetCore.Identity.UserManager<TUser>")
             return BannedManagerMembers.Contains(method.Name);
         return method.ContainingType.AllInterfaces
-            .Where(i => BannedStores.Contains(i.OriginalDefinition.ToDisplayString()))
-            .SelectMany(i => i.GetMembers())
+            .SelectMany(i => i.GetMembers().OfType<IMethodSymbol>())
+            .Where(IsBannedStoreMember)
             .Any(member => SymbolEqualityComparer.Default.Equals(method.ContainingType.FindImplementationForInterfaceMember(member), method));
+    }
+
+    private static bool IsBannedStoreMember(IMethodSymbol method)
+    {
+        var declaring = method.ContainingType.OriginalDefinition.ToDisplayString();
+        return BannedStores.Contains(declaring)
+            || (declaring == "Microsoft.AspNetCore.Identity.IUserTwoFactorStore<TUser>" && method.Name == "SetTwoFactorEnabledAsync");
     }
 
     // Identity's other TwoFactor, Authenticator and RecoveryCode members on
@@ -300,26 +341,26 @@ public sealed class TwoFactorOwnershipTests
             && type.AllInterfaces.Any(i => i.OriginalDefinition.ToDisplayString() == "Microsoft.EntityFrameworkCore.IEntityTypeConfiguration<TEntity>"
                 && i.TypeArguments.Single().ToDisplayString() == UserType));
 
-    // EF's schema operations and the snapshot's Property and HasIndex name a
-    // column. A literal is exempt only as an argument that names one, so a
-    // filter: or defaultValueSql: argument, which is SQL, still fails.
-    private static readonly HashSet<string> SchemaOperations =
-        ["AddColumn", "AlterColumn", "DropColumn", "RenameColumn", "CreateIndex", "DropIndex", "Property", "HasIndex"];
+    // The schema operations of EF's migration and model builders, each with the
+    // parameters that name a column or an index. InsertData and UpdateData
+    // take a column too, but they write rows, so they are not here.
+    private static readonly HashSet<string> SchemaColumnParameters =
+    [
+        "AddColumn.name", "AlterColumn.name", "DropColumn.name", "RenameColumn.name", "RenameColumn.newName",
+        "CreateIndex.name", "CreateIndex.column", "CreateIndex.columns", "DropIndex.name",
+        "Property.propertyName", "HasIndex.propertyNames",
+    ];
 
-    private static readonly HashSet<string> ColumnParameters = ["name", "newName", "column", "columns"];
+    private static readonly HashSet<string> SchemaBuilders =
+        ["Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder", "Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder"];
 
-    private static bool IsSchemaOperationName(SyntaxNode literal)
+    private static bool IsSchemaColumnName(SyntaxNode literal, SemanticModel model)
     {
-        // A column list, such as columns: new[] { ... }, sits two levels below its argument.
-        var argument = literal.Parent as ArgumentSyntax ?? literal.Parent?.Parent?.Parent as ArgumentSyntax;
-        return argument is { Parent.Parent: InvocationExpressionSyntax invocation }
-            && (argument.NameColon is null || ColumnParameters.Contains(argument.NameColon.Name.Identifier.ValueText))
-            && (invocation.Expression switch
-            {
-                MemberAccessExpressionSyntax access => access.Name,
-                SimpleNameSyntax simple => simple,
-                _ => null,
-            }) is { } name
-            && SchemaOperations.Contains(name.Identifier.ValueText);
+        var operation = model.GetOperation(literal);
+        while (operation?.Parent is IConversionOperation or IArrayInitializerOperation or IArrayCreationOperation or ICollectionExpressionOperation)
+            operation = operation.Parent;
+        return operation?.Parent is IArgumentOperation { Parameter: { } parameter, Parent: IInvocationOperation invocation }
+            && SchemaColumnParameters.Contains($"{invocation.TargetMethod.Name}.{parameter.Name}")
+            && SchemaBuilders.Contains(invocation.TargetMethod.ContainingType.ToDisplayString());
     }
 }
