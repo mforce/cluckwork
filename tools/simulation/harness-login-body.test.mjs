@@ -1,7 +1,9 @@
 // #1278 G3.21: an enrolled user's failed login carries a sign-in challenge,
 // which is a credential. Every harness that signs in is driven through its real
-// failure path against a 401 whose challenge is a fresh sentinel, and the
-// sentinel must appear in nothing the harness throws or prints.
+// failure path against a 401 whose challenge is a fresh sentinel. The harness
+// must report that failure in its own words, and the sentinel must appear in
+// nothing it throws or prints. The sentinel is matched whole: a harness has no
+// reason to encode a body before printing it.
 // Run: node --test tools/simulation/harness-login-body.test.mjs
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -19,6 +21,9 @@ const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (path) => readFileSync(join(repo, path), "utf8");
 const SELF = "tools/simulation/harness-login-body.test.mjs";
 
+// One rule for "signs in", for discovery and for picking reset.sh's functions.
+const signsIn = (text) => /\/auth\/login|AUTH_PATHS\.LOGIN|post\("\/login"/.test(text);
+
 // The pending answer an enrolled user's password step gets. A harness may keep
 // its status and title; the challenge, like the rest of a body, is not its to keep.
 const problem = (sentinel, title = "Auth.SecondFactorRequired") => ({
@@ -30,14 +35,30 @@ const problem = (sentinel, title = "Auth.SecondFactorRequired") => ({
   challengeExpiresAt: "2099-01-01T00:00:00Z",
 });
 
-// Everything a failure can carry: its message, stack and every own property.
-const describeError = (error) =>
-  error === undefined ? "" : [String(error?.stack ?? error), inspect(error, { depth: 5, showHidden: true })].join("\n");
+// Every string a thrown value holds, however deep or long: its message and
+// stack, and each own property, enumerable or not, walked with a cycle guard.
+function everyString(value, seen = new Set()) {
+  if (value === null || value === undefined) return [];
+  if (typeof value !== "object" && typeof value !== "function") return [String(value)];
+  if (seen.has(value)) return [];
+  seen.add(value);
+  const strings = value instanceof Error ? [String(value.message), String(value.stack)] : [];
+  for (const key of Reflect.ownKeys(value)) {
+    strings.push(String(key));
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor && "value" in descriptor) strings.push(...everyString(descriptor.value, seen));
+  }
+  return strings;
+}
 
 // A module's top-level code with its imports removed and its exports made
-// local, so a vm context can stand in for what it imported.
-const asScript = (source) =>
-  source.replace(/^import[\s\S]*?from\s+["'][^"']+["'];\n/gm, "").replace(/^export /gm, "");
+// local, so a vm context can stand in for what it imported. Any import the
+// sandbox does not stand in for fails, rather than leaving a name undefined.
+function asScript(source, allowedImports) {
+  const imports = [...source.matchAll(/^import[\s\S]*?from\s+["']([^"']+)["'];\n/gm)].map((m) => m[1]);
+  assert.deepEqual(imports.filter((from) => !allowedImports.includes(from)), [], "the sandbox does not stand in for these imports");
+  return source.replace(/^import[\s\S]*?from\s+["'][^"']+["'];\n/gm, "").replace(/^export /gm, "");
+}
 
 function capturingConsole(output) {
   const sink = (...values) => output.push(values.map((v) => (typeof v === "string" ? v : inspect(v))).join(" "));
@@ -47,87 +68,122 @@ function capturingConsole(output) {
 async function driveK6(sentinel) {
   const output = [];
   const body = JSON.stringify(problem(sentinel));
+  let posted = 0;
   const context = vm.createContext({
     console: capturingConsole(output),
-    http: { post: () => ({ status: 401, headers: {}, body, json: () => JSON.parse(body) }) },
-    check: () => false,
+    http: {
+      post: () => {
+        posted++;
+        return { status: 401, headers: {}, body, json: () => JSON.parse(body) };
+      },
+    },
+    // k6's check runs every predicate against the response.
+    check: (response, checks) => Object.values(checks).map((predicate) => predicate(response)).every(Boolean),
     BASE_URL: "http://127.0.0.1:1",
     AUTH_PATHS: { LOGIN: "/api/v1/auth/login", REFRESH: "/api/v1/auth/refresh" },
     CSRF_HEADER_NAME: "X-Cluckwork-Auth",
     CSRF_HEADER_VALUE: "1",
     REFRESH_COOKIE_NAME_PREFIX: "cluckwork_rt_",
   });
-  vm.runInContext(asScript(read("tools/simulation/k6/auth.js")), context);
+  vm.runInContext(asScript(read("tools/simulation/k6/auth.js"), ["k6/http", "k6", "./config.js"]), context);
   let error;
   try {
     context.login({ email: "probe@example.invalid", password: randomUUID() });
   } catch (e) {
     error = e;
   }
-  return { failed: error !== undefined, text: [...output, describeError(error)].join("\n") };
+  const unmet = [];
+  if (posted !== 1) unmet.push(`login() posted ${posted} times, not once`);
+  // Its own error: a plain Error naming the status, not a TypeError or a
+  // ReferenceError from a sandbox that no longer fits the file.
+  if (error?.constructor?.name !== "Error" || !/status=401/.test(String(error.message)))
+    unmet.push(`login() did not throw its own failure naming status=401: ${String(error)}`);
+  return { unmet, text: [...output, ...everyString(error)].join("\n") };
 }
 
 // signInForToken names the pending answer and every other refusal on two
 // branches, so it runs once with each title; apiGet shares ApiProbeError.
 async function driveProbeApi(sentinel) {
   const output = [];
-  let body;
-  const response = () => ({
-    ok: false, status: 401, statusText: "Unauthorized", headers: new Headers(),
-    json: async () => JSON.parse(body), text: async () => body,
-  });
+  let title;
+  let fetched = 0;
+  // A real Response, with the raw body as an own property too, so an error
+  // that keeps the response is caught by the walk.
+  const response = () => {
+    const body = JSON.stringify(problem(sentinel, title));
+    return Object.assign(new Response(body, { status: 401, headers: { "content-type": "application/problem+json" } }), { rawBody: body });
+  };
   const context = vm.createContext({
-    console: capturingConsole(output), fetch: async () => response(), Headers,
+    console: capturingConsole(output),
+    fetch: async () => {
+      fetched++;
+      return response();
+    },
+    Response, Headers,
     API_PREFIX: "/api/v1", BASE_URL: "http://127.0.0.1:1",
   });
   const source = stripTypeScriptTypes(read("tools/simulation/ui/src/api.ts"));
-  vm.runInContext(asScript(source), context);
+  vm.runInContext(asScript(source, ["./env", "./cast"]), context);
   const member = { email: "probe@example.invalid", password: randomUUID(), farmCode: "default-farm" };
-  const errors = [];
-  for (const [title, call] of [
-    ["Auth.SecondFactorRequired", () => context.signInForToken(member)],
-    ["Identity.InvalidCredentials", () => context.signInForToken(member)],
-    ["Identity.InvalidCredentials", () => context.apiGet("token", "/flocks")],
+  const unmet = [];
+  const strings = [];
+  for (const [answer, name, call] of [
+    ["Auth.SecondFactorRequired", "signInForToken", () => context.signInForToken(member)],
+    ["Identity.InvalidCredentials", "signInForToken", () => context.signInForToken(member)],
+    ["Identity.InvalidCredentials", "apiGet", () => context.apiGet("token", "/flocks")],
   ]) {
-    body = JSON.stringify(problem(sentinel, title));
+    title = answer;
+    let error;
     try {
       await call();
     } catch (e) {
-      errors.push(e);
+      error = e;
     }
+    if (error?.name !== "ApiProbeError" || error.status !== 401 || error.title !== answer)
+      unmet.push(`${name} with ${answer} did not throw ApiProbeError(401, ${answer}): ${String(error)}`);
+    strings.push(...everyString(error));
   }
-  return { failed: errors.length === 3, text: [...output, ...errors.map(describeError)].join("\n") };
+  if (fetched !== 3) unmet.push(`fetch was called ${fetched} times, not 3`);
+  return { unmet, text: [...output, ...strings].join("\n") };
 }
 
-// Runs each reset.sh function that signs in, with python3 wrapped so urlopen
-// raises the 401 an enrolled user's password step gets.
+
+// Runs each reset.sh function that signs in, on its own, with python3 wrapped
+// so urlopen raises the 401 an enrolled user's password step gets.
 async function driveResetScript(sentinel) {
-  const script = read("tools/simulation/reset.sh");
-  const functions = [...script.matchAll(/^(\w+)\(\) \{\n[\s\S]*?\n\}\n/gm)]
-    .filter((match) => /auth\/login|post\("\/login"/.test(match[0]));
+  const functions = [...read("tools/simulation/reset.sh").matchAll(/^(\w+)\(\) \{\n[\s\S]*?\n\}\n/gm)]
+    .filter((match) => signsIn(match[0]));
   assert.ok(functions.length >= 2, `found ${functions.length} reset.sh functions that sign in, below the floor of 2`);
   const prelude = `
 import io, json, os, urllib.error, urllib.request
 def _refuse(request, *args, **kwargs):
+    with open(os.environ["CW_CALLS"], "a") as calls:
+        calls.write(request.full_url + "\\n")
     body = json.dumps(${JSON.stringify(problem(sentinel))}).encode()
     raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, io.BytesIO(body))
 urllib.request.urlopen = _refuse
 `;
   const dir = mkdtempSync(join(tmpdir(), "cw-1278-reset-"));
   try {
+    const calls = join(dir, "calls.txt");
     writeFileSync(join(dir, "prelude.py"), prelude);
-    // Farm code, email, a password, then 1: rotate takes it as the new password, verify as its flock floor.
-    const calls = functions.map((match) => `${match[1]} default-farm probe@example.invalid "$PW" 1 || true`);
-    const bash = [
-      `python3() { cat "${join(dir, "prelude.py")}" - | command python3 "$@"; }`,
-      "APP_PORT=1",
-      ...functions.map((match) => match[0]),
-      ...calls,
-    ].join("\n");
-    const run = spawnSync("bash", ["-c", bash], { encoding: "utf8", env: { ...process.env, PW: randomUUID() } });
-    // Each function reports its own failure.
-    const reports = run.stderr.match(/FAILED/g)?.length ?? 0;
-    return { failed: reports >= functions.length, text: run.stdout + run.stderr };
+    const unmet = [];
+    const texts = [];
+    for (const [definition, name] of functions) {
+      writeFileSync(calls, "");
+      // Farm code, email, a password, then 1: rotate takes it as the new password, verify as its flock floor.
+      const bash = [
+        `python3() { cat "${join(dir, "prelude.py")}" - | command python3 "$@"; }`,
+        "APP_PORT=1",
+        definition,
+        `${name} default-farm probe@example.invalid "$PW" 1`,
+      ].join("\n");
+      const run = spawnSync("bash", ["-c", bash], { encoding: "utf8", env: { ...process.env, PW: randomUUID(), CW_CALLS: calls } });
+      if (!readFileSync(calls, "utf8").includes("/login")) unmet.push(`${name} never reached the login request`);
+      if (run.status === 0 || !/FAILED: .*401/.test(run.stderr)) unmet.push(`${name} did not report its own 401 failure`);
+      texts.push(run.stdout, run.stderr);
+    }
+    return { unmet, text: texts.join("\n") };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -142,7 +198,7 @@ async function driveMcpRunbook(sentinel) {
     writeFileSync(join(dir, "answer.json"), JSON.stringify(problem(sentinel)));
     writeFileSync(join(dir, "cast.json"), JSON.stringify({ owner: { email: "probe@example.invalid", password: randomUUID() } }));
     const bash = [
-      `curl() { cat "${join(dir, "answer.json")}"; }`,
+      `curl() { cat "${join(dir, "answer.json")}"; echo curled >> "${join(dir, "calls.txt")}"; }`,
       `CAST="${join(dir, "cast.json")}"`,
       "APP=http://127.0.0.1:1",
       line,
@@ -150,7 +206,11 @@ async function driveMcpRunbook(sentinel) {
       `printf 'JWT=%s\\n' "$JWT"`,
     ].join("\n");
     const run = spawnSync("bash", ["-c", bash], { encoding: "utf8" });
-    return { failed: /sign-in failed/.test(run.stderr), text: run.stdout + run.stderr };
+    const unmet = [];
+    writeFileSync(join(dir, "calls.txt"), "", { flag: "a" });
+    if (!readFileSync(join(dir, "calls.txt"), "utf8").includes("curled")) unmet.push("login() never called curl");
+    if (!/sign-in failed: 401 Auth\.SecondFactorRequired/.test(run.stderr)) unmet.push("login() did not report its own 401 failure");
+    return { unmet, text: run.stdout + run.stderr };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -164,19 +224,19 @@ const DRIVERS = {
 };
 
 // Files that name the login route but cannot be driven outside a live stack,
-// each with the reason.
+// each with what it does with a login response.
 const UNDRIVABLE = {
   "tools/simulation/k6/config.js": "defines the route constant and sends nothing",
-  "tools/simulation/ui/src/fixtures.ts": "signs in through the SPA's form in a live browser and reads no response",
-  "tools/simulation/ui/src/mutants.ts": "rewrites the SPA's login response inside a live Playwright browser",
-  "tools/simulation/ui/specs/session-refresh.spec.ts": "a Playwright spec against the live simulation stack",
-  "tools/simulation/ui/specs/session-races.spec.ts": "a Playwright spec against the live simulation stack",
+  "tools/simulation/ui/src/fixtures.ts": "signs in through the SPA's form in a live browser; it never reads a login response",
+  "tools/simulation/ui/src/mutants.ts": "rewrites a successful login response's role inside a live Playwright browser; it prints no body",
+  "tools/simulation/ui/specs/session-refresh.spec.ts": "reads only a successful (r.ok()) login response's token, against the live stack",
+  "tools/simulation/ui/specs/session-races.spec.ts": "records that a login request was sent, against the live stack; it reads no body",
 };
 
 test("every harness that signs in has a driver or a stated reason it cannot run", () => {
   const signingIn = execFileSync("git", ["ls-files", "-z", "tools/simulation", "tools/verify"], { cwd: repo, encoding: "utf8" })
     .split("\0").filter(Boolean)
-    .filter((path) => path !== SELF && /\/auth\/login|AUTH_PATHS\.LOGIN/.test(read(path)));
+    .filter((path) => path !== SELF && signsIn(read(path)));
   assert.ok(signingIn.length >= 4, `found ${signingIn.length} files that sign in, below the floor of 4`);
   const unknown = signingIn.filter((path) => !(path in DRIVERS) && !(path in UNDRIVABLE));
   assert.deepEqual(unknown, [], "a harness signs in with no driver here; add one, or a reason it cannot run");
@@ -187,8 +247,8 @@ test("every harness that signs in has a driver or a stated reason it cannot run"
 for (const [path, drive] of Object.entries(DRIVERS)) {
   test(`${path} reports a failed login without the challenge`, async () => {
     const sentinel = randomUUID();
-    const { failed, text } = await drive(sentinel);
-    assert.ok(failed, `${path} did not report the failed login at all:\n${text}`);
+    const { unmet, text } = await drive(sentinel);
+    assert.deepEqual(unmet, [], `${path} did not report the failed login itself:\n${text}`);
     assert.ok(!text.includes(sentinel), `${path} printed or kept the sign-in challenge:\n${text}`);
   });
 }
