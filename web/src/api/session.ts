@@ -65,6 +65,10 @@ export async function settledLogin(): Promise<void> {
 // this title and a challenge for the code step.
 export const SECOND_FACTOR_REQUIRED = "Auth.SecondFactorRequired";
 
+// #532 — a suspended farm's answer at the password step, the code step, and
+// when a session is torn down.
+export const FARM_SUSPENDED = "Auth.FarmSuspended";
+
 export type LoginOutcome =
   | { kind: "signedIn" }
   | { kind: "secondFactor"; challenge: string; expiresAt: string };

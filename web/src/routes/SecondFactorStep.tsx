@@ -4,14 +4,14 @@ import { useTranslation } from "react-i18next";
 import { Alert, Button, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
+import { FARM_SUSPENDED } from "../api/session";
 import { BusyButton } from "../components/BusyButton";
 import { usePendingAction } from "../components/usePendingAction";
 import i18n from "../i18n";
+import { messageFor } from "./signInMessage";
 
 // #1274 "What a caller sees": the code step's answers. Expired and suspended
 // send the user back to the password step; every other refusal keeps them here.
-// #532 — also the password step's and a torn-down session's reason.
-export const FARM_SUSPENDED = "Auth.FarmSuspended";
 const SECOND_FACTOR_INCORRECT = "Auth.SecondFactorIncorrect";
 const SECOND_FACTOR_KEY_UNAVAILABLE = "Auth.SecondFactorKeyUnavailable";
 const SECOND_FACTOR_THROTTLED = "Auth.SecondFactorThrottled";
@@ -37,14 +37,13 @@ interface Props {
   farmCode: string;
   // #1274 — held in the parent's state only, never in storage or a URL.
   challenge: string;
-  onSignedIn: () => void;
   // Back to the password step, with the message to show there, if any.
   onRestart: (message: string | null) => void;
-  // The sign-in page's own wording for any other failure.
-  fallbackMessage: (err: unknown) => string;
 }
 
-export function SecondFactorStep({ farmCode, challenge, onSignedIn, onRestart, fallbackMessage }: Props) {
+// A completed sign-in flips isAuthenticated, and the Login page's effect then
+// takes the user to where they were going.
+export function SecondFactorStep({ farmCode, challenge, onRestart }: Props) {
   const { t } = useTranslation("auth");
   const { completeSecondFactor } = useAuth();
   const { busy, run } = usePendingAction();
@@ -57,11 +56,10 @@ export function SecondFactorStep({ farmCode, challenge, onSignedIn, onRestart, f
       setError(null);
       try {
         await completeSecondFactor(farmCode, challenge, code);
-        onSignedIn();
       } catch (err) {
         const answer = codeStepMessage(err, code);
         if (answer?.restart) onRestart(answer.message);
-        else setError(answer?.message ?? fallbackMessage(err));
+        else setError(answer?.message ?? messageFor(err));
       }
     });
   }
