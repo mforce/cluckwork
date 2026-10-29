@@ -198,4 +198,32 @@ public sealed partial class SecondFactorLoginTests
         var after = await CountersAsync(factor);
         Assert.Equal((signedIn.Watermark, signedIn.SignIns), (after.Watermark, after.SignIns));
     }
+
+    // Issue criterion "MustChangePassword (#283)", decision 7: the code step
+    // comes first, and the forced change then gates the session it minted.
+    [Fact]
+    public async Task AnEnrolledUserWhoMustChangeTheirPassword_GetsTheCodeStepFirst_ThenTheForcedChange()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        using (var scope = factory.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Users.Where(u => u.Id == factor.UserId)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.MustChangePassword, true));
+
+        var pending = await factory.PasswordStepAsync(email);
+        Assert.Equal(0, await RefreshRowsAsync(factor));
+        var signedIn = await PostCodeAsync(pending.Challenge, CodeAt(factor, 1));
+        Assert.Equal(HttpStatusCode.OK, signedIn.StatusCode);
+        var tokens = await TestHarness.ReadTokensAsync(signedIn);
+        Assert.Equal("true", new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(tokens.AccessToken)
+            .Claims.Single(c => c.Type == "must_change_password").Value);
+
+        var gated = await GetMeAsync(tokens.AccessToken);
+        Assert.Equal((HttpStatusCode.Forbidden, "Auth.MustChangePassword"), (gated.StatusCode, (await ProblemOf(gated)).Title));
+
+        var client = factory.CreateClient(TestHarness.Cookieless(factory));
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+        var changed = await client.PostAsJsonAsync("/api/v1/auth/change-password",
+            new { currentPassword = TestHarness.Password, newPassword = NewPassword });
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+    }
 }
