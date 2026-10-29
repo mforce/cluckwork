@@ -839,8 +839,8 @@ describe("Login — cached pre-auth banner (#833)", () => {
 
     await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
   });
-
 });
+
 // #1278 — the code step for an enrolled user.
 describe("Login code step (#1278)", () => {
   const pending = { kind: "secondFactor" as const, challenge: "challenge-jwt", expiresAt: "2099-01-01T00:00:00Z" };
@@ -919,5 +919,25 @@ describe("Login code step (#1278)", () => {
     await submitCode("123456");
 
     expect(await screen.findByText(i18n.t("auth:secondFactorThrottled"))).toBeInTheDocument();
+  });
+
+  it("sends a farm suspended between the steps back to the password step", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(401, "Auth.FarmSuspended", "This farm is suspended."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:farmSuspended"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("asks for a recovery code when the authenticator key cannot be read", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(400, "Auth.SecondFactorKeyUnavailable", "Use a recovery code."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:secondFactorKeyUnavailable"))).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:secondFactorCode")}`))).toBeInTheDocument();
   });
 });

@@ -2481,7 +2481,7 @@ export const es = {
       "<strong>Autenticación en dos pasos.</strong> Cuando está activada en su cuenta, una contraseña correcta "
       + "es solo el primer paso. Cluckwork pide entonces el <strong>código de autenticación</strong> de 6 dígitos "
       + "de la aplicación de su teléfono. Sin su teléfono, ingrese uno de sus <strong>códigos de recuperación</strong>; "
-      + "cada uno funciona una vez. Esa pantalla dura unos 5 minutos y luego lo devuelve al inicio de sesión. Los "
+      + "cada uno funciona una vez. Ingrese el código en unos 5 minutos: después, al enviarlo, vuelve al inicio de sesión. Los "
       + "códigos incorrectos cuentan para el mismo bloqueo breve de la cuenta que las contraseñas incorrectas.",
     signingInPersistence:
       "Su inicio de sesión se guarda de forma segura en su navegador y permanece activo mientras trabaja, "

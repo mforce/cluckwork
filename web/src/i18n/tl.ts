@@ -2573,8 +2573,8 @@ export const tl = {
       "<strong>Two-factor authentication.</strong> Kapag naka-on ito sa iyong account, ang tamang password ay "
       + "unang hakbang lang. Hihingin ng Cluckwork ang 6-digit na <strong>authenticator code</strong> mula sa app "
       + "sa iyong phone. Kung wala ang iyong phone, ilagay ang isa sa iyong mga <strong>recovery code</strong>; "
-      + "isang beses lang gumagana ang bawat isa. Mga 5 minuto lang ang screen na iyon, saka ka ibabalik sa "
-      + "pag-sign in. Ang maling code ay binibilang sa parehong panandaliang pag-block ng account gaya ng maling password.",
+      + "isang beses lang gumagana ang bawat isa. Ilagay ang code sa loob ng mga 5 minuto: pagkatapos noon, ibabalik ka sa "
+      + "pag-sign in kapag ipinasa mo ito. Ang maling code ay binibilang sa parehong panandaliang pag-block ng account gaya ng maling password.",
     signingInPersistence:
       "Ligtas na naka-save sa browser mo ang sign in mo at nananatiling aktibo habang nagtatrabaho ka, "
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "

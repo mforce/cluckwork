@@ -3224,7 +3224,7 @@ export const en = {
       "<strong>Two-factor authentication.</strong> When it is on for your account, a correct password is only "
       + "the first step. Cluckwork then asks for the 6-digit <strong>authenticator code</strong> from the app on "
       + "your phone. Without your phone, enter one of your <strong>recovery codes</strong> instead; each one works "
-      + "once. That screen lasts about 5 minutes, then sends you back to sign in again. Wrong codes count toward "
+      + "once. Enter the code within about 5 minutes: after that, submitting it sends you back to sign in again. Wrong codes count toward "
       + "the same brief account lock as wrong passwords.",
     signingInPersistence:
       "Your sign-in is kept in your browser securely and stays active as you work, across reloads and "
