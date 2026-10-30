@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
@@ -13,7 +14,7 @@ namespace Cluckwork.Api.IntegrationTests;
 // enrolled user's daily budget of wrong authenticator codes lives on the row.
 public sealed partial class SecondFactorLoginTests
 {
-    private const string WrongPassword = "WrongPassw0rd!x9";
+    private static readonly string WrongPassword = "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12));
 
     // G3.5
     [Fact]

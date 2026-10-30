@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
@@ -15,7 +16,7 @@ namespace Cluckwork.Api.IntegrationTests;
 // and the commit the code step cannot see land.
 public sealed partial class SecondFactorLoginTests
 {
-    private const string NewPassword = "NewTestPassw0rd!45";
+    private static readonly string NewPassword = "Aa1!" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12));
 
     // G3.3
     [Fact]
