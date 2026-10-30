@@ -353,6 +353,12 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#798 issuer not https", "OAuth:Issuer must be an absolute https URL",
             Violate: psi => psi.Environment["OAuth__Issuer"] = "http://farm.example/",
             Satisfy: SatisfyOAuthIssuer),
+
+        // #1278 — the enrolled-session cap is read only by refresh. Unset is the
+        // default of 30 days, so Satisfy removes the key.
+        new("#1278 session cap", "Auth:EnrolledSessionMaxDays must be a whole number from 1 to 365",
+            Violate: psi => psi.Environment["Auth__EnrolledSessionMaxDays"] = "0",
+            Satisfy: psi => psi.Environment.Remove("Auth__EnrolledSessionMaxDays")),
     ];
 
     private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>

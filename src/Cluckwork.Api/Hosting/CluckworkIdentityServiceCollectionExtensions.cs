@@ -177,13 +177,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // #1274 — the one owner of two-factor state; internal, so registered
         // through its Infrastructure extension like the registry above.
         services.AddTwoFactorCredentials();
-        services.AddOptions<EnrolledSessionOptions>()
-            .Bind(configuration.GetSection(EnrolledSessionOptions.SectionName))
-            .Validate(
-                options => options.EnrolledSessionMaxDays is >= EnrolledSessionOptions.MinDays and <= EnrolledSessionOptions.MaxDays,
-                $"{EnrolledSessionOptions.SectionName}:{nameof(EnrolledSessionOptions.EnrolledSessionMaxDays)} must be a whole number "
-                + $"from {EnrolledSessionOptions.MinDays} to {EnrolledSessionOptions.MaxDays}.")
-            .ValidateOnStart();
+        // Only refresh reads the cap, so the check is serving-only, like the key
+        // guard below: a one-shot verb never binds the section (#331).
+        services.AddOptions<EnrolledSessionOptions>().Bind(configuration.GetSection(EnrolledSessionOptions.SectionName));
+        if (role is ProcessRole.Serving) EnsureEnrolledSessionCap(configuration);
 
         AddUserFeatures(services);
 
@@ -226,6 +223,17 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             ? uri
             : throw new InvalidOperationException(
                 $"OAuth:Issuer must be an absolute URI, and '{issuer}' is not.");
+    }
+
+    // #1274 decision 8: a cap that is not a whole number from 1 to 365 fails the boot.
+    private static void EnsureEnrolledSessionCap(IConfiguration configuration)
+    {
+        const string key = $"{EnrolledSessionOptions.SectionName}:{nameof(EnrolledSessionOptions.EnrolledSessionMaxDays)}";
+        if (configuration[key] is not { } value) return;
+        if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var days)
+            || days is < EnrolledSessionOptions.MinDays or > EnrolledSessionOptions.MaxDays)
+            throw new InvalidOperationException(
+                $"{key} must be a whole number from {EnrolledSessionOptions.MinDays} to {EnrolledSessionOptions.MaxDays}, and '{value}' is not.");
     }
 
     private static Uri EnsureOAuthIssuer(string? issuer)
