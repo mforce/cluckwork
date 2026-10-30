@@ -208,7 +208,7 @@ public sealed partial class SecondFactorLoginTests
         using (var scope = factory.Services.CreateScope())
         {
             scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(factor.AccountId);
-            var credentials = scope.ServiceProvider.GetRequiredService<TwoFactorCredentials>();
+            var credentials = (TwoFactorCredentials)scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>();
             await credentials.StageProtectedAsync(factor.UserId, ProtectedTwoFactorValue.AuthenticatorKey, stored, default);
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().SaveChangesAsync();
         }

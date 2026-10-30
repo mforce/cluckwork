@@ -180,7 +180,7 @@ public sealed class TwoFactorEnrolmentTests(SecondFactorFactory factory) : IDisp
         using (var scope = factory.Services.CreateScope())
         {
             scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(user.AccountId);
-            await scope.ServiceProvider.GetRequiredService<TwoFactorCredentials>()
+            await ((TwoFactorCredentials)scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>())
                 .StageProtectedAsync(user.UserId, ProtectedTwoFactorValue.PendingAuthenticator, json, default);
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().SaveChangesAsync();
         }
