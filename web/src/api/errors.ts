@@ -6,21 +6,29 @@ export class ApiError extends Error {
     public status: number,
     public title: string,
     message: string,
+    // #1274 — the problem body's own members, such as the sign-in challenge.
+    // A credential among them is taken off by its reader at once.
+    public extensions: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
+const PROBLEM_MEMBERS = new Set(["type", "title", "status", "detail", "instance", "errors", "errorCodes", "traceId"]);
+
 export async function parseError(res: Response): Promise<ApiError> {
   let title = res.statusText;
   let detail = res.statusText;
+  const extensions: Record<string, unknown> = {};
   try {
     const body = (await res.json()) as ProblemDetails & {
       errors?: Record<string, string[]>;
       errorCodes?: Record<string, (string | null)[]>;
     };
     title = body.title ?? title;
+    for (const [name, value] of Object.entries(body))
+      if (!PROBLEM_MEMBERS.has(name)) extensions[name] = value;
     // ValidationProblem carries an errors map and usually no detail — flatten
     // it so the user sees which field is wrong, not just "Bad Request".
     if (body.errors && Object.keys(body.errors).length > 0) {
@@ -55,5 +63,5 @@ export async function parseError(res: Response): Promise<ApiError> {
   } catch {
     // non-JSON body — keep status text
   }
-  return new ApiError(res.status, title, detail);
+  return new ApiError(res.status, title, detail, extensions);
 }

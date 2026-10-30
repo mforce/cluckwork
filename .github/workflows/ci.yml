@@ -385,6 +385,12 @@ jobs:
       - name: Test the Pi git-guard extension
         run: node --test ../tools/agent-guard/pi_extension_test.mjs
 
+      # #1278 — drives every harness that signs in through its failed-login path
+      # and fails if a sign-in challenge reaches its output. Pure Node with the
+      # runner's bash, Python 3 and jq, so it runs before npm ci too.
+      - name: Test that harnesses never print a sign-in challenge
+        run: node --test ../tools/simulation/harness-login-body.test.mjs
+
       - name: Install dependencies
         run: npm ci
 

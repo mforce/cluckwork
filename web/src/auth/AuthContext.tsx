@@ -1,9 +1,10 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  login as apiLogin, logout as apiLogout, restoreSession,
+  login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, logout as apiLogout, restoreSession,
   setOnTokensChanged, setOnUnauthenticated,
 } from "../api/client";
+import type { LoginOutcome } from "../api/client";
 import { currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { bindFarm, clearAccessToken, getAccessToken, getBoundAccountId, purgeLegacyTokens } from "./tokenStore";
@@ -33,7 +34,10 @@ interface AuthState {
   // API's MustChangePasswordMiddleware is the actual enforcement.
   mustChangePassword: boolean;
   unauthenticatedReason: string | null;
-  login: (farmCode: string, email: string, password: string) => Promise<void>;
+  // #1274 — an enrolled user's correct password returns the code step; the
+  // tab binds its farm only once a session exists.
+  login: (farmCode: string, email: string, password: string) => Promise<LoginOutcome>;
+  completeSecondFactor: (farmCode: string, challenge: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -110,8 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshClaims]);
 
-  const login = useCallback(async (farmCode: string, email: string, password: string) => {
-    await apiLogin({ farmCode, email, password });
+  const signedIn = useCallback(async (farmCode: string) => {
     // #586 — bound BEFORE the rememberFarmCode await below, which acquires a
     // cross-tab Web Lock (farmCodeCache.ts:105) and can block behind another
     // tab's login. Nothing should sit between apiLogin's bindAccount
@@ -148,6 +151,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshClaims();
   }, [refreshClaims]);
 
+  const login = useCallback(async (farmCode: string, email: string, password: string) => {
+    const outcome = await apiLogin({ farmCode, email, password });
+    if (outcome.kind === "signedIn") await signedIn(farmCode);
+    return outcome;
+  }, [signedIn]);
+
+  const completeSecondFactor = useCallback(async (farmCode: string, challenge: string, code: string) => {
+    await apiCompleteSecondFactor(challenge, code);
+    await signedIn(farmCode);
+  }, [signedIn]);
+
   const logout = useCallback(async () => {
     // The farm palettes (cluckwork.brand:<slug>) are deliberately NOT cleared
     // here: they are per-farm and device-persistent, the same way
@@ -172,9 +186,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login, logout,
+      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login,
+      completeSecondFactor, logout,
     }),
-    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login, logout],
+    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login,
+      completeSecondFactor, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

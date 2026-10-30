@@ -30,7 +30,7 @@ function AuthOverride({ role, children }: { role: Role; children: ReactNode }) {
       isAuthenticated: true, isLoading: false,
       isAdmin: role === "Admin" || role === "Manager",
       role, userId: "u1", mustChangePassword: false, unauthenticatedReason: null,
-      login: async () => {}, logout: async () => {},
+      login: async () => ({ kind: "signedIn" as const }), completeSecondFactor: async () => {}, logout: async () => {},
     }}>
       {children}
     </AuthContext.Provider>

@@ -4,10 +4,10 @@ import { Routes, Route, useLocation } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { login as apiLogin, ApiError, setOnUnauthenticated } from "../api/client";
+import { login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, ApiError, setOnUnauthenticated } from "../api/client";
 import { previewConsent } from "../api/oauth";
 import { setStoredToken } from "../test/jwt";
-import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount } from "../auth/tokenStore";
+import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount, getBoundFarmCode } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 
@@ -18,6 +18,7 @@ vi.mock("../api/client", async (importOriginal) => {
   return {
     ...actual,
     login: vi.fn(),
+    completeSecondFactor: vi.fn(),
     logout: vi.fn(),
     setOnTokensChanged: vi.fn(),
     setOnUnauthenticated: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("../api/client", async (importOriginal) => {
 vi.mock("../api/oauth", () => ({ previewConsent: vi.fn() }));
 
 const mockApiLogin = vi.mocked(apiLogin);
+const mockApiCompleteSecondFactor = vi.mocked(apiCompleteSecondFactor);
 const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 
 // /dashboard is behind the real ProtectedRoute, so navigation there only
@@ -90,6 +92,7 @@ describe("Login", () => {
   it("bounces an unauthenticated visit to /login, then returns to the original route after sign-in", async () => {
     mockApiLogin.mockImplementation(async () => {
       setStoredToken({ sub: "u1", role: "Sales" }); // server issued a session (token in memory)
+      return { kind: "signedIn" as const };
     });
     // Land on the protected route while logged out → ProtectedRoute redirects to
     // /login, preserving `from = /dashboard` in router state.
@@ -117,6 +120,7 @@ describe("Login", () => {
   it("returns to the consent route with its request after sign-in", async () => {
     mockApiLogin.mockImplementation(async () => {
       setStoredToken({ sub: "u1", role: "Sales" });
+      return { kind: "signedIn" as const };
     });
     renderWithProviders(tree(), { route: "/connect?client_id=abc&scope=farm%3Aread", token: null });
 
@@ -834,5 +838,117 @@ describe("Login — cached pre-auth banner (#833)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await waitFor(() => expect(document.querySelector("img[alt='']")).toBeNull());
+  });
+});
+
+// #1278 — the code step for an enrolled user.
+describe("Login code step (#1278)", () => {
+  const pending = { kind: "secondFactor" as const, challenge: "challenge-jwt", expiresAt: "2099-01-01T00:00:00Z" };
+
+  async function reachCodeStep(route = "/login") {
+    mockApiLogin.mockResolvedValue(pending);
+    renderWithProviders(tree(), { route, token: null });
+    expect(await screen.findByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    fillCredentials("owner@farm.co", "pw");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    });
+    return screen.findByLabelText(new RegExp(`^${i18n.t("auth:secondFactorCode")}`));
+  }
+
+  async function submitCode(code: string) {
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${i18n.t("auth:secondFactorCode")}`)), { target: { value: code } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:secondFactorSubmit") }));
+    });
+  }
+
+  // G3.15: a pending answer changes no auth state, binds no farm, writes no
+  // farm code and does not navigate.
+  it("a pending sign-in binds nothing and stays on the sign-in page", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    try {
+      expect(await reachCodeStep()).toBeInTheDocument();
+      expect(screen.queryByText("dashboard (protected)")).not.toBeInTheDocument();
+      expect(getBoundFarmCode()).toBeNull();
+      expect(setItem.mock.calls.filter(([key]) => key === "cluckwork.farmCodes")).toHaveLength(0);
+      expect(screen.queryByLabelText(/Password/)).not.toBeInTheDocument();
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it("signs in with the code and keeps a connected app's return path", async () => {
+    mockApiCompleteSecondFactor.mockImplementation(async () => {
+      setStoredToken({ sub: "u1", role: "Sales" });
+    });
+    await reachCodeStep("/connect?client_id=abc&scope=farm%3Aread");
+
+    await submitCode("123456");
+
+    expect(mockApiCompleteSecondFactor).toHaveBeenCalledWith("challenge-jwt", "123456");
+    expect(await screen.findByText("connect ?client_id=abc&scope=farm%3Aread")).toBeInTheDocument();
+  });
+
+  it("adds the clock hint after a wrong six-digit code, and not after a recovery code", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+    await reachCodeStep();
+
+    await submitCode("123 456");
+    expect(await screen.findByText(
+      `${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
+
+    await submitCode("BCDF-GHJK-MNPQ-RTVW");
+    expect(await screen.findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
+  });
+
+  it("sends an expired sign-in back to the password step", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(401, "Auth.SecondFactorChallengeExpired", "Your sign-in expired."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:secondFactorExpired"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("names a spent daily budget with its own message", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:secondFactorThrottled"))).toBeInTheDocument();
+  });
+
+  it("sends a farm suspended between the steps back to the password step", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(401, "Auth.FarmSuspended", "This farm is suspended."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:farmSuspended"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("asks for a recovery code when the authenticator key cannot be read", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(400, "Auth.SecondFactorKeyUnavailable", "Use a recovery code."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:secondFactorKeyUnavailable"))).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(`^${i18n.t("auth:secondFactorCode")}`))).toBeInTheDocument();
+  });
+
+  // The address limit's 429 has no code-step title, so the sign-in page's own
+  // wording answers it.
+  it("answers any other refusal at the code step with the sign-in page's message", async () => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Too Many Requests", "Too many requests."));
+    await reachCodeStep();
+
+    await submitCode("123456");
+
+    expect(await screen.findByText(i18n.t("auth:tooManyAttempts"))).toBeInTheDocument();
   });
 });

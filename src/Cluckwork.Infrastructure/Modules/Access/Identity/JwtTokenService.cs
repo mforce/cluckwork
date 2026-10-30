@@ -50,6 +50,10 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options, TimeProvider t
         // what actually bounds the old token's window.
         if (user.MustChangePassword)
             claims.Add(new Claim("must_change_password", "true"));
+        // #1274: carried only for an enrolled user, minted from the row like the
+        // flag above. The SPA shows step-up's code field from it.
+        if (user.TwoFactorEnabled)
+            claims.Add(new Claim("two_factor", "true"));
 
         var token = new JwtSecurityToken(
             jwtOptions.Issuer,

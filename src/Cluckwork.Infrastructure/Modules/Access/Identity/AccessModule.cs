@@ -106,8 +106,11 @@ public sealed class AccessModule(
     public Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct) =>
         identity.ResolveFarmCodeAsync(farmCode, ct);
 
-    public Task<Result<TokenPair>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct) =>
+    public Task<Result<LoginStep>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct) =>
         identity.LoginAsync(accountId, email, password, ct);
+
+    public Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct) =>
+        identity.CompleteSecondFactorLoginAsync(challenge, code, ct);
 
     public Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct) => firstRun.IsProvisionedAsync(ct);
 

@@ -123,7 +123,14 @@ def post(path, body, token=None, idempotency_key=None):
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as exc:
-        print(f"FAILED: POST {path} -> {exc.code}: {exc.read().decode()}", file=sys.stderr)
+        # The status and title only: a failed login's body can carry a sign-in
+        # challenge (#1274), which is a credential.
+        try:
+            problem = json.loads(exc.read())
+        except ValueError:
+            problem = None
+        title = problem.get("title") if isinstance(problem, dict) else None
+        print(f"FAILED: POST {path} -> {exc.code} {title}", file=sys.stderr)
         sys.exit(1)
 
 

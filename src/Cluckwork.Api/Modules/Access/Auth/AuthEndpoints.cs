@@ -37,6 +37,20 @@ public static partial class AuthEndpoints
             .WithName("Login")
             .WithSummary("Exchange credentials for an access token; sets the refresh-token cookie.");
 
+        // #1274 — the code step for an enrolled user. Anonymous and blanking
+        // its ambient principal for login's reason (#532): another farm's bearer
+        // would resolve that farm, and the interceptor would refuse the charge
+        // to the victim's lockout. Under /auth/login, so ResponseNotCacheable
+        // keeps it out of IdempotentUnit, whose rollback would undo a refused
+        // code's charge. A challenge (a capped JWT) and a code fit in 8 KB.
+        group.MapPost("/login/second-factor", LoginSecondFactor)
+            .AllowAnonymous()
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
+            .RequireRateLimiting(RateLimitingOptions.SecondFactorPolicyName)
+            .WithMaxRequestBodyBytes(8192)
+            .WithName("LoginSecondFactor")
+            .WithSummary("Exchange a sign-in challenge and an authenticator or recovery code for an access token.");
+
         // Looser limit — refresh guards a high-entropy token AND carries
         // legitimate automatic session traffic, so it must not share login's
         // budget (several users behind one NAT IP would starve it). The refresh
@@ -127,9 +141,22 @@ public static partial class AuthEndpoints
     private static bool CookieSecure(IWebHostEnvironment env) => !env.IsDevelopment();
 }
 
-public sealed record LoginRequest(string FarmCode, string Email, string Password);
+// The password is a credential, so the record never prints it.
+public sealed record LoginRequest(string FarmCode, string Email, string Password)
+{
+    public override string ToString() => "[redacted]";
+}
 
-public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword);
+// Both members are credentials, so the record never prints them.
+public sealed record SecondFactorLoginRequest(string Challenge, string Code)
+{
+    public override string ToString() => "[redacted]";
+}
+
+public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword)
+{
+    public override string ToString() => "[redacted]";
+}
 
 // #145 — the refresh token is delivered as a cookie, so the body returns only
 // the access token and its expiry.

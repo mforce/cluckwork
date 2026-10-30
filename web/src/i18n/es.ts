@@ -72,6 +72,22 @@ export const es = {
     password: "Contraseña",
     signIn: "Iniciar sesión",
     signingIn: "Iniciando sesión…",
+    secondFactorTitle: "Ingrese su código de autenticación",
+    secondFactorIntro:
+      "Abra la aplicación de autenticación en su teléfono e ingrese el código de 6 dígitos que muestra para Cluckwork. Sin su teléfono, ingrese uno de sus códigos de recuperación.",
+    secondFactorCode: "Código de autenticación o código de recuperación",
+    secondFactorSubmit: "Verificar",
+    secondFactorVerifying: "Verificando…",
+    secondFactorBack: "Volver al inicio de sesión",
+    secondFactorIncorrect:
+      "Ese código no funcionó. Si acaba de usarlo, espere al siguiente.",
+    secondFactorClockHint:
+      "¿Sigue sin funcionar? Compruebe que su teléfono ajusta la hora automáticamente.",
+    secondFactorKeyUnavailable:
+      "Ahora no se pueden comprobar los códigos de autenticación de esta cuenta. Ingrese uno de sus códigos de recuperación.",
+    secondFactorExpired: "Su inicio de sesión caducó. Inicie sesión de nuevo.",
+    secondFactorThrottled:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo más tarde.",
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
     credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
     accountDisabled: "Su cuenta ha sido deshabilitada.",
@@ -2247,6 +2263,7 @@ export const es = {
     "auditAction.User.PasswordSet": "Contraseña establecida",
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
     "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
+    "auditAction.User.RecoveryCodeUsed": "Código de recuperación usado",
     "auditAction.User.RoleChanged": "Rol cambiado",
     "auditAction.User.EmailChanged": "Correo de inicio de sesión cambiado",
     "auditAction.User.Disabled": "Usuario deshabilitado",
@@ -2460,6 +2477,12 @@ export const es = {
       + "<em>esa</em> cuenta. Mientras está bloqueada, incluso la contraseña correcta sigue indicando "
       + "<strong>Correo electrónico o contraseña inválidos</strong>. Espere hasta unos 15 minutos e "
       + "inténtelo de nuevo.",
+    signingInSecondFactor:
+      "<strong>Autenticación en dos pasos.</strong> Cuando está activada en su cuenta, una contraseña correcta "
+      + "es solo el primer paso. Cluckwork pide entonces el <strong>código de autenticación</strong> de 6 dígitos "
+      + "de la aplicación de su teléfono. Sin su teléfono, ingrese uno de sus <strong>códigos de recuperación</strong>; "
+      + "cada uno funciona una vez. Ingrese el código en unos 5 minutos: después, al enviarlo, vuelve al inicio de sesión. Los "
+      + "códigos incorrectos cuentan para el mismo bloqueo breve de la cuenta que las contraseñas incorrectas.",
     signingInPersistence:
       "Su inicio de sesión se guarda de forma segura en su navegador y permanece activo mientras trabaja, "
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "

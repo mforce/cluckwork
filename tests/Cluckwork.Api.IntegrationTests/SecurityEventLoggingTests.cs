@@ -329,7 +329,11 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
-            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
+            services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<TenantContext>(),
+            services.GetRequiredService<CurrentUserContext>(),
+            services.GetRequiredService<IOptions<EnrolledSessionOptions>>());
 
         var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
@@ -388,7 +392,11 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
-            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
+            services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<TenantContext>(),
+            services.GetRequiredService<CurrentUserContext>(),
+            services.GetRequiredService<IOptions<EnrolledSessionOptions>>());
 
         var rawRefreshToken = tokens.RefreshTokenForDirectCall;
 
@@ -494,7 +502,11 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<ILogger<IdentityProvider>>(),
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
-            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
+            services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<TenantContext>(),
+            services.GetRequiredService<CurrentUserContext>(),
+            services.GetRequiredService<IOptions<EnrolledSessionOptions>>());
 }
 
 [CollectionDefinition(Name)]

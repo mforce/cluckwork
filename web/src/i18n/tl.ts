@@ -78,6 +78,22 @@ export const tl = {
     password: "Password",
     signIn: "Mag-sign in",
     signingIn: "Nagsa-sign in…",
+    secondFactorTitle: "Ilagay ang iyong authenticator code",
+    secondFactorIntro:
+      "Buksan ang authenticator app sa iyong phone at ilagay ang 6-digit na code na ipinapakita nito para sa Cluckwork. Kung wala ang iyong phone, ilagay ang isa sa iyong mga recovery code.",
+    secondFactorCode: "Authenticator code o recovery code",
+    secondFactorSubmit: "I-verify",
+    secondFactorVerifying: "Vine-verify…",
+    secondFactorBack: "Bumalik sa pag-sign in",
+    secondFactorIncorrect:
+      "Hindi gumana ang code na iyon. Kung kagagamit mo lang nito, hintayin ang susunod.",
+    secondFactorClockHint:
+      "Hindi pa rin gumagana? Tiyaking awtomatikong itinatakda ng iyong phone ang oras.",
+    secondFactorKeyUnavailable:
+      "Hindi masuri ngayon ang mga authenticator code ng account na ito. Ilagay ang isa sa iyong mga recovery code.",
+    secondFactorExpired: "Nag-expire ang iyong pag-sign in. Mag-sign in muli.",
+    secondFactorThrottled:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit mamaya.",
     invalidCredentials: "Mali ang email o password.",
     credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
     accountDisabled: "Na-disable ang iyong account.",
@@ -2331,6 +2347,7 @@ export const tl = {
     "auditAction.User.PasswordSet": "Naitakda ang password",
     "auditAction.User.PasswordChanged": "Napalitan ang password",
     "auditAction.User.BreakGlassReset": "Emergency na pag-reset ng password",
+    "auditAction.User.RecoveryCodeUsed": "Ginamit ang recovery code",
     "auditAction.User.RoleChanged": "Binago ang tungkulin",
     "auditAction.User.EmailChanged": "Binago ang email sa pag-sign in",
     "auditAction.User.Disabled": "Na-disable ang user",
@@ -2552,6 +2569,12 @@ export const tl = {
       + "nagba-block sa <em>account</em> na iyon. Habang naka-block, kahit ang tamang password ay nagsasabi "
       + "pa rin ng <strong>Mali ang email o password</strong>. Maghintay ng hanggang 15 minuto at subukan "
       + "ulit.",
+    signingInSecondFactor:
+      "<strong>Two-factor authentication.</strong> Kapag naka-on ito sa iyong account, ang tamang password ay "
+      + "unang hakbang lang. Hihingin ng Cluckwork ang 6-digit na <strong>authenticator code</strong> mula sa app "
+      + "sa iyong phone. Kung wala ang iyong phone, ilagay ang isa sa iyong mga <strong>recovery code</strong>; "
+      + "isang beses lang gumagana ang bawat isa. Ilagay ang code sa loob ng mga 5 minuto: pagkatapos noon, ibabalik ka sa "
+      + "pag-sign in kapag isinumite mo ito. Ang maling code ay binibilang sa parehong panandaliang pag-block ng account gaya ng maling password.",
     signingInPersistence:
       "Ligtas na naka-save sa browser mo ang sign in mo at nananatiling aktibo habang nagtatrabaho ka, "
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "

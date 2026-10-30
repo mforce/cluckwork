@@ -212,6 +212,8 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         ("FarmLogo", "FarmLogo__MaxUploadBytes", "not-a-number"),
         ("FarmBanner", "FarmBanner__MaxUploadBytes", "not-a-number"),
         ("Jwt", "Jwt__AccessTokenMinutes", "not-a-number"),
+        // #1278 — only refresh reads the enrolled-session cap.
+        ("Auth", "Auth__EnrolledSessionMaxDays", "not-a-number"),
         // #543 — SharedState:Redis:ConnectionString is a string, so it cannot
         // fail BINDING; its serving-only failure mode is the malformed-value boot
         // guard (EnsureSharedStateConnectionValid). "abortConnect=false" parses
