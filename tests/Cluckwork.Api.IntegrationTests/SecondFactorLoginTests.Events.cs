@@ -4,7 +4,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Serilog.Events;
-using Serilog.Parsing;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -47,15 +46,26 @@ public sealed partial class SecondFactorLoginTests
     public async Task ACodeStep_WhoseEpochFellBelowTheChallenge_IsRefused_AndChargesNothing()
     {
         var (email, factor) = await SeedEnrolledAsync();
-        var epoch = await SetEpochAsync(factor, by: 1);
+        await SetEpochAsync(factor, by: 1);
         var pending = await factory.PasswordStepAsync(email);
-        await SetEpochAsync(factor, by: -1);
-        Assert.True(epoch - 1 >= 1, "the lowered epoch must stay above the floor, or the floor check refuses it instead");
+        var counters = await ChargeOnceAsync(factor, pending.Challenge);
+        Assert.True(await SetEpochAsync(factor, by: -1) >= 1, "the lowered epoch must stay at or above 1, or the floor refuses it instead");
+
+        await AssertRefusedUnchargedAsync(factor, pending.Challenge, counters);
+    }
+
+    // One wrong code first, so a refusal that reset the counters would show.
+    private async Task<UserCounters> ChargeOnceAsync(EnrolledFactor factor, string challenge)
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostCodeAsync(challenge, WrongCode(factor))).StatusCode);
         var counters = await CountersAsync(factor);
+        Assert.Equal((1, 1), (counters.AccessFailed, counters.DailyFailures));
+        return counters;
+    }
 
-        var response = await PostCodeAsync(pending.Challenge, CodeAt(factor, 0));
-
-        var problem = await ProblemOf(response);
+    private async Task AssertRefusedUnchargedAsync(EnrolledFactor factor, string challenge, UserCounters counters)
+    {
+        var problem = await ProblemOf(await PostCodeAsync(challenge, CodeAt(factor, 0)));
         Assert.Equal((HttpStatusCode.Unauthorized, SecondFactorErrorCodes.ChallengeExpired), (problem.Status, problem.Title));
         Assert.Equal(counters, await CountersAsync(factor));
         Assert.Equal(0, await RefreshRowsAsync(factor));
@@ -69,18 +79,28 @@ public sealed partial class SecondFactorLoginTests
             .Where(u => u.Id == factor.UserId).Select(u => u.CredentialEpoch).SingleAsync());
     }
 
+    // Properties the host stamps on every event in a request. Anything else the
+    // event carries, a scope's values included, must be a field its
+    // log-redaction-policy row names.
+    private static readonly HashSet<string> HostMetadata = ["RequestId", "RequestPath", "SourceContext"];
+
     // The event fires once with the fields its log-redaction-policy row names,
-    // the client address only, and nothing that names the user or a credential.
+    // the client address only. Nothing the sink received during the request,
+    // in any event's message, properties or exception, names the user or a
+    // credential.
     private void AssertIdentityFree(string securityEvent, int before, string email, EnrolledFactor factor, string challenge, string code)
     {
-        var emitted = Assert.Single(factory.Sink.Events.Skip(before), e =>
+        var during = factory.Sink.Events.Skip(before).ToList();
+        var emitted = Assert.Single(during, e =>
             e.Properties.TryGetValue("SecurityEvent", out var value) && value is ScalarValue { Value: string name } && name == securityEvent);
         Assert.StartsWith("`ClientIp` only.", PolicyFieldsFor(securityEvent));
-        Assert.Equal(["ClientIp", "SecurityEvent"],
-            emitted.MessageTemplate.Tokens.OfType<PropertyToken>().Select(t => t.PropertyName).Order());
-        var everything = emitted.RenderMessage() + " " + string.Join(" ", emitted.Properties.Select(p => p.Value.ToString()));
-        foreach (var secret in new[] { email, factor.UserId.ToString(), factor.UserId.ToString("N"), challenge, code })
-            Assert.DoesNotContain(secret, everything, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["ClientIp", "SecurityEvent"], emitted.Properties.Keys.Where(key => !HostMetadata.Contains(key)).Order());
+        foreach (var logged in during)
+        {
+            var everything = $"{logged.RenderMessage()} {string.Join(" ", logged.Properties.Select(p => $"{p.Key}={p.Value}"))} {logged.Exception}";
+            foreach (var secret in new[] { email, factor.UserId.ToString(), factor.UserId.ToString("N"), challenge, code })
+                Assert.DoesNotContain(secret, everything, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     // The last cell of the event's row in docs/security/log-redaction-policy.md.

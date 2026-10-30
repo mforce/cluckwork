@@ -40,7 +40,7 @@ public sealed class CredentialEpochFloorFactory : CluckworkWebApplicationFactory
 // CHECK constraint makes such a row unwritable, so these tests drop it on this
 // factory's own database to prove that login, the verifier and refresh each
 // refuse it without the constraint's help.
-public sealed class CredentialEpochFloorTests(CredentialEpochFloorFactory factory)
+public sealed partial class CredentialEpochFloorTests(CredentialEpochFloorFactory factory)
     : IClassFixture<CredentialEpochFloorFactory>
 {
     private sealed record TokenRow(
