@@ -178,7 +178,7 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // through its Infrastructure extension like the registry above.
         services.AddTwoFactorCredentials();
         // Only refresh reads the cap, so the check is serving-only, like the key
-        // guard below: a one-shot verb never binds the section (#331).
+        // guard below: a one-shot verb never reads the section (#331).
         services.AddOptions<EnrolledSessionOptions>().Bind(configuration.GetSection(EnrolledSessionOptions.SectionName));
         if (role is ProcessRole.Serving) EnsureEnrolledSessionCap(configuration);
 
