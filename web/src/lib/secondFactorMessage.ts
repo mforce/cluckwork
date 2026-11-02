@@ -6,13 +6,19 @@ import i18n from "../i18n";
 export function secondFactorMessage(err: ApiError): string | null {
   switch (err.title) {
     case "Auth.SecondFactorRequired": return i18n.t("auth:secondFactorRequired");
-    case "Auth.SecondFactorIncorrect": return i18n.t("auth:secondFactorIncorrect");
+    case "Auth.SecondFactorIncorrect": return err.sentAuthenticatorCode
+      ? `${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`
+      : i18n.t("auth:secondFactorIncorrect");
     case "Auth.SecondFactorKeyUnavailable": return i18n.t("auth:secondFactorKeyUnavailable");
     case "Auth.SecondFactorThrottled": return throttled(err.retryAfterSeconds);
     case "Auth.StepUpRetry": return i18n.t("auth:stepUpRetry");
     default: return null;
   }
 }
+
+// The clock hint helps only an authenticator code, not a recovery code
+// (maintainer, #1278; at step-up and change-password too, 2026-11-02).
+export const isAuthenticatorCode = (typed: string) => /^\d{6}$/.test(typed.replace(/ /g, ""));
 
 // The daily budget reopens up to 24 hours later, so the wait is rounded up to
 // whole minutes, and to whole hours from two hours on.

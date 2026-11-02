@@ -582,6 +582,21 @@ describe("ConnectPage with two-factor authentication (#1279)", () => {
     expect(approveConsent).not.toHaveBeenCalled();
   });
 
+  // Maintainer, 2026-11-02: the login step's clock hint at consent too.
+  it.each([
+    [true, `${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`],
+    [false, i18n.t("auth:secondFactorIncorrect")],
+  ])("after a wrong code (authenticator code: %s) says %s", async (sentAuthenticatorCode, text) => {
+    vi.mocked(stepUp).mockRejectedValue(
+      new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode }));
+    await show(REQUEST, "Manager", { two_factor: "true" });
+
+    fireEvent.change(codeField()!, { target: { value: freshCode() } });
+    await allowWith("pw");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(new RegExp(`^${text.replace(/[.?]/g, "\\$&")}$`));
+  });
+
   it("shows the server's wait when the daily code budget is spent", async () => {
     vi.mocked(stepUp).mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: 45 * 60 }));
     await show(REQUEST, "Manager", { two_factor: "true" });

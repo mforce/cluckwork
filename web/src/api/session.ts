@@ -10,6 +10,7 @@ import { newId } from "../lib/ids";
 import type { AccessTokenResponse, LoginRequest } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
+import { isAuthenticatorCode } from "../lib/secondFactorMessage";
 import { StaleSessionError, revokeSupersededCookie, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS, abortInFlightAuthCookieOperation } from "./authCookieLock";
 import { apiFetch, apiPost, refreshInFlight } from "./refresh";
@@ -92,7 +93,18 @@ export async function login(body: LoginRequest): Promise<LoginOutcome> {
 // same flight: the same cross-tab lock, deadline, generation check and stale
 // cookie revoke.
 export function completeSecondFactor(challenge: string, code: string): Promise<void> {
-  return signIn("/auth/login/second-factor", { challenge, code });
+  return noteCode(signIn("/auth/login/second-factor", { challenge, code }), code);
+}
+
+// #1279 — marks a refusal with the kind of code it answered, so every
+// surface words a wrong authenticator code the same way.
+async function noteCode<T>(request: Promise<T>, code: string | undefined): Promise<T> {
+  try {
+    return await request;
+  } catch (err) {
+    if (err instanceof ApiError) err.sentAuthenticatorCode = isAuthenticatorCode(code ?? "");
+    throw err;
+  }
 }
 
 function signIn(path: string, body: unknown): Promise<void> {
@@ -257,7 +269,7 @@ export async function changePassword(
   // E+1 cookie this request just issued. Passing the held lock context lets
   // apiFetch do its normal 401 refresh-and-retry inside this lock without
   // trying to acquire the non-reentrant Web Lock a second time.
-  const res = await withAuthCookieLock((signal) => {
+  const res = await noteCode(withAuthCookieLock((signal) => {
     // The operation may have waited behind another tab's refresh. Logout or a
     // newer login that happened while queued wins before this request sends a
     // byte; never let the stale password form act on the superseding session.
@@ -272,7 +284,7 @@ export async function changePassword(
       },
       { generation, signal },
     );
-  });
+  }), code);
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {
@@ -314,7 +326,7 @@ export async function changePassword(
 // A wrong code is 400 Auth.SecondFactorIncorrect, never 401, for the same
 // reason. An empty code is not sent, so an unenrolled user's body is unchanged.
 export async function stepUp(proof: StepUpProof): Promise<{ token: string; expiresAt: string }> {
-  return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", withCode({ password: proof.password }, proof.code));
+  return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", withCode({ password: proof.password }, proof.code)), proof.code);
 }
 
 export async function logout(): Promise<void> {

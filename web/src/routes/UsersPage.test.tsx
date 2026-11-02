@@ -4210,6 +4210,26 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(within(dialog()).getByRole("button", { name: "remove" })).toBeEnabled();
   });
 
+  // Maintainer, 2026-11-02: the login step's clock hint at step-up too.
+  it("adds the clock hint after a wrong authenticator code, and not after a recovery code", async () => {
+    mockStepUp
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode: true }))
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await caller("useSetPassword.onSetPassword").open();
+
+    proveEnrolled(freshCode());
+    await press("Set password");
+    expect(await within(dialog()).findByText(`${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
+
+    fill(/New password/, newPassword);
+    fill(/Confirm new password/, newPassword);
+    proveEnrolled(crypto.randomUUID());
+    await press("Set password");
+    expect(await within(dialog()).findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
+    expect(within(dialog()).queryByText(/Still not working/)).not.toBeInTheDocument();
+  });
+
   it("shows the server's wait when the daily code budget is spent", async () => {
     mockStepUp.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: 3 * 3600 }));
     await renderReady({ ...ADMIN, two_factor: "true" });

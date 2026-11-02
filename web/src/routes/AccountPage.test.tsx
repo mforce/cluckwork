@@ -311,6 +311,25 @@ describe("AccountPage change password with two-factor authentication (#1279)", (
     expect(mockChangePassword.mock.calls[0]![0]).toStrictEqual({ currentPassword: current, newPassword: next });
   });
 
+  // Maintainer, 2026-11-02: the login step's clock hint at change-password too.
+  it("adds the clock hint after a wrong authenticator code, and not after a recovery code", async () => {
+    mockChangePassword
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode: true }))
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+    renderWithProviders(<AccountPage />, { token: { ...WORKER, two_factor: "true" } });
+    const next = freshPassword();
+
+    fill(freshPassword(), next, next);
+    fireEvent.change(codeField()!, { target: { value: freshCode() } });
+    await act(async () => { submit(); });
+    expect(await screen.findByText(`${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
+
+    fireEvent.change(codeField()!, { target: { value: crypto.randomUUID() } });
+    await act(async () => { submit(); });
+    expect(await screen.findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
+    expect(screen.queryByText(/Still not working/)).not.toBeInTheDocument();
+  });
+
   it("clears a refused code and names the answer", async () => {
     mockChangePassword.mockRejectedValue(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
     renderWithProviders(<AccountPage />, { token: { ...WORKER, two_factor: "true" } });

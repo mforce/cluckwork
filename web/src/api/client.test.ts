@@ -1291,6 +1291,31 @@ describe("changePassword (#165)", () => {
 // (web/src/routes/users/) immediately before
 // the one sensitive write it unlocks; this file only proves the transport
 // contract (posts the password, authenticated, returns the grant as-is).
+// #1279 — the clock hint follows only a refused 6-digit authenticator code, at
+// the login code step, step-up and change-password alike.
+describe("sentAuthenticatorCode on a refused code", () => {
+  const code = freshCode();
+  const recovery = crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase();
+  const calls: [string, (typed: string) => Promise<unknown>][] = [
+    ["completeSecondFactor", (typed) => completeSecondFactor("challenge-jwt", typed)],
+    ["stepUp", (typed) => stepUp({ password: "x", code: typed })],
+    ["changePassword", (typed) => changePassword({ currentPassword: "x", newPassword: "y", code: typed })],
+  ];
+  it.each(calls.flatMap(([name, call]) => [
+    [name, "a 6-digit code", call, code, true],
+    [name, "a 6-digit code with a space", call, `${code.slice(0, 3)} ${code.slice(3)}`, true],
+    [name, "a recovery code", call, recovery, false],
+    [name, "7 digits", call, `${code}0`, false],
+  ] as const))("%s marks %s", async (_, __, call, typed, expected) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Auth.SecondFactorIncorrect", detail: "That code did not work." }, 400));
+
+    const err = await call(typed).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).sentAuthenticatorCode).toBe(expected);
+  });
+});
+
 describe("stepUp (#308)", () => {
   it("posts the password to /auth/step-up as an authenticated write and returns the grant", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));

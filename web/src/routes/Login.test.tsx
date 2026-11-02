@@ -891,15 +891,17 @@ describe("Login code step (#1278)", () => {
     expect(await screen.findByText("connect ?client_id=abc&scope=farm%3Aread")).toBeInTheDocument();
   });
 
+  // completeSecondFactor marks which kind of code was refused (client.test.ts).
   it("adds the clock hint after a wrong six-digit code, and not after a recovery code", async () => {
-    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+    mockApiCompleteSecondFactor
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode: true }))
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
     await reachCodeStep();
 
-    await submitCode("123 456");
-    expect(await screen.findByText(
-      `${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
+    await submitCode(freshCode());
+    expect(await screen.findByText(`${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
 
-    await submitCode("BCDF-GHJK-MNPQ-RTVW");
+    await submitCode(crypto.randomUUID());
     expect(await screen.findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
   });
 

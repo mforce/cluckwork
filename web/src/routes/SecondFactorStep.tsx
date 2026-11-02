@@ -14,16 +14,12 @@ import { messageFor } from "./signInMessage";
 
 // #1274 "What a caller sees": expired and suspended send the user back to the
 // password step; every other refusal keeps them here.
-function codeStepMessage(err: unknown, typed: string): { message: string; restart: boolean } | null {
+function codeStepMessage(err: unknown): { message: string; restart: boolean } | null {
   if (!(err instanceof ApiError)) return null;
   if (err.title === FARM_SUSPENDED) return { message: i18n.t("auth:farmSuspended"), restart: true };
   if (err.status === 401) return { message: i18n.t("auth:secondFactorExpired"), restart: true };
   const message = secondFactorMessage(err);
-  if (message === null) return null;
-  // The clock hint helps only an authenticator code (maintainer, #1278).
-  return err.title === "Auth.SecondFactorIncorrect" && /^\d{6}$/.test(typed.replace(/ /g, ""))
-    ? { message: `${message} ${i18n.t("auth:secondFactorClockHint")}`, restart: false }
-    : { message, restart: false };
+  return message === null ? null : { message, restart: false };
 }
 
 interface Props {
@@ -50,7 +46,7 @@ export function SecondFactorStep({ farmCode, challenge, onRestart }: Props) {
       try {
         await completeSecondFactor(farmCode, challenge, code);
       } catch (err) {
-        const answer = codeStepMessage(err, code);
+        const answer = codeStepMessage(err);
         if (answer?.restart) onRestart(answer.message);
         else setError(answer?.message ?? messageFor(err));
       }

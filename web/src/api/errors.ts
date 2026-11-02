@@ -8,17 +8,23 @@ export class ApiError extends Error {
   // #1279 — the Retry-After header in whole seconds; null when it is absent,
   // a date, zero, too large or not a number.
   retryAfterSeconds: number | null;
+  // #1279 — the refused request carried a 6-digit authenticator code, which
+  // shows the clock hint; set by the API call that sent it.
+  sentAuthenticatorCode: boolean;
 
   constructor(
     public status: number,
     public title: string,
     message: string,
-    { extensions = {}, retryAfterSeconds = null }: { extensions?: Record<string, unknown>; retryAfterSeconds?: number | null } = {},
+    { extensions = {}, retryAfterSeconds = null, sentAuthenticatorCode = false }: {
+      extensions?: Record<string, unknown>; retryAfterSeconds?: number | null; sentAuthenticatorCode?: boolean;
+    } = {},
   ) {
     super(message);
     this.name = "ApiError";
     this.extensions = extensions;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.sentAuthenticatorCode = sentAuthenticatorCode;
   }
 }
 
