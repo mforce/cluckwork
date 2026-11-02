@@ -64,10 +64,10 @@ internal static class SecondFactorProof
             : Task.CompletedTask;
 
     // The epoch and stamp the password check read: the entry's original
-    // values, which a successful rehash save advanced and a failed one did
-    // not. A failed rehash save leaves the user Modified, which the user-row
-    // lock refuses, so it is reloaded; a writer that moved the row meanwhile
-    // then fails the binding, and VerifyAsync answers Superseded.
+    // values. A successful rehash save advanced the stamp, never the epoch; a
+    // failed one advanced neither and leaves the user Modified, which the
+    // user-row lock refuses, so it is reloaded. A writer that moved the row
+    // meanwhile then fails the binding, and VerifyAsync answers Superseded.
     private static async Task<ProofBinding> BindAsync(AppDbContext db, ApplicationUser user, CancellationToken ct)
     {
         var entry = db.Entry(user);
