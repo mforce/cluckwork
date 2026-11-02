@@ -17,6 +17,8 @@ function moduleOf(file: string, specifier: string | undefined): string | null {
   if (!specifier?.startsWith(".")) return null;
   return resolve(dirname(file), specifier).replace(/\.tsx?$/, "");
 }
+const parseModule = (source: string, file: string) =>
+  parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
 const isApiModule = (file: string, specifier: string | undefined) => API_MODULES.has(moduleOf(file, specifier) ?? "");
 
 type Node = {
@@ -36,7 +38,7 @@ type Node = {
 // Each stepUp() call in one module, named by its enclosing function
 // declarations and function-valued consts ("useFlockAccess.onAssign").
 export function stepUpCallSites(source: string, file: string): string[] {
-  const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
+  const tree = parseModule(source, file);
   const direct = new Set<string>();
   const namespaces = new Set<string>();
   for (const statement of tree.program.body as Node[]) {
@@ -73,7 +75,7 @@ export function stepUpCallSites(source: string, file: string): string[] {
 // walk above, so outside api/client.ts there must be none.
 export function stepUpReExports(source: string, file: string): string[] {
   if (file === REEXPORTER) return [];
-  const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
+  const tree = parseModule(source, file);
   const found: string[] = [];
   for (const statement of tree.program.body as (Node & { loc?: { start: { line: number } } })[]) {
     if (!isApiModule(file, statement.source?.value)) continue;

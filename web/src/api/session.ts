@@ -234,12 +234,12 @@ export interface StepUpProof {
 
 export const NO_PROOF: Readonly<StepUpProof> = Object.freeze({ password: "" });
 
-// A code of only spaces is no code: the server would answer it with
-// Auth.SecondFactorRequired, uncharged.
 // The clock hint helps only an authenticator code, not a recovery code
 // (maintainer, #1278; at step-up and change-password too, 2026-11-02).
 const isAuthenticatorCode = (typed: string) => /^\d{6}$/.test(typed.replace(/ /g, ""));
 
+// A code of only spaces is no code: the server would answer it with
+// Auth.SecondFactorRequired, uncharged.
 const withCode = <T extends object>(body: T, code: string | undefined): T & { code?: string } =>
   code?.trim() ? { ...body, code } : body;
 
@@ -329,7 +329,8 @@ export async function changePassword(
 // A wrong code is 400 Auth.SecondFactorIncorrect, never 401, for the same
 // reason. An empty code is not sent, so an unenrolled user's body is unchanged.
 export async function stepUp(proof: StepUpProof): Promise<{ token: string; expiresAt: string }> {
-  return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", withCode({ password: proof.password }, proof.code)), proof.code);
+  const body = withCode({ password: proof.password }, proof.code);
+  return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
 export async function logout(): Promise<void> {
