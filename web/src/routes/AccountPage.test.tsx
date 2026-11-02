@@ -327,7 +327,7 @@ describe("AccountPage change password with two-factor authentication (#1279)", (
     fireEvent.change(codeField()!, { target: { value: crypto.randomUUID() } });
     await act(async () => { submit(); });
     expect(await screen.findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
-    expect(screen.queryByText(/Still not working/)).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:secondFactorClockHint"), { exact: false })).not.toBeInTheDocument();
   });
 
   it("clears a refused code and names the answer", async () => {

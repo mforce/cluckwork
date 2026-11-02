@@ -16,10 +16,6 @@ export function secondFactorMessage(err: ApiError): string | null {
   }
 }
 
-// The clock hint helps only an authenticator code, not a recovery code
-// (maintainer, #1278; at step-up and change-password too, 2026-11-02).
-export const isAuthenticatorCode = (typed: string) => /^\d{6}$/.test(typed.replace(/ /g, ""));
-
 // The daily budget reopens up to 24 hours later, so the wait is rounded up to
 // whole minutes, and to whole hours from two hours on.
 function throttled(seconds: number | null): string {

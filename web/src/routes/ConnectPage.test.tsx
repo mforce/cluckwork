@@ -572,14 +572,28 @@ describe("ConnectPage with two-factor authentication (#1279)", () => {
     [429, "Auth.SecondFactorThrottled", "auth:secondFactorThrottled"],
     [503, "Auth.StepUpRetry", "auth:stepUpRetry"],
   ] as const)("answers %i %s with its own message", async (status, title, key) => {
-    vi.mocked(stepUp).mockRejectedValue(new ApiError(status, title, "server text"));
+    vi.mocked(stepUp).mockRejectedValue(new ApiError(status, title, "server text", { sentAuthenticatorCode: true }));
     await show(REQUEST, "Manager", { two_factor: "true" });
 
     fireEvent.change(codeField()!, { target: { value: freshCode() } });
     await allowWith("pw");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t(key));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(i18n.t(key));
+    // The request carried an authenticator code, but only a wrong one gets the hint.
+    if (title !== "Auth.SecondFactorIncorrect") expect(alert).not.toHaveTextContent(i18n.t("auth:secondFactorClockHint"));
     expect(approveConsent).not.toHaveBeenCalled();
+  });
+
+  it("calls a wrong password a wrong password, with no clock hint, although a code was sent", async () => {
+    vi.mocked(stepUp).mockRejectedValue(
+      new ApiError(400, "Users.CurrentPasswordIncorrect", "Wrong", { sentAuthenticatorCode: true }));
+    await show(REQUEST, "Manager", { two_factor: "true" });
+
+    fireEvent.change(codeField()!, { target: { value: freshCode() } });
+    await allowWith("pw");
+
+    expect((await screen.findByRole("alert")).textContent).toBe(i18n.t("connect:wrongPassword"));
   });
 
   // Maintainer, 2026-11-02: the login step's clock hint at consent too.
@@ -594,7 +608,7 @@ describe("ConnectPage with two-factor authentication (#1279)", () => {
     fireEvent.change(codeField()!, { target: { value: freshCode() } });
     await allowWith("pw");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(new RegExp(`^${text.replace(/[.?]/g, "\\$&")}$`));
+    expect((await screen.findByRole("alert")).textContent).toBe(text);
   });
 
   it("shows the server's wait when the daily code budget is spent", async () => {

@@ -10,7 +10,6 @@ import { newId } from "../lib/ids";
 import type { AccessTokenResponse, LoginRequest } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
-import { isAuthenticatorCode } from "../lib/secondFactorMessage";
 import { StaleSessionError, revokeSupersededCookie, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS, abortInFlightAuthCookieOperation } from "./authCookieLock";
 import { apiFetch, apiPost, refreshInFlight } from "./refresh";
@@ -237,6 +236,10 @@ export const NO_PROOF: Readonly<StepUpProof> = Object.freeze({ password: "" });
 
 // A code of only spaces is no code: the server would answer it with
 // Auth.SecondFactorRequired, uncharged.
+// The clock hint helps only an authenticator code, not a recovery code
+// (maintainer, #1278; at step-up and change-password too, 2026-11-02).
+const isAuthenticatorCode = (typed: string) => /^\d{6}$/.test(typed.replace(/ /g, ""));
+
 const withCode = <T extends object>(body: T, code: string | undefined): T & { code?: string } =>
   code?.trim() ? { ...body, code } : body;
 

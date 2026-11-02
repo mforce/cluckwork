@@ -892,7 +892,7 @@ describe("Login code step (#1278)", () => {
   });
 
   // completeSecondFactor marks which kind of code was refused (client.test.ts).
-  it("adds the clock hint after a wrong six-digit code, and not after a recovery code", async () => {
+  it("adds the clock hint when the refusal is marked as an authenticator code, and not otherwise", async () => {
     mockApiCompleteSecondFactor
       .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode: true }))
       .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));

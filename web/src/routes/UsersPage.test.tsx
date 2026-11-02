@@ -4227,7 +4227,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     proveEnrolled(crypto.randomUUID());
     await press("Set password");
     expect(await within(dialog()).findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
-    expect(within(dialog()).queryByText(/Still not working/)).not.toBeInTheDocument();
+    expect(within(dialog()).queryByText(i18n.t("auth:secondFactorClockHint"), { exact: false })).not.toBeInTheDocument();
   });
 
   it("shows the server's wait when the daily code budget is spent", async () => {
