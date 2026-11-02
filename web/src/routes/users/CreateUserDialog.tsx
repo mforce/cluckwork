@@ -1,10 +1,11 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { DialogActions, Stack, TextField } from "@mui/material";
+import type { StepUpProof } from "../../api/client";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpPasswordField } from "../../components/StepUpPasswordField";
+import { StepUpProofFields } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 import { ROLE_VALUES, roleLabel } from "../../i18n/enums";
 
@@ -26,8 +27,8 @@ export function CreateUserDialog({
   setName,
   role,
   setRole,
-  createStepUpPassword,
-  setCreateStepUpPassword,
+  createStepUpProof,
+  setCreateStepUpProof,
 }: {
   creating: boolean;
   closeCreate: () => void;
@@ -43,8 +44,8 @@ export function CreateUserDialog({
   setName: Dispatch<SetStateAction<string>>;
   role: string;
   setRole: Dispatch<SetStateAction<string>>;
-  createStepUpPassword: string;
-  setCreateStepUpPassword: Dispatch<SetStateAction<string>>;
+  createStepUpProof: StepUpProof;
+  setCreateStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { t } = useTranslation("users");
   const { t: tc } = useTranslation("common");
@@ -94,10 +95,10 @@ export function CreateUserDialog({
           ))}
         </TextField>
         <p className="muted">{t("stepUpCreateHint")}</p>
-        <StepUpPasswordField
+        <StepUpProofFields
           label={t("stepUpFieldLabel")}
-          value={createStepUpPassword}
-          onChange={setCreateStepUpPassword}
+          value={createStepUpProof}
+          onChange={setCreateStepUpProof}
         />
         <DialogError errors={errors} scope="create" />
       </Stack>

@@ -4,14 +4,16 @@ import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Eye, Laptop, PenLine, UserRound } from "lucide-react";
 import { Alert, Box, Button, Checkbox, Paper, Stack, Typography } from "@mui/material";
-import { ApiError, stepUp } from "../api/client";
+import { ApiError, NO_PROOF, stepUp } from "../api/client";
+import type { StepUpProof } from "../api/client";
 import { approveConsent, askConsent, declineConsent } from "../api/oauth";
 import type { AuthorizeAnswer, ConsentRequest } from "../api/oauth";
 import { useAuth } from "../auth/useAuth";
 import { currentUserRole } from "../auth/claims";
 import { READ_SCOPE, scopeEntry, scopeRank } from "../auth/oauthScopes";
 import { BusyButton } from "../components/BusyButton";
-import { StepUpPasswordField } from "../components/StepUpPasswordField";
+import { StepUpProofFields } from "../components/StepUpProofFields";
+import { secondFactorMessage } from "../lib/secondFactorMessage";
 import { usePendingAction } from "../components/usePendingAction";
 import { useLatestLoad } from "../components/useLatestLoad";
 import { useFarm } from "../farm/useFarm";
@@ -52,7 +54,7 @@ export function ConnectPage() {
     : !loaded ? { kind: "loading" }
     : "redirectUri" in loaded ? { kind: "leaving" }
     : { kind: "ask", request: loaded, selected: choice?.request === loaded ? choice.selected : initialSelection(loaded) };
-  const [password, setPassword] = useState("");
+  const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -91,14 +93,14 @@ export function ConnectPage() {
     if (selected.length === 0) return cancel();
     await run("allow", async () => {
       setError(null);
-      const entered = password;
-      setPassword("");
+      const entered = proof;
+      setProof(NO_PROOF);
       let grant: string;
       try {
         grant = (await stepUp(entered)).token;
       } catch (err) {
-        setError(err instanceof ApiError && err.status === 400 ? t("wrongPassword")
-          : err instanceof ApiError && err.status === 429 ? t("tooManyAttempts") : t("failed"));
+        setError(secondFactorMessage(err) ?? (err instanceof ApiError && err.status === 400 ? t("wrongPassword")
+          : err instanceof ApiError && err.status === 429 ? t("tooManyAttempts") : t("failed")));
         return;
       }
       try {
@@ -123,7 +125,7 @@ export function ConnectPage() {
 
   function choose(selected: readonly string[]) {
     if (view.kind !== "ask") return;
-    if (selected.length === 0) setPassword("");
+    if (selected.length === 0) setProof(NO_PROOF);
     setChoice({ request: view.request, selected });
   }
 
@@ -165,7 +167,7 @@ export function ConnectPage() {
               <Permissions request={view.request} selected={view.selected} disabled={busy} onChange={choose} />
               {/* Nothing ticked is Cancel, which needs no password (#1326). */}
               {view.selected.length > 0
-                ? <StepUpPasswordField label={t("password")} value={password} onChange={setPassword} inputRef={passwordRef} disabled={busy} />
+                ? <StepUpProofFields label={t("password")} value={proof} onChange={setProof} inputRef={passwordRef} disabled={busy} />
                 : <Typography variant="body2">{t("noSelection", { cancel: t("cancel") })}</Typography>}
               <Box aria-live="assertive">{error && <Alert severity="error" role="alert">{error}</Alert>}</Box>
               <Stack direction="row" spacing={1}>

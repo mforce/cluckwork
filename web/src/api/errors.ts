@@ -9,6 +9,8 @@ export class ApiError extends Error {
     // #1274 — the problem body's own members, such as the sign-in challenge.
     // A credential among them is taken off by its reader at once.
     public extensions: Record<string, unknown> = {},
+    // The Retry-After header in whole seconds, or null when absent or a date.
+    public retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -63,5 +65,7 @@ export async function parseError(res: Response): Promise<ApiError> {
   } catch {
     // non-JSON body — keep status text
   }
-  return new ApiError(res.status, title, detail, extensions);
+  const retryAfter = Number(res.headers.get("Retry-After") ?? "");
+  return new ApiError(res.status, title, detail, extensions,
+    Number.isInteger(retryAfter) && retryAfter > 0 ? retryAfter : null);
 }

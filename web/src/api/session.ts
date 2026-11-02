@@ -214,6 +214,18 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
   onTokensChanged?.();
 }
 
+// #1279 — the step-up request body. `code` is the authenticator or recovery
+// code, present only for a user with two-factor authentication on.
+export interface StepUpProof {
+  password: string;
+  code?: string;
+}
+
+export const NO_PROOF: StepUpProof = { password: "" };
+
+const withCode = <T extends object>(body: T, code: string | undefined): T & { code?: string } =>
+  code ? { ...body, code } : body;
+
 // #165 — self-service password change. The server revokes every session for the
 // user (other devices are signed out) and hands this one a fresh pair, so we
 // swap in the returned access token; the rotated refresh cookie is set by the
@@ -225,9 +237,12 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
 // rotated Set-Cookie — leaving the client holding a revoked refresh cookie
 // (#165 review). Replay protection isn't needed anyway: a repeat can't re-apply,
 // because the current password no longer matches.
+//
+// #1279 — an enrolled user also sends a code, with step-up's answers.
 export async function changePassword(
-  body: { currentPassword: string; newPassword: string },
+  { code, ...passwords }: { currentPassword: string; newPassword: string; code?: string },
 ): Promise<void> {
+  const body = withCode(passwords, code);
   // #310 — this is a token-store writer like login/refresh, so it needs the
   // same generation guard: logout is reachable from every screen (AppLayout's
   // persistent button), so a user who submits a password change and logs out
@@ -292,8 +307,12 @@ export async function changePassword(
 // password, one typed password would be replayed as two failed accesses —
 // halving the server's five-attempt account lockout and rotating the refresh
 // token per attempt. The contract is pinned by a test in client.test.ts.
-export async function stepUp(password: string): Promise<{ token: string; expiresAt: string }> {
-  return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", { password });
+//
+// #1279 — an enrolled user proves the password AND a code (#1274 decision 11).
+// A wrong code is 400 Auth.SecondFactorIncorrect, never 401, for the same
+// reason. An empty code is not sent, so an unenrolled user's body is unchanged.
+export async function stepUp(proof: StepUpProof): Promise<{ token: string; expiresAt: string }> {
+  return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", withCode({ password: proof.password }, proof.code));
 }
 
 export async function logout(): Promise<void> {

@@ -1,11 +1,12 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { DialogActions, Stack, TextField } from "@mui/material";
+import type { StepUpProof } from "../../api/client";
 import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpPasswordField } from "../../components/StepUpPasswordField";
+import { StepUpProofFields } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
 // The password-reset dialog (#165), moved out of UsersPage (#1215). It
@@ -22,8 +23,8 @@ export function SetPasswordDialog({
   setPwValue,
   pwConfirm,
   setPwConfirm,
-  pwStepUpPassword,
-  setPwStepUpPassword,
+  pwStepUpProof,
+  setPwStepUpProof,
 }: {
   pwUser: User | null;
   closePassword: () => void;
@@ -35,8 +36,8 @@ export function SetPasswordDialog({
   setPwValue: Dispatch<SetStateAction<string>>;
   pwConfirm: string;
   setPwConfirm: Dispatch<SetStateAction<string>>;
-  pwStepUpPassword: string;
-  setPwStepUpPassword: Dispatch<SetStateAction<string>>;
+  pwStepUpProof: StepUpProof;
+  setPwStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { t } = useTranslation("users");
   const { t: tc } = useTranslation("common");
@@ -73,10 +74,10 @@ export function SetPasswordDialog({
           onChange={(e) => setPwConfirm(e.target.value)}
         />
         <p className="muted">{t("stepUpResetHint")}</p>
-        <StepUpPasswordField
+        <StepUpProofFields
           label={t("stepUpFieldLabel")}
-          value={pwStepUpPassword}
-          onChange={setPwStepUpPassword}
+          value={pwStepUpProof}
+          onChange={setPwStepUpProof}
         />
         <DialogError errors={errors} scope="set-password" />
       </Stack>

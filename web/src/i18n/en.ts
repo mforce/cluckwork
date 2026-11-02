@@ -127,6 +127,18 @@ export const en = {
     secondFactorExpired: "Your sign-in expired. Sign in again.",
     secondFactorThrottled:
       "Too many wrong authenticator codes for this account. Use a recovery code or try again later.",
+    // #1279 — the server's Retry-After, rounded up.
+    secondFactorThrottledMinutes_one:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} minute.",
+    secondFactorThrottledMinutes_other:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} minutes.",
+    secondFactorThrottledHours_one:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} hour.",
+    secondFactorThrottledHours_other:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} hours.",
+    // #1279 — step-up and change-password, for a user with two-factor authentication on.
+    secondFactorRequired: "Enter the code from your authenticator app, or a recovery code.",
+    stepUpRetry: "That did not go through. Wait for the next code from your authenticator app and try again.",
     invalidCredentials: "Invalid email or password.",
     credentialsSuperseded: "Your credentials changed. Please sign in again.",
     accountDisabled: "Your account has been disabled.",
@@ -3258,7 +3270,10 @@ export const en = {
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
       + "changing a login email, disabling a user, re-enabling a user, assigning a worker to a flock, and "
       + "removing a worker's flock assignment. This confirms it's really you before "
-      + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
+      + "handing out access or cutting someone else's off. Display-name changes do not ask again. "
+      + "When two-factor authentication is on for your account, these actions, <strong>Allow</strong> for a "
+      + "connected app and <strong>Change password</strong> also ask for an <strong>Authenticator code or recovery "
+      + "code</strong>. Each code works once, so for a second action straight after, wait for the next code.",
     signingInAppAddress:
       "<strong>Connecting an AI app.</strong> To connect a compatible AI app, add Cluckwork in the app with "
       + "this address: <code>{{address}}</code>. The app opens Cluckwork in your browser; sign in if asked. "

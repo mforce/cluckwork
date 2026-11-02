@@ -7,6 +7,8 @@ import { account } from "../test/fixtures";
 import { ApiError, logout, stepUp } from "../api/client";
 import { approveConsent, askConsent, declineConsent } from "../api/oauth";
 import type { ConsentRequest } from "../api/oauth";
+import i18n from "../i18n";
+import { freshCode } from "../test/codes";
 
 vi.mock("../api/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/client")>()),
@@ -40,14 +42,14 @@ afterEach(() => {
   Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
 });
 
-async function show(request: ConsentRequest, role: string | null = "Manager") {
+async function show(request: ConsentRequest, role: string | null = "Manager", claims: Record<string, unknown> = {}) {
   vi.mocked(askConsent).mockResolvedValue(request);
   renderWithProviders(
     <Routes><Route path="/connect" element={<ConnectPage />} /></Routes>,
     {
       route: `/connect${SEARCH}`,
       farm: account({ name: "Hen House" }),
-      token: role ? { sub: "u1", role } : { sub: "u1" },
+      token: { ...(role ? { sub: "u1", role } : { sub: "u1" }), ...claims },
       me: { id: "u1", email: "ana.reyes@meadowlark.farm", name: null, role: role ?? "Worker", language: null, preferredStepperUnit: null },
     },
   );
@@ -116,7 +118,7 @@ describe("ConnectPage (#798, consent D)", () => {
 
     await allowWith("pw");
 
-    expect(stepUp).toHaveBeenCalledWith("pw");
+    expect(stepUp).toHaveBeenCalledWith({ password: "pw" });
     expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant-1", ["farm:read", "daily-entries:write"]);
     expect(assign).toHaveBeenCalledWith("http://127.0.0.1:5000/cb?code=abc");
   });
@@ -522,5 +524,53 @@ describe("ConnectPage (#798, consent D)", () => {
     await waitFor(() => expect(askConsent).toHaveBeenCalledTimes(3));
     expect(await screen.findByRole("heading", { name: "Let Claude Desktop act as you?" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Connected apps are off" })).not.toBeInTheDocument();
+  });
+});
+
+// #1279 — consent and reconnect spend a grant, so an enrolled user proves the
+// password and a code (#1274 decision 11).
+describe("ConnectPage with two-factor authentication (#1279)", () => {
+  const codeField = () => screen.queryByLabelText(/Authenticator code or recovery code/);
+
+  it("asks for a code and sends it with the password", async () => {
+    vi.mocked(stepUp).mockResolvedValue({ token: "grant-1", expiresAt: "" });
+    vi.mocked(approveConsent).mockResolvedValue({ redirectUri: "http://127.0.0.1:5000/cb?code=abc" });
+    await show(REQUEST, "Manager", { two_factor: "true" });
+    const code = freshCode();
+
+    expect(codeField()).toBeRequired();
+    fireEvent.change(codeField()!, { target: { value: code } });
+    await allowWith("pw");
+
+    expect(vi.mocked(stepUp).mock.calls[0]![0]).toStrictEqual({ password: "pw", code });
+    expect(approveConsent).toHaveBeenCalledWith(SEARCH, "grant-1", ["farm:read", "daily-entries:write"]);
+  });
+
+  it("shows no code field when two-factor is off", async () => {
+    await show(REQUEST);
+
+    expect(codeField()).not.toBeInTheDocument();
+  });
+
+  it("names a wrong code instead of calling it a wrong password, and connects nothing", async () => {
+    vi.mocked(stepUp).mockRejectedValue(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+    await show(REQUEST, "Manager", { two_factor: "true" });
+
+    fireEvent.change(codeField()!, { target: { value: freshCode() } });
+    await allowWith("pw");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("auth:secondFactorIncorrect"));
+    expect(approveConsent).not.toHaveBeenCalled();
+    expect(codeField()).toHaveValue("");
+  });
+
+  it("shows the server's wait when the daily code budget is spent", async () => {
+    vi.mocked(stepUp).mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", {}, 45 * 60));
+    await show(REQUEST, "Manager", { two_factor: "true" });
+
+    fireEvent.change(codeField()!, { target: { value: freshCode() } });
+    await allowWith("pw");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t("auth:secondFactorThrottledMinutes", { count: 45 }));
   });
 });

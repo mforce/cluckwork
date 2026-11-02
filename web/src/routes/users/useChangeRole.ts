@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { changeUserRole, listUsers } from "../../api/cluckwork";
 import type { User } from "../../api/cluckwork";
-import { stepUp } from "../../api/client";
+import { stepUp, NO_PROOF } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
 import type { DialogAction } from "../../components/useDialogAction";
 import i18n from "../../i18n";
 import { roleLabel } from "../../i18n/enums";
@@ -17,16 +18,16 @@ export function useChangeRole({
   keyFor,
   clearKey,
   setMessage,
-  roleStepUpPassword,
-  setRoleStepUpPassword,
+  roleStepUpProof,
+  setRoleStepUpProof,
 }: {
   dialog: DialogAction<"change-role">;
   setUsers: Dispatch<SetStateAction<User[] | null>>;
   keyFor: (scope: string) => string;
   clearKey: (scope: string) => void;
   setMessage: Dispatch<SetStateAction<string | null>>;
-  roleStepUpPassword: string;
-  setRoleStepUpPassword: Dispatch<SetStateAction<string>>;
+  roleStepUpProof: StepUpProof;
+  setRoleStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { busy, run, openDialog, dismissDialog } = dialog;
 
@@ -41,12 +42,12 @@ export function useChangeRole({
     openDialog("change-role");
     setMessage(null);
     setRoleValue(u.role);
-    setRoleStepUpPassword("");
+    setRoleStepUpProof(NO_PROOF);
     setRoleUser(u);
   }
 
   function closeRole() {
-    setRoleStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setRoleStepUpProof(NO_PROOF); // #308 — never leave a typed proof password behind
     setRoleUser(null);
     dismissDialog("change-role");
   }
@@ -60,9 +61,9 @@ export function useChangeRole({
     await run(`change-role:${target.id}`, async (current) => {
       // #355/#360 — every role mutation changes durable authorization. Read
       // then clear before awaiting issuance; the grant is spent once below.
-      const enteredPassword = roleStepUpPassword;
-      setRoleStepUpPassword("");
-      const stepUpToken = (await stepUp(enteredPassword)).token;
+      const enteredProof = roleStepUpProof;
+      setRoleStepUpProof(NO_PROOF);
+      const stepUpToken = (await stepUp(enteredProof)).token;
       if (!current()) return;
 
       await changeUserRole(target.id, { role: roleValue }, keyFor(keyScope), stepUpToken);

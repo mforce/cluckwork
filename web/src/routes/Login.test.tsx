@@ -10,6 +10,7 @@ import { setStoredToken } from "../test/jwt";
 import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount, getBoundFarmCode } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
+import { freshCode } from "../test/codes";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
 // network + AuthProvider's registration hooks.
@@ -919,6 +920,22 @@ describe("Login code step (#1278)", () => {
     await submitCode("123456");
 
     expect(await screen.findByText(i18n.t("auth:secondFactorThrottled"))).toBeInTheDocument();
+  });
+
+  // #1279 S1 — the server's Retry-After, rounded up to whole minutes, and to
+  // whole hours from two hours on.
+  it.each([
+    [59, "secondFactorThrottledMinutes", 1],
+    [119 * 60, "secondFactorThrottledMinutes", 119],
+    [119 * 60 + 1, "secondFactorThrottledHours", 2],
+    [23 * 3600 + 1, "secondFactorThrottledHours", 24],
+  ] as const)("names the wait for a spent daily budget (%i s)", async (seconds, key, count) => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", {}, seconds));
+    await reachCodeStep();
+
+    await submitCode(freshCode());
+
+    expect(await screen.findByText(i18n.t(`auth:${key}`, { count }))).toBeInTheDocument();
   });
 
   it("sends a farm suspended between the steps back to the password step", async () => {

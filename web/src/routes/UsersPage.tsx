@@ -4,7 +4,8 @@ import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucid
 import { Stack, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { listUsers } from "../api/cluckwork";
 import type { Flock, User } from "../api/cluckwork";
-import { ApiError } from "../api/client";
+import { ApiError, NO_PROOF } from "../api/client";
+import type { StepUpProof } from "../api/client";
 import { BusyButton } from "../components/BusyButton";
 import {
   CONSOLE_DESTRUCTIVE_LINK_SX, LedgerTableContainer, ListInspectorPane, RecordInspector,
@@ -78,9 +79,9 @@ export function UsersPage() {
   // states serve every create/reset/role operation. Each is transient: read
   // into a local const and cleared from state before awaiting /auth/step-up,
   // never held for the write that follows. See the logout-clearing effect below.
-  const [createStepUpPassword, setCreateStepUpPassword] = useState("");
-  const [pwStepUpPassword, setPwStepUpPassword] = useState("");
-  const [roleStepUpPassword, setRoleStepUpPassword] = useState("");
+  const [createStepUpProof, setCreateStepUpProof] = useState<StepUpProof>(NO_PROOF);
+  const [pwStepUpProof, setPwStepUpProof] = useState<StepUpProof>(NO_PROOF);
+  const [roleStepUpProof, setRoleStepUpProof] = useState<StepUpProof>(NO_PROOF);
 
   const { isAuthenticated, userId: myId } = useAuth();
   // #356 — this screen's own identity, so the disable/enable actions can be
@@ -99,22 +100,22 @@ export function UsersPage() {
   // unmounting.
   useEffect(() => {
     if (!isAuthenticated) {
-      setCreateStepUpPassword("");
-      setPwStepUpPassword("");
-      setRoleStepUpPassword("");
-      setStepUpPassword("");
-      setFlockStepUpPassword("");
-      // `emailStepUpPassword` is cleared by the change-email effect below,
+      setCreateStepUpProof(NO_PROOF);
+      setPwStepUpProof(NO_PROOF);
+      setRoleStepUpProof(NO_PROOF);
+      setStepUpProof(NO_PROOF);
+      setFlockStepUpProof(NO_PROOF);
+      // `emailStepUpProof` is cleared by the change-email effect below,
       // which also ends that dialog's session.
     }
   }, [isAuthenticated]);
 
   const [emailUser, setEmailUser] = useState<User | null>(null);
   const [emailValue, setEmailValue] = useState("");
-  const [emailStepUpPassword, setEmailStepUpPassword] = useState("");
+  const [emailStepUpProof, setEmailStepUpProof] = useState<StepUpProof>(NO_PROOF);
   const [emailFieldError, setEmailFieldError] = useState<string | null>(null);
 
-  const [stepUpPassword, setStepUpPassword] = useState("");
+  const [stepUpProof, setStepUpProof] = useState<StepUpProof>(NO_PROOF);
 
   // #103 flock scoping: expand a worker row to manage assignments.
   // #606 — assign/remove each require step-up, same as every other durable
@@ -123,7 +124,7 @@ export function UsersPage() {
   // every await, same read-then-clear-before-issuance pattern as the other
   // dialogs) rather than caching a grant across assign/remove.
 
-  const [flockStepUpPassword, setFlockStepUpPassword] = useState("");
+  const [flockStepUpProof, setFlockStepUpProof] = useState<StepUpProof>(NO_PROOF);
 
   // #512 (T028/T037) — the assignment flock is committed through FlockPicker.
   // `assignFlock` is the page-controlled committed entity (a full typed flock,
@@ -155,7 +156,7 @@ export function UsersPage() {
   useEffect(() => {
     if (!isAuthenticated) {
       if (emailUser !== null) keys.current.delete(`change-email:${emailUser.id}`);
-      setEmailStepUpPassword("");
+      setEmailStepUpProof(NO_PROOF);
       setEmailFieldError(null);
       setEmailUser(null);
       // Closed out from under the user by the screen itself — the same edge as
@@ -201,25 +202,25 @@ export function UsersPage() {
   // handlers. The flight guard, the message slots and the idempotency keys
   // stay here (#703), as do the proof passwords and the picker state the
   // effects above clear and seed (#308).
-  const create = useCreateUser({ dialog, setUsers, keyFor, clearKey, setMessage, createStepUpPassword, setCreateStepUpPassword });
+  const create = useCreateUser({ dialog, setUsers, keyFor, clearKey, setMessage, createStepUpProof, setCreateStepUpProof });
   const { openCreate } = create;
   const edit = useEditUser({ dialog, setUsers, keyFor, clearKey, setMessage });
   const { openEdit } = edit;
-  const password = useSetPassword({ dialog, keyFor, clearKey, setMessage, pwStepUpPassword, setPwStepUpPassword });
+  const password = useSetPassword({ dialog, keyFor, clearKey, setMessage, pwStepUpProof, setPwStepUpProof });
   const { openPassword } = password;
-  const role = useChangeRole({ dialog, setUsers, keyFor, clearKey, setMessage, roleStepUpPassword, setRoleStepUpPassword });
+  const role = useChangeRole({ dialog, setUsers, keyFor, clearKey, setMessage, roleStepUpProof, setRoleStepUpProof });
   const { openRole } = role;
   const email = useChangeEmail({
     dialog, setUsers, keyFor, clearKey, setMessage, myId,
-    emailUser, setEmailUser, emailValue, setEmailValue, emailStepUpPassword, setEmailStepUpPassword, setEmailFieldError,
+    emailUser, setEmailUser, emailValue, setEmailValue, emailStepUpProof, setEmailStepUpProof, setEmailFieldError,
   });
   const { openEmail } = email;
-  const disable = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpPassword, setStepUpPassword });
+  const disable = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpProof, setStepUpProof });
   const { openStepUp } = disable;
   const flock = useFlockAccess({
     dialog, keyFor, clearKey,
     assignFlock, setAssignFlock, setAssignFlockGen, assignFlockSnapshot, setAssignPickerOpen,
-    flockStepUpPassword, setFlockStepUpPassword,
+    flockStepUpProof, setFlockStepUpProof,
   });
   const { openAssignments } = flock;
 
@@ -280,7 +281,7 @@ export function UsersPage() {
 
 
 
-      <CreateUserDialog {...create} {...{ busy, isPending, errors, createStepUpPassword, setCreateStepUpPassword }} />
+      <CreateUserDialog {...create} {...{ busy, isPending, errors, createStepUpProof, setCreateStepUpProof }} />
 
       {/* Unconditional since #479. The five-way guard this replaces existed
           because every dialog rendered the same string, so the page had to
@@ -357,17 +358,17 @@ export function UsersPage() {
 
 
 
-      <FlockAccessDialog {...flock} {...{ users, busy, isPending, errors, assignFlock, setAssignFlock, assignFlockGen, setAssignFlockGen, assignFlockSnapshot, setAssignFlockSnapshot, assignPickerOpen, setAssignPickerOpen, flockStepUpPassword, setFlockStepUpPassword }} />
+      <FlockAccessDialog {...flock} {...{ users, busy, isPending, errors, assignFlock, setAssignFlock, assignFlockGen, setAssignFlockGen, assignFlockSnapshot, setAssignFlockSnapshot, assignPickerOpen, setAssignPickerOpen, flockStepUpProof, setFlockStepUpProof }} />
 
       <EditUserDialog {...edit} {...{ busy, isPending, errors }} />
 
-      <SetPasswordDialog {...password} {...{ busy, isPending, errors, pwStepUpPassword, setPwStepUpPassword }} />
+      <SetPasswordDialog {...password} {...{ busy, isPending, errors, pwStepUpProof, setPwStepUpProof }} />
 
-      <ChangeRoleDialog {...role} {...{ busy, isPending, errors, roleStepUpPassword, setRoleStepUpPassword }} />
+      <ChangeRoleDialog {...role} {...{ busy, isPending, errors, roleStepUpProof, setRoleStepUpProof }} />
 
-      <ChangeEmailDialog {...email} {...{ emailUser, busy, isPending, errors, clearKey, emailValue, setEmailValue, emailFieldError, setEmailFieldError, emailStepUpPassword, setEmailStepUpPassword }} />
+      <ChangeEmailDialog {...email} {...{ emailUser, busy, isPending, errors, clearKey, emailValue, setEmailValue, emailFieldError, setEmailFieldError, emailStepUpProof, setEmailStepUpProof }} />
 
-      <DisableEnableDialog {...disable} {...{ busy, isPending, errors, stepUpPassword, setStepUpPassword }} />
+      <DisableEnableDialog {...disable} {...{ busy, isPending, errors, stepUpProof, setStepUpProof }} />
     </section>
   );
 }

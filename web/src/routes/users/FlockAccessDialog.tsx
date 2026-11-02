@@ -1,13 +1,15 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { DialogActions, Stack } from "@mui/material";
+import type { StepUpProof } from "../../api/client";
 import type { Flock, FlockAssignment, User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { CONSOLE_LINK_SX } from "../../components/FieldConsole";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
 import { FlockPicker } from "../../components/FlockPicker";
-import { StepUpPasswordField } from "../../components/StepUpPasswordField";
+import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { useAuth } from "../../auth/useAuth";
 import type { PickerSnapshot } from "../../components/NamedEntityPicker";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
@@ -34,8 +36,8 @@ export function FlockAccessDialog({
   setAssignFlockSnapshot,
   assignPickerOpen,
   setAssignPickerOpen,
-  flockStepUpPassword,
-  setFlockStepUpPassword,
+  flockStepUpProof,
+  setFlockStepUpProof,
 }: {
   openUser: string | null;
   users: User[];
@@ -55,10 +57,13 @@ export function FlockAccessDialog({
   setAssignFlockSnapshot: Dispatch<SetStateAction<PickerSnapshot<Flock>>>;
   assignPickerOpen: boolean;
   setAssignPickerOpen: Dispatch<SetStateAction<boolean>>;
-  flockStepUpPassword: string;
-  setFlockStepUpPassword: Dispatch<SetStateAction<string>>;
+  flockStepUpProof: StepUpProof;
+  setFlockStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { t } = useTranslation("users");
+  // These buttons are not the form's submit, so `required` does not hold them.
+  const { twoFactor } = useAuth();
+  const proofMissing = !flockStepUpProof.password || (twoFactor && !flockStepUpProof.code);
 
   // #612 — only a plain Worker is ever narrowed by flock assignments; the
   // flock-access dialog reads this to disable adding a new one and to mark
@@ -115,7 +120,7 @@ export function FlockAccessDialog({
               <li key={a.id}>
                 {flockName(a)}
                 {!openUserIsWorker && <span className="muted"> ({t("inactiveAssignmentLabel")})</span>}{" "}
-                <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy || !flockStepUpPassword}
+                <BusyButton variant="text" sx={CONSOLE_LINK_SX} disabled={busy || proofMissing}
                   busy={openUser !== null && isPending(`unassign:${openUser}:${a.flockId}`)}
                   onClick={() => void onUnassign(a)}>
                   {t("removeAssignmentButton")}
@@ -169,7 +174,7 @@ export function FlockAccessDialog({
                 </button>
               }
             />
-            <BusyButton variant="contained" disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || !flockStepUpPassword}
+            <BusyButton variant="contained" disabled={busy || !assignFlock || !assignFlockSnapshot.canSubmit || proofMissing}
               busy={openUser !== null && isPending(`assign:${openUser}:${assignFlock?.id ?? ""}`)}
               onClick={() => void onAssign()}>
               {t("assignFlockButton")}
@@ -179,10 +184,10 @@ export function FlockAccessDialog({
           <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
         )}
         <p className="muted">{t("stepUpFlockHint")}</p>
-        <StepUpPasswordField
+        <StepUpProofFields
           label={t("stepUpFieldLabel")}
-          value={flockStepUpPassword}
-          onChange={setFlockStepUpPassword}
+          value={flockStepUpProof}
+          onChange={setFlockStepUpProof}
         />
         <DialogError errors={errors} scope="flock-access" />
       </Stack>

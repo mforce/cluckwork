@@ -94,6 +94,16 @@ export const tl = {
     secondFactorExpired: "Nag-expire ang iyong pag-sign in. Mag-sign in muli.",
     secondFactorThrottled:
       "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit mamaya.",
+    secondFactorThrottledMinutes_one:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} minuto.",
+    secondFactorThrottledMinutes_other:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} minuto.",
+    secondFactorThrottledHours_one:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} oras.",
+    secondFactorThrottledHours_other:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} oras.",
+    secondFactorRequired: "Ilagay ang code mula sa iyong authenticator app, o isang recovery code.",
+    stepUpRetry: "Hindi ito natuloy. Hintayin ang susunod na code mula sa iyong authenticator app at subukan ulit.",
     invalidCredentials: "Mali ang email o password.",
     credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
     accountDisabled: "Na-disable ang iyong account.",
@@ -2607,7 +2617,11 @@ export const tl = {
       + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
       + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-assign ng manggagawa sa "
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
-      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
+      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name. "
+      + "Kapag naka-on ang two-factor authentication sa iyong account, ang mga aksyong ito, ang <strong>Payagan</strong> "
+      + "para sa isang connected app at ang <strong>Palitan ang password</strong> ay humihingi rin ng <strong>Authenticator "
+      + "code o recovery code</strong>. Isang beses lang gumagana ang bawat code, kaya para sa pangalawang aksyon "
+      + "kaagad pagkatapos, hintayin ang susunod na code.",
     signingInAppAddress:
       "<strong>Pagkonekta ng AI app.</strong> Para ikonekta ang isang compatible na AI app, idagdag ang Cluckwork "
       + "sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app ang Cluckwork sa iyong "

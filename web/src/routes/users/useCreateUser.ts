@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { createUser, listUsers } from "../../api/cluckwork";
 import type { User } from "../../api/cluckwork";
-import { stepUp } from "../../api/client";
+import { stepUp, NO_PROOF } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
 import type { DialogAction } from "../../components/useDialogAction";
 import i18n from "../../i18n";
 import { roleLabel } from "../../i18n/enums";
@@ -18,16 +19,16 @@ export function useCreateUser({
   keyFor,
   clearKey,
   setMessage,
-  createStepUpPassword,
-  setCreateStepUpPassword,
+  createStepUpProof,
+  setCreateStepUpProof,
 }: {
   dialog: DialogAction<"create">;
   setUsers: Dispatch<SetStateAction<User[] | null>>;
   keyFor: (scope: string) => string;
   clearKey: (scope: string) => void;
   setMessage: Dispatch<SetStateAction<string | null>>;
-  createStepUpPassword: string;
-  setCreateStepUpPassword: Dispatch<SetStateAction<string>>;
+  createStepUpProof: StepUpProof;
+  setCreateStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { run, openDialog, dismissDialog } = dialog;
 
@@ -47,9 +48,9 @@ export function useCreateUser({
       // #308/#360 — every interactive creation establishes a durable login,
       // regardless of role. Read then clear the Owner's current password
       // before awaiting issuance; the grant is spent on this write only.
-      const enteredPassword = createStepUpPassword;
-      setCreateStepUpPassword("");
-      const stepUpToken = (await stepUp(enteredPassword)).token;
+      const enteredProof = createStepUpProof;
+      setCreateStepUpProof(NO_PROOF);
+      const stepUpToken = (await stepUp(enteredProof)).token;
       if (!current()) return;
 
       const scope = `create:${email.trim().toLowerCase()}`;
@@ -67,7 +68,7 @@ export function useCreateUser({
       setMessage(i18n.t("users:createSuccessMessage", { role: roleLabel(role), email: email.trim() }));
       // #336 review — close through closeCreate() rather than repeating the
       // field resets here. The duplicated list had already drifted: it never
-      // cleared createStepUpPassword, so a successful create could leave the
+      // cleared createStepUpProof, so a successful create could leave the
       // operator's own account password in state, visible on the next reopen.
       // One reset path means new dialog state can only be forgotten in one
       // place, not two — the #314 lesson, relearned.
@@ -93,7 +94,7 @@ export function useCreateUser({
     setPassword("");
     setRole("Worker");
     setName("");
-    setCreateStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setCreateStepUpProof(NO_PROOF); // #308 — never leave a typed proof password behind
     dismissDialog("create");
   }
 

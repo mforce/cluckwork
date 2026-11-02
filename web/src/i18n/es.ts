@@ -88,6 +88,16 @@ export const es = {
     secondFactorExpired: "Su inicio de sesión caducó. Inicie sesión de nuevo.",
     secondFactorThrottled:
       "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo más tarde.",
+    secondFactorThrottledMinutes_one:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} minuto.",
+    secondFactorThrottledMinutes_other:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} minutos.",
+    secondFactorThrottledHours_one:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} hora.",
+    secondFactorThrottledHours_other:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} horas.",
+    secondFactorRequired: "Introduzca el código de su aplicación de autenticación o un código de recuperación.",
+    stepUpRetry: "No se completó. Espere el siguiente código de su aplicación de autenticación e inténtelo de nuevo.",
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
     credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
     accountDisabled: "Su cuenta ha sido deshabilitada.",
@@ -2515,7 +2525,11 @@ export const es = {
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
       + "volver a habilitar un usuario, asignar un trabajador a un lote, y quitarle a un trabajador la asignación "
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
-      + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
+      + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla. "
+      + "Cuando la autenticación en dos pasos está activada en su cuenta, estas acciones, <strong>Permitir</strong> "
+      + "para una aplicación conectada y <strong>Cambiar contraseña</strong> piden también un <strong>Código de "
+      + "autenticación o código de recuperación</strong>. Cada código funciona una vez, así que para una segunda "
+      + "acción justo después, espere el siguiente código.",
     signingInAppAddress:
       "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, agrega "
       + "Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre Cluckwork en "

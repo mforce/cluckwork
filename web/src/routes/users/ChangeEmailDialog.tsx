@@ -2,11 +2,12 @@ import { useId } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { DialogActions, Stack, TextField } from "@mui/material";
+import type { StepUpProof } from "../../api/client";
 import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpPasswordField } from "../../components/StepUpPasswordField";
+import { StepUpProofFields } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
 // The change-email dialog (#357), moved out of UsersPage (#1215). It renders
@@ -26,8 +27,8 @@ export function ChangeEmailDialog({
   setEmailValue,
   emailFieldError,
   setEmailFieldError,
-  emailStepUpPassword,
-  setEmailStepUpPassword,
+  emailStepUpProof,
+  setEmailStepUpProof,
 }: {
   emailUser: User | null;
   closeEmail: () => void;
@@ -40,8 +41,8 @@ export function ChangeEmailDialog({
   setEmailValue: Dispatch<SetStateAction<string>>;
   emailFieldError: string | null;
   setEmailFieldError: Dispatch<SetStateAction<string | null>>;
-  emailStepUpPassword: string;
-  setEmailStepUpPassword: Dispatch<SetStateAction<string>>;
+  emailStepUpProof: StepUpProof;
+  setEmailStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const emailHintId = useId();
   const emailErrorId = useId();
@@ -90,11 +91,11 @@ export function ChangeEmailDialog({
           }}
         />
         <p className="muted">{t("stepUpEmailHint")}</p>
-        <StepUpPasswordField
+        <StepUpProofFields
           label={t("stepUpFieldLabel")}
-          value={emailStepUpPassword}
+          value={emailStepUpProof}
           disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
-          onChange={setEmailStepUpPassword}
+          onChange={setEmailStepUpProof}
         />
         <DialogError errors={errors} scope="change-email" />
       </Stack>
