@@ -4123,6 +4123,22 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(mockStepUp.mock.calls[0]![0]).toStrictEqual({ password: OWNER_STEP_UP_PASSWORD });
   });
 
+  // The flock buttons are not the form's submit, so `required` cannot hold them.
+  it("keeps the flock buttons off until the code is typed too", async () => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await act(async () => { inspector(/worker@farm.test/, "flocks"); });
+    await screen.findByRole("listitem");
+    await pickFlock("Coop B");
+
+    fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
+    expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
+    expect(within(dialog()).getByRole("button", { name: "remove" })).toBeDisabled();
+
+    fill(/Authenticator code or recovery code/, freshCode());
+    expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeEnabled();
+    expect(within(dialog()).getByRole("button", { name: "remove" })).toBeEnabled();
+  });
+
   it("shows the server's wait when the daily code budget is spent", async () => {
     mockStepUp.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", {}, 3 * 3600));
     await renderReady({ ...ADMIN, two_factor: "true" });
