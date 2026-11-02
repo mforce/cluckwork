@@ -37,6 +37,12 @@ public sealed class McpSecondaryScopeTests(CluckworkWebApplicationFactory factor
             "OpenIddict forwards to its typed token manager in the same scope"),
         new(typeof(IOpenIddictAuthorizationManager), typeof(OpenIddictEntityFrameworkCoreBuilder),
             "OpenIddict forwards to its typed authorization manager in the same scope"),
+        // #1278: TwoFactorCredentials protects the authenticator key with it.
+        new(typeof(Microsoft.AspNetCore.DataProtection.IDataProtectionProvider),
+            typeof(DataProtectionServiceCollectionExtensions),
+            "AddDataProtection builds the singleton provider from singletons (its options and the key ring). "
+            + "The key ring's PersistKeysToDbContext repository opens its own scope, but reads only the "
+            + "untenanted DataProtectionKeys table, never a farm's data"),
     ];
 
     private static readonly ReviewedRequestReader Bridge =

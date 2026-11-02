@@ -63,8 +63,22 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Refresh.cs",
-            Hash = "8ac33f82",
+            Hash = "d934a1fb",
             Justification = "Refresh-token rotation reads the account to verify it is active; scoped to the token's account id, IgnoreQueryFilters because TenantContext may be unresolved during the auth handshake.",
+        },
+        new()
+        {
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.SecondFactor.cs",
+            Hash = "b2bd10a7",
+            Justification = "The login code step reads the challenge's account to refuse a suspended farm (#579), the read refresh uses; scoped to the challenge's account id, IgnoreQueryFilters because the code step is anonymous and TenantContext is unresolved (#1278).",
+        },
+        new()
+        {
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.UserRowLock.TakeAsync(AppDbContext db, Guid accountId, Guid userId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/UserRowLock.cs",
+            Hash = "907d1c00",
+            Justification = "Raw-SQL user-row lock (SELECT 1 ... FOR NO KEY UPDATE) that every two-factor write takes first (#1274 \"Locks\"); filtered by Id AND AccountId, so it can lock only that farm's row, and it loads no entity.",
         },
         new()
         {

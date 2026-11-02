@@ -70,6 +70,18 @@ public sealed record GuardReport(
 
 public static class GuardScanner
 {
+    // GlobalUserLookupGuardTests' rule, which that project cannot share from
+    // here: an EF snapshot, or a 14-digit timestamped migration and its
+    // designer, under a Migrations directory. The path is relative, '/'-joined.
+    internal static bool IsMigrationShaped(string file)
+    {
+        var parts = file.Split('/');
+        if (parts.Length < 2 || parts[^2] != "Migrations") return false;
+        var name = parts[^1];
+        return name == "AppDbContextModelSnapshot.cs"
+            || (name.Length > 15 && name[14] == '_' && name[..14].All(char.IsAsciiDigit));
+    }
+
     // The real src/ tree must contain at least this many .cs files. The count
     // is set below the current 456 (measured 2026-08-22) so that adding files
     // does not break the gate, but a path-filter bug that silently excludes a

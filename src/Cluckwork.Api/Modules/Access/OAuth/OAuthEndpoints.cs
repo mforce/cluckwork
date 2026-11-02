@@ -27,7 +27,7 @@ public static class OAuthEndpoints
     // chain treats an OAuth principal like a session one: tenant, actor and roles,
     // flock scope, credential epoch and must-change-password all read these.
     private static readonly HashSet<string> SessionClaimTypes =
-        [Claims.Subject, Claims.Email, "account_id", "credential_epoch", Claims.Role, "must_change_password"];
+        [Claims.Subject, Claims.Email, "account_id", "credential_epoch", Claims.Role, "must_change_password", "two_factor"];
 
     public static RouteGroupBuilder MapOAuthEndpoints(this RouteGroupBuilder group)
     {

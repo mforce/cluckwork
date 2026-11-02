@@ -211,9 +211,13 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
 {
     public Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) => inner.ResolveFarmCodeAsync(farmCode, ct);
 
-    public Task<Result<TokenPair>> LoginAsync(
+    public Task<Result<LoginStep>> LoginAsync(
         Guid accountId, string email, string password, CancellationToken ct = default) =>
         inner.LoginAsync(accountId, email, password, ct);
+
+    public Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
+        string challenge, string code, CancellationToken ct = default) =>
+        inner.CompleteSecondFactorLoginAsync(challenge, code, ct);
 
     public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
         inner.RefreshAsync(refreshToken, ct, expectedAccountId);

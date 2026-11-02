@@ -43,4 +43,17 @@ public sealed class AuthSecurityEventLogger(
     public void AccountLockedOut(Guid userId) =>
         logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
             SecurityEvents.AccountLockedOut, userId, ClientIp);
+
+    public void SecondFactorFailed() =>
+        logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.SecondFactorFailed, ClientIp);
+
+    public void SecondFactorChallengeExpired() =>
+        logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.SecondFactorChallengeExpired, ClientIp);
+
+    public void SecondFactorBudgetSpent(Guid userId) =>
+        logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+            SecurityEvents.SecondFactorBudgetSpent, userId, ClientIp);
+
+    public void SecondFactorKeyUnreadable() =>
+        logger.LogError("{SecurityEvent}", SecurityEvents.SecondFactorKeyUnreadable);
 }

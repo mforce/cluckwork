@@ -128,6 +128,15 @@ public sealed partial class IdentityProvider
         if (stored.ExpiresAt <= now)
             return Result.Failure<TokenPair>(Error.Validation("Identity.ExpiredRefreshToken", "Refresh token has expired."));
 
+        // #1274 decision 8: rotation slides ExpiresAt, so an enrolled user's
+        // lineage also ends a fixed time after its last full sign-in and the
+        // SPA shows login. After the epoch, account and replay checks, so a
+        // hand-inserted row still reaches the check it pins.
+        if (user.TwoFactorEnabled
+            && (stored.SignedInAt is not { } signedInAt
+                || signedInAt.AddDays(enrolledSessions.Value.EnrolledSessionMaxDays) < now))
+            return Result.Failure<TokenPair>(Error.Validation("Identity.ExpiredRefreshToken", "Refresh token has expired."));
+
         // Rotate: revoke the presented token and issue a fresh one. Marking the
         // revocation as grace-sourced (#176) bounds the grace to a single hop: the
         // token minted here can be rotated normally, but this just-revoked link
@@ -138,7 +147,7 @@ public sealed partial class IdentityProvider
         stored.ReplacedByTokenHash = newHash;
         stored.RevokedByGrace = viaGrace;
         stored.ConcurrencyStamp = Guid.NewGuid().ToString(); // rotate the CAS token (#176)
-        var minted = NewToken(user, newHash);
+        var minted = NewToken(user, newHash, stored.SignedInAt);
         db.RefreshTokens.Add(minted);
         try
         {

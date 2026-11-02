@@ -17,8 +17,14 @@ public interface IIdentityProvider
     // is an INPUT, not something login discovers. Previously the account fell
     // out of whichever row a global email lookup happened to return, so nothing
     // ever CHOSE a farm.
-    Task<Result<TokenPair>> LoginAsync(
+    // #1274 — a correct password signs an unenrolled user in, and answers an
+    // enrolled user with a challenge for the code step.
+    Task<Result<LoginStep>> LoginAsync(
         Guid accountId, string email, string password, CancellationToken ct = default);
+
+    // #1274 — the login code step: reads the challenge, then parses the code.
+    Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
+        string challenge, string code, CancellationToken ct = default);
 
     // #547 — expectedAccountId is the farm the tab told the endpoint it is
     // refreshing, sent as the X-Cluckwork-Account header. The server compares

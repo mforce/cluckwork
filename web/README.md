@@ -109,6 +109,15 @@ bearer access token; a 401 triggers one transparent `POST /api/v1/auth/refresh`
 the session is restored by a silent refresh against the cookie; if that fails the
 router bounces to `/login`. `logout` revokes server-side and expires the cookie.
 
+For a user with two-factor authentication on, a correct password is a 401
+`Auth.SecondFactorRequired` carrying a short-lived `challenge` (#1274). `login()`
+returns `{ kind: "secondFactor", challenge }` and stores nothing; the Login page
+keeps the challenge in component state and shows the code step
+(`SecondFactorStep`). `completeSecondFactor()` posts the challenge and the code to
+`POST /api/v1/auth/login/second-factor` as the same sign-in flight login uses,
+and only that answer sets the token and the cookie. A 401 there sends the user
+back to the password step.
+
 Refresh is serialised **across tabs** via the Web Locks API (#169): the refresh
 token lives only in the shared cookie, so two tabs refreshing at once would each
 present the same value and the second would trip the server's rotation/reuse

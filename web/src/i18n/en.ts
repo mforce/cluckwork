@@ -111,6 +111,22 @@ export const en = {
     password: "Password",
     signIn: "Sign in",
     signingIn: "Signing in…",
+    secondFactorTitle: "Enter your authenticator code",
+    secondFactorIntro:
+      "Open the authenticator app on your phone and enter the 6-digit code it shows for Cluckwork. Without your phone, enter one of your recovery codes.",
+    secondFactorCode: "Authenticator code or recovery code",
+    secondFactorSubmit: "Verify",
+    secondFactorVerifying: "Verifying…",
+    secondFactorBack: "Back to sign in",
+    secondFactorIncorrect:
+      "That code did not work. If you just used it, wait for the next one.",
+    secondFactorClockHint:
+      "Still not working? Check that your phone sets its time automatically.",
+    secondFactorKeyUnavailable:
+      "Authenticator codes can't be checked for this account right now. Enter one of your recovery codes.",
+    secondFactorExpired: "Your sign-in expired. Sign in again.",
+    secondFactorThrottled:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again later.",
     invalidCredentials: "Invalid email or password.",
     credentialsSuperseded: "Your credentials changed. Please sign in again.",
     accountDisabled: "Your account has been disabled.",
@@ -2992,6 +3008,7 @@ export const en = {
     "auditAction.User.PasswordSet": "Password set",
     "auditAction.User.PasswordChanged": "Password changed",
     "auditAction.User.BreakGlassReset": "Break-glass reset",
+    "auditAction.User.RecoveryCodeUsed": "Recovery code used",
     "auditAction.User.RoleChanged": "Role changed",
     "auditAction.User.EmailChanged": "Login email changed",
     "auditAction.User.Disabled": "User disabled",
@@ -3203,6 +3220,12 @@ export const en = {
       "Separately, too many wrong passwords for <em>one account</em> briefly lock <em>that</em> account. While "
       + "it is locked, even the correct password still says <strong>Invalid email or password</strong>. "
       + "Wait up to about 15 minutes and try again.",
+    signingInSecondFactor:
+      "<strong>Two-factor authentication.</strong> When it is on for your account, a correct password is only "
+      + "the first step. Cluckwork then asks for the 6-digit <strong>authenticator code</strong> from the app on "
+      + "your phone. Without your phone, enter one of your <strong>recovery codes</strong> instead; each one works "
+      + "once. Enter the code within about 5 minutes: after that, submitting it sends you back to sign in again. Wrong codes count toward "
+      + "the same brief account lock as wrong passwords.",
     signingInPersistence:
       "Your sign-in is kept in your browser securely and stays active as you work, across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is "

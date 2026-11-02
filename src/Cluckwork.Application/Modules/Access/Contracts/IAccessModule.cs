@@ -46,7 +46,9 @@ public interface IAccessModule
 
     Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct);
 
-    Task<Result<TokenPair>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct);
+    Task<Result<LoginStep>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct);
+
+    Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct);
 
     // Whether the DEFAULT account has an Owner (#283, #361).
     Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct);

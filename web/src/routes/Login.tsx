@@ -10,13 +10,15 @@ import { AuthShell } from "../components/AuthShell";
 import { BusyButton } from "../components/BusyButton";
 import { useConfirm } from "../components/useConfirm";
 import { usePendingAction } from "../components/usePendingAction";
-import i18n from "../i18n";
 import { canonicalFarmCode, readFarmCodes, removeFarmCode } from "../auth/farmCodeCache";
 import { applyDeviceBrand } from "../lib/brand";
 import { returnPath } from "../auth/returnPath";
 import { previewConsent } from "../api/oauth";
 import type { ConsentPreview } from "../api/oauth";
 import { useCachedBannerUrl } from "../lib/bannerCache";
+import { FARM_SUSPENDED } from "../api/session";
+import { messageFor } from "./signInMessage";
+import { SecondFactorStep } from "./SecondFactorStep";
 
 interface LocationState {
   from?: { pathname: string; search?: string };
@@ -28,12 +30,6 @@ interface LocationState {
 const NO_OWNER_PROVISIONED = "Auth.NoOwnerProvisioned";
 const CREDENTIALS_SUPERSEDED = "Auth.CredentialsSuperseded";
 const ACCOUNT_DISABLED = "Auth.AccountDisabled";
-// #532 — both ride the ProblemDetails `title` on a 401, so they MUST be matched
-// before messageFor's generic 401 branch. Without that, a suspended farm's staff
-// are told their password is wrong, which is the exact outcome the owner's
-// decision to use a distinct code exists to avoid.
-const UNKNOWN_FARM_CODE = "Auth.UnknownFarmCode";
-const FARM_SUSPENDED = "Auth.FarmSuspended";
 // #532 — several per-farm cookies, no selector: the tab was torn down and the
 // user lands here to pick a farm and sign in (the picker lands below).
 const FARM_SELECTION_REQUIRED = "Auth.FarmSelectionRequired";
@@ -48,32 +44,6 @@ function isNoOwnerProvisioned(err: unknown): boolean {
   return err instanceof ApiError
     && err.status === 401
     && err.title === NO_OWNER_PROVISIONED;
-}
-
-// MODULE-LEVEL — called from onSubmit's catch handler, not from render, so the
-// useTranslation hook is not in scope here. The imperative i18n singleton
-// (already initialised, already holding the resolved language) is the correct
-// tool outside render (#182).
-function messageFor(err: unknown): string {
-  if (err instanceof ApiError) {
-    // #532 — ahead of the generic 401 below, which would otherwise report a
-    // suspended farm or a mistyped farm code as a bad password.
-    if (err.title === UNKNOWN_FARM_CODE) return i18n.t("auth:unknownFarmCode");
-    if (err.title === FARM_SUSPENDED) return i18n.t("auth:farmSuspended");
-    if (err.status === 401) return i18n.t("auth:invalidCredentials");
-    // Rate limited (#143) — too many attempts from this address.
-    if (err.status === 429) return i18n.t("auth:tooManyAttempts");
-    // #309 — an oversized-credential validation error (400, e.g. a >256-char
-    // email/password). ApiError already carries the server's real, non-
-    // enumerating message (parseError flattens body.detail / body.errors), so
-    // show that instead of the generic apiDown copy, which would misleadingly
-    // suggest the API itself is unreachable.
-    if (err.status === 400) return err.message || i18n.t("auth:apiDown");
-    // #309 — the request body exceeded the endpoint's byte cap (413), which in
-    // practice means an implausibly long email/password.
-    if (err.status === 413) return i18n.t("auth:credentialsTooLong");
-  }
-  return i18n.t("auth:apiDown");
 }
 
 export function Login() {
@@ -198,6 +168,8 @@ export function Login() {
   // returns, so nothing extra is requested and nobody who is not actually
   // trying to sign in is told anything.
   const [needsSetup, setNeedsSetup] = useState(false);
+  // #1274 — the challenge lives in this state only, never in storage or a URL.
+  const [challenge, setChallenge] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -206,7 +178,12 @@ export function Login() {
     await run("signin", async () => {
       setError(null);
       try {
-        await login(farmCode, email, password);
+        const outcome = await login(farmCode, email, password);
+        if (outcome.kind === "secondFactor") {
+          setPassword("");
+          setChallenge(outcome.challenge);
+          return;
+        }
         navigate(from, { replace: true });
       } catch (err) {
         // The server distinguishes "the default account has no Owner" from an
@@ -253,6 +230,16 @@ export function Login() {
         />
       ) : undefined}
     >
+      {challenge !== null ? (
+        <SecondFactorStep
+          farmCode={farmCode}
+          challenge={challenge}
+          onRestart={(message) => {
+            setChallenge(null);
+            setError(message);
+          }}
+        />
+      ) : (
       <Stack component="form" spacing={2} onSubmit={onSubmit}>
         <Typography variant="h2">{t("title")}</Typography>
         {needsSetup && (
@@ -365,6 +352,7 @@ export function Login() {
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
       </Stack>
+      )}
       {confirmDialog}
     </AuthShell>
   );

@@ -50,7 +50,7 @@ public static class CompatibilityExceptionScanner
         global using System.Threading.Tasks;
         """;
 
-    private const string WebImplicitUsings = """
+    internal const string WebImplicitUsings = """
         global using System.Net.Http.Json;
         global using Microsoft.AspNetCore.Builder;
         global using Microsoft.AspNetCore.Hosting;
@@ -308,7 +308,7 @@ public static class CompatibilityExceptionScanner
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
-    private static IEnumerable<string> ProjectsReferencing(string srcFull, string target)
+    internal static IEnumerable<string> ProjectsReferencing(string srcFull, string target)
     {
         var references = Directory.EnumerateDirectories(srcFull)
             .Select(Path.GetFileName)

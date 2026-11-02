@@ -8,7 +8,9 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 
 public sealed partial class IdentityProvider
 {
-    private RefreshToken NewToken(ApplicationUser user, string tokenHash)
+    // signedInAt is the lineage's last full sign-in (#1274 decision 8): now at
+    // a login mint, copied forward by rotation.
+    private RefreshToken NewToken(ApplicationUser user, string tokenHash, DateTimeOffset? signedInAt = null)
     {
         var now = timeProvider.GetUtcNow();
         return new RefreshToken
@@ -19,7 +21,8 @@ public sealed partial class IdentityProvider
             TokenHash = tokenHash,
             IssuedEpoch = user.CredentialEpoch,
             CreatedAt = now,
-            ExpiresAt = now.AddDays(jwtOptions.Value.RefreshTokenDays)
+            ExpiresAt = now.AddDays(jwtOptions.Value.RefreshTokenDays),
+            SignedInAt = signedInAt
         };
     }
 

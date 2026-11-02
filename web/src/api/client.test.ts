@@ -8,6 +8,7 @@ import {
   apiFetch,
   apiGetBlob,
   login,
+  completeSecondFactor,
   logout,
   restoreSession,
   changePassword,
@@ -1018,6 +1019,53 @@ describe("apiGetBlob — file download", () => {
 });
 
 describe("auth endpoints", () => {
+  // #1278 G3.15 — an enrolled user's correct password is a 401 with a
+  // challenge: no token, no farm binding, and the challenge is handed back.
+  it("login returns the code step from the pending 401 and stores nothing", async () => {
+    clearAccessToken();
+    clearBoundAccount();
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.SecondFactorRequired", status: 401, detail: "Enter the code from your authenticator app.",
+      challenge: "challenge-jwt", challengeExpiresAt: FUTURE,
+    }, 401));
+
+    await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
+      .resolves.toEqual({ kind: "secondFactor", challenge: "challenge-jwt", expiresAt: FUTURE });
+    expect(getAccessToken()).toBeNull();
+    expect(getBoundAccountId()).toBeNull();
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+  });
+
+  it("login takes the challenge off an error it rethrows", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.SecondFactorRequired", status: 401, detail: "Enter the code.", challenge: "challenge-jwt",
+    }, 401));
+
+    const err = await login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).extensions).not.toHaveProperty("challenge");
+  });
+
+  it("completeSecondFactor signs in like login, and a wrong code is one request with no refresh", async () => {
+    clearAccessToken();
+    clearBoundAccount();
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.SecondFactorIncorrect", status: 400, detail: "That code did not work.",
+    }, 400));
+
+    await expect(completeSecondFactor("challenge-jwt", "123456")).rejects.toMatchObject({ status: 400 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/second-factor")[0][1].body)))
+      .toEqual({ challenge: "challenge-jwt", code: "123456" });
+
+    fetchMock.mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "two-factor")));
+    await completeSecondFactor("challenge-jwt", "654321");
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "two-factor"));
+    expect(getBoundAccountId()).toBe("acct-A");
+  });
+
   it("login succeeds with an in-memory farm binding when sessionStorage writes are blocked", async () => {
     clearAccessToken();
     clearBoundAccount();
@@ -1028,7 +1076,7 @@ describe("auth endpoints", () => {
 
     try {
       await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
-        .resolves.toBeUndefined();
+        .resolves.toEqual({ kind: "signedIn" });
       expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "storage-blocked"));
       expect(getBoundAccountId()).toBe("acct-A");
       expect(setItem).toHaveBeenCalledWith("cluckwork.boundAccountId", "acct-A");

@@ -176,5 +176,10 @@ public sealed class AmbientPrincipalOnLoginTests(CluckworkWebApplicationFactory 
         Assert.NotNull(field);
         Assert.Contains("/api/v1/auth/login", field);
         Assert.Contains("/api/v1/auth/refresh", field);
+        // #1278 — the code step returns a live access token too, and its refused
+        // codes must keep their charge, which IdempotentUnit would roll back. It
+        // rides the login entry, matched the way the middleware matches.
+        Assert.Contains(field!, entry => new Microsoft.AspNetCore.Http.PathString("/api/v1/auth/login/second-factor")
+            .StartsWithSegments(entry, StringComparison.OrdinalIgnoreCase));
     }
 }

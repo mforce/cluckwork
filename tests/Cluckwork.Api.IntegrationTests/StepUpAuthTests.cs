@@ -646,9 +646,13 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
     {
         public Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) => inner.ResolveFarmCodeAsync(farmCode, ct);
 
-        public Task<Result<TokenPair>> LoginAsync(
+        public Task<Result<LoginStep>> LoginAsync(
             Guid accountId, string email, string password, CancellationToken ct = default) =>
             inner.LoginAsync(accountId, email, password, ct);
+
+        public Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
+            string challenge, string code, CancellationToken ct = default) =>
+            inner.CompleteSecondFactorLoginAsync(challenge, code, ct);
 
         public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
             inner.RefreshAsync(refreshToken, ct, expectedAccountId);
@@ -864,7 +868,11 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<AuthSecurityEventLogger>(),
             services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<IdentityProvider>>(),
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
-            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()));
+            new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
+            services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<TenantContext>(),
+            services.GetRequiredService<CurrentUserContext>(),
+            services.GetRequiredService<IOptions<EnrolledSessionOptions>>());
 
         var beforeRevoke = timeProvider.GetUtcNow();
 

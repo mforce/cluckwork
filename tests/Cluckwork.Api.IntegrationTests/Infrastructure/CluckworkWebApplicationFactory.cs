@@ -20,6 +20,11 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
     // so a shared namespace would carry another host's login attempts into it.
     private readonly string _sharedStateKeyNamespace = $"cluckwork-test-{Guid.NewGuid():N}";
 
+    // #1274 — users a test enrolled with TestHarness.EnrolTwoFactorAsync, by
+    // email, so LoginAsync can complete their code step.
+    internal System.Collections.Concurrent.ConcurrentDictionary<string, EnrolledFactor> EnrolledFactors { get; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public string ConnectionString => _postgres?.GetConnectionString()
         ?? throw new InvalidOperationException("The test database has not started.");
 
@@ -84,6 +89,7 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         // RateLimitingTests derive a factory that tightens them back down.
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
+        builder.UseSetting("RateLimiting:SecondFactor:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthToken:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthAuthorize:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthRegister:PermitLimit", "1000000");

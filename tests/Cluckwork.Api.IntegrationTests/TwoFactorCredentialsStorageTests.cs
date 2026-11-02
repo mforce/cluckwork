@@ -36,8 +36,7 @@ public sealed class TwoFactorCredentialsStorageTests(CluckworkWebApplicationFact
         using var scope = services.CreateScope();
         if (tenant is { } accountId) scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var credentials = new TwoFactorCredentials(
-            db, scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), scope.ServiceProvider.GetRequiredService<TenantContext>());
+        var credentials = (TwoFactorCredentials)scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>();
         return await action(db, credentials);
     }
 

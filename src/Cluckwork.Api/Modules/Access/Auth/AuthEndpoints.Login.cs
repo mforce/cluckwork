@@ -27,7 +27,7 @@ public static partial class AuthEndpoints
     // and active farms to be indistinguishable. The trade was made explicitly:
     // telling a farm's own staff their password is wrong is a lie that generates
     // support load, and farm existence is already disclosed by the branch above.
-    public const string FarmSuspendedCode = "Auth.FarmSuspended";
+    public const string FarmSuspendedCode = SecondFactorErrorCodes.FarmSuspended;
 
     private static async Task<IResult> Login(
         LoginRequest request, IAccessModule access, IValidator<LoginRequest> validator,
@@ -146,11 +146,52 @@ public static partial class AuthEndpoints
             return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
         }
 
-        // #532 — per-farm cookie: this login writes the cookie for the farm
-        // that was just authenticated and can no longer disturb any other
-        // farm's cookie. The old last-login-wins-over-every-tab behaviour is
-        // gone by construction, not by a guard.
-        AuthCookies.SetRefreshCookie(response, farm.AccountId, result.Value.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
-        return Results.Ok(new AccessTokenResponse(result.Value.AccessToken, result.Value.AccessTokenExpiry));
+        // #1274 decision 10: 401, because authentication is not complete, with
+        // a distinct title and no cookie. Not a failed login: no LoginFailed.
+        if (result.Value is LoginStep.SecondFactorRequired pending)
+            return Results.Problem(
+                "Enter the code from your authenticator app.",
+                statusCode: 401,
+                title: SecondFactorErrorCodes.Required,
+                extensions: new Dictionary<string, object?>
+                {
+                    ["challenge"] = pending.Challenge,
+                    ["challengeExpiresAt"] = pending.ExpiresAt,
+                });
+
+        return SignedIn(response, ((LoginStep.SignedIn)result.Value).Tokens, access, env);
+    }
+
+    private static async Task<IResult> LoginSecondFactor(
+        SecondFactorLoginRequest request, IAccessModule access, HttpResponse response,
+        IWebHostEnvironment env, CancellationToken ct)
+    {
+        var result = await access.CompleteSecondFactorLoginAsync(request.Challenge, request.Code, ct);
+        if (result.IsSuccess)
+            return SignedIn(response, result.Value, access, env);
+
+        // 401 only when the user must sign in again; a wrong code is 400.
+        switch (result.Error)
+        {
+            case RetryLaterError retry:
+                // At least 1: a window that ends this second still refuses now.
+                response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
+            case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:
+                return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+            default:
+                return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
+        }
+    }
+
+    // #532 — per-farm cookie: this login writes the cookie for the farm
+    // that was just authenticated and can no longer disturb any other
+    // farm's cookie. The old last-login-wins-over-every-tab behaviour is
+    // gone by construction, not by a guard.
+    private static IResult SignedIn(HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env)
+    {
+        AuthCookies.SetRefreshCookie(response, tokens.AccountId, tokens.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
+        return Results.Ok(new AccessTokenResponse(tokens.AccessToken, tokens.AccessTokenExpiry));
     }
 }

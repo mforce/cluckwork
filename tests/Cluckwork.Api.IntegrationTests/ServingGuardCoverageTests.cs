@@ -92,6 +92,7 @@ public sealed class ServingGuardCoverageTests
             ["EnsureSharedStateConnectionValid"] = ["SharedState:Redis:ConnectionString is set but not a valid"],
             ["EnsureOAuthIssuer"] =
                 ["OAuth:Issuer is not configured", "OAuth:Issuer must be an absolute https URL"],
+            ["EnsureEnrolledSessionCap"] = ["Auth:EnrolledSessionMaxDays must be a whole number from 1 to 365"],
         };
 
         Assert.NotEmpty(guardMethods);

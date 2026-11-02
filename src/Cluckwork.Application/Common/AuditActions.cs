@@ -43,6 +43,9 @@ public static class AuditActions
     public const string UserDisabled = "User.Disabled";
     public const string UserEnabled = "User.Enabled";
     public const string UserBreakGlassReset = "User.BreakGlassReset";
+    // #1274 decision 19 — a recovery code signed the user in (#1278), or, from
+    // #1279, stepped them up. Details carry the codes left, never a code.
+    public const string UserRecoveryCodeUsed = "User.RecoveryCodeUsed";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";
     // #799 — a person's connected app was disconnected, by them or by the farm's Owner;

@@ -63,7 +63,7 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                     CredentialVerdict.Disabled =>
                         ("Auth.AccountDisabled", "Your account has been disabled."),
                     CredentialVerdict.FarmSuspended =>
-                        ("Auth.FarmSuspended", "This farm is suspended. Contact your administrator."),
+                        (SecondFactorErrorCodes.FarmSuspended, "This farm is suspended. Contact your administrator."),
                     CredentialVerdict.ConnectedAppsOff =>
                         (OAuthEndpoints.ConnectedAppsOff, "This farm doesn't allow connected apps. Ask an Owner."),
                     _ => ("Auth.CredentialsSuperseded", "Your credentials have been superseded. Sign in again."),

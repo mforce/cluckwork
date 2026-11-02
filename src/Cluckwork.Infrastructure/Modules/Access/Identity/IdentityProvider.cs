@@ -24,14 +24,18 @@ public sealed partial class IdentityProvider(
     AuthSecurityEventLogger securityEvents,
     ILogger<IdentityProvider> logger,
     Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository accounts,
-    IAccountUserDirectory directory) : IIdentityProvider
+    IAccountUserDirectory directory,
+    ITwoFactorCredentials twoFactor,
+    TenantContext tenant,
+    CurrentUserContext currentUser,
+    IOptions<EnrolledSessionOptions> enrolledSessions) : IIdentityProvider
 {
     public async Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) =>
         await accounts.FindBySlugAsync(farmCode, ct) is { } account
             ? new FarmSignIn(account.Id, account.IsActive)
             : null;
 
-    public async Task<Result<TokenPair>> LoginAsync(
+    public async Task<Result<LoginStep>> LoginAsync(
         Guid accountId, string email, string password, CancellationToken ct = default)
     {
         // #532 — ACCOUNT-SCOPED. The old global userManager.FindByEmailAsync was
@@ -45,7 +49,7 @@ public sealed partial class IdentityProvider(
             // are indistinguishable by timing.
             userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), TimingEqualization.DummyHash, password);
             securityEvents.LoginFailed();
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+            return Result.Failure<LoginStep>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
         // #1031 — a stored epoch below 1 is refused exactly like a disabled
@@ -67,7 +71,7 @@ public sealed partial class IdentityProvider(
             // /auth/login attempt, and omitting it here silently dropped
             // guesses against disabled accounts from the brute-force stream.
             securityEvents.LoginFailed();
-            return Result.Failure<TokenPair>(Error.Validation(
+            return Result.Failure<LoginStep>(Error.Validation(
                 "Identity.InvalidCredentials", "Invalid email or password."));
         }
 
@@ -84,7 +88,7 @@ public sealed partial class IdentityProvider(
             // an attempt against an ALREADY-locked account re-fires LoginFailed but
             // never AccountLockedOut again — that fired once, at the transition.
             securityEvents.LoginFailed();
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+            return Result.Failure<LoginStep>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
         if (!await userManager.CheckPasswordAsync(user, password))
@@ -108,8 +112,15 @@ public sealed partial class IdentityProvider(
             var justLockedOut = await RecordFailedAccessAsync(user);
             if (justLockedOut)
                 securityEvents.AccountLockedOut(user.Id);
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
+            return Result.Failure<LoginStep>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
+
+        // #1274 decision 5: a correct password mints nothing for an enrolled
+        // user and does not reset the lockout counter; only an accepted code
+        // does, so wrong codes cannot alternate with fresh password checks.
+        if (user.TwoFactorEnabled)
+            return Result.Success<LoginStep>(
+                SecondFactorChallenge.Issue(user, jwtOptions.Value, timeProvider.GetUtcNow()));
 
         // Bind the successful proof to the credential values that were actually
         // verified. ResetFailedAccessCountAsync may lose optimistic concurrency
@@ -124,12 +135,12 @@ public sealed partial class IdentityProvider(
             || user.CredentialEpoch != verifiedCredentialEpoch
             || !string.Equals(user.SecurityStamp, verifiedSecurityStamp, StringComparison.Ordinal))
         {
-            return Result.Failure<TokenPair>(Error.Validation(
+            return Result.Failure<LoginStep>(Error.Validation(
                 "Identity.InvalidCredentials", "Invalid email or password."));
         }
 
         var (rawToken, tokenHash) = GenerateRefreshToken();
-        var minted = NewToken(user, tokenHash);
+        var minted = NewToken(user, tokenHash, signedInAt: timeProvider.GetUtcNow());
         db.RefreshTokens.Add(minted);
         try
         {
@@ -157,7 +168,7 @@ public sealed partial class IdentityProvider(
         }
 
         var roles = await userManager.GetRolesAsync(user);
-        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+        return Result.Success<LoginStep>(new LoginStep.SignedIn(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken)));
     }
 
     // Shared with /auth/step-up (#308) via AccountLockout — see the note there

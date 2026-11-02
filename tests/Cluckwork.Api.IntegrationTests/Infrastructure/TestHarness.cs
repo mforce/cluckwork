@@ -18,7 +18,7 @@ namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 // Seeding + auth helpers shared by the integration tests. Each helper that touches the
 // database opens its own DI scope with a resolved TenantContext, mirroring how the
 // tenant middleware resolves the account per request in production.
-internal static class TestHarness
+internal static partial class TestHarness
 {
     public const string Password = "TestPassw0rd!23";
 
@@ -419,8 +419,12 @@ internal static class TestHarness
         var farmCode = await factory.FarmCodeForAsync(email);
         var response = await client.PostAsJsonAsync(
             "/api/v1/auth/login", new { farmCode, email, password = Password });
+        // #1274: an enrolled user's password step answers 401 with a challenge;
+        // the one second-factor helper completes it, so call sites do not change.
+        if (factory.EnrolledFactors.ContainsKey(email))
+            return await factory.CompleteSecondFactorAsync(email, response);
         response.EnsureSuccessStatusCode();
-        return await ReadTokensAsync(response);
+        return await ReadSignedInTokensAsync(response);
     }
 
     public static async Task<string> LoginForAccessTokenAsync(
