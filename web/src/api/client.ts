@@ -7,8 +7,7 @@ export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
 
 export { apiGet, apiPost, apiPut, apiPutBytes, apiDelete, apiGetBlob, apiFetch, restoreSession } from "./refresh";
 export { login, completeSecondFactor, changePassword, stepUp, logout, NO_PROOF } from "./session";
-export type { StepUpProof } from "./session";
-export type { LoginOutcome } from "./session";
+export type { LoginOutcome, StepUpProof } from "./session";
 export { setOnUnauthenticated, setOnTokensChanged } from "./sessionState";
 export { getLastTraceId } from "./trace";
 export { ApiError } from "./errors";
