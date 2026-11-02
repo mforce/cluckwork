@@ -9,6 +9,7 @@ using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -143,7 +144,8 @@ public sealed class StepUpGrantService(
     IStepUpGrantRegistry registry,
     AuthSecurityEventLogger securityEvents,
     ITwoFactorCredentials twoFactor,
-    IAuditWriter audit) : IStepUpGrantService
+    IAuditWriter audit,
+    ILogger<StepUpGrantService> logger) : IStepUpGrantService
 {
     // Never sourced from config — see the threat-model note above.
     internal const string Audience = "cluckwork-step-up";
@@ -200,53 +202,26 @@ public sealed class StepUpGrantService(
     }
 
     // #1274 decision 11. The password is already right; nothing is charged
-    // until VerifyAsync, and only an accepted code clears the lockout counter
-    // (decision 5). The transaction opens after the password check, and every
-    // outcome is saved, a refused one included, so its charge stands.
-    private async Task<Result<StepUpGrant>> IssueWithSecondFactorAsync(
-        Guid accountId, ApplicationUser user, string? code, CancellationToken ct)
-    {
-        if (code is null)
-            return Result.Failure<StepUpGrant>(SecondFactorErrors.Required);
-        if (!SecondFactorCode.TryParse(code, out var parsed))
-            return Result.Failure<StepUpGrant>(SecondFactorErrors.Incorrect);
-
-        var binding = await CurrentPasswordCheck.BindForSecondFactorAsync(db, user, ct);
-        return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
-        {
-            // VerifyAsync locks and reloads this same tracked user, so the mint
-            // below reads the row as it stands under the lock.
-            var outcome = await twoFactor.VerifyAsync(accountId, user.Id, parsed, binding, token);
-            Result<StepUpGrant> result;
-            if (outcome is FactorOutcome.Accepted accepted)
+    // until the code is checked, and only an accepted code clears the lockout
+    // counter (decision 5). A failed commit hands out no grant, whatever the
+    // outcome, because the step may not have been saved.
+    private Task<Result<StepUpGrant>> IssueWithSecondFactorAsync(
+        Guid accountId, ApplicationUser user, string? code, CancellationToken ct) =>
+        SecondFactorProof.ProveAsync(db, twoFactor, accountId, user, code,
+            async (accepted, token) =>
             {
-                if (accepted.RecoveryCodesLeft is { } remaining)
-                {
-                    await audit.WriteAsync(AuditActions.UserRecoveryCodeUsed, "User", user.Id,
-                        reason: null, details: new { remaining }, ct: token);
-                    await db.SaveChangesAsync(token);
-                }
-                result = Result.Success(Mint(accountId, user));
-            }
-            else
+                await SecondFactorProof.WriteRecoveryCodeUsedAsync(audit, user.Id, accepted, token);
+                await db.SaveChangesAsync(token);
+                // The code check locked and reloaded this same tracked user, so
+                // the grant reads the row as it stands under the lock.
+                return Result.Success(Mint(accountId, user));
+            },
+            commitFailed: exception =>
             {
-                result = Result.Failure<StepUpGrant>(SecondFactorErrors.ForPrivilegedAction(outcome));
-            }
-
-            // Only the commit is caught, whatever the outcome: a grant is never
-            // handed out for a step that may not have been saved, and a client
-            // that hangs up cannot roll a charge back.
-            try
-            {
-                await transaction.CommitAsync(CancellationToken.None);
-            }
-            catch (Exception)
-            {
-                return Result.Failure<StepUpGrant>(RetryError);
-            }
-            return result;
-        }, ct);
-    }
+                logger.LogWarning(exception, "An enrolled user's step-up could not be saved; no grant was issued.");
+                return RetryError;
+            },
+            ct);
 
     private StepUpGrant Mint(Guid accountId, ApplicationUser user)
     {

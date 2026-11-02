@@ -171,7 +171,9 @@ public sealed partial class IdentityProvider
             var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
             if (!changed.Succeeded)
                 return Result.Failure<TokenPair>(PasswordChangeRefused(changed));
-            return await CompletePasswordChangeAsync(user, transaction, signedInAt: null, recoveryCodesLeft: null, token);
+            var pair = await CompletePasswordChangeAsync(user, accepted: null, token);
+            await transaction.CommitAsync(token);
+            return Result.Success(pair);
         }, ct);
     }
 
@@ -192,34 +194,23 @@ public sealed partial class IdentityProvider
         if (weak.Count > 0)
             return Result.Failure<TokenPair>(Error.Validation("Users.PasswordRejected", Describe(IdentityResult.Failed([.. weak]))));
 
-        if (code is null)
-            return Result.Failure<TokenPair>(SecondFactorErrors.Required);
-        if (!SecondFactorCode.TryParse(code, out var parsed))
-            return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
-
-        var binding = await CurrentPasswordCheck.BindForSecondFactorAsync(db, user, ct);
         // Outside IdempotentUnit, so a refused outcome's charge stands. A fault
         // of the commit itself is not caught: the exception handler answers it
         // by type, with no pair, as it does for an unenrolled user (decided by
         // the maintainer on 2026-10-21, "Keep today's 500").
-        return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
-        {
-            var outcome = await twoFactor.VerifyAsync(accountId, userId, parsed, binding, token);
-            if (outcome is not FactorOutcome.Accepted accepted)
+        return await SecondFactorProof.ProveAsync(db, twoFactor, accountId, user, code,
+            async (accepted, token) =>
             {
-                await transaction.CommitAsync(CancellationToken.None);
-                return Result.Failure<TokenPair>(SecondFactorErrors.ForPrivilegedAction(outcome));
-            }
-
-            // Under the user-row lock, with the epoch and stamp the password
-            // was checked against, so the hash write cannot lose its check.
-            var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
-            if (!changed.Succeeded)
-                return Result.Failure<TokenPair>(PasswordChangeRefused(changed));
-            // Decision 8: this pair proves both factors, so its lineage starts now.
-            return await CompletePasswordChangeAsync(
-                user, transaction, signedInAt: timeProvider.GetUtcNow(), accepted.RecoveryCodesLeft, token);
-        }, ct);
+                // ChangePasswordAsync verifies the current password again. Keep
+                // it: this second check runs under the user-row lock, against
+                // the row the code was checked on, so the hash write cannot
+                // lose its concurrency check.
+                var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+                if (!changed.Succeeded)
+                    return Result.Failure<TokenPair>(PasswordChangeRefused(changed));
+                return Result.Success(await CompletePasswordChangeAsync(user, accepted, token));
+            },
+            commitFailed: null, ct);
     }
 
     private static Error PasswordChangeRefused(IdentityResult changed)
@@ -241,9 +232,10 @@ public sealed partial class IdentityProvider
         return Error.Validation("Users.PasswordRejected", Describe(changed));
     }
 
-    private async Task<Result<TokenPair>> CompletePasswordChangeAsync(
-        ApplicationUser user, IAmbientTransactionScope transaction, DateTimeOffset? signedInAt,
-        int? recoveryCodesLeft, CancellationToken token)
+    // The writes every accepted change shares, and the fresh pair; the caller
+    // commits. accepted is the code an enrolled user proved, null otherwise.
+    private async Task<TokenPair> CompletePasswordChangeAsync(
+        ApplicationUser user, FactorOutcome.Accepted? accepted, CancellationToken token)
     {
         // #283 — this is the SPA's first-login "set your password" screen's
         // actual mechanism (it reuses this endpoint: the operator already
@@ -259,17 +251,17 @@ public sealed partial class IdentityProvider
         var now = timeProvider.GetUtcNow();
         await RevokeAllActiveForUserAsync(user.Id, now, token);
 
+        // Decision 8: an enrolled user's pair proves both factors, so its
+        // lineage starts now.
         var (rawToken, tokenHash) = GenerateRefreshToken();
-        db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt));
+        db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: accepted is null ? null : now));
         await audit.WriteAsync(AuditActions.UserPasswordChanged, "User", user.Id,
             reason: null, details: null, ct: token);
-        if (recoveryCodesLeft is { } remaining)
-            await audit.WriteAsync(AuditActions.UserRecoveryCodeUsed, "User", user.Id,
-                reason: null, details: new { remaining }, ct: token);
+        if (accepted is not null)
+            await SecondFactorProof.WriteRecoveryCodeUsedAsync(audit, user.Id, accepted, token);
         await db.SaveChangesAsync(token);
-        await transaction.CommitAsync(token);
 
         var roles = await userManager.GetRolesAsync(user);
-        return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+        return jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
     }
 }

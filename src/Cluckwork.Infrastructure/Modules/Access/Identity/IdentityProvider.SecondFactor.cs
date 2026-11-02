@@ -1,4 +1,3 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
@@ -13,11 +12,6 @@ public sealed partial class IdentityProvider
     public async Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
         string challenge, string code, CancellationToken ct = default)
     {
-        // A joined transaction would leave a refused outcome's charge to a
-        // caller that can roll it back, so the code step owns its own.
-        if (db.Database.CurrentTransaction is not null)
-            throw new InvalidOperationException("The login code step runs in its own transaction, never a caller's.");
-
         // The challenge first, so a malformed code on a dead challenge gets the 401.
         if (SecondFactorChallenge.Read(challenge, jwtOptions.Value, timeProvider.GetUtcNow()) is not { } claims)
             return LogAndRefuseExpiredChallenge();
@@ -40,10 +34,11 @@ public sealed partial class IdentityProvider
         TokenPair? delivered = null;
         try
         {
-            // Outside IdempotentUnit, so a refused outcome's charge commits. The
-            // owned transaction runs once: a replay after a lost commit would
-            // find the challenge spent (G3.14).
-            return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+            // Outside IdempotentUnit, so a refused outcome's charge commits, and
+            // never in a caller's transaction, which could roll it back (C1).
+            // The owned transaction runs once: a replay after a lost commit
+            // would find the challenge spent (G3.14).
+            return await AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
             {
                 var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, parsed, claims.Binding, token);
                 if (outcome is not FactorOutcome.Accepted accepted)
@@ -60,9 +55,7 @@ public sealed partial class IdentityProvider
                 var roles = await userManager.GetRolesAsync(user);
                 tenant.Resolve(user.AccountId);
                 currentUser.Resolve(user.Id, user.Email ?? string.Empty, [.. roles]);
-                if (accepted.RecoveryCodesLeft is { } remaining)
-                    await audit.WriteAsync(AuditActions.UserRecoveryCodeUsed, "User", user.Id,
-                        reason: null, details: new { remaining }, ct: token);
+                await SecondFactorProof.WriteRecoveryCodeUsedAsync(audit, user.Id, accepted, token);
 
                 db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: timeProvider.GetUtcNow()));
                 await db.SaveChangesAsync(token);

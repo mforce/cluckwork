@@ -182,15 +182,6 @@ public static partial class AuthEndpoints
         }
     }
 
-    // #1274 decision 6: the user's daily budget of wrong authenticator codes
-    // is spent. At least 1: a window that ends this second still refuses now.
-    private static IResult RetryLater(HttpResponse response, RetryLaterError retry)
-    {
-        response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
-            .ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
-    }
-
     // #532 — per-farm cookie: this login writes the cookie for the farm
     // that was just authenticated and can no longer disturb any other
     // farm's cookie. The old last-login-wins-over-every-tab behaviour is

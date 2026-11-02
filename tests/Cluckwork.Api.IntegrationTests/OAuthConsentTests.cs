@@ -136,6 +136,7 @@ public sealed partial class OAuthConsentTests(CluckworkWebApplicationFactory fac
         using var passwordOnly = await OAuthServerTests.HttpsClient(factory, jwt)
             .PostAsJsonAsync("/api/v1/auth/step-up", new { password = TestHarness.Password });
         Assert.Equal(HttpStatusCode.BadRequest, passwordOnly.StatusCode);
+        Assert.Equal(SecondFactorErrorCodes.Required, (await passwordOnly.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("title").GetString());
 
         var verifier = OAuthServerTests.NewCodeVerifier();
         var location = await OAuthServerTests.ApproveAsync(

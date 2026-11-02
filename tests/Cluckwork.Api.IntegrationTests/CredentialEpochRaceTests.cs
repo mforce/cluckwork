@@ -327,6 +327,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
 
         var issued = await stepUp.IssueAsync(accountId, factor.UserId, TestHarness.Password, await factory.NextTotpCodeAsync(email));
 
+        Assert.True(factory.BeforeCommand.Fired, "the password reset never landed before the user-row lock");
         factory.BeforeCommand.Disarm();
         Assert.True(issued.IsFailure);
         Assert.Equal("Users.CurrentPasswordIncorrect", issued.Error.Code);

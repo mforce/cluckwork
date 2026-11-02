@@ -27,7 +27,10 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
         factory.Clock.Reset();
         factory.CommitFault.Disarm();
         factory.CommandFault.Disarm();
+        // A hook still armed never fired, so the race its test claims never ran.
+        var leftArmed = factory.BeforeCommand.IsArmed;
         factory.BeforeCommand.Disarm();
+        Assert.False(leftArmed, "a BeforeCommand hook was left armed: its race never ran");
     }
 
     private sealed record UserCounters(int AccessFailed, int DailyFailures, long SignIns, long Watermark, DateTimeOffset? LockoutEnd);

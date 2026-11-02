@@ -186,6 +186,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((HttpStatusCode.BadRequest, "Users.CurrentPasswordIncorrect"), (response.StatusCode, (await ProblemOf(response)).Title));
         var failed = Assert.Single(factory.EventsFor(SecurityEvents.LoginFailed));
         Assert.False(failed.Properties.ContainsKey("UserId"));
+        Assert.False(failed.Properties.ContainsKey("Email"));
         Assert.True(failed.Properties.ContainsKey("ClientIp"));
         Assert.Equal(1, (await CountersAsync(session.Factor!)).AccessFailed);
     }
@@ -316,6 +317,36 @@ public sealed partial class SecondFactorLoginTests
         Assert.NotNull((await CountersAsync(session.Factor!)).LockoutEnd);
     }
 
+    // The login and change-password share one lockout, and a password-only
+    // attempt clears nothing.
+    [Fact]
+    public async Task FourWrongCodesAtLogin_APasswordOnlyChange_AndOneWrongCode_LockTheAccount()
+    {
+        var (session, _) = await PasswordSessionAsync("totp");
+        var pending = await factory.PasswordStepAsync(session.Email);
+        for (var i = 0; i < 4; i++) await PostCodeAsync(pending.Challenge, WrongCode(session.Factor!));
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code: null)).StatusCode);
+        Assert.Equal(4, (await CountersAsync(session.Factor!)).AccessFailed);
+        await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, WrongCode(session.Factor!));
+
+        Assert.NotNull((await CountersAsync(session.Factor!)).LockoutEnd);
+    }
+
+    // The SPA sends an empty field as no code.
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task AnEmptyCode_AtChangePassword_IsNoCode(string code)
+    {
+        var (session, _) = await PasswordSessionAsync("totp");
+
+        var response = await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code);
+
+        Assert.Equal((HttpStatusCode.BadRequest, SecondFactorErrorCodes.Required), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.Equal(0, (await CountersAsync(session.Factor!)).AccessFailed);
+    }
+
     [Fact]
     public async Task ACodeAcceptedAtLogin_IsRefusedAtChangePassword()
     {
@@ -362,6 +393,7 @@ public sealed partial class SecondFactorLoginTests
     [Theory]
     [InlineData("unenrolled")]
     [InlineData("totp")]
+    [InlineData("recovery")]
     public async Task ACommitFailure_AtChangePassword_Is500WithNoPair(string kind)
     {
         var (session, code) = await PasswordSessionAsync(kind);

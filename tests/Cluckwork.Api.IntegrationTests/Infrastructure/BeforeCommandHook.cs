@@ -11,8 +11,18 @@ public sealed class BeforeCommandHook : DbCommandInterceptor
     private sealed record Armed(string Fragment, Func<Task> Action);
 
     private Armed? _armed;
+    private int _fired;
 
-    public void Arm(string fragment, Func<Task> action) => Volatile.Write(ref _armed, new Armed(fragment, action));
+    // Whether the armed action ran, so a test proves its race happened.
+    public bool Fired => Volatile.Read(ref _fired) == 1;
+
+    public bool IsArmed => Volatile.Read(ref _armed) is not null;
+
+    public void Arm(string fragment, Func<Task> action)
+    {
+        Volatile.Write(ref _fired, 0);
+        Volatile.Write(ref _armed, new Armed(fragment, action));
+    }
 
     public void Disarm() => Volatile.Write(ref _armed, null);
 
@@ -39,5 +49,6 @@ public sealed class BeforeCommandHook : DbCommandInterceptor
             || Interlocked.CompareExchange(ref _armed, null, armed) != armed)
             return;
         await armed.Action();
+        Volatile.Write(ref _fired, 1);
     }
 }

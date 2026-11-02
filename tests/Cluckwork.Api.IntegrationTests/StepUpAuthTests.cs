@@ -321,6 +321,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
 
         var passwordOnly = await owner.PostAsJsonAsync("/api/v1/auth/step-up", new { password = TestHarness.Password });
         Assert.Equal(HttpStatusCode.BadRequest, passwordOnly.StatusCode);
+        Assert.Equal(SecondFactorErrorCodes.Required, (await passwordOnly.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("title").GetString());
         var withCode = await owner.PostAsJsonAsync("/api/v1/auth/step-up",
             new { password = TestHarness.Password, code = await factory.NextTotpCodeAsync(email) });
         withCode.EnsureSuccessStatusCode();
@@ -1019,7 +1020,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<TimeProvider>(),
             registry,
             services.GetRequiredService<AuthSecurityEventLogger>(),
-            services.GetRequiredService<ITwoFactorCredentials>(), services.GetRequiredService<IAuditWriter>());
+            services.GetRequiredService<ITwoFactorCredentials>(), services.GetRequiredService<IAuditWriter>(),
+            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<StepUpGrantService>>());
 
         return (stepUp, db, accountId, user!.Id);
     }
@@ -1042,7 +1044,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
                 new InProcessClaimOnceStore(services.GetRequiredService<TimeProvider>()),
                 db),
             services.GetRequiredService<AuthSecurityEventLogger>(),
-            services.GetRequiredService<ITwoFactorCredentials>(), services.GetRequiredService<IAuditWriter>());
+            services.GetRequiredService<ITwoFactorCredentials>(), services.GetRequiredService<IAuditWriter>(),
+            services.GetRequiredService<Microsoft.Extensions.Logging.ILogger<StepUpGrantService>>());
         var user = await userManager.FindByIdAsync(userId.ToString());
         Assert.NotNull(user);
         user.DisabledAt = DateTimeOffset.UtcNow;
@@ -1072,7 +1075,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             scope.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>(),
             timeProvider, spy,
             scope.ServiceProvider.GetRequiredService<AuthSecurityEventLogger>(),
-            scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>(), scope.ServiceProvider.GetRequiredService<IAuditWriter>());
+            scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>(), scope.ServiceProvider.GetRequiredService<IAuditWriter>(),
+            scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<StepUpGrantService>>());
 
         var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password, code: null);
         Assert.True(issued.IsSuccess);
@@ -1176,7 +1180,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             repeatedTp,
             new PersistentStepUpGrantRegistry(new InProcessClaimOnceStore(repeatedTp), db),
             repeatedServices.GetRequiredService<AuthSecurityEventLogger>(),
-            repeatedServices.GetRequiredService<ITwoFactorCredentials>(), repeatedServices.GetRequiredService<IAuditWriter>());
+            repeatedServices.GetRequiredService<ITwoFactorCredentials>(), repeatedServices.GetRequiredService<IAuditWriter>(),
+            repeatedServices.GetRequiredService<Microsoft.Extensions.Logging.ILogger<StepUpGrantService>>());
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {

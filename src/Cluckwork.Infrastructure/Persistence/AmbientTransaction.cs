@@ -60,7 +60,21 @@ public static class AmbientTransaction
         if (database.CurrentTransaction is not null)
             return await work(JoinedTransactionScope.Instance, ct);
 
-        return await SingleAttemptExecution.RunAsync(database, async () =>
+        return await RunOwnedAsync(database, work, ct);
+    }
+
+    // #1274 "Transactions": a two-factor unit commits a refused outcome, so
+    // its charge must never belong to a caller that could roll it back. Throws
+    // when a transaction is already open instead of joining it.
+    public static Task<T> RunOwnedAsync<T>(
+        DatabaseFacade database,
+        Func<IAmbientTransactionScope, CancellationToken, Task<T>> work,
+        CancellationToken ct = default)
+    {
+        if (database.CurrentTransaction is not null)
+            throw new InvalidOperationException("This unit owns its transaction and never joins a caller's.");
+
+        return SingleAttemptExecution.RunAsync(database, async () =>
         {
             var transaction = await database.BeginTransactionAsync(ct);
             await using var scope = new OwnedTransactionScope(transaction);

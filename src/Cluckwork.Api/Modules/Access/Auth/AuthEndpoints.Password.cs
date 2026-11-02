@@ -67,7 +67,7 @@ public static partial class AuthEndpoints
         if (result.Error is { Code: StepUpErrorCodes.Retry })
         {
             // #1274 decision 11: the step could not be saved, so no grant.
-            response.Headers.RetryAfter = "30";
+            response.Headers.RetryAfter = StepUpRetryAfterSeconds;
             return Results.Problem(result.Error.Description, statusCode: 503, title: result.Error.Code);
         }
         if (!result.IsSuccess)

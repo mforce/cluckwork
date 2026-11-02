@@ -1,7 +1,6 @@
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 
@@ -45,7 +44,7 @@ internal static class CurrentPasswordCheck
             return null;
         }
 
-        // #128 per-account lockout, same as LoginAsync. This endpoint is a SECOND
+        // #128 per-account lockout, same as LoginAsync. Step-up is a SECOND
         // password oracle — and the one guarding Owner takeover — so leaving it
         // out would have left only the per-IP limiter here, which a distributed
         // attacker rotating source IPs walks straight around. A locked account is
@@ -64,12 +63,11 @@ internal static class CurrentPasswordCheck
 
         if (!await userManager.CheckPasswordAsync(user, currentPassword))
         {
-            // #273 codex review (P1b) — the bool this returns was previously
-            // discarded, so a failed step-up attempt never fired LoginFailed
-            // and a threshold-crossing one never fired AccountLockedOut: a
-            // failed /auth/step-up — a privileged password oracle — was
-            // invisible to security telemetry. Same shape as LoginAsync's
-            // wrong-password branch.
+            // #273 codex review (P1b) — the bool this returns was once
+            // discarded, so a failed check never fired LoginFailed and a
+            // threshold-crossing one never fired AccountLockedOut: a privileged
+            // password oracle was invisible to security telemetry. Same shape
+            // as LoginAsync's wrong-password branch.
             //
             // Emitted BEFORE persisting lockout state (codex review round 2):
             // RecordFailedAccessAsync is a durable write that can throw, and a
@@ -82,19 +80,5 @@ internal static class CurrentPasswordCheck
         }
 
         return user;
-    }
-
-    // An enrolled user's proof, for VerifyAsync. A failed rehash save inside
-    // CheckPasswordAsync leaves the user Modified, which the user-row lock
-    // refuses, so it is reloaded. The epoch is the one the password was
-    // checked against: a password change that landed in between moves it, and
-    // VerifyAsync then answers Superseded.
-    internal static async Task<ProofBinding> BindForSecondFactorAsync(
-        AppDbContext db, ApplicationUser user, CancellationToken ct)
-    {
-        var checkedEpoch = user.CredentialEpoch;
-        if (db.Entry(user).State == EntityState.Modified)
-            await db.Entry(user).ReloadAsync(ct);
-        return new ProofBinding(checkedEpoch, ProofBinding.HashStamp(user.SecurityStamp), SignIns: null);
     }
 }
