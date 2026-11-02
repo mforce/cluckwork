@@ -1,11 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { extname, resolve } from "node:path";
 import { useState } from "react";
 import { flushSync } from "react-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { parse } from "@babel/parser";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { UsersPage } from "./UsersPage";
 import { Login } from "./Login";
@@ -26,12 +23,13 @@ import { apiGet, ApiError, stepUp } from "../api/client";
 import { getAccessToken } from "../auth/tokenStore";
 import i18n from "../i18n";
 import { freshCode } from "../test/codes";
+import { productionStepUpCallSites } from "../test/stepUpCallers";
 
 // Runtime-generated, with NO static substring — GitGuardian's scanner
 // flagged an earlier version of this line even though it was already
 // randomized, because the readable "password-shaped" prefix it was appended
 // to (`Own3r!${...}`) was enough to trigger on its own. One shared value:
-// these tests assert the typed proof password is the one SENT to stepUp(),
+// these tests assert the typed step-up password is the one SENT to stepUp(),
 // so identity is what matters, not content or shape.
 const OWNER_STEP_UP_PASSWORD = crypto.randomUUID();
 
@@ -2976,7 +2974,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "worker@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
 
-    // Pick Owner, type the proof password, then change your mind.
+    // Pick Owner, type the step-up password, then change your mind.
     selectAdminRole();
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Worker" } });
@@ -4036,9 +4034,10 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   const codeField = () => within(dialog()).getByLabelText(/Authenticator code or recovery code/);
   const newPassword = `Aa1!${crypto.randomUUID()}`;
 
-  // `site` is the function that calls stepUp(), as the walk below names it.
-  // `open` opens the dialog and fills what the action needs besides the proof.
-  type Caller = { site: string; open: () => Promise<void> | void; submit: string };
+  // `site` is the function that calls stepUp(), as test/stepUpCallers.ts names
+  // it. `open` opens the dialog and fills what the action needs besides the
+  // proof. `closesOnLogout` marks the dialog the logout effect closes.
+  type Caller = { site: string; open: () => Promise<void> | void; submit: string; closesOnLogout?: true };
   const callers: Caller[] = [
     { site: "useCreateUser.onCreate", submit: "Create user", open: () => {
       openCreate();
@@ -4055,7 +4054,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
         .getByRole("button", { name: "role", hidden: true }));
       fill("Role", "Manager");
     } },
-    { site: "useChangeEmail.onChangeEmail", submit: "Change email", open: () => {
+    { site: "useChangeEmail.onChangeEmail", submit: "Change email", closesOnLogout: true, open: () => {
       inspector(/worker@farm.test/, "change email");
       fill("Login email", "moved@farm.test");
     } },
@@ -4072,8 +4071,9 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
       await screen.findByRole("listitem");
     } },
   ];
-  const caller = (submit: string) => callers.find((c) => c.submit === submit)!;
-  const table = callers.map((c) => [c.submit, c] as const);
+  const caller = (site: string) => callers.find((c) => c.site === site)!;
+  // Disable and enable share one site, so the button tells their rows apart.
+  const table = callers.map((c) => [`${c.site} (${c.submit})`, c] as const);
   const proveEnrolled = (code: string) => {
     fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
     fill(/Authenticator code or recovery code/, code);
@@ -4135,7 +4135,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   });
 
   // Closing and reopening each clear the proof, so this holds while either does.
-  it.each(table)("%s forgets a typed code when the dialog closes", async (_, { open }) => {
+  it.each(table)("%s shows an empty proof when the dialog is reopened", async (_, { open }) => {
     await renderReady({ ...ADMIN, two_factor: "true" });
 
     await open();
@@ -4148,7 +4148,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(codeField()).toHaveValue("");
   });
 
-  it.each(table)("%s clears a typed code the instant the session ends", async (_, { open }) => {
+  it.each(table)("%s clears a typed code the instant the session ends", async (_, { open, closesOnLogout }) => {
     const tree = (isAuthenticated: boolean) => (
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
@@ -4171,13 +4171,24 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     const view = render(tree(true));
     await screen.findByText("worker@farm.test");
     await open();
-    proveEnrolled(freshCode());
+    const code = freshCode();
+    proveEnrolled(code);
+    expect(codeField()).toHaveValue(code);
 
     view.rerender(tree(false));
 
-    // The change-email dialog closes on logout; the others stay mounted.
-    for (const field of screen.queryAllByLabelText(/Your current password|Authenticator code or recovery code/))
-      expect(field).toHaveValue("");
+    if (closesOnLogout) {
+      // The dialog closes, and opening it again resets the proof as well, so
+      // the logout reset and the open reset each keep the reopened form empty.
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      view.rerender(tree(true));
+      await open();
+      expect(passwordField()).toHaveValue("");
+      expect(codeField()).toHaveValue("");
+    } else {
+      expect(passwordField()).toHaveValue("");
+      expect(codeField()).toHaveValue("");
+    }
   });
 
   // The flock buttons are not the form's submit, so `required` cannot hold them.
@@ -4203,7 +4214,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     mockStepUp.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: 3 * 3600 }));
     await renderReady({ ...ADMIN, two_factor: "true" });
 
-    await caller("Set password").open();
+    await caller("useSetPassword.onSetPassword").open();
     proveEnrolled(freshCode());
     await press("Set password");
 
@@ -4211,43 +4222,15 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(codeField()).toHaveValue("");
   });
 
-  // 407 "walk everything": every production stepUp() call site must be one of
-  // the callers above, or /connect's, which ConnectPage.test.tsx covers.
-  it("covers every stepUp() call site in the SPA", () => {
+  // 407 "walk everything": the production stepUp() call sites and the callers
+  // above, plus /connect's (ConnectPage.test.tsx), must be the same set, so a
+  // new caller and a stale row both fail. test/stepUpCallers.test.ts pins the
+  // walk itself, its floor and that no two sites share a name.
+  it("covers exactly the SPA's stepUp() call sites", () => {
     const covered = new Set([...callers.map((c) => c.site), "ConnectPage.allow"]);
-    const sites = stepUpCallSites();
+    const found = new Set(productionStepUpCallSites());
 
-    // Seven in the Users hooks (disable and enable share one) and /connect's.
-    expect(sites.length).toBeGreaterThanOrEqual(8);
-    expect(sites.filter((site) => !covered.has(site))).toEqual([]);
+    expect([...found].filter((site) => !covered.has(site))).toEqual([]);
+    expect([...covered].filter((site) => !found.has(site))).toEqual([]);
   });
 });
-
-// Each production stepUp() call, named by its enclosing function declarations
-// ("useFlockAccess.onAssign"); anonymous callbacks add no name.
-function stepUpCallSites(): string[] {
-  const root = resolve(process.cwd(), "src");
-  const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) return entry.name === "test" ? [] : files(path);
-    return [".ts", ".tsx"].includes(extname(path)) && !entry.name.includes(".test.") ? [path] : [];
-  });
-  const sites: string[] = [];
-  for (const file of files(root)) {
-    const source = readFileSync(file, "utf8");
-    if (!source.includes("stepUp(")) continue;
-    const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
-    const visit = (node: unknown, names: string[]): void => {
-      if (typeof node !== "object" || node === null) return;
-      if (Array.isArray(node)) { for (const child of node) visit(child, names); return; }
-      const n = node as { type?: string; id?: { name?: string }; init?: { type?: string }; callee?: { type?: string; name?: string } };
-      let inner = names;
-      if (n.type === "FunctionDeclaration" && n.id?.name) inner = [...names, n.id.name];
-      if (n.type === "VariableDeclarator" && n.id?.name && /Function/.test(n.init?.type ?? "")) inner = [...names, n.id.name];
-      if (n.type === "CallExpression" && n.callee?.type === "Identifier" && n.callee.name === "stepUp") sites.push(names.join("."));
-      for (const [key, child] of Object.entries(node)) if (key !== "loc" && key !== "start" && key !== "end") visit(child, inner);
-    };
-    visit(tree.program, []);
-  }
-  return sites;
-}
