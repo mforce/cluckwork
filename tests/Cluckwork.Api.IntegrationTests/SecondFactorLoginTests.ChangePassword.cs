@@ -352,10 +352,12 @@ public sealed partial class SecondFactorLoginTests
         Assert.NotNull((await CountersAsync(session.Factor!)).LockoutEnd);
     }
 
-    // G4.4 over change-password. One change lands; the other is refused. Three
-    // checks stand behind this, so no single mutation turns it red: the
-    // watermark, the epoch the first change moves (VerifyAsync's binding), and
-    // the current-password re-check under the lock.
+    // G4.4 over change-password. One change lands; the other is refused as a
+    // wrong current password. Three barriers stand behind it, in the order the
+    // loser meets them: the epoch binding (the first change moves the epoch,
+    // so VerifyAsync answers Superseded), the watermark, and the
+    // current-password re-check under the lock. A loser whose password check
+    // runs after the first change sees a wrong password, the same answer.
     [Fact]
     public async Task TwoConcurrentChanges_WithOneCode_ChangeThePasswordOnce()
     {
@@ -367,7 +369,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Single(answers, answer => answer.StatusCode == HttpStatusCode.OK);
         var refused = Assert.Single(answers, answer => answer.StatusCode != HttpStatusCode.OK);
-        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal((HttpStatusCode.BadRequest, "Users.CurrentPasswordIncorrect"), (refused.StatusCode, (await ProblemOf(refused)).Title));
         Assert.True(await PasswordSignsInAsync(session.Email, NewPassword));
     }
 
