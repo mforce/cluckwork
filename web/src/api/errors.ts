@@ -2,18 +2,22 @@ import type { ProblemDetails } from "./types";
 import i18n from "../i18n";
 
 export class ApiError extends Error {
+  // #1274 — the problem body's own members, such as the sign-in challenge.
+  // A credential among them is taken off by its reader at once.
+  extensions: Record<string, unknown>;
+  // #1279 — the Retry-After header in whole seconds, or null without one.
+  retryAfterSeconds: number | null;
+
   constructor(
     public status: number,
     public title: string,
     message: string,
-    // #1274 — the problem body's own members, such as the sign-in challenge.
-    // A credential among them is taken off by its reader at once.
-    public extensions: Record<string, unknown> = {},
-    // The Retry-After header in whole seconds, or null when absent or a date.
-    public retryAfterSeconds: number | null = null,
+    { extensions = {}, retryAfterSeconds = null }: { extensions?: Record<string, unknown>; retryAfterSeconds?: number | null } = {},
   ) {
     super(message);
     this.name = "ApiError";
+    this.extensions = extensions;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -65,7 +69,8 @@ export async function parseError(res: Response): Promise<ApiError> {
   } catch {
     // non-JSON body — keep status text
   }
-  const retryAfter = Number(res.headers.get("Retry-After") ?? "");
-  return new ApiError(res.status, title, detail, extensions,
-    Number.isInteger(retryAfter) && retryAfter > 0 ? retryAfter : null);
+  // Only the delta-seconds form; an HTTP date or anything else gives no wait.
+  const retryAfter = res.headers.get("Retry-After") ?? "";
+  const retryAfterSeconds = /^\d+$/.test(retryAfter) && Number(retryAfter) > 0 ? Number(retryAfter) : null;
+  return new ApiError(res.status, title, detail, { extensions, retryAfterSeconds });
 }

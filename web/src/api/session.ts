@@ -221,10 +221,12 @@ export interface StepUpProof {
   code?: string;
 }
 
-export const NO_PROOF: StepUpProof = { password: "" };
+export const NO_PROOF: Readonly<StepUpProof> = Object.freeze({ password: "" });
 
+// A code of only spaces is no code: the server would answer it with
+// Auth.SecondFactorRequired, uncharged.
 const withCode = <T extends object>(body: T, code: string | undefined): T & { code?: string } =>
-  code ? { ...body, code } : body;
+  code?.trim() ? { ...body, code } : body;
 
 // #165 — self-service password change. The server revokes every session for the
 // user (other devices are signed out) and hands this one a fresh pair, so we

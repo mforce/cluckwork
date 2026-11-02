@@ -564,8 +564,26 @@ describe("ConnectPage with two-factor authentication (#1279)", () => {
     expect(codeField()).toHaveValue("");
   });
 
+  // Every title lib/secondFactorMessage.ts maps, each to its own text.
+  it.each([
+    [400, "Auth.SecondFactorRequired", "auth:secondFactorRequired"],
+    [400, "Auth.SecondFactorIncorrect", "auth:secondFactorIncorrect"],
+    [400, "Auth.SecondFactorKeyUnavailable", "auth:secondFactorKeyUnavailable"],
+    [429, "Auth.SecondFactorThrottled", "auth:secondFactorThrottled"],
+    [503, "Auth.StepUpRetry", "auth:stepUpRetry"],
+  ] as const)("answers %i %s with its own message", async (status, title, key) => {
+    vi.mocked(stepUp).mockRejectedValue(new ApiError(status, title, "server text"));
+    await show(REQUEST, "Manager", { two_factor: "true" });
+
+    fireEvent.change(codeField()!, { target: { value: freshCode() } });
+    await allowWith("pw");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(i18n.t(key));
+    expect(approveConsent).not.toHaveBeenCalled();
+  });
+
   it("shows the server's wait when the daily code budget is spent", async () => {
-    vi.mocked(stepUp).mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", {}, 45 * 60));
+    vi.mocked(stepUp).mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: 45 * 60 }));
     await show(REQUEST, "Manager", { two_factor: "true" });
 
     fireEvent.change(codeField()!, { target: { value: freshCode() } });

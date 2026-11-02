@@ -1,8 +1,11 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { extname, resolve } from "node:path";
 import { useState } from "react";
 import { flushSync } from "react-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, within, fireEvent, act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { parse } from "@babel/parser";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { UsersPage } from "./UsersPage";
 import { Login } from "./Login";
@@ -4029,62 +4032,52 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   const fill = (label: RegExp | string, value: string) =>
     fireEvent.change(within(dialog()).getByLabelText(label), { target: { value } });
   const press = (name: string) => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name })); });
+  const passwordField = () => within(dialog()).getByLabelText(/Your current password/);
+  const codeField = () => within(dialog()).getByLabelText(/Authenticator code or recovery code/);
   const newPassword = `Aa1!${crypto.randomUUID()}`;
 
-  // Each opens its dialog, fills what the action needs, calls `prove`, and submits.
-  const callers: [string, (prove: () => void) => Promise<void>][] = [
-    ["create a user", async (prove) => {
+  // `site` is the function that calls stepUp(), as the walk below names it.
+  // `open` opens the dialog and fills what the action needs besides the proof.
+  type Caller = { site: string; open: () => Promise<void> | void; submit: string };
+  const callers: Caller[] = [
+    { site: "useCreateUser.onCreate", submit: "Create user", open: () => {
       openCreate();
       fill("Email *", "new@farm.test");
       fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0]!, { target: { value: newPassword } });
-      prove();
-      await press("Create user");
-    }],
-    ["reset a password", async (prove) => {
+    } },
+    { site: "useSetPassword.onSetPassword", submit: "Set password", open: () => {
       inspector(/worker@farm.test/, "password");
       fill(/New password/, newPassword);
       fill(/Confirm new password/, newPassword);
-      prove();
-      await press("Set password");
-    }],
-    ["change a role", async (prove) => {
+    } },
+    { site: "useChangeRole.onChangeRole", submit: "Change role", open: () => {
       fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
         .getByRole("button", { name: "role", hidden: true }));
       fill("Role", "Manager");
-      prove();
-      await press("Change role");
-    }],
-    ["change a login email", async (prove) => {
+    } },
+    { site: "useChangeEmail.onChangeEmail", submit: "Change email", open: () => {
       inspector(/worker@farm.test/, "change email");
       fill("Login email", "moved@farm.test");
-      prove();
-      await press("Change email");
-    }],
-    ["disable a user", async (prove) => {
-      inspector(/worker@farm.test/, "disable");
-      prove();
-      await press("Disable");
-    }],
-    ["enable a user", async (prove) => {
-      inspector(/disabled@farm.test/, "enable");
-      prove();
-      await press("Enable");
-    }],
-    ["assign a flock", async (prove) => {
+    } },
+    { site: "useDisableEnable.onSubmitStepUp", submit: "Disable", open: () => inspector(/worker@farm.test/, "disable") },
+    { site: "useDisableEnable.onSubmitStepUp", submit: "Enable", open: () => inspector(/disabled@farm.test/, "enable") },
+    { site: "useFlockAccess.onAssign", submit: "Assign flock", open: async () => {
       setAssignmentsFor("u-w", []);
       await act(async () => { inspector(/worker@farm.test/, "flocks"); });
       await screen.findByText(/account-wide access/);
       await pickFlock("Coop B");
-      prove();
-      await press("Assign flock");
-    }],
-    ["remove a flock assignment", async (prove) => {
+    } },
+    { site: "useFlockAccess.onUnassign", submit: "remove", open: async () => {
       await act(async () => { inspector(/worker@farm.test/, "flocks"); });
       await screen.findByRole("listitem");
-      prove();
-      await press("remove");
-    }],
+    } },
   ];
+  const caller = (submit: string) => callers.find((c) => c.submit === submit)!;
+  const table = callers.map((c) => [c.submit, c] as const);
+  const proveEnrolled = (code: string) => {
+    fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
+    fill(/Authenticator code or recovery code/, code);
+  };
 
   beforeEach(() => {
     mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, DISABLED_USER]);
@@ -4098,29 +4091,93 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     mockUnassignFlock.mockResolvedValue(undefined);
   });
 
-  it.each(callers)("%s sends the code with the password when two-factor is on", async (_, perform) => {
+  it.each(table)("%s sends the code with the password when two-factor is on", async (_, { open, submit }) => {
     await renderReady({ ...ADMIN, two_factor: "true" });
     const code = freshCode();
 
-    await perform(() => {
-      fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
-      fill(/Authenticator code or recovery code/, code);
-    });
+    await open();
+    proveEnrolled(code);
+    await press(submit);
 
     expect(mockStepUp).toHaveBeenCalledTimes(1);
     expect(mockStepUp.mock.calls[0]![0]).toStrictEqual({ password: OWNER_STEP_UP_PASSWORD, code });
   });
 
-  it.each(callers)("%s shows no code field and sends only the password when two-factor is off", async (_, perform) => {
+  it.each(table)("%s shows no code field and sends only the password when two-factor is off", async (_, { open, submit }) => {
     await renderReady(ADMIN);
 
-    await perform(() => {
-      expect(within(dialog()).queryByLabelText(/Authenticator code or recovery code/)).not.toBeInTheDocument();
-      fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
-    });
+    await open();
+    expect(within(dialog()).queryByLabelText(/Authenticator code or recovery code/)).not.toBeInTheDocument();
+    fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
+    await press(submit);
 
     expect(mockStepUp).toHaveBeenCalledTimes(1);
     expect(mockStepUp.mock.calls[0]![0]).toStrictEqual({ password: OWNER_STEP_UP_PASSWORD });
+  });
+
+  // #308 — the proof is read, then cleared before /auth/step-up answers; a
+  // code works once, so a refusal must not leave it behind either.
+  it.each(table)("%s clears the password and the code before the grant arrives and after a refusal", async (_, { open, submit }) => {
+    let refuse!: (reason: unknown) => void;
+    mockStepUp.mockReturnValue(new Promise((_resolve, reject) => { refuse = reject; }));
+    await renderReady({ ...ADMIN, two_factor: "true" });
+
+    await open();
+    proveEnrolled(freshCode());
+    await press(submit);
+    expect(passwordField()).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+
+    await act(async () => refuse(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.")));
+    expect(await within(dialog()).findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
+    expect(passwordField()).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+  });
+
+  // Closing and reopening each clear the proof, so this holds while either does.
+  it.each(table)("%s forgets a typed code when the dialog closes", async (_, { open }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+
+    await open();
+    proveEnrolled(freshCode());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await open();
+
+    expect(passwordField()).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+  });
+
+  it.each(table)("%s clears a typed code the instant the session ends", async (_, { open }) => {
+    const tree = (isAuthenticated: boolean) => (
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
+          mustChangePassword: false, twoFactor: true, unauthenticatedReason: null,
+          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+        }}
+        >
+          <MeContext.Provider value={{
+            id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null, preferredStepperUnit: null,
+          }}
+          >
+            <FarmContext.Provider value={farmState({ farm: null })}>
+              <UsersPage />
+            </FarmContext.Provider>
+          </MeContext.Provider>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    const view = render(tree(true));
+    await screen.findByText("worker@farm.test");
+    await open();
+    proveEnrolled(freshCode());
+
+    view.rerender(tree(false));
+
+    // The change-email dialog closes on logout; the others stay mounted.
+    for (const field of screen.queryAllByLabelText(/Your current password|Authenticator code or recovery code/))
+      expect(field).toHaveValue("");
   });
 
   // The flock buttons are not the form's submit, so `required` cannot hold them.
@@ -4134,21 +4191,63 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
     expect(within(dialog()).getByRole("button", { name: "remove" })).toBeDisabled();
 
+    fill(/Authenticator code or recovery code/, "   ");
+    expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
+
     fill(/Authenticator code or recovery code/, freshCode());
     expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeEnabled();
     expect(within(dialog()).getByRole("button", { name: "remove" })).toBeEnabled();
   });
 
   it("shows the server's wait when the daily code budget is spent", async () => {
-    mockStepUp.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", {}, 3 * 3600));
+    mockStepUp.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: 3 * 3600 }));
     await renderReady({ ...ADMIN, two_factor: "true" });
 
-    await callers[1]![1](() => {
-      fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
-      fill(/Authenticator code or recovery code/, freshCode());
-    });
+    await caller("Set password").open();
+    proveEnrolled(freshCode());
+    await press("Set password");
 
     expect(await within(dialog()).findByText(i18n.t("auth:secondFactorThrottledHours", { count: 3 }))).toBeInTheDocument();
-    expect(within(dialog()).getByLabelText(/Authenticator code or recovery code/)).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+  });
+
+  // 407 "walk everything": every production stepUp() call site must be one of
+  // the callers above, or /connect's, which ConnectPage.test.tsx covers.
+  it("covers every stepUp() call site in the SPA", () => {
+    const covered = new Set([...callers.map((c) => c.site), "ConnectPage.allow"]);
+    const sites = stepUpCallSites();
+
+    // Seven in the Users hooks (disable and enable share one) and /connect's.
+    expect(sites.length).toBeGreaterThanOrEqual(8);
+    expect(sites.filter((site) => !covered.has(site))).toEqual([]);
   });
 });
+
+// Each production stepUp() call, named by its enclosing function declarations
+// ("useFlockAccess.onAssign"); anonymous callbacks add no name.
+function stepUpCallSites(): string[] {
+  const root = resolve(process.cwd(), "src");
+  const files = (directory: string): string[] => readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) return entry.name === "test" ? [] : files(path);
+    return [".ts", ".tsx"].includes(extname(path)) && !entry.name.includes(".test.") ? [path] : [];
+  });
+  const sites: string[] = [];
+  for (const file of files(root)) {
+    const source = readFileSync(file, "utf8");
+    if (!source.includes("stepUp(")) continue;
+    const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
+    const visit = (node: unknown, names: string[]): void => {
+      if (typeof node !== "object" || node === null) return;
+      if (Array.isArray(node)) { for (const child of node) visit(child, names); return; }
+      const n = node as { type?: string; id?: { name?: string }; init?: { type?: string }; callee?: { type?: string; name?: string } };
+      let inner = names;
+      if (n.type === "FunctionDeclaration" && n.id?.name) inner = [...names, n.id.name];
+      if (n.type === "VariableDeclarator" && n.id?.name && /Function/.test(n.init?.type ?? "")) inner = [...names, n.id.name];
+      if (n.type === "CallExpression" && n.callee?.type === "Identifier" && n.callee.name === "stepUp") sites.push(names.join("."));
+      for (const [key, child] of Object.entries(node)) if (key !== "loc" && key !== "start" && key !== "end") visit(child, inner);
+    };
+    visit(tree.program, []);
+  }
+  return sites;
+}

@@ -930,7 +930,7 @@ describe("Login code step (#1278)", () => {
     [119 * 60 + 1, "secondFactorThrottledHours", 2],
     [23 * 3600 + 1, "secondFactorThrottledHours", 24],
   ] as const)("names the wait for a spent daily budget (%i s)", async (seconds, key, count) => {
-    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", {}, seconds));
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: seconds }));
     await reachCodeStep();
 
     await submitCode(freshCode());

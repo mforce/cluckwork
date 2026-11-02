@@ -16,7 +16,7 @@ import type { DialogErrors } from "../../components/useDialogErrors";
 // The flock-access dialog (#103/#606/#612), moved out of UsersPage (#1215).
 // It renders at the page's old position, unconditionally; all state and
 // handlers stay on the page and arrive as props, including the controlled
-// picker state and the shared proof password.
+// picker state and the shared step-up proof.
 export function FlockAccessDialog({
   openUser,
   users,
@@ -63,7 +63,7 @@ export function FlockAccessDialog({
   const { t } = useTranslation("users");
   // These buttons are not the form's submit, so `required` does not hold them.
   const { twoFactor } = useAuth();
-  const proofMissing = !flockStepUpProof.password || (twoFactor && !flockStepUpProof.code);
+  const proofMissing = !flockStepUpProof.password || (twoFactor && !flockStepUpProof.code?.trim());
 
   // #612 — only a plain Worker is ever narrowed by flock assignments; the
   // flock-access dialog reads this to disable adding a new one and to mark

@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 // #1274/#1279 — the one field for an authenticator or recovery code, at the
 // login code step, step-up and change-password. Like the password, the code
 // lives only in the caller's state.
+// The input is always required; `required={false}` drops only the label's
+// asterisk, to match a step-up password field that shows none.
 export function SecondFactorCodeField({
   value, onChange, ...field
 }: Omit<TextFieldProps, "type" | "value" | "onChange" | "slotProps"> & {
@@ -22,7 +24,7 @@ export function SecondFactorCodeField({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       slotProps={{
-        htmlInput: { autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, maxLength: 32 },
+        htmlInput: { required: true, autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, maxLength: 32 },
       }}
     />
   );

@@ -1353,17 +1353,19 @@ describe("stepUp (#308)", () => {
   });
 
   // #1279 — an enrolled user's proof. An empty code is never sent.
-  it("posts the code with the password, and leaves an empty code out", async () => {
+  it("posts the code with the password, and leaves an empty or blank code out", async () => {
     fetchMock.mockImplementation(async () => jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
     const password = crypto.randomUUID();
     const code = freshCode();
 
     await stepUp({ password, code });
     await stepUp({ password, code: "" });
+    await stepUp({ password, code: "   " });
 
-    const [withCode, withoutCode] = callsTo(fetchMock, "/auth/step-up");
-    expect(JSON.parse(String(withCode![1].body))).toEqual({ password, code });
-    expect(JSON.parse(String(withoutCode![1].body))).toEqual({ password });
+    const [withCode, empty, blank] = callsTo(fetchMock, "/auth/step-up");
+    expect(JSON.parse(String(withCode![1].body))).toStrictEqual({ password, code });
+    expect(JSON.parse(String(empty![1].body))).toStrictEqual({ password });
+    expect(JSON.parse(String(blank![1].body))).toStrictEqual({ password });
   });
 
   // #1274 decision 12 / G4.2 — the code twin of the single-request pin above:
@@ -1381,19 +1383,26 @@ describe("stepUp (#308)", () => {
   });
 
   // #1279 S1 — the throttled answer's wait reaches the screen through the error.
-  it("carries a Retry-After wait in seconds, and none for a date or a missing header", async () => {
-    const throttled = (headers: Record<string, string>) => new Response(
+  // Only the delta-seconds form counts; anything else is no wait.
+  it.each([
+    ["5400", 5400],
+    [null, null],
+    ["Wed, 21 Oct 2026 07:28:00 GMT", null],
+    ["0", null],
+    ["-30", null],
+    ["1.5", null],
+    ["1e3", null],
+    ["0x10", null],
+    ["soon", null],
+  ] as const)("reads Retry-After %s as a wait of %s seconds", async (header, seconds) => {
+    fetchMock.mockResolvedValueOnce(new Response(
       JSON.stringify({ title: "Auth.SecondFactorThrottled" }),
-      { status: 429, headers: { "Content-Type": "application/json", ...headers } });
-    fetchMock
-      .mockResolvedValueOnce(throttled({ "Retry-After": "5400" }))
-      .mockResolvedValueOnce(throttled({ "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" }))
-      .mockResolvedValueOnce(throttled({}));
+      { status: 429, headers: { "Content-Type": "application/json", ...(header === null ? {} : { "Retry-After": header }) } }));
 
-    const waits: (number | null)[] = [];
-    for (let i = 0; i < 3; i++)
-      waits.push(await stepUp({ password: "x", code: freshCode() }).then(() => -1, (e: ApiError) => e.retryAfterSeconds));
-    expect(waits).toEqual([5400, null, null]);
+    const err = await stepUp({ password: "x", code: freshCode() }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).retryAfterSeconds).toBe(seconds);
   });
 
   it("does not touch in-memory auth state — it is not a token-store writer", async () => {

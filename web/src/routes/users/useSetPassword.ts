@@ -9,7 +9,7 @@ import i18n from "../../i18n";
 
 // The password-reset dialog's state and handlers, moved out of UsersPage
 // (#1215). The flight guard, the message slots and the idempotency keys stay
-// on the page (#703) and are passed in, as is the proof password the page
+// on the page (#703) and are passed in, as is the step-up proof the page
 // clears on logout (#308).
 export function useSetPassword({
   dialog,

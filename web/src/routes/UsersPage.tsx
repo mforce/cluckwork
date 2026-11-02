@@ -200,7 +200,7 @@ export function UsersPage() {
 
   // One hook per dialog feature (#1215): each owns its dialog's state and
   // handlers. The flight guard, the message slots and the idempotency keys
-  // stay here (#703), as do the proof passwords and the picker state the
+  // stay here (#703), as do the step-up proofs and the picker state the
   // effects above clear and seed (#308).
   const create = useCreateUser({ dialog, setUsers, keyFor, clearKey, setMessage, createStepUpProof, setCreateStepUpProof });
   const { openCreate } = create;

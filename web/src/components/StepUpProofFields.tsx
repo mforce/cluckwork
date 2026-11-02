@@ -31,6 +31,7 @@ export function StepUpProofFields({
       />
       {twoFactor && (
         <SecondFactorCodeField
+          required={false}
           value={value.code ?? ""}
           disabled={disabled}
           onChange={(code) => onChange((proof) => ({ ...proof, code }))}

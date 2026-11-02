@@ -47,7 +47,7 @@ export function DisableEnableDialog({
     /* #356 — one dialog is the whole disable/enable flow: it IS the
         confirmation (no separate askReason step), collects the optional
         reason (disable only — the API's reason is nullable, never
-        mandatory), and always collects the step-up password
+        mandatory), and always collects the step-up proof
         UNCONDITIONALLY (#308) regardless of the target's role. */
     <Dialog
       open={stepUpUser !== null}

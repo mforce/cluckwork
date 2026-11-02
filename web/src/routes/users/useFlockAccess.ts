@@ -12,7 +12,7 @@ import { errText } from "../../lib/errText";
 // (#1215): the per-worker open/close edges and the step-up-guarded
 // assign/remove. The flight guard, the message slots and the idempotency
 // keys stay on the page (#703) and are passed in, as do the controlled
-// picker state (the page's load effect seeds it) and the proof password the
+// picker state (the page's load effect seeds it) and the step-up proof the
 // page clears on logout (#308).
 export function useFlockAccess({
   dialog,
@@ -101,7 +101,7 @@ export function useFlockAccess({
 
   function closeAssignments() {
     setOpenUser(null);
-    setFlockStepUpProof(NO_PROOF); // #308 — never leave a typed proof password behind
+    setFlockStepUpProof(NO_PROOF); // #308 — never leave a typed proof behind
     // A closed dialog must not keep a picker armed for a write that no dialog
     // can present: the next open issues its own fresh generation (above), but
     // until then the engine would still report canSubmit for whatever the

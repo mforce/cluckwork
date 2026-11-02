@@ -11,7 +11,7 @@ import { roleLabel } from "../../i18n/enums";
 // The create-user dialog's state and handlers, moved out of UsersPage
 // (#1215): the form state, the open/close edges and the step-up-guarded
 // create. The flight guard, the message slots and the idempotency keys stay
-// on the page (#703) and are passed in, as is the proof password the page
+// on the page (#703) and are passed in, as is the step-up proof the page
 // clears on logout (#308).
 export function useCreateUser({
   dialog,
@@ -94,7 +94,7 @@ export function useCreateUser({
     setPassword("");
     setRole("Worker");
     setName("");
-    setCreateStepUpProof(NO_PROOF); // #308 — never leave a typed proof password behind
+    setCreateStepUpProof(NO_PROOF); // #308 — never leave a typed proof behind
     dismissDialog("create");
   }
 

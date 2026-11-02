@@ -11,7 +11,7 @@ import { ROLE_VALUES, roleLabel } from "../../i18n/enums";
 
 // The create-user dialog, moved out of UsersPage (#1215). It renders at the
 // page's old position, unconditionally; all state and handlers stay on the
-// page and arrive as props, and the proof password is the page's own (#308).
+// page and arrive as props, and the step-up proof is the page's own (#308).
 export function CreateUserDialog({
   creating,
   closeCreate,

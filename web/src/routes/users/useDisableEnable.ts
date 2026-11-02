@@ -9,7 +9,7 @@ import i18n from "../../i18n";
 
 // The shared disable/enable dialog's state and handlers, moved out of
 // UsersPage (#1215). The flight guard, the message slots and the idempotency
-// keys stay on the page (#703) and are passed in, as is the proof password
+// keys stay on the page (#703) and are passed in, as is the step-up proof
 // the page clears on logout (#308).
 export function useDisableEnable({
   dialog,
@@ -34,7 +34,7 @@ export function useDisableEnable({
   // confirmation: a destructive warning body, an OPTIONAL reason (disable
   // only — the API's DisableUserCommand.Reason is nullable, capped at 200
   // chars, and the product call was explicit that a mandatory reason just
-  // gets typed "x"), and the step-up password DisableUser/EnableUser always
+  // gets typed "x"), and the step-up proof DisableUser/EnableUser always
   // require (#308) regardless of the target's role. "mode" picks which
   // endpoint + copy applies.
   const [stepUpUser, setStepUpUser] = useState<User | null>(null);
@@ -63,7 +63,7 @@ export function useDisableEnable({
   }
 
   function closeStepUp() {
-    setStepUpProof(NO_PROOF); // #308 — never leave a typed proof password behind
+    setStepUpProof(NO_PROOF); // #308 — never leave a typed proof behind
     setDisableReason("");
     setStepUpMode(null);
     setStepUpUser(null);
@@ -79,7 +79,7 @@ export function useDisableEnable({
     const scope = `${mode}:${target.id}`;
     await run(scope, async (current) => {
       // #308 — read-then-clear-before-await, same pattern as every other
-      // step-up site on this screen: the proof password never sits in state
+      // step-up site on this screen: the proof never sits in state
       // across the network call that consumes it.
       const enteredProof = stepUpProof;
       setStepUpProof(NO_PROOF);
