@@ -5,7 +5,8 @@ export class ApiError extends Error {
   // #1274 — the problem body's own members, such as the sign-in challenge.
   // A credential among them is taken off by its reader at once.
   extensions: Record<string, unknown>;
-  // #1279 — the Retry-After header in whole seconds, or null without one.
+  // #1279 — the Retry-After header in whole seconds; null when it is absent,
+  // a date, zero, too large or not a number.
   retryAfterSeconds: number | null;
 
   constructor(
@@ -71,6 +72,7 @@ export async function parseError(res: Response): Promise<ApiError> {
   }
   // Only the delta-seconds form; an HTTP date or anything else gives no wait.
   const retryAfter = res.headers.get("Retry-After") ?? "";
-  const retryAfterSeconds = /^\d+$/.test(retryAfter) && Number(retryAfter) > 0 ? Number(retryAfter) : null;
+  const seconds = /^\d+$/.test(retryAfter) ? Number(retryAfter) : 0;
+  const retryAfterSeconds = Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
   return new ApiError(res.status, title, detail, { extensions, retryAfterSeconds });
 }

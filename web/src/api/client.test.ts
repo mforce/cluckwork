@@ -1394,6 +1394,7 @@ describe("stepUp (#308)", () => {
     ["1e3", null],
     ["0x10", null],
     ["soon", null],
+    ["9".repeat(400), null],
   ] as const)("reads Retry-After %s as a wait of %s seconds", async (header, seconds) => {
     fetchMock.mockResolvedValueOnce(new Response(
       JSON.stringify({ title: "Auth.SecondFactorThrottled" }),

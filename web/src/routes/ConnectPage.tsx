@@ -13,7 +13,6 @@ import { currentUserRole } from "../auth/claims";
 import { READ_SCOPE, scopeEntry, scopeRank } from "../auth/oauthScopes";
 import { BusyButton } from "../components/BusyButton";
 import { StepUpProofFields } from "../components/StepUpProofFields";
-import i18n from "../i18n";
 import { secondFactorMessage } from "../lib/secondFactorMessage";
 import { usePendingAction } from "../components/usePendingAction";
 import { useLatestLoad } from "../components/useLatestLoad";
@@ -82,6 +81,16 @@ export function ConnectPage() {
     } else {
       ask.retry();
     }
+  }
+
+  // A second-factor answer first, so a wrong code is not called a wrong password.
+  function stepUpMessage(err: unknown): string {
+    if (!(err instanceof ApiError)) return t("failed");
+    const secondFactor = secondFactorMessage(err);
+    if (secondFactor !== null) return secondFactor;
+    if (err.status === 400) return t("wrongPassword");
+    if (err.status === 429) return t("tooManyAttempts");
+    return t("failed");
   }
 
   async function allow(e: FormEvent) {
@@ -191,16 +200,6 @@ export function ConnectPage() {
 }
 
 const isOff = (err: unknown) => err instanceof ApiError && err.title === "Auth.ConnectedAppsOff";
-
-// A second-factor answer first, so a wrong code is not called a wrong password.
-function stepUpMessage(err: unknown): string {
-  if (!(err instanceof ApiError)) return i18n.t("connect:failed");
-  const secondFactor = secondFactorMessage(err);
-  if (secondFactor !== null) return secondFactor;
-  if (err.status === 400) return i18n.t("connect:wrongPassword");
-  if (err.status === 429) return i18n.t("connect:tooManyAttempts");
-  return i18n.t("connect:failed");
-}
 
 // What was allowed before starts ticked and the rest unticked; a first request starts with
 // everything the role can use. Declined permissions are not remembered.
