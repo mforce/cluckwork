@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currentUserId, currentUserRole, currentUserIsAdmin, currentUserMustChangePassword } from "./claims";
+import { currentUserHasTwoFactor, currentUserId, currentUserRole, currentUserIsAdmin, currentUserMustChangePassword } from "./claims";
 import { setStoredToken, setRawAccessToken } from "../test/jwt";
 
 // localStorage is reset after every test in src/test/setup.ts (single source of
@@ -129,6 +129,33 @@ describe("currentUserMustChangePassword", () => {
   it("a malformed token decodes to false, same as the other claim decoders", () => {
     setRawAccessToken("not-a-jwt");
     expect(currentUserMustChangePassword()).toBe(false);
+  });
+});
+
+// #1279 — "two_factor" is added only as the string "true" (#1274 decision 11).
+describe("currentUserHasTwoFactor", () => {
+  it("returns false when no token is stored", () => {
+    expect(currentUserHasTwoFactor()).toBe(false);
+  });
+
+  it("returns false when the claim is absent", () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    expect(currentUserHasTwoFactor()).toBe(false);
+  });
+
+  it("returns true when the claim is the string \"true\"", () => {
+    setStoredToken({ sub: "u1", role: "Admin", two_factor: "true" });
+    expect(currentUserHasTwoFactor()).toBe(true);
+  });
+
+  it("returns false for any other claim value", () => {
+    setStoredToken({ sub: "u1", role: "Admin", two_factor: true });
+    expect(currentUserHasTwoFactor()).toBe(false);
+  });
+
+  it("a malformed token decodes to false", () => {
+    setRawAccessToken("not-a-jwt");
+    expect(currentUserHasTwoFactor()).toBe(false);
   });
 });
 

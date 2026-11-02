@@ -4,7 +4,10 @@ import { AuthProvider } from "./AuthContext";
 import { useAuth } from "./useAuth";
 import { setStoredToken } from "../test/jwt";
 import { bindAccount, bindFarm, clearAccessToken, clearBoundAccount, farmBindingToken, getBoundFarmCode } from "./tokenStore";
-import { login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged, setOnUnauthenticated } from "../api/client";
+import {
+  completeSecondFactor as apiCompleteSecondFactor, login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged,
+  setOnUnauthenticated,
+} from "../api/client";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 
 // Mock the transport: AuthProvider drives session STATE, the client drives the
@@ -13,6 +16,7 @@ import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 // is the load-time bootstrap — default it to "no session".
 vi.mock("../api/client", () => ({
   login: vi.fn(),
+  completeSecondFactor: vi.fn(),
   logout: vi.fn(),
   restoreSession: vi.fn().mockResolvedValue(false),
   setOnTokensChanged: vi.fn(),
@@ -20,21 +24,24 @@ vi.mock("../api/client", () => ({
 }));
 
 const mockApiLogin = vi.mocked(apiLogin);
+const mockApiCompleteSecondFactor = vi.mocked(apiCompleteSecondFactor);
 const mockApiLogout = vi.mocked(apiLogout);
 const mockSetOnTokensChanged = vi.mocked(setOnTokensChanged);
 const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 const mockRestoreSession = vi.mocked(restoreSession);
 
 function Probe() {
-  const { role, isAdmin, isAuthenticated, mustChangePassword, userId, login, logout } = useAuth();
+  const { role, isAdmin, isAuthenticated, mustChangePassword, twoFactor, userId, login, completeSecondFactor, logout } = useAuth();
   return (
     <div>
       <span data-testid="role">{role}</span>
       <span data-testid="admin">{String(isAdmin)}</span>
       <span data-testid="auth">{String(isAuthenticated)}</span>
       <span data-testid="pending-pw">{String(mustChangePassword)}</span>
+      <span data-testid="two-factor">{String(twoFactor)}</span>
       <span data-testid="user-id">{userId ?? "null"}</span>
       <button onClick={() => void login("default-farm", "a@b.co", "pw")}>login</button>
+      <button onClick={() => void completeSecondFactor("default-farm", "challenge", "code")}>second factor</button>
       <button onClick={() => void logout()}>logout</button>
     </div>
   );
@@ -344,6 +351,55 @@ describe("AuthProvider lifecycle", () => {
     });
 
     expect(screen.getByTestId("pending-pw")).toHaveTextContent("false");
+  });
+
+  // #1279 — twoFactor shows the step-up code field. It is decoded through the
+  // same refreshClaims path, so it must follow every token the tab adopts.
+  it("derives twoFactor=true once the login code step adopts a session carrying two_factor", async () => {
+    mockApiCompleteSecondFactor.mockImplementation(async () => {
+      setStoredToken({ sub: "u1", role: "Admin", two_factor: "true" });
+    });
+    await act(async () => { renderAuth(); });
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("false");
+
+    await act(async () => { fireEvent.click(screen.getByText("second factor")); });
+
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("true");
+  });
+
+  it("sets twoFactor when a refreshed token gains the claim", async () => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    renderAuth();
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("false");
+
+    const onTokensChanged = mockSetOnTokensChanged.mock.calls[0][0];
+    setStoredToken({ sub: "u1", role: "Admin", two_factor: "true" });
+    await act(async () => onTokensChanged!());
+
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("true");
+  });
+
+  it("clears twoFactor when a refreshed token no longer carries the claim", async () => {
+    setStoredToken({ sub: "u1", role: "Admin", two_factor: "true" });
+    renderAuth();
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("true");
+
+    const onTokensChanged = mockSetOnTokensChanged.mock.calls[0][0];
+    setStoredToken({ sub: "u1", role: "Admin" });
+    await act(async () => onTokensChanged!());
+
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("false");
+  });
+
+  it("logout clears twoFactor back to false", async () => {
+    setStoredToken({ sub: "u1", role: "Admin", two_factor: "true" });
+    mockApiLogout.mockImplementation(async () => clearAccessToken());
+    renderAuth();
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("true");
+
+    await act(async () => { fireEvent.click(screen.getByText("logout")); });
+
+    expect(screen.getByTestId("two-factor")).toHaveTextContent("false");
   });
 
   // Codex review of #496: an unscoped sessionStorage marker dismissing the
