@@ -28,8 +28,9 @@ internal static class CurrentPasswordCheck
                 new ApplicationUser(), TimingEqualization.DummyHash, currentPassword);
             // #273 codex review (P1b) — this is a SECOND password oracle
             // (LoginAsync being the first); SecurityEvents.LoginFailed's own
-            // doc already says it fires on /auth/login OR /auth/step-up, on
-            // all three unsuccessful branches, with the identical field set.
+            // doc already says it fires on /auth/login OR /auth/step-up (and
+            // an enrolled user's /auth/change-password), on all three
+            // unsuccessful branches, with the identical field set.
             securityEvents.LoginFailed();
             return null;
         }

@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
@@ -95,7 +96,26 @@ public sealed partial class SecondFactorLoginTests
         Assert.False(await PasswordSignsInAsync(session.Email, TestHarness.Password));
         Assert.Equal(HttpStatusCode.Unauthorized, await RefreshStatusAsync(session, session.Tokens.RefreshToken));
         if (kind == "recovery")
+        {
             Assert.Equal(9, await RecoveryCodesLeftAsync(session.Factor!));
+            var details = Assert.Single(await RecoveryAuditDetailsAsync(session.Factor!));
+            Assert.Equal(9, JsonDocument.Parse(details!).RootElement.GetProperty("remaining").GetInt32());
+        }
+    }
+
+    // Unchanged for an unenrolled user: a wrong current password charges
+    // nothing and is not a failed login.
+    [Fact]
+    public async Task AWrongCurrentPassword_ForAnUnenrolledUser_ChargesNothing()
+    {
+        var (session, _) = await PasswordSessionAsync("unenrolled");
+        factory.Sink.Events.Clear();
+
+        var response = await ChangePasswordAsync(session.Client, WrongPassword, NewPassword, code: null);
+
+        Assert.Equal((HttpStatusCode.BadRequest, "Users.CurrentPasswordIncorrect"), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.Equal(0, (await PasswordStateAsync(session)).AccessFailed);
+        Assert.Empty(factory.EventsFor(SecurityEvents.LoginFailed));
     }
 
     // G4.6
@@ -126,6 +146,20 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(before with { AccessFailed = 2, DailyFailures = 2 }, after);
         Assert.True(await PasswordSignsInAsync(session.Email, TestHarness.Password));
         Assert.Equal(HttpStatusCode.OK, await RefreshStatusAsync(session, session.Tokens.RefreshToken));
+    }
+
+    // The validators run before the code, so a weak password is the answer and
+    // a wrong code sent with it is never checked or charged.
+    [Fact]
+    public async Task AWeakNewPassword_WithAWrongCode_IsRejectedAsWeak_AndChargesNothing()
+    {
+        var (session, _) = await PasswordSessionAsync("totp");
+        var before = await CountersAsync(session.Factor!);
+
+        var response = await ChangePasswordAsync(session.Client, TestHarness.Password, WeakPassword(), WrongCode(session.Factor!));
+
+        Assert.Equal((HttpStatusCode.BadRequest, "Users.PasswordRejected"), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.Equal(before, await CountersAsync(session.Factor!));
     }
 
     [Fact]
