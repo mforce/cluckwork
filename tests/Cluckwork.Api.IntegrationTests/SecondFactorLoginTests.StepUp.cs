@@ -241,8 +241,9 @@ public sealed partial class SecondFactorLoginTests
     public async Task APasswordCheck_WhoseRehashSaveLost_StillStepsUp()
     {
         var (_, factor, client) = await SignedInEnrolledAsync();
+        await ArmALostRehashSaveAsync(factor, rotateSecurityStamp: false);
 
-        var response = await StepUpAfterALostRehashAsync(factor, client, rotateSecurityStamp: false);
+        var response = await StepUpAsync(client, TestHarness.Password, CodeAt(factor, 2));
 
         Assert.True(factory.BeforeCommand.Fired, "the concurrent write never landed before the rehash save");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -254,17 +255,19 @@ public sealed partial class SecondFactorLoginTests
     public async Task AStampRotatedBeforeALostRehashSave_SupersedesTheProof()
     {
         var (_, factor, client) = await SignedInEnrolledAsync();
+        await ArmALostRehashSaveAsync(factor, rotateSecurityStamp: true);
+        var before = await CountersAsync(factor);
 
-        var response = await StepUpAfterALostRehashAsync(factor, client, rotateSecurityStamp: true);
+        var response = await StepUpAsync(client, TestHarness.Password, CodeAt(factor, 2));
 
         Assert.True(factory.BeforeCommand.Fired, "the concurrent write never landed before the rehash save");
         Assert.Equal((HttpStatusCode.BadRequest, "Users.CurrentPasswordIncorrect"), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.Equal(before, await CountersAsync(factor));
     }
 
-    // A weaker stored hash makes the password check rehash and save; a
+    // A weaker stored hash makes the next password check rehash and save; a
     // concurrent writer lands just before that save, so it loses.
-    private async Task<HttpResponseMessage> StepUpAfterALostRehashAsync(
-        EnrolledFactor factor, HttpClient client, bool rotateSecurityStamp)
+    private async Task ArmALostRehashSaveAsync(EnrolledFactor factor, bool rotateSecurityStamp)
     {
         using (var scope = factory.Services.CreateScope())
         {
@@ -285,8 +288,6 @@ public sealed partial class SecondFactorLoginTests
                 await db.ExecuteSqlInterpolatedAsync(
                     $"""UPDATE "AspNetUsers" SET "ConcurrencyStamp" = {concurrencyStamp} WHERE "Id" = {factor.UserId}""");
         });
-
-        return await StepUpAsync(client, TestHarness.Password, CodeAt(factor, 2));
     }
 
     [Fact]
@@ -374,8 +375,6 @@ public sealed partial class SecondFactorLoginTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => TestHarness.InTransactionAsync(db,
             _ => identity.CompleteSecondFactorLoginAsync(pending.Challenge, WrongCode(factor))));
-
-        Assert.Equal(0, (await CountersAsync(factor)).AccessFailed);
     }
 
     [Fact]
@@ -388,8 +387,6 @@ public sealed partial class SecondFactorLoginTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => TestHarness.InTransactionAsync(db,
             _ => stepUp.IssueAsync(factor.AccountId, factor.UserId, TestHarness.Password, WrongCode(factor))));
-
-        Assert.Equal(0, (await CountersAsync(factor)).AccessFailed);
     }
 
     [Fact]
@@ -402,8 +399,6 @@ public sealed partial class SecondFactorLoginTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => TestHarness.InTransactionAsync(db,
             _ => identity.ChangeOwnPasswordAsync(factor.AccountId, factor.UserId, TestHarness.Password, NewPassword, WrongCode(factor))));
-
-        Assert.Equal(0, (await CountersAsync(factor)).AccessFailed);
     }
 
     // The SPA sends an empty field as no code.

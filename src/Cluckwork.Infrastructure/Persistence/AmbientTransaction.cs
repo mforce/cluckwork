@@ -30,7 +30,9 @@ namespace Cluckwork.Infrastructure.Persistence;
 // at its own pace; it has to run the caller's ENTIRE unit of work inside the
 // execution strategy. RunAsync below is the one place that decides which case
 // applies; every caller passes its whole transactional unit as `work` rather
-// than holding the scope open itself.
+// than holding the scope open itself. RunOwnedAsync is the owned case alone:
+// it refuses to join, for a unit whose refused outcome must commit (#1274's
+// two-factor code checks), and RunAsync's owned case runs through it.
 //
 // The owned unit runs through SingleAttemptExecution — inside the strategy,
 // but never replayed. `work` is caller-supplied and routinely NOT replayable:

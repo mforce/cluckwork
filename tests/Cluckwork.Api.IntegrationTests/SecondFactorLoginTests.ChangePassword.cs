@@ -326,11 +326,62 @@ public sealed partial class SecondFactorLoginTests
         var pending = await factory.PasswordStepAsync(session.Email);
         for (var i = 0; i < 4; i++) await PostCodeAsync(pending.Challenge, WrongCode(session.Factor!));
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code: null)).StatusCode);
+        var passwordOnly = await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code: null);
+        Assert.Equal((HttpStatusCode.BadRequest, SecondFactorErrorCodes.Required), (passwordOnly.StatusCode, (await ProblemOf(passwordOnly)).Title));
         Assert.Equal(4, (await CountersAsync(session.Factor!)).AccessFailed);
         await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, WrongCode(session.Factor!));
 
         Assert.NotNull((await CountersAsync(session.Factor!)).LockoutEnd);
+    }
+
+    // The enrolled twin of StepUp_LockoutTripsOnTheFifthUserAttempt_NotTheThird
+    // at change-password: wrong passwords and a wrong code share one count,
+    // and a right password resets nothing.
+    [Fact]
+    public async Task FourWrongPasswords_ThenTheRightPasswordWithAWrongCode_LockTheAccount()
+    {
+        var (session, _) = await PasswordSessionAsync("totp");
+        for (var i = 0; i < 4; i++)
+            await ChangePasswordAsync(session.Client, WrongPassword, NewPassword, CodeAt(session.Factor!, 2));
+        var afterFour = await CountersAsync(session.Factor!);
+        Assert.Equal(4, afterFour.AccessFailed);
+        Assert.Null(afterFour.LockoutEnd);
+
+        await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, WrongCode(session.Factor!));
+
+        Assert.NotNull((await CountersAsync(session.Factor!)).LockoutEnd);
+    }
+
+    // G4.4 over change-password. One change lands; the other is refused. Three
+    // checks stand behind this, so no single mutation turns it red: the
+    // watermark, the epoch the first change moves (VerifyAsync's binding), and
+    // the current-password re-check under the lock.
+    [Fact]
+    public async Task TwoConcurrentChanges_WithOneCode_ChangeThePasswordOnce()
+    {
+        var (session, code) = await PasswordSessionAsync("totp");
+
+        var answers = await Task.WhenAll(
+            ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code),
+            ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code));
+
+        Assert.Single(answers, answer => answer.StatusCode == HttpStatusCode.OK);
+        var refused = Assert.Single(answers, answer => answer.StatusCode != HttpStatusCode.OK);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.True(await PasswordSignsInAsync(session.Email, NewPassword));
+    }
+
+    // The failed-rehash twin at change-password: the reload keeps it working.
+    [Fact]
+    public async Task APasswordCheck_WhoseRehashSaveLost_StillChangesThePassword()
+    {
+        var (session, code) = await PasswordSessionAsync("totp");
+        await ArmALostRehashSaveAsync(session.Factor!, rotateSecurityStamp: false);
+
+        var response = await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code);
+
+        Assert.True(factory.BeforeCommand.Fired, "the concurrent write never landed before the rehash save");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     // The SPA sends an empty field as no code.
@@ -400,12 +451,20 @@ public sealed partial class SecondFactorLoginTests
         factory.CommitFault.ArmOnce();
 
         var response = await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code);
+        // Read before any follow-up request commits or signs in.
         var commits = factory.CommitFault.Commits;
+        int? codesLeft = kind == "recovery" ? await RecoveryCodesLeftAsync(session.Factor!) : null;
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal(1, commits);
         Assert.False(response.Headers.Contains("Set-Cookie"), "a failed commit handed out a refresh cookie");
+        Assert.False((await TestHarness.ReadProblemAsync(response)).TryGetProperty("accessToken", out _),
+            "a failed commit handed out an access token");
+        if (kind == "recovery")
+            Assert.Equal(9, codesLeft);
         Assert.True(await PasswordSignsInAsync(session.Email, NewPassword));
+        Assert.False(await PasswordSignsInAsync(session.Email, TestHarness.Password));
+        Assert.Equal(HttpStatusCode.Unauthorized, await RefreshStatusAsync(session, session.Tokens.RefreshToken));
     }
 
     // A refused outcome's charge commits even when the acknowledgement is lost.
@@ -418,9 +477,11 @@ public sealed partial class SecondFactorLoginTests
         factory.CommitFault.ArmOnce();
 
         var response = await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, WrongCode(session.Factor!));
+        var commits = factory.CommitFault.Commits;
         var after = await PasswordStateAsync(session);
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(1, commits);
         Assert.Equal(before with { AccessFailed = 1, DailyFailures = 1 }, after);
         Assert.True(await PasswordSignsInAsync(session.Email, TestHarness.Password));
         Assert.Equal(HttpStatusCode.OK, await RefreshStatusAsync(session, session.Tokens.RefreshToken));
