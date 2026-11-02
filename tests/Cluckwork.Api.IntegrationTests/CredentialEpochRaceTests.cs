@@ -18,6 +18,7 @@ public sealed class CredentialEpochRaceFactory : CluckworkWebApplicationFactory
     public EpochReplayBarrierInterceptor Barrier { get; } = new();
     public CredentialResetBarrierInterceptor CredentialResetBarrier { get; } = new();
     public CountingPasswordHasher Hasher { get; } = new();
+    public BeforeCommandHook BeforeCommand { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -27,7 +28,7 @@ public sealed class CredentialEpochRaceFactory : CluckworkWebApplicationFactory
         {
             services.AddSingleton<IPasswordHasher<ApplicationUser>>(Hasher);
             services.AddDbContext<AppDbContext>((_, options) =>
-                options.AddInterceptors(Barrier, CredentialResetBarrier));
+                options.AddInterceptors(Barrier, CredentialResetBarrier, BeforeCommand));
         });
     }
 }
@@ -290,7 +291,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
         var stepUp = scope.ServiceProvider.GetRequiredService<IStepUpGrantService>();
 
         factory.CredentialResetBarrier.Arm();
-        var issueTask = stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        var issueTask = stepUp.IssueAsync(accountId, userId, TestHarness.Password, code: null);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await factory.CredentialResetBarrier.WaitUntilReachedAsync(timeout.Token);
 
@@ -304,6 +305,29 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
         }
 
         var issued = await issueTask;
+        Assert.True(issued.IsFailure);
+        Assert.Equal("Users.CurrentPasswordIncorrect", issued.Error.Code);
+    }
+
+    // #1279: an enrolled user's password check resets no counter, so the
+    // reset lands where the code check takes the user-row lock instead. The
+    // code is right; the proof the password gave is what is gone.
+    [Fact]
+    public async Task EnrolledStepUpThatVerifiedTheOldPassword_CannotAdoptAConcurrentPasswordReset()
+    {
+        var email = $"step-up-proof-race-{Guid.NewGuid():N}@test.local";
+        var rotatedPassword = TemporaryPassword.Generate();
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var factor = await factory.EnrolTwoFactorAsync(email);
+
+        using var scope = factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<TenantContext>().Resolve(accountId);
+        var stepUp = scope.ServiceProvider.GetRequiredService<IStepUpGrantService>();
+        factory.BeforeCommand.Arm("FOR NO KEY UPDATE", () => RotatePasswordAsync(accountId, email, rotatedPassword));
+
+        var issued = await stepUp.IssueAsync(accountId, factor.UserId, TestHarness.Password, await factory.NextTotpCodeAsync(email));
+
+        factory.BeforeCommand.Disarm();
         Assert.True(issued.IsFailure);
         Assert.Equal("Users.CurrentPasswordIncorrect", issued.Error.Code);
     }
@@ -341,7 +365,7 @@ public sealed class CredentialEpochRaceTests(CredentialEpochRaceFactory factory)
         var stepUp = scope.ServiceProvider.GetRequiredService<IStepUpGrantService>();
         factory.Hasher.Reset();
 
-        var result = await stepUp.IssueAsync(accountId, userId, password);
+        var result = await stepUp.IssueAsync(accountId, userId, password, code: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Users.CurrentPasswordIncorrect", result.Error.Code);

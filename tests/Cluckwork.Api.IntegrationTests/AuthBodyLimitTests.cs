@@ -266,6 +266,28 @@ public sealed class AuthBodyLimitTests(AuthBodyLimitFactory factory)
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, changePassword.StatusCode);
     }
 
+    // #1279: an enrolled user's code is a third field, and the body still fits
+    // the 4 KB cap with two maximum-length passwords that JSON escapes to six
+    // bytes a character, so it reaches the handler.
+    [Fact]
+    public async Task ChangePassword_WithTwoEscapedMaxLengthPasswordsAndACode_FitsTheCap()
+    {
+        var email = $"owner-{Guid.NewGuid():N}@example.com";
+        await factory.SeedAccountWithUserAsync(email);
+        var factor = await factory.EnrolTwoFactorAsync(email);
+        var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/change-password", new
+        {
+            currentPassword = new string('é', Cluckwork.Application.Modules.Access.Contracts.PasswordRules.MaxLength),
+            newPassword = new string('è', Cluckwork.Application.Modules.Access.Contracts.PasswordRules.MaxLength),
+            code = factor.RecoveryCodes[0],
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("Users.CurrentPasswordIncorrect", (await ProblemFields(response)).Title);
+    }
+
     private static async Task<(string? Title, string? Detail, int? Status)> ProblemFields(
         HttpResponseMessage response)
     {

@@ -309,6 +309,29 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         Assert.Contains(users!, u => u.Email == newOwnerEmail && u.Role == "Admin");
     }
 
+    // #1279: for an enrolled Owner the password alone mints no grant, so a
+    // stolen password cannot create an Owner; the password and a code do.
+    [Fact]
+    public async Task CreateOwner_ByAnEnrolledOwner_NeedsACode()
+    {
+        var email = $"admin-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        await factory.EnrolTwoFactorAsync(email);
+        var owner = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+
+        var passwordOnly = await owner.PostAsJsonAsync("/api/v1/auth/step-up", new { password = TestHarness.Password });
+        Assert.Equal(HttpStatusCode.BadRequest, passwordOnly.StatusCode);
+        var withCode = await owner.PostAsJsonAsync("/api/v1/auth/step-up",
+            new { password = TestHarness.Password, code = await factory.NextTotpCodeAsync(email) });
+        withCode.EnsureSuccessStatusCode();
+        var grant = (await withCode.Content.ReadFromJsonAsync<StepUpDto>())!;
+        var newOwnerEmail = $"boss-{Guid.NewGuid():N}@test.local";
+
+        var response = await CreateUserWithStepUpAsync(owner, newOwnerEmail, "Admin", grant.Token);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
     [Fact]
     public async Task CreateWorker_MissingStepUp_Is403_AndNoUserCreated()
     {
@@ -699,8 +722,9 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);
 
         public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
-            Guid userId, string currentPassword, string newPassword, CancellationToken ct = default) =>
-            inner.ChangeOwnPasswordAsync(userId, currentPassword, newPassword, ct);
+            Guid accountId, Guid userId, string currentPassword, string newPassword, string? code,
+            CancellationToken ct = default) =>
+            inner.ChangeOwnPasswordAsync(accountId, userId, currentPassword, newPassword, code, ct);
 
         public Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default) =>
             inner.ListUsersAsync(accountId, ct);
@@ -994,7 +1018,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<IOptions<JwtOptions>>(),
             services.GetRequiredService<TimeProvider>(),
             registry,
-            services.GetRequiredService<AuthSecurityEventLogger>());
+            services.GetRequiredService<AuthSecurityEventLogger>(),
+            services.GetRequiredService<ITwoFactorCredentials>(), services.GetRequiredService<IAuditWriter>());
 
         return (stepUp, db, accountId, user!.Id);
     }
@@ -1016,14 +1041,15 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             new PersistentStepUpGrantRegistry(
                 new InProcessClaimOnceStore(services.GetRequiredService<TimeProvider>()),
                 db),
-            services.GetRequiredService<AuthSecurityEventLogger>());
+            services.GetRequiredService<AuthSecurityEventLogger>(),
+            services.GetRequiredService<ITwoFactorCredentials>(), services.GetRequiredService<IAuditWriter>());
         var user = await userManager.FindByIdAsync(userId.ToString());
         Assert.NotNull(user);
         user.DisabledAt = DateTimeOffset.UtcNow;
         var disabled = await userManager.UpdateAsync(user);
         Assert.True(disabled.Succeeded);
 
-        var result = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        var result = await stepUp.IssueAsync(accountId, userId, TestHarness.Password, code: null);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Users.CurrentPasswordIncorrect", result.Error.Code);
@@ -1045,9 +1071,10 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(), db,
             scope.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>(),
             timeProvider, spy,
-            scope.ServiceProvider.GetRequiredService<AuthSecurityEventLogger>());
+            scope.ServiceProvider.GetRequiredService<AuthSecurityEventLogger>(),
+            scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>(), scope.ServiceProvider.GetRequiredService<IAuditWriter>());
 
-        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password, code: null);
         Assert.True(issued.IsSuccess);
 
         // Issuance is registry-free: a grant is only ever recorded when it is
@@ -1099,7 +1126,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
         scope.ResolveTenantAndActor(accountId, userId);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var stepUp = scope.ServiceProvider.GetRequiredService<IStepUpGrantService>();
-        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+        var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password, code: null);
         Assert.True(issued.IsSuccess);
         db.ChangeTracker.Clear();
 
@@ -1148,11 +1175,12 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             repeatedServices.GetRequiredService<IOptions<JwtOptions>>(),
             repeatedTp,
             new PersistentStepUpGrantRegistry(new InProcessClaimOnceStore(repeatedTp), db),
-            repeatedServices.GetRequiredService<AuthSecurityEventLogger>());
+            repeatedServices.GetRequiredService<AuthSecurityEventLogger>(),
+            repeatedServices.GetRequiredService<ITwoFactorCredentials>(), repeatedServices.GetRequiredService<IAuditWriter>());
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {
-            var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password);
+            var issued = await stepUp.IssueAsync(accountId, userId, TestHarness.Password, code: null);
             Assert.True(issued.IsSuccess);
 
             var validated = await stepUp.ValidateAsync(accountId, userId, issued.Value.Token);

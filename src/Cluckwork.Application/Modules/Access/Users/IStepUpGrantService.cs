@@ -15,9 +15,10 @@ public interface IStepUpGrantService
     // Verifies currentPassword for (accountId, userId) and mints a grant bound
     // to that account+user. Fails non-enumerating: the same error whether the
     // user cannot be found, belongs to a different account, or the password
-    // is simply wrong.
+    // is simply wrong. An enrolled user also proves code, parsed only after
+    // the password is checked (#1274 decision 11); anyone else's is ignored.
     Task<Result<StepUpGrant>> IssueAsync(
-        Guid accountId, Guid userId, string currentPassword, CancellationToken ct = default);
+        Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct = default);
 
     // Verifies a grant presented for (accountId, userId): well-formed, signed,
     // unexpired, matching account+user, matching the user's CURRENT security

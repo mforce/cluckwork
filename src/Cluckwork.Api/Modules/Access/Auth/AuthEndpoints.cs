@@ -153,7 +153,8 @@ public sealed record SecondFactorLoginRequest(string Challenge, string Code)
     public override string ToString() => "[redacted]";
 }
 
-public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword)
+// Code is an authenticator or recovery code, which an enrolled user must send.
+public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword, string? Code = null)
 {
     public override string ToString() => "[redacted]";
 }
@@ -162,6 +163,11 @@ public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string New
 // the access token and its expiry.
 public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiry);
 
-public sealed record StepUpRequest(string Password);
+// Code is an authenticator or recovery code, which an enrolled user must send.
+// Both members are credentials, so the record never prints them.
+public sealed record StepUpRequest(string Password, string? Code = null)
+{
+    public override string ToString() => "[redacted]";
+}
 
 public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);

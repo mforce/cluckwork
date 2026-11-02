@@ -47,6 +47,10 @@ public sealed class TwoFactorOwnershipTests
             "TwoFactorEnabled", "an enrolled lineage ends a fixed time after its last sign-in (decision 8)"),
         new(InInfrastructure + Identity + "JwtTokenService.CreateTokenPair(" + Identity + "ApplicationUser, System.Collections.Generic.IReadOnlyCollection<string>, string)",
             "TwoFactorEnabled", "the two_factor claim the SPA shows step-up's code field from"),
+        new(InInfrastructure + Identity + "StepUpGrantService.IssueAsync(System.Guid, System.Guid, string, string?, System.Threading.CancellationToken)",
+            "TwoFactorEnabled", "an enrolled user steps up with the password and a code (decision 11)"),
+        new(InInfrastructure + Identity + "IdentityProvider.ChangeOwnPasswordAsync(System.Guid, System.Guid, string, string, string?, System.Threading.CancellationToken)",
+            "TwoFactorEnabled", "an enrolled user changes the password with a code (decision 11)"),
     ];
 
     // The password step's read of the sign-in count, which the challenge

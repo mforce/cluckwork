@@ -70,7 +70,7 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.SecondFactor.cs",
-            Hash = "b2bd10a7",
+            Hash = "8b3d173f",
             Justification = "The login code step reads the challenge's account to refuse a suspended farm (#579), the read refresh uses; scoped to the challenge's account id, IgnoreQueryFilters because the code step is anonymous and TenantContext is unresolved (#1278).",
         },
         new()

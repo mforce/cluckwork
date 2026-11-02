@@ -174,15 +174,21 @@ public static partial class AuthEndpoints
         switch (result.Error)
         {
             case RetryLaterError retry:
-                // At least 1: a window that ends this second still refuses now.
-                response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
-                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
-                return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
+                return RetryLater(response, retry);
             case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:
                 return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
             default:
                 return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
         }
+    }
+
+    // #1274 decision 6: the user's daily budget of wrong authenticator codes
+    // is spent. At least 1: a window that ends this second still refuses now.
+    private static IResult RetryLater(HttpResponse response, RetryLaterError retry)
+    {
+        response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
     }
 
     // #532 — per-farm cookie: this login writes the cookie for the farm

@@ -63,11 +63,13 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
             await db.SaveChangesAsync();
         });
 
+    // An enrolled user steps up with a code too (#1279).
     private async Task<string> StepUpAsync(string email)
     {
         var client = factory.CreateAuthedClient(await factory.LoginForAccessTokenAsync(email));
+        var code = factory.EnrolledFactors.ContainsKey(email) ? await factory.NextTotpCodeAsync(email) : null;
         var response = await client.PostAsJsonAsync(
-            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+            "/api/v1/auth/step-up", new { password = TestHarness.Password, code });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<StepUpDto>())!.Token;
     }
@@ -375,8 +377,12 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
 
     // ---------- Step-up issuance racing a disable ----------
 
-    [Fact]
-    public async Task StepUpIssuedWhileADisableIsQueued_IsNotSpendableAfterAReEnable()
+    // enrolled (#1279): the target's grant is minted with a code, under the
+    // user-row lock, and the disable's stamp rotation still revokes it.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StepUpIssuedWhileADisableIsQueued_IsNotSpendableAfterAReEnable(bool enrolled)
     {
         // The grant is minted from the target's PRE-disable SecurityStamp while
         // the disable sits on the account lock. Re-enabling then clears
@@ -386,6 +392,7 @@ public sealed class DisableUserRaceTests(CluckworkWebApplicationFactory factory)
         var target = Unique("target");
         var accountId = await SeedOwnerFarmAsync(owner);
         await factory.SeedUserAsync(accountId, target, "Manager");
+        if (enrolled) await factory.EnrolTwoFactorAsync(target);
         var ownerId = await UserIdAsync(accountId, owner);
         var targetId = await UserIdAsync(accountId, target);
         var disableGrant = await StepUpAsync(owner);

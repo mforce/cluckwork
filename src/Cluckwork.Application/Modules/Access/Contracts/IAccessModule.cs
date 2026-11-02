@@ -64,10 +64,13 @@ public interface IAccessModule
 
     Task RecordLogoutAsync(Guid userId, CancellationToken ct);
 
-    Task<Result<TokenPair>> ChangeOwnPasswordAsync(ChangeOwnPasswordCommand command, Guid userId, CancellationToken ct);
+    // The account is the endpoint's tenant.
+    Task<Result<TokenPair>> ChangeOwnPasswordAsync(
+        ChangeOwnPasswordCommand command, Guid accountId, Guid userId, CancellationToken ct);
 
+    // An enrolled user also proves code; anyone else's code is ignored.
     Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
-        Guid accountId, Guid userId, string currentPassword, CancellationToken ct);
+        Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct);
 
     // #798 — spends a step-up grant on a decision outside user administration: approving
     // a connected app. Validates and consumes it exactly as the gated user operations do.

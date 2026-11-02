@@ -262,7 +262,8 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
         inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);
 
     public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
-        Guid userId, string currentPassword, string newPassword, CancellationToken ct = default) =>
+        Guid accountId, Guid userId, string currentPassword, string newPassword, string? code,
+        CancellationToken ct = default) =>
         throw new InvalidOperationException(
             "Simulated failure (MustChangePasswordGateTests) — verifies the /error re-execution path is not gated.");
 

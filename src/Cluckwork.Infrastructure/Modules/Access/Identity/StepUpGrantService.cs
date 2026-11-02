@@ -1,3 +1,4 @@
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using System.Globalization;
@@ -130,15 +131,19 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 //     security_stamp/epoch; the registry (IStepUpGrantRegistry) is now a thin,
 //     stateless facade over those two stores.
 //
-// Explicitly deferred: TOTP/WebAuthn step-up (tracked as #320) — this PR is
-// password-re-confirmation only.
+//   - Two-factor (#1274 decision 11): an enrolled user proves the password
+//     AND an authenticator or recovery code, and gets the same grant. The
+//     password is checked first, so a wrong one never reveals whether a code
+//     was right.
 public sealed class StepUpGrantService(
     UserManager<ApplicationUser> userManager,
     AppDbContext db,
     IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider,
     IStepUpGrantRegistry registry,
-    AuthSecurityEventLogger securityEvents) : IStepUpGrantService
+    AuthSecurityEventLogger securityEvents,
+    ITwoFactorCredentials twoFactor,
+    IAuditWriter audit) : IStepUpGrantService
 {
     // Never sourced from config — see the threat-model note above.
     internal const string Audience = "cluckwork-step-up";
@@ -159,73 +164,18 @@ public sealed class StepUpGrantService(
     private static readonly Error DeniedError = Error.Validation(
         StepUpErrorCodes.Required, "Recent re-authentication is required for this action.");
 
-    private static readonly Error WrongPasswordError =
-        Error.Validation("Users.CurrentPasswordIncorrect", "Current password is incorrect.");
+    private static readonly Error RetryError = Error.Validation(
+        StepUpErrorCodes.Retry, "Your confirmation could not be saved. Step up again with the next code.");
 
     public async Task<Result<StepUpGrant>> IssueAsync(
-        Guid accountId, Guid userId, string currentPassword, CancellationToken ct = default)
+        Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct = default)
     {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null || user.AccountId != accountId)
-        {
-            // Always pay the PBKDF2 cost, exactly like LoginAsync, so a
-            // missing/foreign user isn't measurably faster than a real check.
-            userManager.PasswordHasher.VerifyHashedPassword(
-                new ApplicationUser(), TimingEqualization.DummyHash, currentPassword);
-            // #273 codex review (P1b) — this is a SECOND password oracle
-            // (LoginAsync being the first); SecurityEvents.LoginFailed's own
-            // doc already says it fires on /auth/login OR /auth/step-up, on
-            // all three unsuccessful branches, with the identical field set.
-            securityEvents.LoginFailed();
-            return Result.Failure<StepUpGrant>(WrongPasswordError);
-        }
+        if (await CurrentPasswordCheck.CheckCurrentPasswordAsync(
+                userManager, db, securityEvents, accountId, userId, currentPassword) is not { } user)
+            return Result.Failure<StepUpGrant>(CurrentPasswordCheck.Incorrect);
 
-        if (user.DisabledAt is not null)
-        {
-            // Match login's disabled-account path: pay exactly one real hash
-            // cost for either password, but never let guesses mutate durable
-            // failed-access/lockout state while the account is disabled.
-            userManager.PasswordHasher.VerifyHashedPassword(
-                user, user.PasswordHash ?? TimingEqualization.DummyHash, currentPassword);
-            return Result.Failure<StepUpGrant>(WrongPasswordError);
-        }
-
-        // #128 per-account lockout, same as LoginAsync. This endpoint is a SECOND
-        // password oracle — and the one guarding Owner takeover — so leaving it
-        // out would have left only the per-IP limiter here, which a distributed
-        // attacker rotating source IPs walks straight around. A locked account is
-        // refused with the same error and still pays PBKDF2, so the reply never
-        // reveals that the account is locked rather than the password wrong.
-        if (await userManager.IsLockedOutAsync(user))
-        {
-            userManager.PasswordHasher.VerifyHashedPassword(
-                user, user.PasswordHash ?? TimingEqualization.DummyHash, currentPassword);
-            // #273 codex review (P1b) — same as LoginAsync's already-locked
-            // branch: re-fires LoginFailed, never AccountLockedOut again (that
-            // fired once, at the transition).
-            securityEvents.LoginFailed();
-            return Result.Failure<StepUpGrant>(WrongPasswordError);
-        }
-
-        if (!await userManager.CheckPasswordAsync(user, currentPassword))
-        {
-            // #273 codex review (P1b) — the bool this returns was previously
-            // discarded, so a failed step-up attempt never fired LoginFailed
-            // and a threshold-crossing one never fired AccountLockedOut: a
-            // failed /auth/step-up — a privileged password oracle — was
-            // invisible to security telemetry. Same shape as LoginAsync's
-            // wrong-password branch.
-            //
-            // Emitted BEFORE persisting lockout state (codex review round 2):
-            // RecordFailedAccessAsync is a durable write that can throw, and a
-            // throw there must not silently drop LoginFailed — the password was
-            // already confirmed wrong.
-            securityEvents.LoginFailed();
-            var justLockedOut = await AccountLockout.RecordFailedAccessAsync(userManager, db, user);
-            if (justLockedOut)
-                securityEvents.AccountLockedOut(user.Id);
-            return Result.Failure<StepUpGrant>(WrongPasswordError);
-        }
+        if (user.TwoFactorEnabled)
+            return await IssueWithSecondFactorAsync(accountId, user, code, ct);
 
         // ResetFailedAccessCountAsync can reload a concurrently reset/disabled
         // row after an optimistic-concurrency loss. Preserve the exact
@@ -243,9 +193,63 @@ public sealed class StepUpGrantService(
             || user.CredentialEpoch != verifiedCredentialEpoch
             || !string.Equals(user.SecurityStamp, verifiedSecurityStamp, StringComparison.Ordinal))
         {
-            return Result.Failure<StepUpGrant>(WrongPasswordError);
+            return Result.Failure<StepUpGrant>(CurrentPasswordCheck.Incorrect);
         }
 
+        return Result.Success(Mint(accountId, user));
+    }
+
+    // #1274 decision 11. The password is already right; nothing is charged
+    // until VerifyAsync, and only an accepted code clears the lockout counter
+    // (decision 5). The transaction opens after the password check, and every
+    // outcome is saved, a refused one included, so its charge stands.
+    private async Task<Result<StepUpGrant>> IssueWithSecondFactorAsync(
+        Guid accountId, ApplicationUser user, string? code, CancellationToken ct)
+    {
+        if (code is null)
+            return Result.Failure<StepUpGrant>(SecondFactorErrors.Required);
+        if (!SecondFactorCode.TryParse(code, out var parsed))
+            return Result.Failure<StepUpGrant>(SecondFactorErrors.Incorrect);
+
+        var binding = await CurrentPasswordCheck.BindForSecondFactorAsync(db, user, ct);
+        return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            // VerifyAsync locks and reloads this same tracked user, so the mint
+            // below reads the row as it stands under the lock.
+            var outcome = await twoFactor.VerifyAsync(accountId, user.Id, parsed, binding, token);
+            Result<StepUpGrant> result;
+            if (outcome is FactorOutcome.Accepted accepted)
+            {
+                if (accepted.RecoveryCodesLeft is { } remaining)
+                {
+                    await audit.WriteAsync(AuditActions.UserRecoveryCodeUsed, "User", user.Id,
+                        reason: null, details: new { remaining }, ct: token);
+                    await db.SaveChangesAsync(token);
+                }
+                result = Result.Success(Mint(accountId, user));
+            }
+            else
+            {
+                result = Result.Failure<StepUpGrant>(SecondFactorErrors.ForPrivilegedAction(outcome));
+            }
+
+            // Only the commit is caught, whatever the outcome: a grant is never
+            // handed out for a step that may not have been saved, and a client
+            // that hangs up cannot roll a charge back.
+            try
+            {
+                await transaction.CommitAsync(CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                return Result.Failure<StepUpGrant>(RetryError);
+            }
+            return result;
+        }, ct);
+    }
+
+    private StepUpGrant Mint(Guid accountId, ApplicationUser user)
+    {
         var now = timeProvider.GetUtcNow();
         var expires = now.AddMinutes(Math.Max(1, jwtOptions.Value.StepUpGrantMinutes));
         var jti = Guid.NewGuid();
@@ -259,7 +263,7 @@ public sealed class StepUpGrantService(
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Jti, jti.ToString()),
             new("account_id", accountId.ToString()),
             // Embeds the CURRENT stamp so any later rotation (password
@@ -276,7 +280,7 @@ public sealed class StepUpGrantService(
             jwtOptions.Value.Issuer, Audience, claims, now.UtcDateTime, expires.UtcDateTime, credentials);
         var raw = new JwtSecurityTokenHandler().WriteToken(token);
 
-        return Result.Success(new StepUpGrant(raw, expires));
+        return new StepUpGrant(raw, expires);
     }
 
     public async Task<Result> ValidateAsync(

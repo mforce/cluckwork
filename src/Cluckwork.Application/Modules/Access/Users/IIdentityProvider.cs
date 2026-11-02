@@ -171,9 +171,11 @@ public interface IIdentityProvider
 
     // #165 — self-service change, proving the current password. Revokes every
     // refresh token for the user and returns a FRESH pair, so other devices are
-    // signed out while the caller stays signed in on this one.
+    // signed out while the caller stays signed in on this one. An enrolled user
+    // also proves code (#1274 decision 11); anyone else's code is ignored.
     Task<Result<TokenPair>> ChangeOwnPasswordAsync(
-        Guid userId, string currentPassword, string newPassword, CancellationToken ct = default);
+        Guid accountId, Guid userId, string currentPassword, string newPassword, string? code,
+        CancellationToken ct = default);
 
     Task<IReadOnlyList<UserSummary>> ListUsersAsync(Guid accountId, CancellationToken ct = default);
 

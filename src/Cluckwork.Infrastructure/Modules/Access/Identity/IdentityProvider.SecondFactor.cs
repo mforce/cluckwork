@@ -10,23 +10,20 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // user's refresh row, cookie and access token.
 public sealed partial class IdentityProvider
 {
-    // One body for a wrong, reused or malformed code and a locked account, so
-    // the answer never confirms that a guessed code was valid (G3.12).
-    private static readonly Error SecondFactorIncorrect = Error.Validation(
-        SecondFactorErrorCodes.Incorrect, "That code did not work. If you just used it, wait for the next one.");
-
-    private static readonly Error SecondFactorKeyUnavailable = Error.Validation(
-        SecondFactorErrorCodes.KeyUnavailable, "Your authenticator key cannot be read. Use a recovery code.");
-
     public async Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
         string challenge, string code, CancellationToken ct = default)
     {
+        // A joined transaction would leave a refused outcome's charge to a
+        // caller that can roll it back, so the code step owns its own.
+        if (db.Database.CurrentTransaction is not null)
+            throw new InvalidOperationException("The login code step runs in its own transaction, never a caller's.");
+
         // The challenge first, so a malformed code on a dead challenge gets the 401.
         if (SecondFactorChallenge.Read(challenge, jwtOptions.Value, timeProvider.GetUtcNow()) is not { } claims)
             return LogAndRefuseExpiredChallenge();
         // Parsed before anything digests it: malformed input is refused, uncharged.
         if (!SecondFactorCode.TryParse(code, out var parsed))
-            return Result.Failure<TokenPair>(SecondFactorIncorrect);
+            return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
@@ -87,9 +84,9 @@ public sealed partial class IdentityProvider
     private Result<TokenPair> Refused(FactorOutcome outcome) => outcome switch
     {
         FactorOutcome.Superseded => LogAndRefuseExpiredChallenge(),
-        FactorOutcome.Unavailable => Result.Failure<TokenPair>(SecondFactorKeyUnavailable),
+        FactorOutcome.Unavailable => Result.Failure<TokenPair>(SecondFactorErrors.KeyUnavailable),
         FactorOutcome.Throttled throttled => Result.Failure<TokenPair>(new RetryLaterError(throttled.RetryAfter)),
-        _ => Result.Failure<TokenPair>(SecondFactorIncorrect),
+        _ => Result.Failure<TokenPair>(SecondFactorErrors.Incorrect),
     };
 
     private Result<TokenPair> LogAndRefuseExpiredChallenge()
