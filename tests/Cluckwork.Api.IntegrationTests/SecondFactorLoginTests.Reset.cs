@@ -177,6 +177,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.True(factory.BeforeCommand.Fired, "the concurrent change never ran");
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(AppError.Forbidden().Code, (await ProblemOf(response)).Title);
         Assert.True((await FactorStateAsync(accountId, factor.UserId)).Enabled);
         Assert.Equal(1 + factor.RecoveryCodes.Count, (await TwoFactorRowsAsync(accountId, factor.UserId)).Count);
     }
