@@ -21,11 +21,12 @@ Without this command the only recourse would be direct SQL surgery on the
 ## What it does (atomically, in one transaction)
 
 1. Finds the user by email — **case-insensitive**, matching the login path (across accounts; disambiguate with `--account` if ever ambiguous).
-2. Sets a **freshly generated** strong temporary password (never one you pass on the command line).
-3. **Rotates the security stamp and bumps the credential epoch** (#364) — invalidates Identity-derived state, and since every authenticated request is checked against the epoch, makes any access token already issued fail on its very next use.
-4. **Clears any active lockout** and failed-attempt count — so a user locked out by repeated failed logins (the common trigger) can actually use the new password immediately, not after the 15-minute lockout expires.
-5. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
-6. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason` **and the host/OS-user that ran the command**.
+2. **Turns two-factor off** (#1280): deletes the authenticator key, the recovery codes and any started enrolment without reading them, so it works whatever key ring the command runs with. A user who lost their phone can then sign in with the password alone.
+3. Sets a **freshly generated** strong temporary password (never one you pass on the command line), and **forces a password change** at the next sign-in, so the printed password is used once.
+4. **Rotates the security stamp and bumps the credential epoch** (#364) — invalidates Identity-derived state, and since every authenticated request is checked against the epoch, makes any access token already issued fail on its very next use.
+5. **Clears any active lockout** and failed-attempt count — so a user locked out by repeated failed logins (the common trigger) can actually use the new password immediately, not after the 15-minute lockout expires.
+6. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
+7. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason`, **the host/OS-user that ran the command**, and `twoFactorCleared` (`true` when step 2 turned two-factor off).
 
 > **Who that row names (#500).** `actor_email` is the literal
 > **`(break-glass)`** and `actor_user_id` is all-zeroes. That is deliberate: this
@@ -33,7 +34,7 @@ Without this command the only recourse would be direct SQL surgery on the
 > non-person it is rather than falling back to the old `(unresolved)` placeholder
 > — an audit event with no resolved actor is now refused outright. The real
 > accountability for a break-glass reset is the `--reason` you pass plus the
-> host and OS user captured in the row's details, which is why step 6 records
+> host and OS user captured in the row's details, which is why step 7 records
 > both and why the verification below checks them.
 
 > Since #364, an access token already issued is rejected on its very next
@@ -183,11 +184,12 @@ Nothing is changed on a failure.
 
 ## Post-recovery verification (drill this on staging before you need it)
 
-1. The user logs in with the temporary password **and the printed farm code** → **succeeds**.
-2. The **old** password → **rejected**.
-3. Any previously open session (a still-loaded browser tab) can no longer refresh → signed out.
-4. `SELECT action, actor_email, reason, occurred_at_utc FROM audit_events WHERE action = 'User.BreakGlassReset' ORDER BY occurred_at_utc DESC LIMIT 1;` shows the row with your reason.
-5. The user changes the temporary password via `Account → change password`.
+1. The user logs in with the temporary password **and the printed farm code** → **succeeds**, with no authenticator code asked for.
+2. The app holds them at the forced password change; they pick a new password there.
+3. The **old** password → **rejected**.
+4. Any previously open session (a still-loaded browser tab) can no longer refresh → signed out. A connected app is refused too.
+5. `SELECT "Action", "ActorEmail", "Reason", "DetailsJson", "OccurredAtUtc" FROM "AuditEvents" WHERE "Action" = 'User.BreakGlassReset' ORDER BY "OccurredAtUtc" DESC LIMIT 1;` shows the row with your reason and `twoFactorCleared`.
+6. If the user had two-factor on, they set it up again after the password change.
 
 ## Preventing the lockout in the first place
 
