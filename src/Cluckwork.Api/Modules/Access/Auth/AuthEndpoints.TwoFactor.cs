@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Security.Claims;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
@@ -11,16 +13,21 @@ public static partial class AuthEndpoints
     // when it was on, because every other session ended; 204 otherwise.
     private static async Task<IResult> TurnOffTwoFactor(
         [FromHeader(Name = StepUpHeaderName)] string? stepUpToken,
-        IAccessModule access, ICurrentUser currentUser, TenantContext tenant,
+        IAccessModule access, ICurrentUser currentUser, TenantContext tenant, ClaimsPrincipal user,
         HttpResponse response, IWebHostEnvironment env, CancellationToken ct)
     {
-        if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
+        if (!currentUser.IsResolved || !tenant.IsResolved
+            || !int.TryParse(user.FindFirst("credential_epoch")?.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var epoch))
+            return Results.Unauthorized();
 
-        var result = await access.TurnOffTwoFactorAsync(tenant.AccountId, currentUser.UserId, stepUpToken, ct);
+        var result = await access.TurnOffTwoFactorAsync(tenant.AccountId, currentUser.UserId, epoch, stepUpToken, ct);
+        // The other failure is Auth.CredentialsSuperseded: the session went
+        // stale under the request, and answers as CredentialEpochMiddleware does.
         if (!result.IsSuccess)
-            return result.Error.Code == StepUpErrorCodes.Required
-                ? Results.Problem(result.Error.Description, statusCode: StatusCodes.Status403Forbidden, title: result.Error.Code)
-                : Results.NotFound();
+            return Results.Problem(result.Error.Description, title: result.Error.Code,
+                statusCode: result.Error.Code == StepUpErrorCodes.Required
+                    ? StatusCodes.Status403Forbidden
+                    : StatusCodes.Status401Unauthorized);
         if (result.Value is not { } pair) return Results.NoContent();
 
         AuthCookies.SetRefreshCookie(response, pair.AccountId, pair.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));

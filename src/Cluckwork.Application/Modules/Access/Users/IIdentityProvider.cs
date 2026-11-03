@@ -175,7 +175,10 @@ public interface IIdentityProvider
     // enrolled user it ends every other session and connected app, writes
     // User.TwoFactorDisabled and returns the acting session's fresh pair; for
     // anyone else it ends a started enrolment, if any, and returns null.
-    Task<Result<TokenPair?>> TurnOffTwoFactorAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+    // credentialEpoch is the acting token's: a session superseded or disabled
+    // since it authenticated gets Auth.CredentialsSuperseded and changes nothing.
+    Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);
 
     // #1280 — an Owner resets another user's two-factor, account-scoped
     // (foreign id -> NotFound), with the actor re-checked inside the account

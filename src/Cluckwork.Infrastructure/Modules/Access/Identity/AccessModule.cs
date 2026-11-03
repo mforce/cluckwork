@@ -138,8 +138,8 @@ public sealed class AccessModule(
         changeOwnPassword.HandleAsync(command, accountId, userId, ct);
 
     public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
-        Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct) =>
-        turnOffTwoFactor.HandleAsync(accountId, userId, stepUpToken, ct);
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct) =>
+        turnOffTwoFactor.HandleAsync(accountId, userId, credentialEpoch, stepUpToken, ct);
 
     public Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
         Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct) =>

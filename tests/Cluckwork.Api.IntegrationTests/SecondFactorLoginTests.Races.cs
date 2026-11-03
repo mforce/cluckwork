@@ -108,7 +108,8 @@ public sealed partial class SecondFactorLoginTests
                     && (await identity.EnableUserAsync(accountId, factor.UserId, ownerId)).IsSuccess,
                 "suspension" => (await scope.ServiceProvider.GetRequiredService<AccountSuspensionService>().SuspendAsync(accountId, "test")).IsSuccess,
                 "authenticator replacement" => await ReplaceAuthenticatorAsync(scope, factor),
-                "turn-off" => (await identity.TurnOffTwoFactorAsync(accountId, factor.UserId)).IsSuccess,
+                "turn-off" => (await identity.TurnOffTwoFactorAsync(accountId, factor.UserId,
+                    (await FactorStateAsync(accountId, factor.UserId)).Epoch)).IsSuccess,
                 "Owner two-factor reset" => (await identity.ResetUserTwoFactorAsync(accountId, factor.UserId, ownerId)).IsSuccess,
                 _ => throw new ArgumentOutOfRangeException(nameof(change)),
             };

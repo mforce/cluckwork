@@ -79,7 +79,7 @@ internal static class FilterFreeSetSites
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CompletePasswordChangeAsync(ApplicationUser user, FactorOutcome.Accepted? accepted, CancellationToken token)",
             "db.RefreshTokens", "5ed68b22",
             "by-user: db.RefreshTokens.Add of the caller's fresh pair after a password change; NewToken copies AccountId from the changed user's own row (#1279)."),
-        new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.TurnOffTwoFactorAsync(Guid accountId, Guid userId, CancellationToken ct)",
+        new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.TurnOffTwoFactorAsync(Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct)",
             "db.RefreshTokens", "213c3d99",
             "by-user: db.RefreshTokens.Add of the caller's fresh pair after turning two-factor off; NewToken copies AccountId from the user row read by Id and AccountId (#1280)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CountOtherActiveOwnersAsync(Guid accountId, Guid excludingUserId, CancellationToken token)",

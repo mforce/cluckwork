@@ -262,8 +262,9 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
         bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default) =>
         inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, mustChangePassword, ct);
 
-    public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
-        inner.TurnOffTwoFactorAsync(accountId, userId, ct);
+    public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>
+        inner.TurnOffTwoFactorAsync(accountId, userId, credentialEpoch, ct);
 
     public Task<Result> ResetUserTwoFactorAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>

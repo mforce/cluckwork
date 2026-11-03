@@ -72,8 +72,9 @@ public interface IAccessModule
         ChangeOwnPasswordCommand command, Guid accountId, Guid userId, CancellationToken ct);
 
     // Null when the user was not enrolled, so no session changed.
+    // credentialEpoch is the acting token's claim.
     Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
-        Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct);
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
 
     // An enrolled user also proves code; anyone else's code is ignored.
     Task<Result<StepUpGrant>> IssueStepUpGrantAsync(

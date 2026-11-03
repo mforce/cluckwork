@@ -7,11 +7,11 @@ namespace Cluckwork.Application.Modules.Access.Users.TurnOffTwoFactor;
 public sealed class TurnOffTwoFactorHandler(IIdentityProvider identity, IStepUpGrantService stepUp)
 {
     public async Task<Result<TokenPair?>> HandleAsync(
-        Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct)
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct)
     {
         var proof = await stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
         if (!proof.IsSuccess) return Result.Failure<TokenPair?>(proof.Error);
 
-        return await identity.TurnOffTwoFactorAsync(accountId, userId, ct);
+        return await identity.TurnOffTwoFactorAsync(accountId, userId, credentialEpoch, ct);
     }
 }

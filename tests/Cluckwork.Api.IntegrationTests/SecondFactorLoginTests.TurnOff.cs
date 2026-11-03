@@ -2,6 +2,7 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -122,5 +123,58 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(1 + factor.RecoveryCodes.Count, (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Count);
+    }
+
+    // The turn-off spends its grant before it takes the user-row lock; a
+    // change that lands in between leaves the asking session stale.
+    private async Task AssertStaleTurnOffRefusedAsync(HttpResponseMessage response, EnrolledFactor factor)
+    {
+        Assert.True(factory.BeforeCommand.Fired, "the concurrent change never ran");
+        Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("Auth.CredentialsSuperseded", (await ProblemOf(response)).Title);
+        Assert.Equal(1 + factor.RecoveryCodes.Count, (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Count);
+        Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+    }
+
+    [Theory]
+    [InlineData("Owner password reset")]
+    [InlineData("disable")]
+    public async Task TurningTwoFactorOff_AfterTheSessionWentStaleUnderTheRequest_IsRefused(string change)
+    {
+        var (accountId, ownerId, _) = await FarmWithOwnerAsync();
+        var (email, factor) = await EnrolledManagerAsync(accountId);
+        var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
+        factory.BeforeCommand.Arm("FOR NO KEY UPDATE", async () =>
+        {
+            using var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, ownerId);
+            var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+            var done = change == "disable"
+                ? await identity.DisableUserAsync(accountId, factor.UserId, ownerId, "test")
+                : await identity.SetUserPasswordAsync(accountId, factor.UserId, NewPassword);
+            Assert.True(done.IsSuccess, change);
+        });
+
+        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+
+        await AssertStaleTurnOffRefusedAsync(response, factor with { RecoveryCodes = factor.RecoveryCodes.Skip(1).ToList() });
+    }
+
+    // A password-only grant from before an enrolment must not remove the new
+    // factor without its code.
+    [Fact]
+    public async Task TurningTwoFactorOff_WithAGrantFromBeforeAnEnrolment_IsRefused()
+    {
+        var email = $"tf-plain-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
+        EnrolledFactor? factor = null;
+        factory.BeforeCommand.Arm("FOR NO KEY UPDATE", async () => factor = await factory.EnrolTwoFactorAsync(email));
+
+        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+
+        await AssertStaleTurnOffRefusedAsync(response, factor!);
     }
 }
