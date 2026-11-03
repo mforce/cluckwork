@@ -54,9 +54,12 @@ const isNotAReference = (parent: Node, key: string) =>
   || (/^(LabeledStatement|BreakStatement|ContinueStatement)$/.test(parent.type) && key === "label")
   || TYPE_POSITIONS.has(parent.type);
 
-const identifiersIn = (node: unknown): string[] => !isNode(node) ? []
-  : [...(node.type === "Identifier" ? [node.name as string] : []),
-    ...Object.entries(node).flatMap(([key, child]) => key === "loc" ? [] : Array.isArray(child) ? child.flatMap(identifiersIn) : identifiersIn(child))];
+function identifiersIn(node: unknown): string[] {
+  if (!isNode(node)) return [];
+  const own = node.type === "Identifier" ? [node.name as string] : [];
+  const children = Object.entries(node).filter(([key]) => key !== "loc").flatMap(([, child]) => [child].flat());
+  return [...own, ...children.flatMap(identifiersIn)];
+}
 
 export interface StepUpUses {
   // Each stepUp() call, named by its enclosing function declarations and
