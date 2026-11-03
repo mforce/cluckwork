@@ -96,7 +96,7 @@ export const es = {
       "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} hora.",
     secondFactorThrottledHours_other:
       "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} horas.",
-    secondFactorRequired: "Introduzca el código de su aplicación de autenticación o un código de recuperación.",
+    secondFactorRequired: "Ingrese el código de su aplicación de autenticación o un código de recuperación.",
     stepUpRetry: "No se completó. Espere el siguiente código de su aplicación de autenticación e inténtelo de nuevo.",
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
     credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
@@ -3483,7 +3483,8 @@ export const es = {
       + "quieres y permites el resto con tu contraseña actual; nunca puede hacer más que tu rol. Cada conexión pide "
       + "la contraseña, y desmarcarlo todo es lo mismo que <strong>Cancelar</strong>. Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la "
       + "pantalla muestra <strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice "
-      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos a una aplicación, vuelve a conectarla y márcalos: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>, sin casilla. Para quitar un permiso, desconecta la aplicación y vuelve a conectarla.",
+      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos a una aplicación, vuelve a conectarla y márcalos: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>, sin casilla. Para quitar un permiso, desconecta la aplicación y vuelve a conectarla. "
+      + "Con la autenticación en dos pasos activada, también pide un código de tu aplicación de autenticación o un código de recuperación.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
@@ -3491,7 +3492,8 @@ export const es = {
       + "de inicio de sesión, deshabilitar un usuario, volver a habilitarlo, asignar un trabajador a un lote, o "
       + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
-      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla.",
+      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
+      + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

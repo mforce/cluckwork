@@ -3614,7 +3614,8 @@ export const tl = {
       + "detalye ng app mula sa sarili nitong website, ipinapakita ng screen ang <strong>Beripikadong domain</strong> "
       + "at ang address ng website na iyon; kung hindi, <strong>Hindi beripikadong app</strong> ang nakasulat. Alinman "
       + "dito, ang app ang pumili ng sarili nitong pangalan. Para bigyan ang app ng mga bagong pahintulot, ikonekta itong muli at lagyan ng tsek ang mga ito: may markang "
-      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong>, na walang checkbox, ang hindi magagamit ng role mo. Para mag-alis ng pahintulot, idiskonekta ang app, saka ikonekta ito ulit.",
+      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong>, na walang checkbox, ang hindi magagamit ng role mo. Para mag-alis ng pahintulot, idiskonekta ang app, saka ikonekta ito ulit. "
+      + "Kapag naka-on ang two-factor authentication, humihingi rin ito ng code mula sa iyong authenticator app o isang recovery code.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
@@ -3622,7 +3623,8 @@ export const tl = {
       + "mag-disable ng user, muling mag-enable ng user, mag-assign ng manggagawa sa isang kawan, o mag-alis ng "
       + "assignment ng manggagawa sa isang kawan, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
-      + "Hindi muling hinihingi ito sa mga pagbabago ng display name.",
+      + "Hindi muling hinihingi ito sa mga pagbabago ng display name. "
+      + "Kapag naka-on ang two-factor authentication, humihingi rin ang dialog ng code mula sa iyong authenticator app o isang recovery code.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "
