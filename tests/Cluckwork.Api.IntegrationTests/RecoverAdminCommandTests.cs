@@ -1,3 +1,4 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using System.Diagnostics;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -63,9 +64,26 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         SeedCommandRunner.RunToCompletionAsync(
             StartRecoverCommand(arguments, environment, extraEnvironment), SubprocessTimeout);
 
+    // #1274 decision 16: the verb clears an enrolled admin's two-factor, so the
+    // printed password signs in with no code, held at the forced change.
+    private async Task<EnrolledFactor> EnrolAdminAsync()
+    {
+        var factor = await _factory.EnrolTwoFactorAsync(_factory.AdminEmail);
+        _factory.EnrolledFactors.TryRemove(_factory.AdminEmail, out _);
+        return factor;
+    }
+
+    private Task<(bool Enabled, bool MustChangePassword, int Rows)> FactorStateAsync(EnrolledFactor factor) =>
+        _factory.WithTenantScopeAsync(factor.AccountId, async db => (
+            await db.Users.Where(u => u.Id == factor.UserId).Select(u => u.TwoFactorEnabled).SingleAsync(),
+            await db.Users.Where(u => u.Id == factor.UserId).Select(u => u.MustChangePassword).SingleAsync(),
+            await db.UserTokens.CountAsync(t => t.UserId == factor.UserId && t.LoginProvider == "Cluckwork")));
+
     [Fact]
     public async Task RecoverAdmin_InProduction_ResetsPassword_PrintsWorkingTemporaryPassword()
     {
+        var factor = await EnrolAdminAsync();
+
         var (exitCode, stdout, stderr) = await RunAsync(
             $"--email {_factory.AdminEmail} --reason integration-drill");
 
@@ -90,10 +108,12 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         using var scope = _factory.Services.CreateScope();
         var idp = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
 
-        Assert.True((await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, tempPassword)).IsSuccess,
-            "the printed temporary password should log in");
+        var signedIn = await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, tempPassword);
+        Assert.True(signedIn.IsSuccess && signedIn.Value is LoginStep.SignedIn,
+            "the printed temporary password should log in with no code");
         Assert.True((await idp.LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, _factory.AdminPassword)).IsFailure,
             "the old seeded password must be rejected after recovery");
+        Assert.Equal((false, true, 0), await FactorStateAsync(factor));
     }
 
     // #589 — recover-admin must print the farm code (a required #532 login
@@ -172,6 +192,9 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
     [Fact]
     public async Task RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers()
     {
+        // #1274 G5.3: an enrolled admin, so the verb's delete of the two-factor
+        // rows runs under the DML-only role and the verb's own key ring.
+        var factor = await EnrolAdminAsync();
         var roleConnectionString = await DmlOnlyRole.CreateConnectionStringAsync(_factory.ConnectionString);
 
         var (exitCode, stdout, stderr) = await RunAsync(
@@ -183,6 +206,7 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
 
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains("Temporary password:", stdout);
+        Assert.Equal((false, true, 0), await FactorStateAsync(factor));
     }
 
     // #589 — vary the fixture's account Slug (the admin lives on

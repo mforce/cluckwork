@@ -7,9 +7,11 @@ using Cluckwork.Application.Modules.Access.Users.ChangeUserRole;
 using Cluckwork.Application.Modules.Access.Users.CreateUser;
 using Cluckwork.Application.Modules.Access.Users.DisableUser;
 using Cluckwork.Application.Modules.Access.Users.EnableUser;
+using Cluckwork.Application.Modules.Access.Users.ResetUserTwoFactor;
 using Cluckwork.Application.Modules.Access.Users.SetLanguage;
 using Cluckwork.Application.Modules.Access.Users.SetStepperUnit;
 using Cluckwork.Application.Modules.Access.Users.SetUserPassword;
+using Cluckwork.Application.Modules.Access.Users.TurnOffTwoFactor;
 using Cluckwork.Application.Modules.Access.Users.UpdateUser;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
@@ -29,6 +31,8 @@ public sealed class AccessModule(
     ChangeUserEmailHandler changeUserEmail,
     DisableUserHandler disableUser,
     EnableUserHandler enableUser,
+    ResetUserTwoFactorHandler resetUserTwoFactor,
+    TurnOffTwoFactorHandler turnOffTwoFactor,
     AssignFlockHandler assignFlock,
     UnassignFlockHandler unassignFlock,
     SetLanguageHandler setLanguage,
@@ -72,6 +76,10 @@ public sealed class AccessModule(
     public Task<Result> EnableUserAsync(
         EnableUserCommand command, Guid accountId, Guid actingUserId, CancellationToken ct) =>
         enableUser.HandleAsync(command, accountId, actingUserId, ct);
+
+    public Task<Result> ResetUserTwoFactorAsync(
+        ResetUserTwoFactorCommand command, Guid accountId, Guid actingUserId, CancellationToken ct) =>
+        resetUserTwoFactor.HandleAsync(command, accountId, actingUserId, ct);
 
     // #859 — names come from Flock Management's lookup, whose filtered read
     // decides which flocks this caller may see (#613): one bounded read for the
@@ -128,6 +136,10 @@ public sealed class AccessModule(
     public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
         ChangeOwnPasswordCommand command, Guid accountId, Guid userId, CancellationToken ct) =>
         changeOwnPassword.HandleAsync(command, accountId, userId, ct);
+
+    public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
+        Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct) =>
+        turnOffTwoFactor.HandleAsync(accountId, userId, stepUpToken, ct);
 
     public Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
         Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct) =>

@@ -719,8 +719,16 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             inner.EnableUserAsync(accountId, userId, actingUserId, ct);
 
         public Task<Result> BreakGlassResetAsync(
-            Guid accountId, Guid userId, string newPassword, string? reason, CancellationToken ct = default) =>
-            inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, ct);
+            Guid accountId, Guid userId, string newPassword, string? reason,
+            bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default) =>
+            inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, mustChangePassword, ct);
+
+        public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+            inner.TurnOffTwoFactorAsync(accountId, userId, ct);
+
+        public Task<Result> ResetUserTwoFactorAsync(
+            Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+            inner.ResetUserTwoFactorAsync(accountId, userId, actingUserId, ct);
 
         public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
             Guid accountId, Guid userId, string currentPassword, string newPassword, string? code,

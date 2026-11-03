@@ -135,6 +135,8 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             var admin = await db.Users.SingleAsync(u => u.Id == adminUserId);
             Assert.NotEqual(originalStamp, admin.SecurityStamp);
             Assert.Equal(originalCredentialEpoch + 1, admin.CredentialEpoch);
+            // #1274 decision 16: the printed password is used once.
+            Assert.True(admin.MustChangePassword, "recover-admin must force a password change");
 
             // AuditEvent carries the tenant query filter, so IgnoreQueryFilters is
             // required here — this scope never resolved a tenant.
@@ -156,6 +158,9 @@ public sealed class AdminRecoveryServiceTests : IClassFixture<BreakGlassRecovery
             // pass.
             Assert.Contains(Environment.MachineName, row.DetailsJson);
             Assert.Contains(Environment.UserName, row.DetailsJson);
+            // This admin never enrolled, so nothing was cleared.
+            Assert.False(System.Text.Json.JsonDocument.Parse(row.DetailsJson!).RootElement
+                .GetProperty("twoFactorCleared").GetBoolean());
         }
     }
 

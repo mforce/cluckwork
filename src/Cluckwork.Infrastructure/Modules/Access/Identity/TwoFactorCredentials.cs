@@ -258,6 +258,30 @@ internal sealed class TwoFactorCredentials(
         return recoveryCodes is not null ? new ConfirmOutcome.Enrolled(recoveryCodes) : new ConfirmOutcome.Replaced();
     }
 
+    // #1274 "Enrolling and replacing a key": deletes every row without reading
+    // a value. Only an enrolled user's clear is a factor change (decision 8);
+    // ending sessions for an unenrolled user would cost them for nothing.
+    public async Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct)
+    {
+        var user = await LockAsync(accountId, userId, ct);
+        if (user is null) return ClearOutcome.NotFound;
+
+        var pendingDeleted = await Rows(accountId, userId)
+            .Where(t => t.Name == ProtectedTwoFactorValue.PendingAuthenticator.RowName).ExecuteDeleteAsync(ct) > 0;
+        await Rows(accountId, userId).ExecuteDeleteAsync(ct);
+        if (!user.TwoFactorEnabled)
+            return pendingDeleted ? ClearOutcome.PendingDeleted : ClearOutcome.NotEnrolled;
+
+        user.TwoFactorEnabled = false;
+        user.SecondFactorFailures = 0;
+        user.SecondFactorFailuresSince = null;
+        user.CredentialEpoch++;
+        var saved = await userManager.UpdateSecurityStampAsync(user);
+        if (!saved.Succeeded)
+            throw new InvalidOperationException("The locked user's save failed: " + string.Join(" ", saved.Errors.Select(e => e.Code)));
+        return ClearOutcome.Cleared;
+    }
+
     // Every add runs on a signed-in route (#1274 decision 15), so the stage
     // methods take the account from the resolved tenant: a value protected
     // under one account and stamped with another could never be read.

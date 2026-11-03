@@ -46,6 +46,11 @@ public static class AuditActions
     // #1274 decision 19 — a recovery code signed the user in (#1278), or, from
     // #1279, stepped them up. Details carry the codes left, never a code.
     public const string UserRecoveryCodeUsed = "User.RecoveryCodeUsed";
+    // #1280 — the user turned their own two-factor off. No details.
+    public const string UserTwoFactorDisabled = "User.TwoFactorDisabled";
+    // #1280 — an Owner reset another user's two-factor. Details carry
+    // pending: true when only a started enrolment ended.
+    public const string UserTwoFactorReset = "User.TwoFactorReset";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";
     // #799 — a person's connected app was disconnected, by them or by the farm's Owner;
