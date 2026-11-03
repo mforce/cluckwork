@@ -21,6 +21,10 @@ public sealed class SecondFactorFactory : CluckworkWebApplicationFactory
 
     public TransientCommitFaultInterceptor CommitFault { get; } = new();
 
+    public TransientCommandFaultInterceptor CommandFault { get; } = new();
+
+    public BeforeCommandHook BeforeCommand { get; } = new();
+
     internal SettableClock Clock { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -31,7 +35,7 @@ public sealed class SecondFactorFactory : CluckworkWebApplicationFactory
             services.AddSingleton<ILogEventSink>(Sink);
             services.AddSingleton<TimeProvider>(Clock);
             services.AddSingleton<IStartupFilter, OAuthProbe>();
-            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(CommitFault));
+            services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(CommitFault, CommandFault, BeforeCommand));
         });
     }
 

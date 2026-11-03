@@ -82,6 +82,7 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.SignedIn", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.Logout", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.Refresh", ["Access"]),
+        new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.RetryLater", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.StepUp", ["Access"]),
         new("Cluckwork.Api.Modules.Commerce.Catalog.ProductEndpoints.CreateProduct", ["Commerce"]),
         new("Cluckwork.Api.Modules.Commerce.Catalog.ProductEndpoints.ListConversions", ["Commerce"]),

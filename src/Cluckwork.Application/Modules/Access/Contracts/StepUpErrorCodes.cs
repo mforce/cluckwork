@@ -7,4 +7,8 @@ public static class StepUpErrorCodes
     // this one code so a gated endpoint's caller cannot enumerate WHY a grant
     // failed.
     public const string Required = "Identity.StepUpRequired";
+
+    // #1274 decision 11: an enrolled user's step-up could not be saved, so no
+    // grant was issued. The user steps up again with the next code.
+    public const string Retry = "Auth.StepUpRetry";
 }

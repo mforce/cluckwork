@@ -2,6 +2,7 @@ using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Common;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -140,12 +141,14 @@ public sealed partial class IdentityProvider
     }
 
     public async Task<Result<TokenPair>> ChangeOwnPasswordAsync(
-        Guid userId, string currentPassword, string newPassword, CancellationToken ct = default)
+        Guid accountId, Guid userId, string currentPassword, string newPassword, string? code,
+        CancellationToken ct = default)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return Result.Failure<TokenPair>(Error.Validation(
-                "Identity.InvalidCredentials", "Invalid email or password."));
+        if (user is null || user.AccountId != accountId)
+            return Result.Failure<TokenPair>(CurrentPasswordCheck.Incorrect);
+        if (user.TwoFactorEnabled)
+            return await ChangeEnrolledPasswordAsync(accountId, userId, currentPassword, newPassword, code, ct);
 
         // One transaction around change + revoke + re-issue: the bulk revoke is
         // immediate SQL, so a failure before the fresh token is saved would sign
@@ -167,49 +170,98 @@ public sealed partial class IdentityProvider
             // ChangePasswordAsync verifies the current password AND applies the policy.
             var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
             if (!changed.Succeeded)
-            {
-                // Distinguish "your current password is wrong" from "the new one is
-                // too weak" — the user needs to know which to fix. Neither leaks
-                // anything: the caller is already authenticated as this user.
-                var wrongCurrent = changed.Errors.Any(e => e.Code == "PasswordMismatch");
-                if (wrongCurrent)
-                    return Result.Failure<TokenPair>(Error.Validation(
-                        "Users.CurrentPasswordIncorrect", "Current password is incorrect."));
-                // A lost CAS here is a benign concurrent-writer race, not a bad
-                // password: since #338 a logout rotates this row's ConcurrencyStamp
-                // (and an admin reset/disable can too), so a change that read the
-                // user before that commit loses its optimistic-concurrency check
-                // and UserManager returns ConcurrencyFailure. Map it to the same
-                // Users.Conflict every sibling write path uses, rather than telling
-                // the user their new password was rejected.
-                if (IsConcurrencyFailure(changed))
-                    return Result.Failure<TokenPair>(ResetConcurrencyConflict());
-                return Result.Failure<TokenPair>(Error.Validation("Users.PasswordRejected", Describe(changed)));
-            }
-
-            // #283 — this is the SPA's first-login "set your password" screen's
-            // actual mechanism (it reuses this endpoint: the operator already
-            // knows the generated first-run password as their "current" one).
-            // Clearing the flag here is what lets the fresh token pair below omit
-            // the must_change_password claim, un-gating the rest of the app.
-            if (user.MustChangePassword)
-                user.MustChangePassword = false;
-            user.CredentialEpoch++;
-
-            // Every session dies (other devices are signed out), then this caller gets
-            // a fresh pair so the device that made the change stays signed in.
-            var now = timeProvider.GetUtcNow();
-            await RevokeAllActiveForUserAsync(user.Id, now, token);
-
-            var (rawToken, tokenHash) = GenerateRefreshToken();
-            db.RefreshTokens.Add(NewToken(user, tokenHash));
-            await audit.WriteAsync(AuditActions.UserPasswordChanged, "User", user.Id,
-                reason: null, details: null, ct: token);
-            await db.SaveChangesAsync(token);
+                return Result.Failure<TokenPair>(PasswordChangeRefused(changed));
+            var pair = await CompletePasswordChangeAsync(user, accepted: null, token);
             await transaction.CommitAsync(token);
-
-            var roles = await userManager.GetRolesAsync(user);
-            return Result.Success(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken));
+            return Result.Success(pair);
         }, ct);
+    }
+
+    // #1274 decision 11: an enrolled user proves the current password and a
+    // code, in that order, and only an accepted code writes the hash. The
+    // password step charges the lockout and fires LoginFailed, as at step-up.
+    private async Task<Result<TokenPair>> ChangeEnrolledPasswordAsync(
+        Guid accountId, Guid userId, string currentPassword, string newPassword, string? code, CancellationToken ct)
+    {
+        if (await CurrentPasswordCheck.CheckCurrentPasswordAsync(
+                userManager, db, securityEvents, accountId, userId, currentPassword) is not { } user)
+            return Result.Failure<TokenPair>(CurrentPasswordCheck.Incorrect);
+
+        // Before the code, so a weak password spends no code.
+        var weak = new List<IdentityError>();
+        foreach (var validator in userManager.PasswordValidators)
+            weak.AddRange((await validator.ValidateAsync(userManager, user, newPassword)).Errors);
+        if (weak.Count > 0)
+            return Result.Failure<TokenPair>(Error.Validation("Users.PasswordRejected", Describe(IdentityResult.Failed([.. weak]))));
+
+        // Outside IdempotentUnit, so a refused outcome's charge stands. A fault
+        // of the commit itself is not caught: the exception handler answers it
+        // by type, with no pair, as it does for an unenrolled user (decided by
+        // the maintainer on 2026-10-21, "Keep today's 500").
+        return await SecondFactorProof.ProveAsync(db, twoFactor, accountId, user, code,
+            async (accepted, token) =>
+            {
+                // ChangePasswordAsync verifies the current password again. Keep
+                // it: this second check runs under the user-row lock, against
+                // the row the code was checked on, so the hash write cannot
+                // lose its concurrency check.
+                var changed = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+                if (!changed.Succeeded)
+                    return Result.Failure<TokenPair>(PasswordChangeRefused(changed));
+                return Result.Success(await CompletePasswordChangeAsync(user, accepted, token));
+            },
+            commitFailed: null, ct);
+    }
+
+    private static Error PasswordChangeRefused(IdentityResult changed)
+    {
+        // Distinguish "your current password is wrong" from "the new one is
+        // too weak" — the user needs to know which to fix. Neither leaks
+        // anything: the caller is already authenticated as this user.
+        if (changed.Errors.Any(e => e.Code == "PasswordMismatch"))
+            return CurrentPasswordCheck.Incorrect;
+        // A lost CAS here is a benign concurrent-writer race, not a bad
+        // password: since #338 a logout rotates this row's ConcurrencyStamp
+        // (and an admin reset/disable can too), so a change that read the
+        // user before that commit loses its optimistic-concurrency check
+        // and UserManager returns ConcurrencyFailure. Map it to the same
+        // Users.Conflict every sibling write path uses, rather than telling
+        // the user their new password was rejected.
+        if (IsConcurrencyFailure(changed))
+            return ResetConcurrencyConflict();
+        return Error.Validation("Users.PasswordRejected", Describe(changed));
+    }
+
+    // The writes every accepted change shares, and the fresh pair; the caller
+    // commits. accepted is the code an enrolled user proved, null otherwise.
+    private async Task<TokenPair> CompletePasswordChangeAsync(
+        ApplicationUser user, FactorOutcome.Accepted? accepted, CancellationToken token)
+    {
+        // #283 — this is the SPA's first-login "set your password" screen's
+        // actual mechanism (it reuses this endpoint: the operator already
+        // knows the generated first-run password as their "current" one).
+        // Clearing the flag here is what lets the fresh token pair below omit
+        // the must_change_password claim, un-gating the rest of the app.
+        if (user.MustChangePassword)
+            user.MustChangePassword = false;
+        user.CredentialEpoch++;
+
+        // Every session dies (other devices are signed out), then this caller gets
+        // a fresh pair so the device that made the change stays signed in.
+        var now = timeProvider.GetUtcNow();
+        await RevokeAllActiveForUserAsync(user.Id, now, token);
+
+        // Decision 8: an enrolled user's pair proves both factors, so its
+        // lineage starts now.
+        var (rawToken, tokenHash) = GenerateRefreshToken();
+        db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: accepted is null ? null : now));
+        await audit.WriteAsync(AuditActions.UserPasswordChanged, "User", user.Id,
+            reason: null, details: null, ct: token);
+        if (accepted is not null)
+            await SecondFactorProof.WriteRecoveryCodeUsedAsync(audit, user.Id, accepted, token);
+        await db.SaveChangesAsync(token);
+
+        var roles = await userManager.GetRolesAsync(user);
+        return jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
     }
 }

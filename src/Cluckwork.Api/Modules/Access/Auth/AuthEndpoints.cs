@@ -1,6 +1,7 @@
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.RateLimiting;
+using Cluckwork.Application.Modules.Access.Contracts;
 
 namespace Cluckwork.Api.Modules.Access.Auth;
 
@@ -139,6 +140,19 @@ public static partial class AuthEndpoints
     // (TLS terminates at the proxy), so the auth cookie must be Secure regardless
     // of the internal proxy→app hop scheme.
     private static bool CookieSecure(IWebHostEnvironment env) => !env.IsDevelopment();
+
+    // A RetryLaterError's 429, with its wait in whole seconds. At least 1: a
+    // wait that ends this second still refuses now.
+    private static IResult RetryLater(HttpResponse response, RetryLaterError retry)
+    {
+        response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
+    }
+
+    // #1274 decision 11: after an unsaved step-up the next code is at most one
+    // 30-second step away.
+    private const string StepUpRetryAfterSeconds = "30";
 }
 
 // The password is a credential, so the record never prints it.
@@ -153,7 +167,8 @@ public sealed record SecondFactorLoginRequest(string Challenge, string Code)
     public override string ToString() => "[redacted]";
 }
 
-public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword)
+// Code is an authenticator or recovery code, which an enrolled user must send.
+public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string NewPassword, string? Code = null)
 {
     public override string ToString() => "[redacted]";
 }
@@ -162,6 +177,11 @@ public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string New
 // the access token and its expiry.
 public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiry);
 
-public sealed record StepUpRequest(string Password);
+// Code is an authenticator or recovery code, which an enrolled user must send.
+// Both members are credentials, so the record never prints them.
+public sealed record StepUpRequest(string Password, string? Code = null)
+{
+    public override string ToString() => "[redacted]";
+}
 
 public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);

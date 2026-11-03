@@ -30,7 +30,9 @@ namespace Cluckwork.Infrastructure.Persistence;
 // at its own pace; it has to run the caller's ENTIRE unit of work inside the
 // execution strategy. RunAsync below is the one place that decides which case
 // applies; every caller passes its whole transactional unit as `work` rather
-// than holding the scope open itself.
+// than holding the scope open itself. RunOwnedAsync is the owned case alone:
+// it refuses to join, for a unit whose refused outcome must commit (#1274's
+// two-factor code checks), and RunAsync's owned case runs through it.
 //
 // The owned unit runs through SingleAttemptExecution — inside the strategy,
 // but never replayed. `work` is caller-supplied and routinely NOT replayable:
@@ -60,7 +62,21 @@ public static class AmbientTransaction
         if (database.CurrentTransaction is not null)
             return await work(JoinedTransactionScope.Instance, ct);
 
-        return await SingleAttemptExecution.RunAsync(database, async () =>
+        return await RunOwnedAsync(database, work, ct);
+    }
+
+    // #1274 "Transactions": a two-factor unit commits a refused outcome, so
+    // its charge must never belong to a caller that could roll it back. Throws
+    // when a transaction is already open instead of joining it.
+    public static Task<T> RunOwnedAsync<T>(
+        DatabaseFacade database,
+        Func<IAmbientTransactionScope, CancellationToken, Task<T>> work,
+        CancellationToken ct = default)
+    {
+        if (database.CurrentTransaction is not null)
+            throw new InvalidOperationException("This unit owns its transaction and never joins a caller's.");
+
+        return SingleAttemptExecution.RunAsync(database, async () =>
         {
             var transaction = await database.BeginTransactionAsync(ct);
             await using var scope = new OwnedTransactionScope(transaction);

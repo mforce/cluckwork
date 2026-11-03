@@ -276,12 +276,13 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 
     // The consent route's Allow (#798): the user re-enters their password for a step-up
     // grant, and the approval comes back as the client's redirect. Null selectedScopes omits
-    // the choice, as an SPA older than #1326 does.
+    // the choice, as an SPA older than #1326 does. An enrolled user steps up with a code
+    // too (#1274 decision 11).
     internal static async Task<Uri> ApproveAsync(
         WebApplicationFactory<Program> host, string jwt, Dictionary<string, string?> query,
-        IReadOnlyList<string>? selectedScopes = null)
+        IReadOnlyList<string>? selectedScopes = null, string? code = null)
     {
-        using var response = await SendAuthorizeAsync(host, jwt, query, await StepUpAsync(host, jwt),
+        using var response = await SendAuthorizeAsync(host, jwt, query, await StepUpAsync(host, jwt, code),
             consentScopes: selectedScopes is null ? null : JsonSerializer.Serialize(selectedScopes));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return RedirectOf(await response.Content.ReadFromJsonAsync<JsonElement>());
@@ -289,10 +290,10 @@ public sealed class OAuthServerTests(CluckworkWebApplicationFactory factory)
 
     internal static Uri RedirectOf(JsonElement body) => new(body.GetProperty("redirectUri").GetString()!);
 
-    internal static async Task<string> StepUpAsync(WebApplicationFactory<Program> host, string jwt)
+    internal static async Task<string> StepUpAsync(WebApplicationFactory<Program> host, string jwt, string? code = null)
     {
         using var response = await HttpsClient(host, jwt).PostAsJsonAsync(
-            "/api/v1/auth/step-up", new { password = TestHarness.Password });
+            "/api/v1/auth/step-up", new { password = TestHarness.Password, code });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
     }

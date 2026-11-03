@@ -11,21 +11,26 @@ public static partial class AuthEndpoints
     private static async Task<IResult> ChangePassword(
         ChangeOwnPasswordRequest request, IAccessModule access,
         IValidator<ChangeOwnPasswordCommand> validator, ICurrentUser currentUser,
-        HttpResponse response, IWebHostEnvironment env,
+        TenantContext tenant, HttpResponse response, IWebHostEnvironment env,
         CancellationToken ct)
     {
-        if (!currentUser.IsResolved) return Results.Unauthorized();
+        if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
-        var command = new ChangeOwnPasswordCommand(request.CurrentPassword, request.NewPassword);
+        var command = new ChangeOwnPasswordCommand(request.CurrentPassword, request.NewPassword, request.Code);
         var validation = await validator.ValidateAsync(command, ct);
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
         // The user id comes from the token, never the request: a caller can only
         // ever change their OWN password here.
-        var result = await access.ChangeOwnPasswordAsync(command, currentUser.UserId, ct);
+        var result = await access.ChangeOwnPasswordAsync(command, tenant.AccountId, currentUser.UserId, ct);
         if (!result.IsSuccess)
-            return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
+            // #1274 decision 12: 400, never 401, which would make the SPA
+            // refresh and send the code again; a spent daily budget is 429.
+            // Users.Conflict stays 400 here.
+            return result.Error is RetryLaterError retry
+                ? RetryLater(response, retry)
+                : Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
 
         // Every prior session was revoked; hand this device a fresh cookie + access
         // token so the one that made the change stays signed in.
@@ -47,7 +52,7 @@ public static partial class AuthEndpoints
     // the class-level threat model on StepUpGrantService).
     private static async Task<IResult> StepUp(
         StepUpRequest request, IAccessModule access, IValidator<StepUpRequest> validator,
-        ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
+        ICurrentUser currentUser, TenantContext tenant, HttpResponse response, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
@@ -55,7 +60,16 @@ public static partial class AuthEndpoints
         if (!validation.IsValid)
             return ValidationResponse.Problem(validation);
 
-        var result = await access.IssueStepUpGrantAsync(tenant.AccountId, currentUser.UserId, request.Password, ct);
+        var result = await access.IssueStepUpGrantAsync(
+            tenant.AccountId, currentUser.UserId, request.Password, request.Code, ct);
+        if (result.Error is RetryLaterError retry)
+            return RetryLater(response, retry);
+        if (result.Error is { Code: StepUpErrorCodes.Retry })
+        {
+            // #1274 decision 11: the step could not be saved, so no grant.
+            response.Headers.RetryAfter = StepUpRetryAfterSeconds;
+            return Results.Problem(result.Error.Description, statusCode: 503, title: result.Error.Code);
+        }
         if (!result.IsSuccess)
             // #336 review — 400, exactly as ChangePassword above returns the SAME
             // Users.CurrentPasswordIncorrect error. A rejected step-up password is a

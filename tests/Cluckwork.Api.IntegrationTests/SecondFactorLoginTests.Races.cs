@@ -100,7 +100,7 @@ public sealed partial class SecondFactorLoginTests
             var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
             var done = change switch
             {
-                "password change" => (await identity.ChangeOwnPasswordAsync(factor.UserId, TestHarness.Password, NewPassword)).IsSuccess,
+                "password change" => (await identity.ChangeOwnPasswordAsync(accountId, factor.UserId, TestHarness.Password, NewPassword, factor.RecoveryCodes[0])).IsSuccess,
                 "Owner password reset" => (await identity.SetUserPasswordAsync(accountId, factor.UserId, NewPassword)).IsSuccess,
                 "disable" => (await identity.DisableUserAsync(accountId, factor.UserId, ownerId, "test")).IsSuccess,
                 "disable then enable" => (await identity.DisableUserAsync(accountId, factor.UserId, ownerId, "test")).IsSuccess
@@ -224,8 +224,9 @@ public sealed partial class SecondFactorLoginTests
 
         var client = factory.CreateClient(TestHarness.Cookieless(factory));
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", tokens.AccessToken);
+        // An enrolled user's change needs a code too (decision 11).
         var changed = await client.PostAsJsonAsync("/api/v1/auth/change-password",
-            new { currentPassword = TestHarness.Password, newPassword = NewPassword });
+            new { currentPassword = TestHarness.Password, newPassword = NewPassword, code = factor.RecoveryCodes[0] });
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
     }
 }

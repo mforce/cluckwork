@@ -24,7 +24,9 @@ public static class SecurityEvents
 {
     // Fires on EVERY unsuccessful /auth/login or /auth/step-up password check —
     // unknown email, an already-locked account, or a genuinely wrong password —
-    // with the IDENTICAL field set on all three branches. Never carries a user
+    // with the IDENTICAL field set on all three branches. Since #1279 it also
+    // fires on an enrolled user's unsuccessful /auth/change-password
+    // current-password check (#1274 decision 20). Never carries a user
     // id or email: that would let the three branches be told apart from the
     // log side even though the HTTP response already collapses them into one
     // generic 401 (Identity.InvalidCredentials).
@@ -87,8 +89,9 @@ public static class SecurityEvents
     public const string TenantWriteRefusedByDatabase = "Tenant.WriteRefusedByDatabase";
 
     // #1274 decision 20. A wrong authenticator or recovery code at the login
-    // code step. ClientIp only, like LoginFailed, so a right password with a
-    // wrong code stays distinguishable from a wrong password.
+    // code step, step-up or change-password. ClientIp only, like LoginFailed,
+    // so a right password with a wrong code stays distinguishable from a wrong
+    // password.
     public const string SecondFactorFailed = "Auth.SecondFactorFailed";
 
     // The code step refused an expired, forged or used challenge, or one whose

@@ -26,6 +26,11 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
     {
         factory.Clock.Reset();
         factory.CommitFault.Disarm();
+        factory.CommandFault.Disarm();
+        // A hook still armed never fired, so the race its test claims never ran.
+        var leftArmed = factory.BeforeCommand.IsArmed;
+        factory.BeforeCommand.Disarm();
+        Assert.False(leftArmed, "a BeforeCommand hook was left armed: its race never ran");
     }
 
     private sealed record UserCounters(int AccessFailed, int DailyFailures, long SignIns, long Watermark, DateTimeOffset? LockoutEnd);
@@ -188,7 +193,7 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
         Assert.Equal("true", new JwtSecurityTokenHandler().ReadJwtToken(session.AccessToken).Claims
             .Single(c => c.Type == "two_factor").Value);
 
-        var app = await ConnectedAppToken.IssueAsync(factory, session.AccessToken);
+        var app = await ConnectedAppToken.IssueAsync(factory, session.AccessToken, await factory.NextTotpCodeAsync(enrolledEmail));
         using var probe = await ConnectedAppToken.Client(factory, app).GetAsync(SecondFactorFactory.OAuthProbePath);
         Assert.Equal("true", await probe.Content.ReadAsStringAsync());
     }

@@ -174,10 +174,7 @@ public static partial class AuthEndpoints
         switch (result.Error)
         {
             case RetryLaterError retry:
-                // At least 1: a window that ends this second still refuses now.
-                response.Headers.RetryAfter = Math.Max(1, Math.Ceiling(retry.RetryAfter.TotalSeconds))
-                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
-                return Results.Problem(retry.Description, statusCode: 429, title: retry.Code);
+                return RetryLater(response, retry);
             case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:
                 return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
             default:
