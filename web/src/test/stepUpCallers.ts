@@ -3,87 +3,112 @@ import { dirname, extname, resolve } from "node:path";
 import { parse } from "@babel/parser";
 
 // #1279 — the walk behind the step-up caller guard in UsersPage.test.tsx.
-// It follows the import binding, not the text: every import of stepUp from
-// the API modules, aliased or through a namespace, and every call to it.
+// It does not list the call shapes it accepts and trust the rest. It takes
+// every name bound by an import from an API module (stepUp by any alias, and
+// each namespace import) and requires each use of it to be a stepUp call.
+// Anything else is a violation, so a new shape fails instead of escaping.
+//
+// The walk has no scope analysis: a local that shadows one of those names is
+// reported too. That only ever fails closed.
 
 const SRC = resolve(process.cwd(), "src");
+const API_DIR = resolve(SRC, "api");
 const API_MODULES = new Set([resolve(SRC, "api/client"), resolve(SRC, "api/session")]);
 // The one module allowed to pass stepUp on: the API's public face.
 const REEXPORTER = resolve(SRC, "api/client.ts");
 
-// The module an import or export names, with any .ts/.tsx spelling dropped,
-// or null for a package import.
-function moduleOf(file: string, specifier: string | undefined): string | null {
-  if (!specifier?.startsWith(".")) return null;
-  return resolve(dirname(file), specifier).replace(/\.tsx?$/, "");
+// The module an import or export names, with any .ts/.js-style ending
+// dropped, or null for a package import.
+function moduleOf(file: string, specifier: unknown): string | null {
+  if (typeof specifier !== "string" || !specifier.startsWith(".")) return null;
+  return resolve(dirname(file), specifier).replace(/\.[cm]?[jt]sx?$/, "");
 }
-const parseModule = (source: string, file: string) =>
-  parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
-const isApiModule = (file: string, specifier: string | undefined) => API_MODULES.has(moduleOf(file, specifier) ?? "");
+const isApiModule = (file: string, specifier: unknown) => API_MODULES.has(moduleOf(file, specifier) ?? "");
 
-type Node = {
-  type?: string;
-  id?: { name?: string };
-  init?: { type?: string };
-  source?: { value?: string };
-  specifiers?: { type: string; local: { name?: string; value?: string }; imported?: { name?: string; value?: string } }[];
-  callee?: Node;
-  object?: Node;
-  property?: Node;
-  computed?: boolean;
-  name?: string;
-  value?: string;
-};
+type Node = { type: string; loc?: { start: { line: number } } } & Record<string, unknown>;
+const isNode = (value: unknown): value is Node =>
+  typeof value === "object" && value !== null && typeof (value as Node).type === "string";
+const nameOf = (node: unknown) => isNode(node) ? (node.name ?? node.value) : undefined;
 
-// Each stepUp() call in one module, named by its enclosing function
-// declarations and function-valued consts ("useFlockAccess.onAssign").
-export function stepUpCallSites(source: string, file: string): string[] {
-  const tree = parseModule(source, file);
+const CALLS = new Set(["CallExpression", "OptionalCallExpression"]);
+const MEMBERS = new Set(["MemberExpression", "OptionalMemberExpression"]);
+// An identifier in these positions names something else, not the import.
+const isNotAReference = (parent: Node, key: string) =>
+  (MEMBERS.has(parent.type) && key === "property" && !parent.computed)
+  || (/^(Object|Class)(Property|Method)$|^ClassPrivateProperty$/.test(parent.type) && key === "key" && !parent.computed)
+  || /^Import(Default|Namespace)?Specifier$/.test(parent.type)
+  || (/^(LabeledStatement|BreakStatement|ContinueStatement)$/.test(parent.type) && key === "label")
+  || (parent.type.startsWith("TS") && !/^TS(NonNull|As|Satisfies|TypeAssertion|Instantiation)Expression$/.test(parent.type));
+
+export interface StepUpUses {
+  // Each stepUp() call, named by its enclosing function declarations and
+  // function-valued consts ("useFlockAccess.onAssign").
+  sites: string[];
+  // Every other use, as "line: what".
+  violations: string[];
+}
+
+export function stepUpUses(source: string, file: string): StepUpUses {
+  const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
+  const body = tree.program.body as unknown as Node[];
   const direct = new Set<string>();
   const namespaces = new Set<string>();
-  for (const statement of tree.program.body as Node[]) {
-    if (statement.type !== "ImportDeclaration" || !isApiModule(file, statement.source?.value)) continue;
-    for (const specifier of statement.specifiers ?? []) {
-      if (specifier.type === "ImportNamespaceSpecifier") namespaces.add(specifier.local.name!);
-      const imported = specifier.imported?.name ?? specifier.imported?.value;
-      if (specifier.type === "ImportSpecifier" && imported === "stepUp") direct.add(specifier.local.name!);
+  const sites: string[] = [];
+  const violations: string[] = [];
+  const at = (node: Node) => node.loc?.start.line ?? 0;
+
+  for (const statement of body) {
+    if (!isApiModule(file, (statement.source as Node | undefined)?.value)) continue;
+    const specifiers = (statement.specifiers as Node[] | undefined) ?? [];
+    if (statement.type === "ImportDeclaration") {
+      for (const specifier of specifiers) {
+        if (specifier.type === "ImportNamespaceSpecifier") namespaces.add(nameOf(specifier.local) as string);
+        if (specifier.type === "ImportSpecifier" && nameOf(specifier.imported) === "stepUp") direct.add(nameOf(specifier.local) as string);
+      }
+    } else if (file !== REEXPORTER && (statement.type === "ExportAllDeclaration"
+      || specifiers.some((s) => s.type === "ExportNamespaceSpecifier" || nameOf(s.local) === "stepUp"))) {
+      violations.push(`${at(statement)}: re-export from an API module`);
     }
   }
-  const isStepUp = (callee: Node | undefined) => {
-    if (callee?.type === "Identifier") return direct.has(callee.name!);
-    if (callee?.type !== "MemberExpression" && callee?.type !== "OptionalMemberExpression") return false;
-    if (callee.object?.type !== "Identifier" || !namespaces.has(callee.object.name!)) return false;
-    return callee.computed ? callee.property?.value === "stepUp" : callee.property?.name === "stepUp";
-  };
-  const sites: string[] = [];
-  const visit = (node: unknown, names: string[]): void => {
-    if (typeof node !== "object" || node === null) return;
-    if (Array.isArray(node)) { for (const child of node) visit(child, names); return; }
-    const n = node as Node;
-    let inner = names;
-    if (n.type === "FunctionDeclaration" && n.id?.name) inner = [...names, n.id.name];
-    if (n.type === "VariableDeclarator" && n.id?.name && /Function/.test(n.init?.type ?? "")) inner = [...names, n.id.name];
-    if ((n.type === "CallExpression" || n.type === "OptionalCallExpression") && isStepUp(n.callee)) sites.push(names.join("."));
-    for (const [key, child] of Object.entries(node)) if (key !== "loc") visit(child, inner);
-  };
-  visit(tree.program, []);
-  return sites;
-}
 
-// Each re-export that passes stepUp on (a named one, or `export *` from an API
-// module), as "file: line". A caller importing through one would escape the
-// walk above, so outside api/client.ts there must be none.
-export function stepUpReExports(source: string, file: string): string[] {
-  if (file === REEXPORTER) return [];
-  const tree = parseModule(source, file);
-  const found: string[] = [];
-  for (const statement of tree.program.body as (Node & { loc?: { start: { line: number } } })[]) {
-    if (!isApiModule(file, statement.source?.value)) continue;
-    const named = statement.type === "ExportNamedDeclaration"
-      && (statement.specifiers ?? []).some((specifier) => (specifier.local.name ?? specifier.local.value) === "stepUp");
-    if (named || statement.type === "ExportAllDeclaration") found.push(`${file}:${statement.loc?.start.line}`);
-  }
-  return found;
+  const visit = (node: Node, parent: Node | null, key: string, grand: Node | null, names: string[]): void => {
+    let inner = names;
+    const id = node.id as Node | undefined;
+    if (node.type === "FunctionDeclaration" && id?.name) inner = [...names, id.name as string];
+    if (node.type === "VariableDeclarator" && id?.name && /Function/.test((node.init as Node | undefined)?.type ?? ""))
+      inner = [...names, id.name as string];
+
+    const dynamicTarget = node.type === "ImportExpression" ? (node.source as Node | undefined)?.value
+      : node.type === "Import" && parent && CALLS.has(parent.type) ? (parent.arguments as Node[])[0]?.value : undefined;
+    if (dynamicTarget !== undefined && !file.startsWith(API_DIR) && isApiModule(file, dynamicTarget))
+      violations.push(`${at(node)}: dynamic import of an API module`);
+
+    if (node.type === "Identifier" && parent && !isNotAReference(parent, key)) {
+      if (direct.has(node.name as string)) {
+        if (CALLS.has(parent.type) && key === "callee") sites.push(names.join("."));
+        else violations.push(`${at(node)}: ${node.name} used other than as a call`);
+      } else if (namespaces.has(node.name as string)) {
+        const property = parent.property as Node | undefined;
+        const member = MEMBERS.has(parent.type) && key === "object";
+        const named = !member ? undefined
+          : parent.computed ? (property?.type === "StringLiteral" ? property.value : null) : property?.name;
+        if (!member) violations.push(`${at(node)}: namespace ${node.name} used as a value`);
+        else if (named === null) violations.push(`${at(node)}: computed member of namespace ${node.name}`);
+        else if (named === "stepUp") {
+          if (grand && CALLS.has(grand.type) && grand.callee === parent) sites.push(names.join("."));
+          else violations.push(`${at(node)}: ${node.name}.stepUp used other than as a call`);
+        }
+      }
+    }
+
+    for (const [childKey, child] of Object.entries(node)) {
+      if (childKey === "loc") continue;
+      if (Array.isArray(child)) { for (const item of child) if (isNode(item)) visit(item, node, childKey, parent, inner); }
+      else if (isNode(child)) visit(child, node, childKey, parent, inner);
+    }
+  };
+  for (const statement of body) visit(statement, null, "", null, []);
+  return { sites, violations };
 }
 
 function productionSources(): string[] {
@@ -93,11 +118,15 @@ function productionSources(): string[] {
     .map((path) => resolve(SRC, path));
 }
 
-export function productionStepUpReExports(): string[] {
-  return productionSources().flatMap((file) => stepUpReExports(readFileSync(file, "utf8"), file));
+// Every production stepUp() call site, and every other use as "file:line: what".
+export function productionStepUpUses(): StepUpUses {
+  const all: StepUpUses = { sites: [], violations: [] };
+  for (const file of productionSources()) {
+    const { sites, violations } = stepUpUses(readFileSync(file, "utf8"), file);
+    all.sites.push(...sites);
+    all.violations.push(...violations.map((v) => `${file.slice(SRC.length + 1)}:${v}`));
+  }
+  return all;
 }
 
-// Every stepUp() call in the SPA's production modules.
-export function productionStepUpCallSites(): string[] {
-  return productionSources().flatMap((file) => stepUpCallSites(readFileSync(file, "utf8"), file));
-}
+export const productionStepUpCallSites = () => productionStepUpUses().sites;
