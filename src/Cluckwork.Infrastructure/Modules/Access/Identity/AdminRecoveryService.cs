@@ -149,8 +149,7 @@ public sealed class AdminRecoveryService(
                     + "still unknown."));
 
             // #1274 decision 16: before anything else is modified, because
-            // ClearAsync reloads the locked row. The Owner signs in with the
-            // printed password and no code, changes it, then enrols again.
+            // ClearAsync reloads the locked row.
             var cleared = await twoFactor.ClearAsync(target.AccountId, target.Id, token);
             if (cleared == ClearOutcome.NotFound)
                 return Result.Failure<AdminRecoveryResult>(Error.NotFound("Recovery", normalized));
