@@ -4176,7 +4176,7 @@ export const en = {
       + "connection asks for the password, and unticking everything is the same as <strong>Cancel</strong>. When Cluckwork could fetch the app's details from its own website, the "
       + "screen shows <strong>Verified domain</strong> and that website's address; otherwise it says "
       + "<strong>Unverified app</strong>. Either way the app chose its own name. To give an app new permissions, connect it again and tick them: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong> and cannot be ticked. To take a permission away, disconnect the app, then connect it again. "
-      + "With two-factor authentication on, it also asks for a code from your authenticator app or a recovery code.",
+      + "With two-factor authentication on, the connection screen also asks for a code from your authenticator app or a recovery code.",
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "

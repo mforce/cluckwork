@@ -3615,7 +3615,7 @@ export const tl = {
       + "at ang address ng website na iyon; kung hindi, <strong>Hindi beripikadong app</strong> ang nakasulat. Alinman "
       + "dito, ang app ang pumili ng sarili nitong pangalan. Para bigyan ang app ng mga bagong pahintulot, ikonekta itong muli at lagyan ng tsek ang mga ito: may markang "
       + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong>, na walang checkbox, ang hindi magagamit ng role mo. Para mag-alis ng pahintulot, idiskonekta ang app, saka ikonekta ito ulit. "
-      + "Kapag naka-on ang two-factor authentication, humihingi rin ito ng code mula sa iyong authenticator app o isang recovery code.",
+      + "Kapag naka-on ang two-factor authentication, humihingi rin ang screen ng koneksyon ng code mula sa iyong authenticator app o isang recovery code.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "

@@ -3484,7 +3484,7 @@ export const es = {
       + "la contraseña, y desmarcarlo todo es lo mismo que <strong>Cancelar</strong>. Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la "
       + "pantalla muestra <strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice "
       + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos a una aplicación, vuelve a conectarla y márcalos: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>, sin casilla. Para quitar un permiso, desconecta la aplicación y vuelve a conectarla. "
-      + "Con la autenticación en dos pasos activada, también pide un código de tu aplicación de autenticación o un código de recuperación.",
+      + "Con la autenticación en dos pasos activada, la pantalla de conexión también pide un código de tu aplicación de autenticación o un código de recuperación.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
