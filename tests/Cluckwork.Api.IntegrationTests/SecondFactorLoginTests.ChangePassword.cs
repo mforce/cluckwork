@@ -354,8 +354,8 @@ public sealed partial class SecondFactorLoginTests
 
     // G4.4 over change-password. One change lands; the other is refused as a
     // wrong current password. Three barriers stand behind it, in the order the
-    // loser meets them: the epoch binding (the first change moves the epoch,
-    // so VerifyAsync answers Superseded), the watermark, and the
+    // loser meets them: the binding (the first change moves the epoch and
+    // rotates the stamp, so VerifyAsync answers Superseded), the watermark, and the
     // current-password re-check under the lock. A loser whose password check
     // runs after the first change sees a wrong password, the same answer.
     [Fact]
