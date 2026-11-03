@@ -16,6 +16,9 @@ export function StepUpProofFields({
   onChange: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { twoFactor } = useAuth();
+  // The code field marks itself required the way the caller's password label
+  // does: the Users dialogs write a literal asterisk, /connect writes none.
+  const marked = typeof field.label === "string" && field.label.trimEnd().endsWith("*");
   return (
     <>
       <TextField
@@ -31,7 +34,7 @@ export function StepUpProofFields({
       />
       {twoFactor && (
         <SecondFactorCodeField
-          required={false}
+          required={marked}
           value={value.code ?? ""}
           disabled={disabled}
           onChange={(code) => onChange((proof) => ({ ...proof, code }))}

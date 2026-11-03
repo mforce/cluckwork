@@ -4191,6 +4191,16 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     }
   });
 
+  // Round 1 item 10: the two proof fields mark "required" the same way.
+  it.each(table)("%s marks the password and the code required alike", async (_, { open }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await open();
+
+    const mark = (field: HTMLElement) => (field as HTMLInputElement).labels![0]!.textContent!.trimEnd().endsWith("*");
+    expect(mark(passwordField())).toBe(true);
+    expect(mark(codeField())).toBe(true);
+  });
+
   // The flock buttons are not the form's submit, so `required` cannot hold them.
   it("keeps the flock buttons off until the code is typed too", async () => {
     await renderReady({ ...ADMIN, two_factor: "true" });

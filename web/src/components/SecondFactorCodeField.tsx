@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 // login code step, step-up and change-password. Like the password, the code
 // lives only in the caller's state.
 // The input is always required; `required={false}` drops only the label's
-// asterisk, to match a step-up password field that shows none.
+// asterisk, to match a password field beside it that shows none.
 export function SecondFactorCodeField({
   value, onChange, ...field
 }: Omit<TextFieldProps, "type" | "value" | "onChange" | "slotProps"> & {
