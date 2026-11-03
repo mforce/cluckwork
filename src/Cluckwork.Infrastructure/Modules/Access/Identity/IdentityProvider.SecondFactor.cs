@@ -1,4 +1,3 @@
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
@@ -10,14 +9,6 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // user's refresh row, cookie and access token.
 public sealed partial class IdentityProvider
 {
-    // One body for a wrong, reused or malformed code and a locked account, so
-    // the answer never confirms that a guessed code was valid (G3.12).
-    private static readonly Error SecondFactorIncorrect = Error.Validation(
-        SecondFactorErrorCodes.Incorrect, "That code did not work. If you just used it, wait for the next one.");
-
-    private static readonly Error SecondFactorKeyUnavailable = Error.Validation(
-        SecondFactorErrorCodes.KeyUnavailable, "Your authenticator key cannot be read. Use a recovery code.");
-
     public async Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
         string challenge, string code, CancellationToken ct = default)
     {
@@ -26,7 +17,7 @@ public sealed partial class IdentityProvider
             return LogAndRefuseExpiredChallenge();
         // Parsed before anything digests it: malformed input is refused, uncharged.
         if (!SecondFactorCode.TryParse(code, out var parsed))
-            return Result.Failure<TokenPair>(SecondFactorIncorrect);
+            return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
@@ -43,10 +34,11 @@ public sealed partial class IdentityProvider
         TokenPair? delivered = null;
         try
         {
-            // Outside IdempotentUnit, so a refused outcome's charge commits. The
-            // owned transaction runs once: a replay after a lost commit would
-            // find the challenge spent (G3.14).
-            return await AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+            // Outside IdempotentUnit, so a refused outcome's charge commits, and
+            // never in a caller's transaction, which could roll it back (C1).
+            // The owned transaction runs once: a replay after a lost commit
+            // would find the challenge spent (G3.14).
+            return await AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
             {
                 var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, parsed, claims.Binding, token);
                 if (outcome is not FactorOutcome.Accepted accepted)
@@ -63,9 +55,7 @@ public sealed partial class IdentityProvider
                 var roles = await userManager.GetRolesAsync(user);
                 tenant.Resolve(user.AccountId);
                 currentUser.Resolve(user.Id, user.Email ?? string.Empty, [.. roles]);
-                if (accepted.RecoveryCodesLeft is { } remaining)
-                    await audit.WriteAsync(AuditActions.UserRecoveryCodeUsed, "User", user.Id,
-                        reason: null, details: new { remaining }, ct: token);
+                await SecondFactorProof.WriteRecoveryCodeUsedAsync(audit, user.Id, accepted, token);
 
                 db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: timeProvider.GetUtcNow()));
                 await db.SaveChangesAsync(token);
@@ -87,9 +77,9 @@ public sealed partial class IdentityProvider
     private Result<TokenPair> Refused(FactorOutcome outcome) => outcome switch
     {
         FactorOutcome.Superseded => LogAndRefuseExpiredChallenge(),
-        FactorOutcome.Unavailable => Result.Failure<TokenPair>(SecondFactorKeyUnavailable),
+        FactorOutcome.Unavailable => Result.Failure<TokenPair>(SecondFactorErrors.KeyUnavailable),
         FactorOutcome.Throttled throttled => Result.Failure<TokenPair>(new RetryLaterError(throttled.RetryAfter)),
-        _ => Result.Failure<TokenPair>(SecondFactorIncorrect),
+        _ => Result.Failure<TokenPair>(SecondFactorErrors.Incorrect),
     };
 
     private Result<TokenPair> LogAndRefuseExpiredChallenge()

@@ -126,12 +126,12 @@ public sealed class AccessModule(
     public Task RecordLogoutAsync(Guid userId, CancellationToken ct) => identity.RecordLogoutAsync(userId, ct);
 
     public Task<Result<TokenPair>> ChangeOwnPasswordAsync(
-        ChangeOwnPasswordCommand command, Guid userId, CancellationToken ct) =>
-        changeOwnPassword.HandleAsync(command, userId, ct);
+        ChangeOwnPasswordCommand command, Guid accountId, Guid userId, CancellationToken ct) =>
+        changeOwnPassword.HandleAsync(command, accountId, userId, ct);
 
     public Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
-        Guid accountId, Guid userId, string currentPassword, CancellationToken ct) =>
-        stepUp.IssueAsync(accountId, userId, currentPassword, ct);
+        Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct) =>
+        stepUp.IssueAsync(accountId, userId, currentPassword, code, ct);
 
     public Task<Result> ConsumeStepUpGrantAsync(
         Guid accountId, Guid userId, string? stepUpToken, CancellationToken ct) =>

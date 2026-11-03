@@ -74,7 +74,8 @@ public sealed class EnrolledSessionCapTests(SecondFactorFactory factory) : IDisp
         var email = $"cap-{Guid.NewGuid():N}@test.local";
         await factory.SeedAccountWithUserAsync(email);
         await factory.EnrolTwoFactorAsync(email);
-        var app = await ConnectedAppToken.IssueAsync(factory, (await factory.LoginAsync(email)).AccessToken);
+        var session = await factory.LoginAsync(email);
+        var app = await ConnectedAppToken.IssueAsync(factory, session.AccessToken, await factory.NextTotpCodeAsync(email));
 
         factory.Clock.Advance(TimeSpan.FromDays(31));
         using var probe = await ConnectedAppToken.Client(factory, app).GetAsync(SecondFactorFactory.OAuthProbePath);

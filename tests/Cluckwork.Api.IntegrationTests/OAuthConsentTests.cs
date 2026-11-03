@@ -122,6 +122,29 @@ public sealed partial class OAuthConsentTests(CluckworkWebApplicationFactory fac
         Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
     }
 
+    // #1279: an enrolled user approves with the password and a code; the password
+    // alone mints no grant to approve with.
+    [Fact]
+    public async Task AnEnrolledUser_ApprovesAnApp_WithThePasswordAndACode()
+    {
+        var email = $"oauth-tf-{Guid.NewGuid():N}@test.local";
+        await factory.SeedAccountWithUserAsync(email);
+        await factory.EnrolTwoFactorAsync(email);
+        var jwt = await factory.LoginForAccessTokenAsync(email);
+        var clientId = await OAuthServerTests.RegisterClientAsync(factory.Services);
+
+        using var passwordOnly = await OAuthServerTests.HttpsClient(factory, jwt)
+            .PostAsJsonAsync("/api/v1/auth/step-up", new { password = TestHarness.Password });
+        Assert.Equal(HttpStatusCode.BadRequest, passwordOnly.StatusCode);
+        Assert.Equal(SecondFactorErrorCodes.Required, (await passwordOnly.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("title").GetString());
+
+        var verifier = OAuthServerTests.NewCodeVerifier();
+        var location = await OAuthServerTests.ApproveAsync(
+            factory, jwt, Query(clientId, [Read], verifier), code: await factory.NextTotpCodeAsync(email));
+        using var redeemed = await RedeemAsync(clientId, QueryHelpers.ParseQuery(location.Query)["code"].ToString(), verifier);
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+    }
+
     // An approved app still needs the password, and a narrower approval gets its own
     // authorization rather than reusing the wider one (#1326).
     [Fact]

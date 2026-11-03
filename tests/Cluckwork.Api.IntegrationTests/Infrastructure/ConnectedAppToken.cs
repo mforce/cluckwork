@@ -9,10 +9,11 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
 // #1278: one connected app for a signed-in user, with the farm read scope,
-// through the real consent and token endpoints.
+// through the real consent and token endpoints. An enrolled user's consent
+// steps up with code (#1279).
 internal static class ConnectedAppToken
 {
-    public static async Task<string> IssueAsync(WebApplicationFactory<Program> host, string sessionJwt)
+    public static async Task<string> IssueAsync(WebApplicationFactory<Program> host, string sessionJwt, string? code = null)
     {
         var clientId = $"client-{Guid.NewGuid():N}";
         await using (var scope = host.Services.CreateAsyncScope())
@@ -37,7 +38,7 @@ internal static class ConnectedAppToken
         var verifier = OAuthServerTests.NewCodeVerifier();
         var query = OAuthServerTests.AuthorizeQuery(clientId, verifier);
         query["scope"] = OAuthScopes.ReadFarm;
-        var location = await OAuthServerTests.ApproveAsync(host, sessionJwt, query);
+        var location = await OAuthServerTests.ApproveAsync(host, sessionJwt, query, code: code);
         using var token = await Client(host, bearer: null).PostAsync("/api/v1/oauth/token", new FormUrlEncodedContent(
             new Dictionary<string, string>
             {
