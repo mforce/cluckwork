@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, resolve, sep } from "node:path";
 import { parse } from "@babel/parser";
 
 // #1279 — the walk behind the step-up caller guard in UsersPage.test.tsx.
@@ -12,16 +12,18 @@ import { parse } from "@babel/parser";
 // reported too. That only ever fails closed.
 
 const SRC = resolve(process.cwd(), "src");
-const API_DIR = resolve(SRC, "api");
+const API_DIR = resolve(SRC, "api") + sep;
 const API_MODULES = new Set([resolve(SRC, "api/client"), resolve(SRC, "api/session")]);
 // The one module allowed to pass stepUp on: the API's public face.
 const REEXPORTER = resolve(SRC, "api/client.ts");
+
+const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
 
 // The module an import or export names, with any .ts/.js-style ending
 // dropped, or null for a package import.
 function moduleOf(file: string, specifier: unknown): string | null {
   if (typeof specifier !== "string" || !specifier.startsWith(".")) return null;
-  return resolve(dirname(file), specifier).replace(/\.[cm]?[jt]sx?$/, "");
+  return resolve(dirname(file), specifier).replace(SOURCE_FILE, "");
 }
 const isApiModule = (file: string, specifier: unknown) => API_MODULES.has(moduleOf(file, specifier) ?? "");
 
@@ -32,13 +34,29 @@ const nameOf = (node: unknown) => isNode(node) ? (node.name ?? node.value) : und
 
 const CALLS = new Set(["CallExpression", "OptionalCallExpression"]);
 const MEMBERS = new Set(["MemberExpression", "OptionalMemberExpression"]);
+// TypeScript nodes whose identifiers name a type, not a value. Any other TS
+// parent, such as `import x = …` or `export = …`, holds a value reference.
+const TYPE_POSITIONS = new Set([
+  "TSTypeReference", "TSQualifiedName", "TSTypeQuery", "TSImportType", "TSTypePredicate",
+  "TSPropertySignature", "TSMethodSignature", "TSInterfaceDeclaration", "TSTypeAliasDeclaration",
+  "TSEnumDeclaration", "TSEnumMember", "TSModuleDeclaration", "TSTypeParameter",
+  "TSExpressionWithTypeArguments", "TSInterfaceHeritage", "TSClassImplements",
+]);
+// TypeScript forms that bind or export a value through a name or a dotted
+// entity; any tracked name inside one is a violation.
+const VALUE_ALIASES = new Set(["TSImportEqualsDeclaration", "TSExportAssignment"]);
+
 // An identifier in these positions names something else, not the import.
 const isNotAReference = (parent: Node, key: string) =>
   (MEMBERS.has(parent.type) && key === "property" && !parent.computed)
   || (/^(Object|Class)(Property|Method)$|^ClassPrivateProperty$/.test(parent.type) && key === "key" && !parent.computed)
   || /^Import(Default|Namespace)?Specifier$/.test(parent.type)
   || (/^(LabeledStatement|BreakStatement|ContinueStatement)$/.test(parent.type) && key === "label")
-  || (parent.type.startsWith("TS") && !/^TS(NonNull|As|Satisfies|TypeAssertion|Instantiation)Expression$/.test(parent.type));
+  || TYPE_POSITIONS.has(parent.type);
+
+const identifiersIn = (node: unknown): string[] => !isNode(node) ? []
+  : [...(node.type === "Identifier" ? [node.name as string] : []),
+    ...Object.entries(node).flatMap(([key, child]) => key === "loc" ? [] : Array.isArray(child) ? child.flatMap(identifiersIn) : identifiersIn(child))];
 
 export interface StepUpUses {
   // Each stepUp() call, named by its enclosing function declarations and
@@ -49,7 +67,7 @@ export interface StepUpUses {
 }
 
 export function stepUpUses(source: string, file: string): StepUpUses {
-  const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(extname(file) === ".tsx" ? ["jsx" as const] : [])] });
+  const tree = parse(source, { sourceType: "module", plugins: ["typescript", ...(/x$/.test(extname(file)) ? ["jsx" as const] : [])] });
   const body = tree.program.body as unknown as Node[];
   const direct = new Set<string>();
   const namespaces = new Set<string>();
@@ -65,9 +83,16 @@ export function stepUpUses(source: string, file: string): StepUpUses {
         if (specifier.type === "ImportNamespaceSpecifier") namespaces.add(nameOf(specifier.local) as string);
         if (specifier.type === "ImportSpecifier" && nameOf(specifier.imported) === "stepUp") direct.add(nameOf(specifier.local) as string);
       }
-    } else if (file !== REEXPORTER && (statement.type === "ExportAllDeclaration"
-      || specifiers.some((s) => s.type === "ExportNamespaceSpecifier" || nameOf(s.local) === "stepUp"))) {
-      violations.push(`${at(statement)}: re-export from an API module`);
+    } else if (file !== REEXPORTER) {
+      if (statement.type === "ExportAllDeclaration"
+        || specifiers.some((s) => s.type === "ExportNamespaceSpecifier" || nameOf(s.local) === "stepUp"))
+        violations.push(`${at(statement)}: re-export from an API module`);
+    } else if (specifiers.some((s) => s.type === "ExportNamespaceSpecifier"
+      || (nameOf(s.local) === "stepUp" && nameOf(s.exported) !== "stepUp"))
+      || (statement.type === "ExportAllDeclaration" && statement.exported)) {
+      // api/client.ts may pass stepUp on only under its own name, which the
+      // imports above track.
+      violations.push(`${at(statement)}: api/client.ts renames or nests stepUp`);
     }
   }
 
@@ -78,10 +103,23 @@ export function stepUpUses(source: string, file: string): StepUpUses {
     if (node.type === "VariableDeclarator" && id?.name && /Function/.test((node.init as Node | undefined)?.type ?? ""))
       inner = [...names, id.name as string];
 
-    const dynamicTarget = node.type === "ImportExpression" ? (node.source as Node | undefined)?.value
-      : node.type === "Import" && parent && CALLS.has(parent.type) ? (parent.arguments as Node[])[0]?.value : undefined;
-    if (dynamicTarget !== undefined && !file.startsWith(API_DIR) && isApiModule(file, dynamicTarget))
-      violations.push(`${at(node)}: dynamic import of an API module`);
+    if (VALUE_ALIASES.has(node.type)) {
+      if (identifiersIn(node).some((n) => direct.has(n) || namespaces.has(n)))
+        violations.push(`${at(node)}: ${node.type} names an API import`);
+      return;
+    }
+
+    const specifier = node.type === "ImportExpression" ? node.source as Node | undefined
+      : node.type === "Import" && parent && CALLS.has(parent.type) ? (parent.arguments as Node[])[0] : null;
+    if (specifier !== null && !file.startsWith(API_DIR)) {
+      // A specifier the walk cannot read could name an API module, so it fails.
+      const quasis = specifier?.type === "TemplateLiteral" && (specifier.expressions as Node[]).length === 0
+        ? (specifier.quasis as Node[]) : null;
+      const target = specifier?.type === "StringLiteral" ? specifier.value
+        : quasis ? (quasis[0]?.value as { cooked?: string } | undefined)?.cooked : undefined;
+      if (target === undefined) violations.push(`${at(node)}: dynamic import the walk cannot resolve`);
+      else if (isApiModule(file, target)) violations.push(`${at(node)}: dynamic import of an API module`);
+    }
 
     if (node.type === "Identifier" && parent && !isNotAReference(parent, key)) {
       if (direct.has(node.name as string)) {
@@ -111,9 +149,13 @@ export function stepUpUses(source: string, file: string): StepUpUses {
   return { sites, violations };
 }
 
+// A path under src/ the walk reads: any .ts/.js-style module outside tests.
+export const isProductionSource = (path: string) =>
+  SOURCE_FILE.test(path) && !path.includes(".test.") && !path.startsWith(`test${sep}`);
+
 function productionSources(): string[] {
   return readdirSync(SRC, { recursive: true, encoding: "utf8" })
-    .filter((path) => [".ts", ".tsx"].includes(extname(path)) && !path.includes(".test.") && !path.startsWith("test/"))
+    .filter(isProductionSource)
     .sort()
     .map((path) => resolve(SRC, path));
 }
