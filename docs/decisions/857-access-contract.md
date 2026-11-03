@@ -16,7 +16,7 @@ The Access ledger declares 28 top-level types under
 |---|---|
 | Ports (8) | `IAccessModule`, `IAccessLookup`, `ICredentialEpochVerifier`, `IRefreshTokenPurge`, `IAccessOperations`, `IAccessAccountLifecycle`, `IAccessSeedLookup`, `IAccessFixture` (#858 P5) |
 | Values (9) | `CredentialVerdict`, `UserFlockAssignment`, `AccessActor`, `AccessUserSummary`, `FirstRunAdminOutcome`, `AdminRecoveryResult`, `AccountProvisionOutcome`, `AccountLifecycleOutcome`, `AccountRenameOutcome` |
-| Commands (12) | `CreateUser.CreateUserCommand`, `UpdateUser.UpdateUserCommand`, `SetUserPassword.SetUserPasswordCommand`, `ChangeUserRole.ChangeUserRoleCommand`, `ChangeUserEmail.ChangeUserEmailCommand`, `DisableUser.DisableUserCommand`, `EnableUser.EnableUserCommand`, `AssignFlock.AssignFlockCommand`, `AssignFlock.UnassignFlockCommand`, `SetLanguage.SetLanguageCommand`, `SetStepperUnit.SetStepperUnitCommand`, `ChangeOwnPassword.ChangeOwnPasswordCommand` |
+| Commands (13) | `CreateUser.CreateUserCommand`, `UpdateUser.UpdateUserCommand`, `SetUserPassword.SetUserPasswordCommand`, `ChangeUserRole.ChangeUserRoleCommand`, `ChangeUserEmail.ChangeUserEmailCommand`, `DisableUser.DisableUserCommand`, `EnableUser.EnableUserCommand`, `ResetUserTwoFactor.ResetUserTwoFactorCommand`, `AssignFlock.AssignFlockCommand`, `AssignFlock.UnassignFlockCommand`, `SetLanguage.SetLanguageCommand`, `SetStepperUnit.SetStepperUnitCommand`, `ChangeOwnPassword.ChangeOwnPasswordCommand` |
 
 `IIdentityProvider` and `IStepUpGrantService` remain in Application.Common but
 are claimed by Access through the ledger's `types`. They are implementation

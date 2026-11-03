@@ -28,8 +28,8 @@ Without this command the only recourse would be direct SQL surgery on the
 6. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
 7. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason`, **the host/OS-user that ran the command**, and `twoFactorCleared` (`true` when step 2 turned two-factor off).
 
-> **Who that row names (#500).** `actor_email` is the literal
-> **`(break-glass)`** and `actor_user_id` is all-zeroes. That is deliberate: this
+> **Who that row names (#500).** `"ActorEmail"` is the literal
+> **`(break-glass)`** and `"ActorUserId"` is all-zeroes. That is deliberate: this
 > command exists precisely because no human is signed in, so it declares the
 > non-person it is rather than falling back to the old `(unresolved)` placeholder
 > — an audit event with no resolved actor is now refused outright. The real
