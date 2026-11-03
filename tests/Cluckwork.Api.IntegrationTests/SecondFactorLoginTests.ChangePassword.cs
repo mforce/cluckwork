@@ -386,6 +386,21 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    // The successful-rehash twin: the rehash save advances the stamp, and the
+    // binding takes the advanced one, so the change goes through.
+    [Fact]
+    public async Task APasswordCheck_WhoseRehashSaveSucceeded_StillChangesThePassword()
+    {
+        var (session, code) = await PasswordSessionAsync("totp");
+        await SeedWeakHashAsync(session.Factor!);
+
+        var response = await ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(string.IsNullOrEmpty((await TestHarness.ReadTokensAsync(response)).AccessToken), "the change handed out no pair");
+        Assert.True(await PasswordSignsInAsync(session.Email, NewPassword));
+    }
+
     // The SPA sends an empty field as no code.
     [Theory]
     [InlineData("")]

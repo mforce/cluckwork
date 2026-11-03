@@ -265,17 +265,42 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(before, await CountersAsync(factor));
     }
 
+    // A successful rehash save rotates the stamp before the code is checked;
+    // the binding takes the advanced stamp, so the code still steps up.
+    [Fact]
+    public async Task APasswordCheck_WhoseRehashSaveSucceeded_StepsUp_AndUpgradesTheHash()
+    {
+        var (_, factor, client) = await SignedInEnrolledAsync();
+        var weakHash = await SeedWeakHashAsync(factor);
+
+        var response = await StepUpAsync(client, TestHarness.Password, CodeAt(factor, 2));
+
+        Assert.NotNull(await GrantOf(response));
+        using var scope = factory.Services.CreateScope();
+        var user = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Users.AsNoTracking()
+            .SingleAsync(u => u.Id == factor.UserId);
+        Assert.NotEqual(weakHash, user.PasswordHash);
+        Assert.Equal(PasswordVerificationResult.Success, scope.ServiceProvider
+            .GetRequiredService<IPasswordHasher<ApplicationUser>>().VerifyHashedPassword(user, user.PasswordHash!, TestHarness.Password));
+    }
+
+    // Stores a hash of the test password with fewer iterations than the host
+    // uses, so the next password check rehashes it and saves.
+    private async Task<string> SeedWeakHashAsync(EnrolledFactor factor)
+    {
+        var weaker = new PasswordHasher<ApplicationUser>(Options.Create(new PasswordHasherOptions { IterationCount = 1_000 }));
+        var hash = weaker.HashPassword(new ApplicationUser(), TestHarness.Password);
+        using var scope = factory.Services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Users.Where(u => u.Id == factor.UserId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.PasswordHash, hash));
+        return hash;
+    }
+
     // A weaker stored hash makes the next password check rehash and save; a
     // concurrent writer lands just before that save, so it loses.
     private async Task ArmALostRehashSaveAsync(EnrolledFactor factor, bool rotateSecurityStamp)
     {
-        using (var scope = factory.Services.CreateScope())
-        {
-            var weaker = new PasswordHasher<ApplicationUser>(Options.Create(new PasswordHasherOptions { IterationCount = 1_000 }));
-            var hash = weaker.HashPassword(new ApplicationUser(), TestHarness.Password);
-            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Users.Where(u => u.Id == factor.UserId)
-                .ExecuteUpdateAsync(s => s.SetProperty(u => u.PasswordHash, hash));
-        }
+        await SeedWeakHashAsync(factor);
         factory.BeforeCommand.Arm("UPDATE \"AspNetUsers\"", async () =>
         {
             using var scope = factory.Services.CreateScope();
