@@ -98,6 +98,7 @@ export function DisableEnableDialog({
         </p>
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
+          codeLabel={t("stepUpCodeFieldLabel")}
           value={stepUpProof}
           onChange={setStepUpProof}
         />

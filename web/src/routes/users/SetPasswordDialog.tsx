@@ -76,6 +76,7 @@ export function SetPasswordDialog({
         <p className="muted">{t("stepUpResetHint")}</p>
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
+          codeLabel={t("stepUpCodeFieldLabel")}
           value={pwStepUpProof}
           onChange={setPwStepUpProof}
         />

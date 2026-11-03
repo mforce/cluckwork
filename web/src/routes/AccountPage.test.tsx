@@ -292,6 +292,7 @@ describe("AccountPage change password with two-factor authentication (#1279)", (
 
     fill(current, next, next);
     expect(codeField()).toBeRequired();
+    expect((codeField() as HTMLInputElement).labels![0]!.textContent!.replace(/[\s*\u2009]+$/, "")).toBe(i18n.t("auth:secondFactorCode"));
     fireEvent.change(codeField()!, { target: { value: code } });
     await act(async () => { submit(); });
 

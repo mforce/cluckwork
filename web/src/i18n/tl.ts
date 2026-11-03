@@ -1708,6 +1708,9 @@ export const tl = {
 
     // #308/#360 — muling pagkumpirma ng password (machine-drafted, pending native review)
     stepUpFieldLabel: "Ang kasalukuyan mong password *",
+    // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
+    // label does not fit there at 390px. The field adds its own asterisk.
+    stepUpCodeFieldLabel: "Authenticator o recovery code",
     stepUpCreateHint: "Ang paggawa ng kahit anong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpRoleHint: "Ang pagpapalit ng tungkulin ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",

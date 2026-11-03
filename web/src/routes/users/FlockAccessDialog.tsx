@@ -186,6 +186,7 @@ export function FlockAccessDialog({
         <p className="muted">{t("stepUpFlockHint")}</p>
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
+          codeLabel={t("stepUpCodeFieldLabel")}
           value={flockStepUpProof}
           onChange={setFlockStepUpProof}
         />

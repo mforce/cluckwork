@@ -97,6 +97,7 @@ export function CreateUserDialog({
         <p className="muted">{t("stepUpCreateHint")}</p>
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
+          codeLabel={t("stepUpCodeFieldLabel")}
           value={createStepUpProof}
           onChange={setCreateStepUpProof}
         />

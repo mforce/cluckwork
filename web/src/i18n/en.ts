@@ -2167,6 +2167,9 @@ export const en = {
     // #308/#360 — step-up re-confirmation for every durable user-access
     // mutation. Shared field label; distinct hints explain each action.
     stepUpFieldLabel: "Your current password *",
+    // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
+    // label does not fit there at 390px. The field adds its own asterisk.
+    stepUpCodeFieldLabel: "Authenticator or recovery code",
     stepUpCreateHint: "Creating any user needs your current password again.",
     stepUpResetHint: "Resetting any user's password needs your current password again.",
     stepUpRoleHint: "Changing any user's role needs your current password again.",

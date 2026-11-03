@@ -1647,6 +1647,9 @@ export const es = {
 
     // #308/#360 — re-confirmación de contraseña (machine-drafted, pending native review)
     stepUpFieldLabel: "Tu contraseña actual *",
+    // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
+    // label does not fit there at 390px. The field adds its own asterisk.
+    stepUpCodeFieldLabel: "Código de la app o de recuperación",
     stepUpCreateHint: "Crear cualquier usuario requiere volver a ingresar tu contraseña actual.",
     stepUpResetHint: "Restablecer la contraseña de cualquier usuario requiere volver a ingresar tu contraseña actual.",
     stepUpRoleHint: "Cambiar el rol de cualquier usuario requiere volver a ingresar tu contraseña actual.",

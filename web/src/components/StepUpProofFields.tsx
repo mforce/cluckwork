@@ -10,10 +10,12 @@ import { SecondFactorCodeField } from "./SecondFactorCodeField";
 // lives only in the caller's state, which clears it as soon as /auth/step-up
 // settles.
 export function StepUpProofFields({
-  value, onChange, disabled, ...field
+  value, onChange, disabled, codeLabel, ...field
 }: Omit<TextFieldProps, "type" | "value" | "onChange" | "slotProps"> & {
   value: StepUpProof;
   onChange: Dispatch<SetStateAction<StepUpProof>>;
+  // A shorter code label, for a dialog too narrow for the full one at 390px.
+  codeLabel?: string;
 }) {
   const { twoFactor } = useAuth();
   // The code field marks itself required the way the caller's password label
@@ -35,6 +37,7 @@ export function StepUpProofFields({
       {twoFactor && (
         <SecondFactorCodeField
           required={marked}
+          {...(codeLabel !== undefined && { label: codeLabel })}
           value={value.code ?? ""}
           disabled={disabled}
           onChange={(code) => onChange((proof) => ({ ...proof, code }))}

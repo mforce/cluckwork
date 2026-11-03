@@ -72,6 +72,7 @@ export function ChangeRoleDialog({
         <p className="muted">{t("stepUpRoleHint")}</p>
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
+          codeLabel={t("stepUpCodeFieldLabel")}
           value={roleStepUpProof}
           onChange={setRoleStepUpProof}
         />

@@ -4031,7 +4031,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     fireEvent.change(within(dialog()).getByLabelText(label), { target: { value } });
   const press = (name: string) => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name })); });
   const passwordField = () => within(dialog()).getByLabelText(/Your current password/);
-  const codeField = () => within(dialog()).getByLabelText(/Authenticator code or recovery code/);
+  const codeField = () => within(dialog()).getByLabelText(/Authenticator or recovery code/);
   const newPassword = `Aa1!${crypto.randomUUID()}`;
 
   // `site` is the function that calls stepUp(), as test/stepUpCallers.ts names
@@ -4076,7 +4076,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   const table = callers.map((c) => [`${c.site} (${c.submit})`, c] as const);
   const proveEnrolled = (code: string) => {
     fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
-    fill(/Authenticator code or recovery code/, code);
+    fill(/Authenticator or recovery code/, code);
   };
 
   beforeEach(() => {
@@ -4107,7 +4107,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     await renderReady(ADMIN);
 
     await open();
-    expect(within(dialog()).queryByLabelText(/Authenticator code or recovery code/)).not.toBeInTheDocument();
+    expect(within(dialog()).queryByLabelText(/Authenticator or recovery code/)).not.toBeInTheDocument();
     fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
     await press(submit);
 
@@ -4201,6 +4201,15 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(mark(codeField())).toBe(true);
   });
 
+  // Maintainer, 2026-11-03: the full label does not fit these dialogs at 390px.
+  it.each(table)("%s labels the code field with the dialogs' shorter label", async (_, { open }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await open();
+
+    const label = (codeField() as HTMLInputElement).labels![0]!.textContent!.replace(/[\s*\u2009]+$/, "");
+    expect(label).toBe(i18n.t("users:stepUpCodeFieldLabel"));
+  });
+
   // The flock buttons are not the form's submit, so `required` cannot hold them.
   it("keeps the flock buttons off until the code is typed too", async () => {
     await renderReady({ ...ADMIN, two_factor: "true" });
@@ -4212,10 +4221,10 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
     expect(within(dialog()).getByRole("button", { name: "remove" })).toBeDisabled();
 
-    fill(/Authenticator code or recovery code/, "   ");
+    fill(/Authenticator or recovery code/, "   ");
     expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
 
-    fill(/Authenticator code or recovery code/, freshCode());
+    fill(/Authenticator or recovery code/, freshCode());
     expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeEnabled();
     expect(within(dialog()).getByRole("button", { name: "remove" })).toBeEnabled();
   });

@@ -539,8 +539,9 @@ describe("ConnectPage with two-factor authentication (#1279)", () => {
     const code = freshCode();
 
     expect(codeField()).toBeRequired();
-    // Neither proof field shows an asterisk here, as the password never has.
-    expect((codeField() as HTMLInputElement).labels![0]!.textContent).not.toContain("*");
+    // Neither proof field shows an asterisk here, as the password never has,
+    // and the card is wide enough for the full label.
+    expect((codeField() as HTMLInputElement).labels![0]!.textContent).toBe(i18n.t("auth:secondFactorCode"));
     fireEvent.change(codeField()!, { target: { value: code } });
     await allowWith("pw");
 

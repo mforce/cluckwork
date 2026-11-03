@@ -93,6 +93,7 @@ export function ChangeEmailDialog({
         <p className="muted">{t("stepUpEmailHint")}</p>
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
+          codeLabel={t("stepUpCodeFieldLabel")}
           value={emailStepUpProof}
           disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
           onChange={setEmailStepUpProof}
