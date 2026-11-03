@@ -3,7 +3,6 @@ using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Users;
-using Cluckwork.Domain.Common;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -116,13 +115,17 @@ public sealed partial class SecondFactorLoginTests
     }
 
     [Fact]
-    public async Task AnOwnerReset_OfTheirOwnId_Is400_BeforeAnythingElse()
+    public async Task AnOwnerReset_OfTheirOwnId_Is400_BeforeTheGrantIsSpent()
     {
-        var (_, ownerId, owner) = await FarmWithOwnerAsync();
+        var (accountId, ownerId, owner) = await FarmWithOwnerAsync();
+        var grant = await OwnerGrantAsync(owner);
 
-        var response = await DeleteWithGrantAsync(owner, ResetPath(ownerId), await OwnerGrantAsync(owner));
+        var withGrant = await DeleteWithGrantAsync(owner, ResetPath(ownerId), grant);
+        var withoutGrant = await DeleteWithGrantAsync(owner, ResetPath(ownerId), "not-a-grant");
 
-        Assert.Equal((HttpStatusCode.BadRequest, "Users.CannotResetOwnTwoFactor"), (response.StatusCode, (await ProblemOf(response)).Title));
+        foreach (var response in new[] { withGrant, withoutGrant })
+            Assert.Equal((HttpStatusCode.BadRequest, "Users.CannotResetOwnTwoFactor"), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.True((await ValidateGrantAsync(accountId, ownerId, grant)).IsSuccess, "the self-target 400 spent the grant");
     }
 
     [Fact]
@@ -146,26 +149,36 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // The authorization middleware checked the role before the request reached
-    // the lock; the re-check inside it refuses an Owner demoted meanwhile.
-    [Fact]
-    public async Task AnOwnerDemotedWhileTheRequestWaits_IsRefused()
+    // the account lock. An Owner demoted or disabled while the request waits
+    // for that lock is refused by the re-check inside it.
+    [Theory]
+    [InlineData("demoted")]
+    [InlineData("disabled")]
+    public async Task AnOwnerDemotedOrDisabledWhileTheRequestWaits_IsRefused(string change)
     {
         var (accountId, ownerId, _) = await FarmWithOwnerAsync();
-        var demotedEmail = $"tf-owner2-{Guid.NewGuid():N}@test.local";
-        await factory.SeedUserAsync(accountId, demotedEmail, Roles.Owner);
-        var demotedId = await UserIdAsync(accountId, demotedEmail);
+        var actorEmail = $"tf-owner2-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, actorEmail, Roles.Owner);
+        var actorId = await UserIdAsync(accountId, actorEmail);
+        var actor = factory.CreateAuthedClient((await factory.LoginAsync(actorEmail)).AccessToken);
+        var grant = await OwnerGrantAsync(actor);
         var (_, factor) = await EnrolledManagerAsync(accountId);
-        using (var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, ownerId))
-            Assert.True((await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
-                .ChangeUserRoleAsync(accountId, demotedId, Roles.Manager, ownerId)).IsSuccess);
+        factory.BeforeCommand.Arm("FOR UPDATE", async () =>
+        {
+            using var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, ownerId);
+            var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+            var done = change == "disabled"
+                ? await identity.DisableUserAsync(accountId, actorId, ownerId, "test")
+                : await identity.ChangeUserRoleAsync(accountId, actorId, Roles.Manager, ownerId);
+            Assert.True(done.IsSuccess, change);
+        });
 
-        Result reset;
-        using (var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, demotedId, demotedEmail))
-            reset = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
-                .ResetUserTwoFactorAsync(accountId, factor.UserId, demotedId);
+        var response = await DeleteWithGrantAsync(actor, ResetPath(factor.UserId), grant);
 
-        Assert.Equal(AppError.Forbidden().Code, reset.Error.Code);
+        Assert.True(factory.BeforeCommand.Fired, "the concurrent change never ran");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.True((await FactorStateAsync(accountId, factor.UserId)).Enabled);
+        Assert.Equal(1 + factor.RecoveryCodes.Count, (await TwoFactorRowsAsync(accountId, factor.UserId)).Count);
     }
 
     // G5.3, in process; RecoverAdminCommandTests runs the verb under the
