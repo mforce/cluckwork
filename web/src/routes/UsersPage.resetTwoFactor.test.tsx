@@ -47,11 +47,16 @@ const inspector = (email: string) => {
 const resetAction = (email: string) => inspector(email).queryByRole("button", { name: "reset two-factor" });
 const dialog = () => screen.getByRole("dialog");
 
-async function openAndSubmit() {
-  fireEvent.click(resetAction(ENROLLED.email)!);
+async function submit() {
   fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: PASSWORD } });
   await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Reset two-factor" })); });
 }
+async function openAndSubmit() {
+  fireEvent.click(resetAction(ENROLLED.email)!);
+  await submit();
+}
+const keyOf = (call: number) => mockReset.mock.calls[call]![1];
+const successMessage = () => i18n.t("users:twoFactorResetMessage", { email: ENROLLED.email });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -181,6 +186,42 @@ describe("UsersPage two-factor reset (#1280)", () => {
 
     expect(mockReset).not.toHaveBeenCalled();
     expect(mockListUsers).toHaveBeenCalledTimes(1);
+  });
+
+  // The refresh below keeps listing the target as enrolled, so a second reset
+  // of the same user runs under the same key scope.
+  it("replays the same key after a failure, and rotates it after success", async () => {
+    mockReset.mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+
+    await openAndSubmit();
+    expect(await within(dialog()).findByText("boom")).toBeInTheDocument();
+    await submit();
+    expect(await screen.findByText(successMessage())).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await openAndSubmit();
+
+    expect(mockReset).toHaveBeenCalledTimes(3);
+    expect(keyOf(1)).toBe(keyOf(0));
+    expect(keyOf(2)).not.toBe(keyOf(1));
+  });
+
+  it("rotates the key and refreshes, but reports nothing, when the dialog is dismissed during the DELETE", async () => {
+    let answer!: () => void;
+    mockReset.mockReturnValueOnce(new Promise((resolve) => { answer = () => resolve(undefined); }));
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+
+    await openAndSubmit();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+    await act(async () => { answer(); });
+
+    expect(screen.queryByText(successMessage())).not.toBeInTheDocument();
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await openAndSubmit();
+    expect(keyOf(1)).not.toBe(keyOf(0));
   });
 
   it("sends no DELETE when the Users page unmounts while the grant is issued", async () => {
