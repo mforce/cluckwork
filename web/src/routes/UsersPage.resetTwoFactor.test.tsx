@@ -132,6 +132,8 @@ describe("UsersPage two-factor reset (#1280)", () => {
     fireEvent.click(resetAction(ENROLLED.email)!);
 
     expect(within(dialog()).getByText(`Ben · ${ENROLLED.email}`)).toHaveStyle({ overflowWrap: "anywhere" });
+    expect(within(dialog()).getByText(i18n.t("users:signedInAsCaption", { email: "test@farm.local" })))
+      .toHaveStyle({ overflowWrap: "anywhere" });
   });
 
   it("names only the email of a target with no display name", async () => {

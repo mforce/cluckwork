@@ -64,7 +64,11 @@ export function ResetTwoFactorDialog({
         <Divider />
         <Typography component="h3" variant="h3">{t("confirmItsYouHeading")}</Typography>
         <p className="muted">{t("stepUpResetTwoFactorHint")}</p>
-        {me && <Typography variant="caption">{t("signedInAsCaption", { email: me.email })}</Typography>}
+        {me && (
+          <Typography variant="caption" sx={{ overflowWrap: "anywhere" }}>
+            {t("signedInAsCaption", { email: me.email })}
+          </Typography>
+        )}
         <StepUpProofFields
           label={t("stepUpFieldLabel")}
           codeLabel={t("stepUpCodeFieldLabel")}
