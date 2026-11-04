@@ -48,7 +48,7 @@ export interface DialogSession {
  */
 export function useDialogSession(): DialogSession {
   // Absent means "never opened", which claims as 0 and stays current until
-  // something begins a session. A dialog whose screen forgets to call `begin`
+  // something begins a session or the screen unmounts. A dialog whose screen forgets to call `begin`
   // therefore behaves exactly as it did before this hook existed, rather than
   // silently gating every success off.
   const sessions = useRef<Map<string, number>>(new Map());
