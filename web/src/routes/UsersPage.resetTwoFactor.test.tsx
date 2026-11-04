@@ -5,6 +5,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { listUsers, resetUserTwoFactor } from "../api/cluckwork";
 import type { User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
+import { parseError } from "../api/errors";
 import i18n from "../i18n";
 
 // #1280 — an Owner resets another user's two-factor (#1274 decision 17, G5.2's
@@ -116,13 +117,16 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(mockListUsers).toHaveBeenCalledTimes(1);
   });
 
+  // Built by the real parseError, so the catalog lookup it does is the one
+  // under test. A 404 has no problem body.
   it.each([
-    ["Users.CannotResetOwnTwoFactor", 400, "users:resetTwoFactorOwnError"],
-    ["Auth.Forbidden", 403, "users:resetTwoFactorForbiddenError"],
-    ["Identity.StepUpRequired", 403, "users:resetTwoFactorStepUpError"],
-    ["Not Found", 404, "users:resetTwoFactorNotFoundError"],
-  ] as const)("words a %s answer for this dialog and keeps it open", async (title, status, key) => {
-    mockReset.mockRejectedValue(new ApiError(status, title, "server English"));
+    ["Users.CannotResetOwnTwoFactor", 400, "errors:Users.CannotResetOwnTwoFactor"],
+    ["Auth.Forbidden", 403, "errors:Auth.Forbidden"],
+    ["Identity.StepUpRequired", 403, "errors:Identity.StepUpRequired"],
+    ["", 404, "users:resetTwoFactorNotFoundError"],
+  ] as const)("words a %s %s answer and keeps the dialog open", async (title, status, key) => {
+    const body = title ? JSON.stringify({ title, status, detail: "server English" }) : null;
+    mockReset.mockRejectedValue(await parseError(new Response(body, { status, statusText: "server English" })));
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
 

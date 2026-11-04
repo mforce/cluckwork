@@ -272,6 +272,9 @@ export const tl = {
     farmEmpty: "Wala pang nagkonekta ng app sa bukid na ito.",
   },
   errors: {
+    "Identity.StepUpRequired": "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password.",
+    "Auth.Forbidden": "Wala kang pahintulot na gawin ito.",
+    "Users.CannotResetOwnTwoFactor": "Hindi mo puwedeng i-reset ang sarili mong two-factor authentication. Humingi ng tulong sa ibang Owner.",
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
@@ -1820,9 +1823,6 @@ export const tl = {
       + "nila, at puwede nilang i-set up ulit ang two-factor authentication.",
     stepUpResetTwoFactorHint: "Ang pag-reset ng two-factor authentication ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     twoFactorResetMessage: "Na-reset ang two-factor authentication ni {{email}}.",
-    resetTwoFactorOwnError: "Hindi mo puwedeng i-reset ang sarili mong two-factor authentication. Humingi sa ibang Owner.",
-    resetTwoFactorForbiddenError: "Isang aktibong Owner lang ang puwedeng mag-reset ng two-factor authentication.",
-    resetTwoFactorStepUpError: "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password.",
     resetTwoFactorNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
   },
 

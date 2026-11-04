@@ -263,6 +263,9 @@ export const es = {
     farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
   },
   errors: {
+    "Identity.StepUpRequired": "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual.",
+    "Auth.Forbidden": "No tienes permiso para hacer esto.",
+    "Users.CannotResetOwnTwoFactor": "No puedes restablecer tu propia autenticación en dos pasos. Pide a otro propietario.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Tus parvadas asignadas no tienen suficiente stock para esta venta. Un "
@@ -1757,9 +1760,6 @@ export const es = {
       + "su contraseña y podrá volver a configurar la autenticación en dos pasos.",
     stepUpResetTwoFactorHint: "Restablecer la autenticación en dos pasos requiere volver a ingresar tu contraseña actual.",
     twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
-    resetTwoFactorOwnError: "No puedes restablecer tu propia autenticación en dos pasos. Pídeselo a otro propietario.",
-    resetTwoFactorForbiddenError: "Solo un propietario activo puede restablecer la autenticación en dos pasos.",
-    resetTwoFactorStepUpError: "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual.",
     resetTwoFactorNotFoundError: "No se encontró este usuario. Recarga la página.",
   },
 
