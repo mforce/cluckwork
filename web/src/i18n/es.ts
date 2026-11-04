@@ -2277,6 +2277,8 @@ export const es = {
     "auditAction.User.PasswordChanged": "Contraseña cambiada",
     "auditAction.User.BreakGlassReset": "Restablecimiento de emergencia",
     "auditAction.User.RecoveryCodeUsed": "Código de recuperación usado",
+    "auditAction.User.TwoFactorDisabled": "Autenticación en dos pasos desactivada",
+    "auditAction.User.TwoFactorReset": "Autenticación en dos pasos restablecida",
     "auditAction.User.RoleChanged": "Rol cambiado",
     "auditAction.User.EmailChanged": "Correo de inicio de sesión cambiado",
     "auditAction.User.Disabled": "Usuario deshabilitado",

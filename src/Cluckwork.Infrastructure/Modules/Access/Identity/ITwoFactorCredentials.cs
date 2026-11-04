@@ -19,7 +19,12 @@ public interface ITwoFactorCredentials
 
     Task<ConfirmOutcome> ConfirmEnrolmentAsync(
         Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct);
+
+    // Never reads a protected value, so recover-admin runs it under any key ring.
+    Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct);
 }
+
+public enum ClearOutcome { NotFound, NotEnrolled, PendingDeleted, Cleared }
 
 public sealed record EnrolmentStart(string Key, string OtpauthUri)
 {

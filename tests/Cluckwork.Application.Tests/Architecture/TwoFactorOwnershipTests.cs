@@ -51,6 +51,8 @@ public sealed class TwoFactorOwnershipTests
             "TwoFactorEnabled", "an enrolled user steps up with the password and a code (decision 11)"),
         new(InInfrastructure + Identity + "IdentityProvider.ChangeOwnPasswordAsync(System.Guid, System.Guid, string, string, string?, System.Threading.CancellationToken)",
             "TwoFactorEnabled", "an enrolled user changes the password with a code (decision 11)"),
+        new(InInfrastructure + Identity + "IdentityProvider.ListUsersAsync(System.Guid, System.Threading.CancellationToken)",
+            "TwoFactorEnabled", "the Users page offers the reset only for an enrolled user (decision 17)"),
     ];
 
     // The password step's read of the sign-in count, which the challenge

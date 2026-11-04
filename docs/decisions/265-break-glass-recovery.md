@@ -21,11 +21,18 @@ dotnet Cluckwork.Api.dll recover-admin --email <e> [--account <guid>] [--reason 
 For a locked-out account — the sole-Owner-lost-password case, with no email or
 SMTP reset path — it does all of this in one transaction:
 
-1. resets to a **freshly generated** temporary password, never one passed on the
-   command line;
-2. rotates the security stamp;
-3. revokes every refresh token;
-4. writes a conspicuous `User.BreakGlassReset` audit row carrying `--reason`.
+1. turns two-factor off, deleting the key, the recovery codes and any started
+   enrolment without reading them (#1280);
+2. resets to a **freshly generated** temporary password, never one passed on the
+   command line, and forces a password change at the next sign-in;
+3. rotates the security stamp;
+4. revokes every refresh token;
+5. writes a conspicuous `User.BreakGlassReset` audit row carrying `--reason` and
+   `twoFactorCleared`.
+
+The Owner then signs in with the printed password and no code, picks a new
+password, and enrols in two-factor again ([#1274](1274-two-factor-authentication.md)
+decision 16).
 
 The temp password is printed to **stdout only** — never the logger, never OTLP —
 and the verb exits `0`. Failures go to stderr with exit `1` and change nothing.

@@ -133,6 +133,15 @@ public static partial class AuthEndpoints
             .WithName("StepUp")
             .WithSummary("Re-confirm the current password; returns a short-lived step-up grant.");
 
+        // #1280 — under /api/v1/auth so the fresh pair can rotate the refresh
+        // cookie, which is path-scoped there. Not rate-limited: the step-up
+        // grant it spends was rate-limited when it was minted.
+        group.MapDelete("/two-factor", TurnOffTwoFactor)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(512)
+            .WithName("TurnOffTwoFactor")
+            .WithSummary("Turn off your own two-factor; signs out other devices and connected apps.");
+
         return group;
     }
 

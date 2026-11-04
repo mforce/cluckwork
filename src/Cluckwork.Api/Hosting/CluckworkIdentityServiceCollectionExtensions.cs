@@ -294,6 +294,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             Cluckwork.Application.Modules.Access.Users.DisableUser.DisableUserHandler>();
         services.AddScoped<
             Cluckwork.Application.Modules.Access.Users.EnableUser.EnableUserHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Modules.Access.Users.ResetUserTwoFactor.ResetUserTwoFactorHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Modules.Access.Users.TurnOffTwoFactor.TurnOffTwoFactorHandler>();
         services.AddScoped<SetLanguageHandler>();
         services.AddScoped<SetStepperUnitHandler>();
         services.AddScoped<

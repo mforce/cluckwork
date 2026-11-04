@@ -142,5 +142,8 @@ public sealed partial class SecondFactorLoginTests
         public Task<ConfirmOutcome> ConfirmEnrolmentAsync(
             Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct) =>
             inner.ConfirmEnrolmentAsync(accountId, userId, code, ct);
+
+        public Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+            inner.ClearAsync(accountId, userId, ct);
     }
 }
