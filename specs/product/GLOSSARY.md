@@ -1380,6 +1380,21 @@ out of scope here (personal-data erasure is #272). Break-glass recovery
 would not restore access, because a disabled user is turned away before the
 password is ever checked; re-enable them first.
 
+**Reset two-factor authentication (#1280)** — an Owner, or `recover-admin`,
+removes another user's second factor so they can enrol again, for example after
+they lose their phone or their recovery codes. On the Users screen the selected
+user's inspector shows **Two-factor authentication** as On or Off, and for a
+user with it on, other than yourself, offers **reset two-factor**. The
+confirmation asks for a step-up proof (see **Step-up authentication**). The
+reset deletes the user's authenticator key, recovery codes and any started
+enrolment, bumps their **credential epoch** and rotates their security stamp,
+so every session, connected app, step-up grant and pending sign-in code step
+they had is refused. Their next sign-in takes the password only. It is audited
+(`User.TwoFactorReset`). An Owner cannot reset their own two-factor
+authentication; they replace their authenticator through enrolment.
+`recover-admin` clears an Owner's second factor together with its password
+reset.
+
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
 a 409 and retries against fresh state. Append-only aggregates (bird
@@ -1486,11 +1501,12 @@ is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308, #360, #606)** — a fresh proof of identity
-required, on top of a normal valid Owner access token, before eight categories
+required, on top of a normal valid Owner access token, before nine categories
 of action: **creating any user**, **resetting any user's password**,
 **changing any user's role** (#355), **changing a login email**, **disabling a
-user**, **re-enabling a user** (#356), **assigning a worker to a flock**, or
-**removing a worker's flock assignment** (#606). The first three are
+user**, **re-enabling a user** (#356), **assigning a worker to a flock**,
+**removing a worker's flock assignment** (#606), or **resetting a user's
+two-factor authentication** (#1280). The first three are
 unconditional: roles grant different, non-ordered capabilities, and every new
 or replaced authenticator can outlive a stolen-but-still-valid Owner access
 token (good for ~15 min — merely holding it bumps no credential epoch, see

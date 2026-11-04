@@ -1744,6 +1744,23 @@ export const es = {
     emailChangedMessage: "El correo de inicio de sesión cambió a {{email}}.",
     userDisabledMessage: "{{email}} ha sido deshabilitado.",
     userEnabledMessage: "{{email}} ha sido vuelto a habilitar.",
+
+    twoFactorField: "Autenticación en dos pasos",
+    twoFactorOnBadge: "Activada",
+    twoFactorOffBadge: "Desactivada",
+    resetTwoFactorButton: "restablecer dos pasos",
+    resetTwoFactorTitle: "Restablecer dos pasos — {{email}}",
+    resetTwoFactorSubmitButton: "Restablecer dos pasos",
+    resetTwoFactorWarningBody:
+      "Su aplicación de autenticación y sus códigos de recuperación dejan de funcionar, y se cierra su "
+      + "sesión en todos los dispositivos y apps conectadas. En su próximo inicio de sesión usará solo "
+      + "su contraseña y podrá volver a configurar la autenticación en dos pasos.",
+    stepUpResetTwoFactorHint: "Restablecer la autenticación en dos pasos requiere volver a ingresar tu contraseña actual.",
+    twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
+    resetTwoFactorOwnError: "No puedes restablecer tu propia autenticación en dos pasos. Pídeselo a otro propietario.",
+    resetTwoFactorForbiddenError: "Solo un propietario activo puede restablecer la autenticación en dos pasos.",
+    resetTwoFactorStepUpError: "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual.",
+    resetTwoFactorNotFoundError: "No se encontró este usuario. Recarga la página.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -2523,10 +2540,11 @@ export const es = {
       + "incorrectos.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "Ocho acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Nueve acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
-      + "volver a habilitar un usuario, asignar un trabajador a un lote, y quitarle a un trabajador la asignación "
+      + "volver a habilitar un usuario, restablecer la autenticación en dos pasos de un usuario, asignar un "
+      + "trabajador a un lote, y quitarle a un trabajador la asignación "
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
       + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla. "
       + "Cuando la autenticación en dos pasos está activada en su cuenta, estas acciones, <strong>Permitir</strong> "
@@ -2679,7 +2697,7 @@ export const es = {
       + "restablecimiento de contraseña. Los controles que no puede usar "
       + "están ocultos, y el servidor los rechaza de todos modos. "
       + "Seleccione la fila de otro usuario para encontrar <strong>contraseña</strong>, <strong>cambiar "
-      + "correo</strong>, <strong>lotes</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> "
+      + "correo</strong>, <strong>lotes</strong>, <strong>restablecer dos pasos</strong> y <strong>deshabilitar</strong> o <strong>habilitar</strong> "
       + "en el panel debajo de la tabla.",
     // #356 (machine-drafted, pending native review)
     rolesDisableUser:
@@ -2690,6 +2708,14 @@ export const es = {
       + "su capacidad de iniciar sesión, pero nunca revive las sesiones que terminó la deshabilitación — "
       + "inician sesión de nuevo con su contraseña actual. No puede deshabilitar su propio inicio de sesión, "
       + "ni puede deshabilitar al último Administrador (propietario) de la cuenta.",
+    rolesResetTwoFactor:
+      "<strong>Restablecer la autenticación en dos pasos</strong> (pantalla Usuarios, solo Admin/propietario) "
+      + "se ofrece para un usuario que la tiene activada, para que alguien que perdió su aplicación de "
+      + "autenticación o sus códigos de recuperación pueda volver a entrar. <strong>restablecer dos pasos</strong> "
+      + "hace que su aplicación de autenticación y sus códigos de recuperación dejen de funcionar y cierra su "
+      + "sesión en todos los dispositivos y aplicaciones conectadas. Vuelve a iniciar sesión solo con su "
+      + "contraseña y luego puede volver a configurar la autenticación en dos pasos. No puede restablecer la "
+      + "suya propia.",
     rolesChangeEmail:
       "Los propietarios pueden reemplazar de inmediato el <strong>correo de inicio de sesión</strong> de un "
       + "usuario desde la pantalla Usuarios. La nueva dirección se usa en el siguiente inicio de sesión, todas "
@@ -3388,7 +3414,7 @@ export const es = {
       + "Cerrar inspector o Escape borra la selección y devuelve el foco a esa fila. "
       + "En un teléfono, las acciones de la fila están en el inspector; en pantallas más grandes también aparecen en la fila. "
       + "En Usuarios, seleccione la fila de otro usuario para acceder a contraseña, "
-      + "cambiar correo, lotes y deshabilitar o habilitar en este panel.",
+      + "cambiar correo, lotes, restablecer dos pasos y deshabilitar o habilitar en este panel.",
 
     glossarySearchablePickerTerm: "Selector de búsqueda",
     glossarySearchablePickerDef:
@@ -3492,7 +3518,8 @@ export const es = {
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
       + "restablecer la contraseña de cualquier usuario, cambiar el rol de cualquier usuario, cambiar un correo "
-      + "de inicio de sesión, deshabilitar un usuario, volver a habilitarlo, asignar un trabajador a un lote, o "
+      + "de inicio de sesión, deshabilitar un usuario, volver a habilitarlo, restablecer su autenticación en dos "
+      + "pasos, asignar un trabajador a un lote, o "
       + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
       + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
@@ -3841,6 +3868,13 @@ export const es = {
       + "todo lo emitido antes de la deshabilitación deja de funcionar para siempre. El último "
       + "Administrador (propietario) activo de la cuenta no puede deshabilitarse, y nadie puede "
       + "deshabilitarse a sí mismo.",
+
+    glossaryResetTwoFactorTerm: "Restablecer la autenticación en dos pasos",
+    glossaryResetTwoFactorDef:
+      "Un propietario quita la autenticación en dos pasos de otro usuario para que pueda volver a "
+      + "configurarla, por ejemplo después de perder su teléfono. Su aplicación de autenticación y sus códigos "
+      + "de recuperación dejan de funcionar, y terminan todas sus sesiones y aplicaciones conectadas. Su "
+      + "próximo inicio de sesión pide solo la contraseña. Nadie puede restablecer la suya propia.",
 
     glossaryRepoNote:
       "Las definiciones completas en lenguaje de especificación viven en "

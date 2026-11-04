@@ -16,7 +16,7 @@ import { MeContext } from "../session/SessionContext";
 import type { Me } from "../api/cluckwork";
 import {
   assignFlock, changeUserEmail, changeUserRole, createUser, disableUser, enableUser, getFlock, listFlockAssignments, listFlocks,
-  listUsers, setUserPassword, unassignFlock, updateUser,
+  listUsers, resetUserTwoFactor, setUserPassword, unassignFlock, updateUser,
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { apiGet, ApiError, stepUp } from "../api/client";
@@ -43,6 +43,7 @@ vi.mock("../api/cluckwork", () => ({
   changeUserEmail: vi.fn(),
   disableUser: vi.fn(),
   enableUser: vi.fn(),
+  resetUserTwoFactor: vi.fn(),
   listFlockAssignments: vi.fn(),
   assignFlock: vi.fn(),
   unassignFlock: vi.fn(),
@@ -84,27 +85,27 @@ const assignmentsFor = (userId: string) =>
 const setAssignmentsFor = (userId: string, rows: FlockAssignment[]) => { assignmentRows.set(userId, rows); return rows; };
 
 const WORKER_USER: User = {
-  id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker", disabledAt: null,
+  id: "u-w", email: "worker@farm.test", displayName: "Wendy", role: "Worker", disabledAt: null, twoFactorEnabled: false,
 };
 const ADMIN_USER: User = {
-  id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin", disabledAt: null,
+  id: "u-a", email: "boss@farm.test", displayName: null, role: "Admin", disabledAt: null, twoFactorEnabled: false,
 };
 // Role wiring fixture (#182, Task 22): ReadOnly is the one role whose enum
 // label is NOT its raw wire value (enums:role.ReadOnly = "Read-only"), so it's
 // the fixture that actually distinguishes roleLabel(u.role) from a plain
 // {u.role} render.
 const READONLY_USER: User = {
-  id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly", disabledAt: null,
+  id: "u-r", email: "ro@farm.test", displayName: null, role: "ReadOnly", disabledAt: null, twoFactorEnabled: false,
 };
 // #356 — a disabled worker, and the ADMIN token's OWN row (id "u1" matches
 // DEFAULT_ME/the ADMIN token's sub — see renderWithProviders.tsx), used to
 // prove the self-target rows offer neither action.
 const DISABLED_USER: User = {
   id: "u-d", email: "disabled@farm.test", displayName: "Dana", role: "Worker",
-  disabledAt: "2026-08-01T00:00:00Z",
+  disabledAt: "2026-08-01T00:00:00Z", twoFactorEnabled: false,
 };
 const SELF_USER: User = {
-  id: "u1", email: "self@farm.test", displayName: null, role: "Admin", disabledAt: null,
+  id: "u1", email: "self@farm.test", displayName: null, role: "Admin", disabledAt: null, twoFactorEnabled: false,
 };
 
 const flock = (id: string, name: string, status = "Active"): Flock => ({
@@ -2093,7 +2094,7 @@ describe("UsersPage flock scoping", () => {
 
   it("discards a stale refresh from a worker whose dialog was closed and reopened for another", async () => {
     const WORKER_2: User = {
-      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null, twoFactorEnabled: false,
     };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     // Call 1: open A (has Coop A). Call 2: A's post-remove refresh — hung.
@@ -2428,7 +2429,7 @@ describe("UsersPage assignment picker lifecycle (#512)", () => {
   });
 
   it("reopening a DIFFERENT worker resets the picker to the default and never retains the prior selection", async () => {
-    const WORKER_2: User = { id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null };
+    const WORKER_2: User = { id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null, twoFactorEnabled: false };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
@@ -3297,7 +3298,7 @@ describe("UsersPage error placement (#479)", () => {
   });
 
   it("does not carry one worker's failed assignment into another worker's flock dialog", async () => {
-    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker", disabledAt: null };
+    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker", disabledAt: null, twoFactorEnabled: false };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
     await renderReady(ADMIN);
@@ -3327,7 +3328,7 @@ describe("UsersPage error placement (#479)", () => {
   // would erase worker A's visible message while A's dialog stays open and
   // unchanged (adversarial review of #491).
   it("keeps worker A's dialog and its message when worker B's load fails", async () => {
-    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker", disabledAt: null };
+    const WORKER_2: User = { id: "u-w2", email: "second@farm.test", displayName: null, role: "Worker", disabledAt: null, twoFactorEnabled: false };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     mockAssignFlock.mockRejectedValue(new ApiError(409, "Conflict", "That flock is already assigned."));
     await renderReady(ADMIN);
@@ -3691,7 +3692,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
   // ---- flock-access -------------------------------------------------------
   it("keeps a page failure from another worker's failed load while a flock write runs: its writes are dialog-scoped, not page actions", async () => {
     const WORKER_2: User = {
-      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null, twoFactorEnabled: false,
     };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     mockListAssignments
@@ -3735,7 +3736,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
 
   it("discards a stale post-assign refresh from a worker whose dialog was closed and reopened for another", async () => {
     const WORKER_2: User = {
-      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null,
+      id: "u-w2", email: "worker2@farm.test", displayName: "Walt", role: "Worker", disabledAt: null, twoFactorEnabled: false,
     };
     mockListUsers.mockResolvedValue([WORKER_USER, WORKER_2, ADMIN_USER]);
     // Call 1: open A (empty). Call 2: A's post-assign refresh — hung. Call 3: open B (empty).
@@ -4060,6 +4061,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     } },
     { site: "useDisableEnable.onSubmitStepUp", submit: "Disable", open: () => inspector(/worker@farm.test/, "disable") },
     { site: "useDisableEnable.onSubmitStepUp", submit: "Enable", open: () => inspector(/disabled@farm.test/, "enable") },
+    { site: "useResetTwoFactor.onReset", submit: "Reset two-factor", open: () => inspector(/enrolled@farm.test/, "reset two-factor") },
     { site: "useFlockAccess.onAssign", submit: "Assign flock", open: async () => {
       setAssignmentsFor("u-w", []);
       await act(async () => { inspector(/worker@farm.test/, "flocks"); });
@@ -4080,7 +4082,9 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   };
 
   beforeEach(() => {
-    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, DISABLED_USER]);
+    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, DISABLED_USER,
+      { ...WORKER_USER, id: "u-e", email: "enrolled@farm.test", twoFactorEnabled: true }]);
+    vi.mocked(resetUserTwoFactor).mockResolvedValue(undefined);
     mockCreateUser.mockResolvedValue({ id: "u-new" });
     mockSetUserPassword.mockResolvedValue(undefined);
     mockChangeUserRole.mockResolvedValue(undefined);

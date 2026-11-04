@@ -129,7 +129,7 @@ describe("Connected apps keeps keyboard focus after Disconnect (#799)", () => {
 
   it("Owner page: the last connection gone, focus moves to the heading", async () => {
     vi.mocked(listUsers).mockResolvedValue([
-      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null },
+      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null, twoFactorEnabled: false },
     ]);
     vi.mocked(listFarmConnectedApps).mockResolvedValueOnce([app({})]).mockResolvedValue([]);
     renderWithProviders(<ConnectedAppsPage />, { token: { sub: "owner", role: "Admin" } });
@@ -141,7 +141,7 @@ describe("Connected apps keeps keyboard focus after Disconnect (#799)", () => {
 
   it("Owner page: a middle connection gone, focus moves to the next one's Disconnect", async () => {
     vi.mocked(listUsers).mockResolvedValue([
-      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null },
+      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null, twoFactorEnabled: false },
     ]);
     vi.mocked(listFarmConnectedApps).mockResolvedValueOnce(three).mockResolvedValue([three[0], three[2]]);
     renderWithProviders(<ConnectedAppsPage />, { token: { sub: "owner", role: "Admin" } });
@@ -155,8 +155,8 @@ describe("Connected apps keeps keyboard focus after Disconnect (#799)", () => {
 describe("Setup › Connected apps, the Owner's farm-wide page (#799)", () => {
   beforeEach(() => {
     vi.mocked(listUsers).mockResolvedValue([
-      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null },
-      { id: "u2", email: "ben@farm.local", displayName: "Ben Cruz", role: "Manager", disabledAt: null },
+      { id: "u1", email: "ana@farm.local", displayName: "Ana Reyes", role: "Worker", disabledAt: null, twoFactorEnabled: false },
+      { id: "u2", email: "ben@farm.local", displayName: "Ben Cruz", role: "Manager", disabledAt: null, twoFactorEnabled: false },
     ]);
     vi.mocked(listFarmConnectedApps).mockResolvedValue([
       app({ userId: "u2", clientId: "c9", appName: "ChatGPT" }),
