@@ -2716,8 +2716,8 @@ export const es = {
       + "autenticación o sus códigos de recuperación pueda volver a entrar. <strong>restablecer dos pasos</strong> "
       + "hace que su aplicación de autenticación y sus códigos de recuperación dejen de funcionar y cierra su "
       + "sesión en todos los dispositivos y aplicaciones conectadas. Esa persona vuelve a iniciar sesión solo "
-      + "con su contraseña y luego puede volver a configurar la autenticación en dos pasos. No puede restablecer la "
-      + "suya propia.",
+      + "con su contraseña y luego puede volver a configurar la autenticación en dos pasos. Un propietario no puede "
+      + "restablecer la suya propia.",
     rolesChangeEmail:
       "Los propietarios pueden reemplazar de inmediato el <strong>correo de inicio de sesión</strong> de un "
       + "usuario desde la pantalla Usuarios. La nueva dirección se usa en el siguiente inicio de sesión, todas "
