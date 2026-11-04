@@ -101,7 +101,7 @@ describe("UsersPage two-factor reset (#1280)", () => {
     await screen.findByText(ENROLLED.email);
     fireEvent.click(resetAction(ENROLLED.email)!);
 
-    const confirm = screen.getByRole("dialog", { name: `Reset two-factor — ${ENROLLED.email}` });
+    const confirm = screen.getByRole("dialog", { name: "Reset two-factor authentication?" });
     expect(confirm).toHaveAccessibleDescription(i18n.t("users:resetTwoFactorWarningBody"));
   });
 

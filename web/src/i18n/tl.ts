@@ -1815,7 +1815,7 @@ export const tl = {
     twoFactorOnBadge: "Naka-on",
     twoFactorOffBadge: "Naka-off",
     resetTwoFactorButton: "i-reset ang two-factor",
-    resetTwoFactorTitle: "I-reset ang two-factor — {{email}}",
+    resetTwoFactorTitle: "I-reset ang two-factor authentication?",
     resetTwoFactorSubmitButton: "I-reset ang two-factor",
     resetTwoFactorWarningBody:
       "Hihinto sa paggana ang kanilang authenticator app at mga recovery code, at ma-si-sign out sila "

@@ -39,7 +39,7 @@ export function ResetTwoFactorDialog({
   return (
     <Dialog
       open={resetUser !== null}
-      title={t("resetTwoFactorTitle", { email: resetUser?.email ?? "" })}
+      title={t("resetTwoFactorTitle")}
       onClose={closeReset}
       describedBy={warningId}
       actions={(

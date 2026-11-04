@@ -1752,7 +1752,7 @@ export const es = {
     twoFactorOnBadge: "Activada",
     twoFactorOffBadge: "Desactivada",
     resetTwoFactorButton: "restablecer dos pasos",
-    resetTwoFactorTitle: "Restablecer dos pasos — {{email}}",
+    resetTwoFactorTitle: "¿Restablecer la autenticación en dos pasos?",
     resetTwoFactorSubmitButton: "Restablecer dos pasos",
     resetTwoFactorWarningBody:
       "Su aplicación de autenticación y sus códigos de recuperación dejan de funcionar, y se cierra su "

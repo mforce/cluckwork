@@ -2295,13 +2295,13 @@ export const en = {
     userDisabledMessage: "{{email}} has been disabled.",
     userEnabledMessage: "{{email}} has been re-enabled.",
 
-    // #1280 — an Owner resets another user's two-factor authentication.
-    // {{email}} is DATA.
+    // #1280 — an Owner resets another user's two-factor authentication. The
+    // dialog's identity line names the target, as the #1275 design draws it.
     twoFactorField: "Two-factor authentication",
     twoFactorOnBadge: "On",
     twoFactorOffBadge: "Off",
     resetTwoFactorButton: "reset two-factor",
-    resetTwoFactorTitle: "Reset two-factor — {{email}}",
+    resetTwoFactorTitle: "Reset two-factor authentication?",
     resetTwoFactorSubmitButton: "Reset two-factor",
     resetTwoFactorWarningBody:
       "Their authenticator app and recovery codes stop working, and they are signed out of every "
