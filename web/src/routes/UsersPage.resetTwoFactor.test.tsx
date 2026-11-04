@@ -125,6 +125,14 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(within(dialog()).queryByText(/Signed in as/)).not.toBeInTheDocument();
   });
 
+  it("lets a long target email wrap inside the dialog", async () => {
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+    fireEvent.click(resetAction(ENROLLED.email)!);
+
+    expect(within(dialog()).getByText(`Ben · ${ENROLLED.email}`)).toHaveStyle({ overflowWrap: "anywhere" });
+  });
+
   it("names only the email of a target with no display name", async () => {
     mockListUsers.mockResolvedValue([{ ...ENROLLED, displayName: null }, UNENROLLED, SELF]);
     renderWithProviders(<UsersPage />, { token: ADMIN });

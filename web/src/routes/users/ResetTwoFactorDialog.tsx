@@ -55,7 +55,7 @@ export function ResetTwoFactorDialog({
       formProps={{ onSubmit: onReset }}
     >
       <Stack spacing={2}>
-        <Typography id={identityId} sx={{ fontWeight: 600 }}>
+        <Typography id={identityId} sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
           {[resetUser?.displayName, resetUser?.email].filter(Boolean).join(" · ")}
         </Typography>
         <Typography id={warningId} color="text.secondary" sx={{ lineHeight: 1.55 }}>
