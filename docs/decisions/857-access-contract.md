@@ -9,7 +9,7 @@ minting, middleware order, transaction boundaries or fixture attribution.
 
 ## Boundary
 
-The Access ledger declares 28 top-level types under
+The Access ledger declares 30 top-level types under
 `Cluckwork.Application.Features.Users`:
 
 | Purpose | Contract entries |
