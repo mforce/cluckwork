@@ -175,6 +175,7 @@ public sealed partial class SecondFactorLoginTests
 
         var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
 
-        await AssertStaleTurnOffRefusedAsync(response, factor!);
+        Assert.NotNull(factor);
+        await AssertStaleTurnOffRefusedAsync(response, factor);
     }
 }
