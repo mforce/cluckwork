@@ -1511,10 +1511,11 @@ unconditional: roles grant different, non-ordered capabilities, and every new
 or replaced authenticator can outlive a stolen-but-still-valid Owner access
 token (good for ~15 min — merely holding it bumps no credential epoch, see
 **Credential epoch** above). Disable/enable and login-email changes likewise
-alter durable access. Flock scope can narrow or widen a Worker's durable
-authorization — including restoring farm-wide Worker scope when the last
+alter durable access, and a two-factor reset ends another user's second factor
+and every one of their sign-ins (#1280). Flock scope can narrow or widen a
+Worker's durable authorization — including restoring farm-wide Worker scope when the last
 assignment is removed — which is exactly the durable-access shape the other
-seven categories are already gated for, so #606 closed it rather than leaving
+eight categories are already gated for, so #606 closed it rather than leaving
 it as a declared-safe exception. Editing a display name remains **ungated**.
 The mechanism is **current-password re-confirmation**: the Users screen shows
 an inline "your current password" field in each gated action's dialog (never a
