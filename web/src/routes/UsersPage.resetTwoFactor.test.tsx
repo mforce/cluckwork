@@ -156,4 +156,31 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(mockReset).not.toHaveBeenCalled();
     expect(mockListUsers).toHaveBeenCalledTimes(1);
   });
+
+  it("sends no DELETE when the Users page unmounts while the grant is issued", async () => {
+    let grant!: (value: { token: string; expiresAt: string }) => void;
+    mockStepUp.mockReturnValue(new Promise((resolve) => { grant = resolve; }));
+    const view = renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+
+    await openAndSubmit();
+    view.unmount();
+    await act(async () => { grant({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
+
+    expect(mockReset).not.toHaveBeenCalled();
+  });
+
+  it("still finishes a DELETE already sent when the Users page unmounts", async () => {
+    let answer!: () => void;
+    mockReset.mockReturnValue(new Promise((resolve) => { answer = () => resolve(undefined); }));
+    const view = renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+
+    await openAndSubmit();
+    expect(mockReset).toHaveBeenCalledTimes(1);
+    view.unmount();
+    await act(async () => { answer(); });
+
+    expect(mockListUsers).toHaveBeenCalledTimes(2);
+  });
 });

@@ -64,4 +64,17 @@ describe("useDialogSession", () => {
 
     expect(result.current.isCurrent("create-order", first)).toBe(false);
   });
+
+  it("supersedes every claim once the screen unmounts", () => {
+    // #1280 review — an Owner who leaves the screen while a step-up grant is
+    // being issued has left the dialog too; the write must not follow.
+    const { result, unmount } = renderHook(() => useDialogSession());
+    act(() => result.current.begin("create-order"));
+    const opened = result.current.claim("create-order");
+    const neverOpened = result.current.claim("never-opened");
+    unmount();
+
+    expect(result.current.isCurrent("create-order", opened)).toBe(false);
+    expect(result.current.isCurrent("never-opened", neverOpened)).toBe(false);
+  });
 });
