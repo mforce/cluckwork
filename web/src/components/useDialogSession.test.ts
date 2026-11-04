@@ -69,7 +69,9 @@ describe("useDialogSession", () => {
   it("keeps a claim current through StrictMode's dev remount", () => {
     // StrictMode runs the mount effect, its cleanup, then the effect again; the
     // second run must undo the first cleanup or no dev write is ever sent.
-    const { result } = renderHook(() => useDialogSession(), { reactStrictMode: true });
+    let runs = 0;
+    const { result } = renderHook(() => { runs += 1; return useDialogSession(); }, { reactStrictMode: true });
+    expect(runs).toBe(2); // StrictMode rendered twice, so the remount happened
     act(() => result.current.begin("create-order"));
     const claimed = result.current.claim("create-order");
 
