@@ -126,7 +126,7 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(within(dialog()).queryByText(caption, { exact: false })).not.toBeInTheDocument();
   });
 
-  it("lets a long target email wrap inside the dialog", async () => {
+  it("wraps the identity line and the signed-in caption anywhere", async () => {
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
     fireEvent.click(resetAction(ENROLLED.email)!);
