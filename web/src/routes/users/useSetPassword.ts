@@ -2,28 +2,29 @@ import { useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { setUserPassword } from "../../api/cluckwork";
 import type { User } from "../../api/cluckwork";
-import { stepUp } from "../../api/client";
+import { stepUp, NO_PROOF } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
 import type { DialogAction } from "../../components/useDialogAction";
 import i18n from "../../i18n";
 
 // The password-reset dialog's state and handlers, moved out of UsersPage
 // (#1215). The flight guard, the message slots and the idempotency keys stay
-// on the page (#703) and are passed in, as is the proof password the page
+// on the page (#703) and are passed in, as is the step-up proof the page
 // clears on logout (#308).
 export function useSetPassword({
   dialog,
   keyFor,
   clearKey,
   setMessage,
-  pwStepUpPassword,
-  setPwStepUpPassword,
+  pwStepUpProof,
+  setPwStepUpProof,
 }: {
   dialog: DialogAction<"set-password">;
   keyFor: (scope: string) => string;
   clearKey: (scope: string) => void;
   setMessage: Dispatch<SetStateAction<string | null>>;
-  pwStepUpPassword: string;
-  setPwStepUpPassword: Dispatch<SetStateAction<string>>;
+  pwStepUpProof: StepUpProof;
+  setPwStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { busy, errors, run, openDialog, dismissDialog } = dialog;
 
@@ -40,7 +41,7 @@ export function useSetPassword({
     setMessage(null);
     setPwValue("");
     setPwConfirm("");
-    setPwStepUpPassword("");
+    setPwStepUpProof(NO_PROOF);
     setPwUser(u);
   }
 
@@ -49,7 +50,7 @@ export function useSetPassword({
     // dialog is gone (#165 review; #308 for the step-up field).
     setPwValue("");
     setPwConfirm("");
-    setPwStepUpPassword("");
+    setPwStepUpProof(NO_PROOF);
     setPwUser(null);
     dismissDialog("set-password");
   }
@@ -76,9 +77,9 @@ export function useSetPassword({
     await run(`set-password:${target.id}`, async (current) => {
       // #308/#360 — every administrative reset replaces an authenticator,
       // regardless of target role. Read then clear before awaiting issuance.
-      const enteredPassword = pwStepUpPassword;
-      setPwStepUpPassword("");
-      const stepUpToken = (await stepUp(enteredPassword)).token;
+      const enteredProof = pwStepUpProof;
+      setPwStepUpProof(NO_PROOF);
+      const stepUpToken = (await stepUp(enteredProof)).token;
       if (!current()) return;
 
       await setUserPassword(target.id, { newPassword: pwValue }, keyFor(keyScope), stepUpToken);

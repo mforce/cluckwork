@@ -1515,7 +1515,13 @@ cannot tell which one applies. The entered password itself is never stored —
 held only in the dialog's own field and cleared the instant it is sent.
 Trusted offline provisioning, seeding, and `recover-admin` commands use their
 separate one-shot trust boundary and never select a browser-visible bypass.
-TOTP/WebAuthn step-up is a deferred follow-up (#320).
+For a user with two-factor authentication on (#1279), step-up takes the password
+**and** an authenticator code or a recovery code, entered in a second field
+beside the password and cleared with it. The password alone is refused, and that
+refusal counts no failed attempt. Each code works for one action only, so a
+second gated action straight after waits for the authenticator app's next code.
+A user without two-factor authentication steps up with the password, as before.
+WebAuthn step-up remains a deferred follow-up (#320).
 
 **Connecting an app (#798)** — approving an outside app, such as an AI assistant,
 to act as you through OAuth. The app sends you to Cluckwork's consent screen
@@ -1525,7 +1531,9 @@ domain** or an **Unverified app** marker (see **Verified domain**), what it asks
 that it acts as you with only your access, and where the browser returns. Each
 requested permission has a checkbox (#1326): the person unticks what they don't
 want, **Read farm data** included, and chooses **Allow** after re-entering **Your
-current password** (a **step-up grant**, see above), or **Cancel**. Unticking
+current password** (a **step-up grant**, see above), or **Cancel**. With two-factor
+authentication on, the connection screen also asks for an authenticator code or a
+recovery code, as every step-up does. Unticking
 everything leaves only **Cancel**. The app gets only the ticked permissions. Every
 approval spends a step-up grant, a reconnect included, and the checkboxes show on
 every connection, even for an app already approved for everything. When an app

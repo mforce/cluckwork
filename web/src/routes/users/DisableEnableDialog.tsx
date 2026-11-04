@@ -2,11 +2,12 @@ import { useId } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { DialogActions, Stack, TextField, Typography } from "@mui/material";
+import type { StepUpProof } from "../../api/client";
 import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpPasswordField } from "../../components/StepUpPasswordField";
+import { StepUpProofFields } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
 // The shared disable/enable dialog (#356), moved out of UsersPage (#1215).
@@ -24,8 +25,8 @@ export function DisableEnableDialog({
   errors,
   disableReason,
   setDisableReason,
-  stepUpPassword,
-  setStepUpPassword,
+  stepUpProof,
+  setStepUpProof,
 }: {
   stepUpUser: User | null;
   stepUpMode: "disable" | "enable" | null;
@@ -36,8 +37,8 @@ export function DisableEnableDialog({
   errors: DialogErrors;
   disableReason: string;
   setDisableReason: Dispatch<SetStateAction<string>>;
-  stepUpPassword: string;
-  setStepUpPassword: Dispatch<SetStateAction<string>>;
+  stepUpProof: StepUpProof;
+  setStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const disableWarningId = useId();
   const { t } = useTranslation("users");
@@ -46,7 +47,7 @@ export function DisableEnableDialog({
     /* #356 — one dialog is the whole disable/enable flow: it IS the
         confirmation (no separate askReason step), collects the optional
         reason (disable only — the API's reason is nullable, never
-        mandatory), and always collects the step-up password
+        mandatory), and always collects the step-up proof
         UNCONDITIONALLY (#308) regardless of the target's role. */
     <Dialog
       open={stepUpUser !== null}
@@ -95,10 +96,11 @@ export function DisableEnableDialog({
         <p className="muted">
           {stepUpMode === "disable" ? t("stepUpDisableHint") : t("stepUpEnableHint")}
         </p>
-        <StepUpPasswordField
+        <StepUpProofFields
           label={t("stepUpFieldLabel")}
-          value={stepUpPassword}
-          onChange={setStepUpPassword}
+          codeLabel={t("stepUpCodeFieldLabel")}
+          value={stepUpProof}
+          onChange={setStepUpProof}
         />
         <DialogError errors={errors} scope="disable-enable" />
       </Stack>

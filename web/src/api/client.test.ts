@@ -1,3 +1,4 @@
+import { freshCode } from "../test/codes";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   apiGet,
@@ -1245,6 +1246,21 @@ describe("changePassword (#165)", () => {
     expect(onTokens).toHaveBeenCalled();
   });
 
+  // #1279 — an enrolled user also sends a code; G4.6's SPA half pins the
+  // single request for a wrong one, as at step-up.
+  it("sends the code, and a wrong code is one request with no refresh", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ title: "Auth.SecondFactorIncorrect", detail: "That code did not work." }, 400));
+    const body = { currentPassword: crypto.randomUUID(), newPassword: crypto.randomUUID(), code: freshCode() };
+
+    await expect(changePassword(body)).rejects.toMatchObject({ status: 400, title: "Auth.SecondFactorIncorrect" });
+
+    const changes = callsTo(fetchMock, "/auth/change-password");
+    expect(changes).toHaveLength(1);
+    expect(JSON.parse(String(changes[0]![1].body))).toEqual(body);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    expect(getAccessToken()).toBe("at1");
+  });
+
   it("propagates a rejection (e.g. wrong current password) and leaves the token alone", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Current password is incorrect." }, 400));
 
@@ -1275,12 +1291,37 @@ describe("changePassword (#165)", () => {
 // (web/src/routes/users/) immediately before
 // the one sensitive write it unlocks; this file only proves the transport
 // contract (posts the password, authenticated, returns the grant as-is).
+// #1279 — the clock hint follows only a refused 6-digit authenticator code, at
+// the login code step, step-up and change-password alike.
+describe("sentAuthenticatorCode on a refused code", () => {
+  const code = freshCode();
+  const recovery = crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase();
+  const calls: [string, (typed: string) => Promise<unknown>][] = [
+    ["completeSecondFactor", (typed) => completeSecondFactor("challenge-jwt", typed)],
+    ["stepUp", (typed) => stepUp({ password: "x", code: typed })],
+    ["changePassword", (typed) => changePassword({ currentPassword: "x", newPassword: "y", code: typed })],
+  ];
+  it.each(calls.flatMap(([name, call]) => [
+    [name, "a 6-digit code", call, code, true],
+    [name, "a 6-digit code with a space", call, `${code.slice(0, 3)} ${code.slice(3)}`, true],
+    [name, "a recovery code", call, recovery, false],
+    [name, "7 digits", call, `${code}0`, false],
+  ] as const))("%s marks %s", async (_, __, call, typed, expected) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Auth.SecondFactorIncorrect", detail: "That code did not work." }, 400));
+
+    const err = await call(typed).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).sentAuthenticatorCode).toBe(expected);
+  });
+});
+
 describe("stepUp (#308)", () => {
   it("posts the password to /auth/step-up as an authenticated write and returns the grant", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
     const password = `Aa1!${crypto.randomUUID()}`;
 
-    const grant = await stepUp(password);
+    const grant = await stepUp({ password });
 
     const call = fetchMock.mock.calls[0] as Call;
     expect(call[0]).toBe("/api/v1/auth/step-up");
@@ -1294,7 +1335,7 @@ describe("stepUp (#308)", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 400));
 
-    const err = await stepUp("wrong").catch((e: unknown) => e);
+    const err = await stepUp({ password: "wrong" }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 400, message: "Current password is incorrect." });
   });
@@ -1309,7 +1350,7 @@ describe("stepUp (#308)", () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ title: "Users.CurrentPasswordIncorrect", detail: "Current password is incorrect." }, 400));
 
-    await expect(stepUp("wrong")).rejects.toThrow(ApiError);
+    await expect(stepUp({ password: "wrong" })).rejects.toThrow(ApiError);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(callsTo(fetchMock, "/auth/step-up")).toHaveLength(1);
@@ -1329,16 +1370,70 @@ describe("stepUp (#308)", () => {
       .mockResolvedValueOnce(accessResponse(claimfulToken("at2")))
       .mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
 
-    const grant = await stepUp("right");
+    const grant = await stepUp({ password: "right" });
 
     expect(grant).toEqual({ token: "grant-abc", expiresAt: FUTURE });
     expect(callsTo(fetchMock, "/auth/step-up")).toHaveLength(2);
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
   });
 
+  // #1279 — an enrolled user's proof. An empty code is never sent.
+  it("posts the code with the password, and leaves an empty or blank code out", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
+    const password = crypto.randomUUID();
+    const code = freshCode();
+
+    await stepUp({ password, code });
+    await stepUp({ password, code: "" });
+    await stepUp({ password, code: "   " });
+
+    const [withCode, empty, blank] = callsTo(fetchMock, "/auth/step-up");
+    expect(JSON.parse(String(withCode![1].body))).toStrictEqual({ password, code });
+    expect(JSON.parse(String(empty![1].body))).toStrictEqual({ password });
+    expect(JSON.parse(String(blank![1].body))).toStrictEqual({ password });
+  });
+
+  // #1274 decision 12 / G4.2 — the code twin of the single-request pin above:
+  // a 401 here would replay one typed code as two failed accesses.
+  it("issues exactly one request for a wrong code — no refresh, no replay", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ title: "Auth.SecondFactorIncorrect", detail: "That code did not work." }, 400));
+
+    await expect(stepUp({ password: crypto.randomUUID(), code: freshCode() }))
+      .rejects.toMatchObject({ status: 400, title: "Auth.SecondFactorIncorrect" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+    expect(getAccessToken()).toBe("at1");
+    expect(onUnauth).not.toHaveBeenCalled();
+  });
+
+  // #1279 S1 — the throttled answer's wait reaches the screen through the error.
+  // Only the delta-seconds form counts; anything else is no wait.
+  it.each([
+    ["5400", 5400],
+    [null, null],
+    ["Wed, 21 Oct 2026 07:28:00 GMT", null],
+    ["0", null],
+    ["-30", null],
+    ["1.5", null],
+    ["1e3", null],
+    ["0x10", null],
+    ["soon", null],
+    ["9".repeat(400), null],
+  ] as const)("reads Retry-After %s as a wait of %s seconds", async (header, seconds) => {
+    fetchMock.mockResolvedValueOnce(new Response(
+      JSON.stringify({ title: "Auth.SecondFactorThrottled" }),
+      { status: 429, headers: { "Content-Type": "application/json", ...(header === null ? {} : { "Retry-After": header }) } }));
+
+    const err = await stepUp({ password: "x", code: freshCode() }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).retryAfterSeconds).toBe(seconds);
+  });
+
   it("does not touch in-memory auth state — it is not a token-store writer", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
-    await stepUp("whatever");
+    await stepUp({ password: "whatever" });
     expect(getAccessToken()).toBe("at1"); // unchanged
     expect(onTokens).not.toHaveBeenCalled();
   });

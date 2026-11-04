@@ -2,13 +2,14 @@ import { useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { disableUser, enableUser, listUsers } from "../../api/cluckwork";
 import type { User } from "../../api/cluckwork";
-import { stepUp } from "../../api/client";
+import { stepUp, NO_PROOF } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
 import type { DialogAction } from "../../components/useDialogAction";
 import i18n from "../../i18n";
 
 // The shared disable/enable dialog's state and handlers, moved out of
 // UsersPage (#1215). The flight guard, the message slots and the idempotency
-// keys stay on the page (#703) and are passed in, as is the proof password
+// keys stay on the page (#703) and are passed in, as is the step-up proof
 // the page clears on logout (#308).
 export function useDisableEnable({
   dialog,
@@ -16,16 +17,16 @@ export function useDisableEnable({
   keyFor,
   clearKey,
   setMessage,
-  stepUpPassword,
-  setStepUpPassword,
+  stepUpProof,
+  setStepUpProof,
 }: {
   dialog: DialogAction<"disable-enable">;
   setUsers: Dispatch<SetStateAction<User[] | null>>;
   keyFor: (scope: string) => string;
   clearKey: (scope: string) => void;
   setMessage: Dispatch<SetStateAction<string | null>>;
-  stepUpPassword: string;
-  setStepUpPassword: Dispatch<SetStateAction<string>>;
+  stepUpProof: StepUpProof;
+  setStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { busy, run, openDialog, dismissDialog } = dialog;
 
@@ -33,7 +34,7 @@ export function useDisableEnable({
   // confirmation: a destructive warning body, an OPTIONAL reason (disable
   // only — the API's DisableUserCommand.Reason is nullable, capped at 200
   // chars, and the product call was explicit that a mandatory reason just
-  // gets typed "x"), and the step-up password DisableUser/EnableUser always
+  // gets typed "x"), and the step-up proof DisableUser/EnableUser always
   // require (#308) regardless of the target's role. "mode" picks which
   // endpoint + copy applies.
   const [stepUpUser, setStepUpUser] = useState<User | null>(null);
@@ -55,14 +56,14 @@ export function useDisableEnable({
     // useDialogErrors) — a message about the wrong operation entirely.
     openDialog("disable-enable");
     setMessage(null);
-    setStepUpPassword("");
+    setStepUpProof(NO_PROOF);
     setDisableReason("");
     setStepUpMode(mode);
     setStepUpUser(u);
   }
 
   function closeStepUp() {
-    setStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setStepUpProof(NO_PROOF); // #308 — never leave a typed proof behind
     setDisableReason("");
     setStepUpMode(null);
     setStepUpUser(null);
@@ -78,10 +79,10 @@ export function useDisableEnable({
     const scope = `${mode}:${target.id}`;
     await run(scope, async (current) => {
       // #308 — read-then-clear-before-await, same pattern as every other
-      // step-up site on this screen: the proof password never sits in state
+      // step-up site on this screen: the proof never sits in state
       // across the network call that consumes it.
-      const enteredPassword = stepUpPassword;
-      setStepUpPassword("");
+      const enteredProof = stepUpProof;
+      setStepUpProof(NO_PROOF);
 
       // #356 — grouped here with the password for readability, NOT because
       // reading it after the await would be a bug. An earlier revision of
@@ -98,7 +99,7 @@ export function useDisableEnable({
       //
       // Reason is optional: empty or whitespace sends null, never "".
       const enteredReason = disableReason.trim() || null;
-      const token = (await stepUp(enteredPassword)).token;
+      const token = (await stepUp(enteredProof)).token;
       // Dismissed while the grant was being issued: like every other step-up
       // write on this screen, the write is refused rather than made — the
       // grant is dropped unspent (#703 PR 4 review; pinned by `does not let a

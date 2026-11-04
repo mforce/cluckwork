@@ -22,12 +22,14 @@ import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { apiGet, ApiError, stepUp } from "../api/client";
 import { getAccessToken } from "../auth/tokenStore";
 import i18n from "../i18n";
+import { freshCode } from "../test/codes";
+import { productionStepUpCallSites } from "../test/stepUpCallers";
 
 // Runtime-generated, with NO static substring — GitGuardian's scanner
 // flagged an earlier version of this line even though it was already
 // randomized, because the readable "password-shaped" prefix it was appended
 // to (`Own3r!${...}`) was enough to trigger on its own. One shared value:
-// these tests assert the typed proof password is the one SENT to stepUp(),
+// these tests assert the typed step-up password is the one SENT to stepUp(),
 // so identity is what matters, not content or shape.
 const OWNER_STEP_UP_PASSWORD = crypto.randomUUID();
 
@@ -364,7 +366,7 @@ describe("UsersPage create", () => {
     expect(mockCreateUser.mock.calls[0][1]).toEqual(expect.any(String)); // idempotency key
     // #360 — the typed proof goes to stepUp(), and the returned grant rides the
     // write once.
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockCreateUser).toHaveBeenCalledWith(
       expect.objectContaining({ role: "Manager" }), expect.any(String), "grant-default");
 
@@ -546,7 +548,7 @@ describe("UsersPage set password (#165)", () => {
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockSetUserPassword).toHaveBeenCalledWith(
       "u-w", { newPassword: password }, expect.any(String), "grant-default");
     // Success closes the dialog and says the target was signed out.
@@ -614,7 +616,7 @@ describe("UsersPage change role (#355)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockChangeUserRole).toHaveBeenCalledWith(
       "u-w", { role: "Manager" }, expect.any(String), "grant-default");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -957,7 +959,7 @@ describe("UsersPage change email (#357)", () => {
     fireEvent.change(passwordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
 
     await act(async () => { fireEvent.click(submit()); });
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(passwordInput()).toHaveValue("");
 
     await act(async () => grant.resolve({ token: "email-grant", expiresAt: "2026-01-01T00:05:00Z" }));
@@ -1244,7 +1246,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockChangeUserRole).toHaveBeenCalledWith(
       "u-a", { role: "Manager" }, expect.any(String), "grant-default");
   });
@@ -1261,7 +1263,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
       fireEvent.click(within(dialog()).getByRole("button", { name: "Change role" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockChangeUserRole).toHaveBeenCalledWith(
       "u-w", { role: "Admin" }, expect.any(String), "grant-789");
   });
@@ -1298,6 +1300,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
+          twoFactor: false,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -1442,7 +1445,7 @@ describe("UsersPage disable/enable (#356)", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockDisableUser).toHaveBeenCalledWith(
       "u-w", { reason: null }, expect.any(String), "grant-d1");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -1488,7 +1491,7 @@ describe("UsersPage disable/enable (#356)", () => {
       fireEvent.click(within(stepUpDialog).getByRole("button", { name: "Enable" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockEnableUser).toHaveBeenCalledWith("u-d", expect.any(String), "grant-e1");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/disabled@farm\.test has been re-enabled/)).toBeInTheDocument();
@@ -1939,7 +1942,7 @@ describe("UsersPage flock scoping", () => {
 
     // #606 — the typed proof goes to stepUp(), and the returned grant rides
     // the write as its fourth argument.
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockAssignFlock).toHaveBeenCalledWith("u-w", "fl2", expect.any(String), "grant-default");
     // Refreshes the assignment list for the same worker afterwards.
     expect(mockListAssignments).toHaveBeenLastCalledWith("u-w");
@@ -2039,7 +2042,7 @@ describe("UsersPage flock scoping", () => {
       fireEvent.click(within(item).getByRole("button", { name: "remove" }));
     });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockUnassignFlock).toHaveBeenCalledWith("u-w", "as1", expect.any(String), "grant-default");
     expect(await screen.findByText(/No assignments — account-wide access/)).toBeInTheDocument();
   });
@@ -2183,7 +2186,7 @@ describe("UsersPage flock scoping", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Assign flock" }));
     });
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     // Erased synchronously — before the deferred grant even resolves.
     expect(flockPasswordInput()).toHaveValue("");
     expect(mockAssignFlock).not.toHaveBeenCalled();
@@ -2208,7 +2211,7 @@ describe("UsersPage flock scoping", () => {
     await act(async () => {
       fireEvent.click(within(item).getByRole("button", { name: "remove" }));
     });
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(flockPasswordInput()).toHaveValue("");
     expect(mockUnassignFlock).not.toHaveBeenCalled();
 
@@ -2940,7 +2943,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockCreateUser.mock.calls[0][2]).toBe("grant-123"); // the grant, as the 3rd arg
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(await screen.findByText(/account created for boss@farm\.test/i)).toBeInTheDocument();
@@ -2971,14 +2974,14 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "worker@farm.test" } });
     fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
 
-    // Pick Owner, type the proof password, then change your mind.
+    // Pick Owner, type the step-up password, then change your mind.
     selectAdminRole();
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "Worker" } });
 
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockCreateUser.mock.calls[0][2]).toBe("grant-default");
 
     openCreate();
@@ -3056,7 +3059,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Set password" })); });
 
-    expect(mockStepUp).toHaveBeenCalledWith(OWNER_STEP_UP_PASSWORD);
+    expect(mockStepUp).toHaveBeenCalledWith({ password: OWNER_STEP_UP_PASSWORD });
     expect(mockSetUserPassword).toHaveBeenCalledWith(
       "u-a", { newPassword: newPw }, expect.any(String), "grant-456");
   });
@@ -3090,6 +3093,7 @@ describe("UsersPage step-up authentication (#308)", () => {
           // #283 — an Owner working the Users screen is already past the
           // first-run set-password gate.
           mustChangePassword: false,
+          twoFactor: false,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -3656,6 +3660,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
+          twoFactor: false,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -4013,4 +4018,258 @@ it("keeps corrective actions outside the destructive group for an inactive recor
   expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
   expect(corrective).not.toHaveStyle({ color: "var(--error)" });
   expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
+});
+
+// #1279 — every step-up on this page asks a user with two-factor
+// authentication on for a code and sends it with the password (#1274
+// decision 11). An unenrolled user sees no code field and still sends only
+// the password.
+describe("UsersPage step-up with two-factor authentication (#1279)", () => {
+  const inspector = (email: RegExp, action: string) => fireEvent.click(
+    userActions(screen.getByRole("row", { name: email, hidden: true })).getByRole("button", { name: action, hidden: true }));
+  const fill = (label: RegExp | string, value: string) =>
+    fireEvent.change(within(dialog()).getByLabelText(label), { target: { value } });
+  const press = (name: string) => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name })); });
+  const passwordField = () => within(dialog()).getByLabelText(/Your current password/);
+  const codeField = () => within(dialog()).getByLabelText(/Authenticator or recovery code/);
+  const newPassword = `Aa1!${crypto.randomUUID()}`;
+
+  // `site` is the function that calls stepUp(), as test/stepUpCallers.ts names
+  // it. `open` opens the dialog and fills what the action needs besides the
+  // proof. `closesOnLogout` marks the dialog the logout effect closes.
+  type Caller = { site: string; open: () => Promise<void> | void; submit: string; closesOnLogout?: true };
+  const callers: Caller[] = [
+    { site: "useCreateUser.onCreate", submit: "Create user", open: () => {
+      openCreate();
+      fill("Email *", "new@farm.test");
+      fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0]!, { target: { value: newPassword } });
+    } },
+    { site: "useSetPassword.onSetPassword", submit: "Set password", open: () => {
+      inspector(/worker@farm.test/, "password");
+      fill(/New password/, newPassword);
+      fill(/Confirm new password/, newPassword);
+    } },
+    { site: "useChangeRole.onChangeRole", submit: "Change role", open: () => {
+      fireEvent.click(within(screen.getByRole("row", { name: /worker@farm.test/, hidden: true }))
+        .getByRole("button", { name: "role", hidden: true }));
+      fill("Role", "Manager");
+    } },
+    { site: "useChangeEmail.onChangeEmail", submit: "Change email", closesOnLogout: true, open: () => {
+      inspector(/worker@farm.test/, "change email");
+      fill("Login email", "moved@farm.test");
+    } },
+    { site: "useDisableEnable.onSubmitStepUp", submit: "Disable", open: () => inspector(/worker@farm.test/, "disable") },
+    { site: "useDisableEnable.onSubmitStepUp", submit: "Enable", open: () => inspector(/disabled@farm.test/, "enable") },
+    { site: "useFlockAccess.onAssign", submit: "Assign flock", open: async () => {
+      setAssignmentsFor("u-w", []);
+      await act(async () => { inspector(/worker@farm.test/, "flocks"); });
+      await screen.findByText(/account-wide access/);
+      await pickFlock("Coop B");
+    } },
+    { site: "useFlockAccess.onUnassign", submit: "remove", open: async () => {
+      await act(async () => { inspector(/worker@farm.test/, "flocks"); });
+      await screen.findByRole("listitem");
+    } },
+  ];
+  const caller = (site: string) => callers.find((c) => c.site === site)!;
+  // Disable and enable share one site, so the button tells their rows apart.
+  const table = callers.map((c) => [`${c.site} (${c.submit})`, c] as const);
+  const proveEnrolled = (code: string) => {
+    fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
+    fill(/Authenticator or recovery code/, code);
+  };
+
+  beforeEach(() => {
+    mockListUsers.mockResolvedValue([WORKER_USER, ADMIN_USER, DISABLED_USER]);
+    mockCreateUser.mockResolvedValue({ id: "u-new" });
+    mockSetUserPassword.mockResolvedValue(undefined);
+    mockChangeUserRole.mockResolvedValue(undefined);
+    mockChangeUserEmail.mockResolvedValue(undefined);
+    mockDisableUser.mockResolvedValue(undefined);
+    mockEnableUser.mockResolvedValue(undefined);
+    mockAssignFlock.mockResolvedValue({ id: "as-new" });
+    mockUnassignFlock.mockResolvedValue(undefined);
+  });
+
+  it.each(table)("%s sends the code with the password when two-factor is on", async (_, { open, submit }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    const code = freshCode();
+
+    await open();
+    proveEnrolled(code);
+    await press(submit);
+
+    expect(mockStepUp).toHaveBeenCalledTimes(1);
+    expect(mockStepUp.mock.calls[0]![0]).toStrictEqual({ password: OWNER_STEP_UP_PASSWORD, code });
+  });
+
+  it.each(table)("%s shows no code field and sends only the password when two-factor is off", async (_, { open, submit }) => {
+    await renderReady(ADMIN);
+
+    await open();
+    expect(within(dialog()).queryByLabelText(/Authenticator or recovery code/)).not.toBeInTheDocument();
+    fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
+    await press(submit);
+
+    expect(mockStepUp).toHaveBeenCalledTimes(1);
+    expect(mockStepUp.mock.calls[0]![0]).toStrictEqual({ password: OWNER_STEP_UP_PASSWORD });
+  });
+
+  // #308 — the proof is read, then cleared before /auth/step-up answers; a
+  // code works once, so a refusal must not leave it behind either.
+  it.each(table)("%s clears the password and the code before the grant arrives and after a refusal", async (_, { open, submit }) => {
+    let refuse!: (reason: unknown) => void;
+    mockStepUp.mockReturnValue(new Promise((_resolve, reject) => { refuse = reject; }));
+    await renderReady({ ...ADMIN, two_factor: "true" });
+
+    await open();
+    proveEnrolled(freshCode());
+    await press(submit);
+    expect(passwordField()).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+
+    await act(async () => refuse(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.")));
+    expect(await within(dialog()).findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
+    expect(passwordField()).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+  });
+
+  // Closing and reopening each clear the proof, so this holds while either does.
+  it.each(table)("%s shows an empty proof when the dialog is reopened", async (_, { open }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+
+    await open();
+    proveEnrolled(freshCode());
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await open();
+
+    expect(passwordField()).toHaveValue("");
+    expect(codeField()).toHaveValue("");
+  });
+
+  it.each(table)("%s clears a typed code the instant the session ends", async (_, { open, closesOnLogout }) => {
+    const tree = (isAuthenticated: boolean) => (
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{
+          isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
+          mustChangePassword: false, twoFactor: true, unauthenticatedReason: null,
+          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+        }}
+        >
+          <MeContext.Provider value={{
+            id: "u1", email: "test@farm.local", name: null, role: "Admin", language: null, preferredStepperUnit: null,
+          }}
+          >
+            <FarmContext.Provider value={farmState({ farm: null })}>
+              <UsersPage />
+            </FarmContext.Provider>
+          </MeContext.Provider>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+    const view = render(tree(true));
+    await screen.findByText("worker@farm.test");
+    await open();
+    const code = freshCode();
+    proveEnrolled(code);
+    expect(codeField()).toHaveValue(code);
+
+    view.rerender(tree(false));
+
+    if (closesOnLogout) {
+      // The dialog closes, and opening it again resets the proof as well, so
+      // the logout reset and the open reset each keep the reopened form empty.
+      await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+      view.rerender(tree(true));
+      await open();
+      expect(passwordField()).toHaveValue("");
+      expect(codeField()).toHaveValue("");
+    } else {
+      expect(passwordField()).toHaveValue("");
+      expect(codeField()).toHaveValue("");
+    }
+  });
+
+  // Round 1 item 10: the two proof fields mark "required" the same way.
+  it.each(table)("%s marks the password and the code required alike", async (_, { open }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await open();
+
+    const mark = (field: HTMLElement) => (field as HTMLInputElement).labels![0]!.textContent!.trimEnd().endsWith("*");
+    expect(mark(passwordField())).toBe(true);
+    expect(mark(codeField())).toBe(true);
+  });
+
+  // Maintainer, 2026-11-03: the full label does not fit these dialogs at 390px.
+  it.each(table)("%s labels the code field with the dialogs' shorter label", async (_, { open }) => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await open();
+
+    const label = (codeField() as HTMLInputElement).labels![0]!.textContent!.replace(/[\s*\u2009]+$/, "");
+    expect(label).toBe(i18n.t("users:stepUpCodeFieldLabel"));
+  });
+
+  // The flock buttons are not the form's submit, so `required` cannot hold them.
+  it("keeps the flock buttons off until the code is typed too", async () => {
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await act(async () => { inspector(/worker@farm.test/, "flocks"); });
+    await screen.findByRole("listitem");
+    await pickFlock("Coop B");
+
+    fill(/Your current password/, OWNER_STEP_UP_PASSWORD);
+    expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
+    expect(within(dialog()).getByRole("button", { name: "remove" })).toBeDisabled();
+
+    fill(/Authenticator or recovery code/, "   ");
+    expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeDisabled();
+
+    fill(/Authenticator or recovery code/, freshCode());
+    expect(within(dialog()).getByRole("button", { name: "Assign flock" })).toBeEnabled();
+    expect(within(dialog()).getByRole("button", { name: "remove" })).toBeEnabled();
+  });
+
+  // Maintainer, 2026-11-02: the login step's clock hint at step-up too.
+  it("adds the clock hint after a wrong authenticator code, and not after a recovery code", async () => {
+    mockStepUp
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode: true }))
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+    await renderReady({ ...ADMIN, two_factor: "true" });
+    await caller("useSetPassword.onSetPassword").open();
+
+    proveEnrolled(freshCode());
+    await press("Set password");
+    expect(await within(dialog()).findByText(`${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
+
+    fill(/New password/, newPassword);
+    fill(/Confirm new password/, newPassword);
+    proveEnrolled(crypto.randomUUID());
+    await press("Set password");
+    expect(await within(dialog()).findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
+    expect(within(dialog()).queryByText(i18n.t("auth:secondFactorClockHint"), { exact: false })).not.toBeInTheDocument();
+  });
+
+  it("shows the server's wait when the daily code budget is spent", async () => {
+    mockStepUp.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: 3 * 3600 }));
+    await renderReady({ ...ADMIN, two_factor: "true" });
+
+    await caller("useSetPassword.onSetPassword").open();
+    proveEnrolled(freshCode());
+    await press("Set password");
+
+    expect(await within(dialog()).findByText(i18n.t("auth:secondFactorThrottledHours", { count: 3 }))).toBeInTheDocument();
+    expect(codeField()).toHaveValue("");
+  });
+
+  // 407 "walk everything": the production stepUp() call sites and the callers
+  // above, plus /connect's (ConnectPage.test.tsx), must be the same set, so a
+  // new caller and a stale row both fail. test/stepUpCallers.test.ts pins the
+  // walk itself, its floor and that no two sites share a name.
+  it("covers exactly the SPA's stepUp() call sites", () => {
+    const covered = new Set([...callers.map((c) => c.site), "ConnectPage.allow"]);
+    const found = new Set(productionStepUpCallSites());
+
+    expect([...found].filter((site) => !covered.has(site))).toEqual([]);
+    expect([...covered].filter((site) => !found.has(site))).toEqual([]);
+  });
 });

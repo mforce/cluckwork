@@ -5,7 +5,7 @@ import {
   setOnTokensChanged, setOnUnauthenticated,
 } from "../api/client";
 import type { LoginOutcome } from "../api/client";
-import { currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
+import { currentUserHasTwoFactor, currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { bindFarm, clearAccessToken, getAccessToken, getBoundAccountId, purgeLegacyTokens } from "./tokenStore";
 import { clearSplashSeenMarker } from "../session/SessionContext";
@@ -33,6 +33,8 @@ interface AuthState {
   // reads this to show the set-password screen instead of the app shell; the
   // API's MustChangePasswordMiddleware is the actual enforcement.
   mustChangePassword: boolean;
+  // #1279 — two-factor authentication is on, so step-up asks for a code too.
+  twoFactor: boolean;
   unauthenticatedReason: string | null;
   // #1274 — an enrolled user's correct password returns the code step; the
   // tab binds its farm only once a session exists.
@@ -52,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>(currentUserRole);
   const [userId, setUserId] = useState<string | null>(currentUserId);
   const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
+  const [twoFactor, setTwoFactor] = useState(currentUserHasTwoFactor);
   const [unauthenticatedReason, setUnauthenticatedReason] = useState<string | null>(null);
 
   // One place that re-derives every claim-decoded field from the current
@@ -63,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(currentUserIsAdmin());
     setRole(currentUserRole());
     setMustChangePassword(currentUserMustChangePassword());
+    setTwoFactor(currentUserHasTwoFactor());
     setUserId(currentUserId());
   }, []);
 
@@ -176,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAdmin(false);
     setRole("Worker");
     setMustChangePassword(false);
+    setTwoFactor(false);
     setUserId(null);
     setUnauthenticatedReason(null);
     // #586 — attribution is gone, so the palette becomes what the DEVICE can
@@ -186,10 +191,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login,
+      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, unauthenticatedReason, login,
       completeSecondFactor, logout,
     }),
-    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, unauthenticatedReason, login,
+    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, unauthenticatedReason, login,
       completeSecondFactor, logout],
   );
 

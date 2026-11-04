@@ -1,7 +1,8 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { changeUserEmail, listUsers } from "../../api/cluckwork";
 import type { User } from "../../api/cluckwork";
-import { ApiError, stepUp } from "../../api/client";
+import { ApiError, stepUp, NO_PROOF } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
 import type { DialogAction } from "../../components/useDialogAction";
 import { errText } from "../../lib/errText";
 import i18n from "../../i18n";
@@ -21,8 +22,8 @@ export function useChangeEmail({
   setEmailUser,
   emailValue,
   setEmailValue,
-  emailStepUpPassword,
-  setEmailStepUpPassword,
+  emailStepUpProof,
+  setEmailStepUpProof,
   setEmailFieldError,
 }: {
   dialog: DialogAction<"change-email">;
@@ -35,8 +36,8 @@ export function useChangeEmail({
   setEmailUser: Dispatch<SetStateAction<User | null>>;
   emailValue: string;
   setEmailValue: Dispatch<SetStateAction<string>>;
-  emailStepUpPassword: string;
-  setEmailStepUpPassword: Dispatch<SetStateAction<string>>;
+  emailStepUpProof: StepUpProof;
+  setEmailStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
   setEmailFieldError: Dispatch<SetStateAction<string | null>>;
 }) {
   const { busy, errors, run, openDialog, dismissDialog } = dialog;
@@ -48,7 +49,7 @@ export function useChangeEmail({
     openDialog("change-email");
     setMessage(null);
     setEmailValue(u.email);
-    setEmailStepUpPassword("");
+    setEmailStepUpProof(NO_PROOF);
     setEmailFieldError(null);
     setEmailUser(u);
   }
@@ -56,7 +57,7 @@ export function useChangeEmail({
   function closeEmail() {
     if (emailUser !== null) clearKey(`change-email:${emailUser.id}`);
     setEmailValue("");
-    setEmailStepUpPassword("");
+    setEmailStepUpProof(NO_PROOF);
     setEmailFieldError(null);
     setEmailUser(null);
     dismissDialog("change-email");
@@ -77,9 +78,9 @@ export function useChangeEmail({
       // the key clears and the list refreshes) is this dialog's own and is
       // kept as is (#703 PR 4, owner decision 2026-09-07).
       try {
-        const password = emailStepUpPassword;
-        setEmailStepUpPassword("");
-        const grant = await stepUp(password);
+        const entered = emailStepUpProof;
+        setEmailStepUpProof(NO_PROOF);
+        const grant = await stepUp(entered);
         if (!current()) return;
         const trimmedEmail = emailValue.trim();
         await changeUserEmail(targetId, { email: trimmedEmail }, keyFor(scope), grant.token);

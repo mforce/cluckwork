@@ -92,7 +92,18 @@ export async function login(body: LoginRequest): Promise<LoginOutcome> {
 // same flight: the same cross-tab lock, deadline, generation check and stale
 // cookie revoke.
 export function completeSecondFactor(challenge: string, code: string): Promise<void> {
-  return signIn("/auth/login/second-factor", { challenge, code });
+  return noteCode(signIn("/auth/login/second-factor", { challenge, code }), code);
+}
+
+// #1279 — marks a refusal with the kind of code it answered, so every
+// surface words a wrong authenticator code the same way.
+async function noteCode<T>(request: Promise<T>, code: string | undefined): Promise<T> {
+  try {
+    return await request;
+  } catch (err) {
+    if (err instanceof ApiError) err.sentAuthenticatorCode = isAuthenticatorCode(code ?? "");
+    throw err;
+  }
 }
 
 function signIn(path: string, body: unknown): Promise<void> {
@@ -214,6 +225,24 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
   onTokensChanged?.();
 }
 
+// #1279 — the step-up request body. `code` is the authenticator or recovery
+// code, present only for a user with two-factor authentication on.
+export interface StepUpProof {
+  password: string;
+  code?: string;
+}
+
+export const NO_PROOF: Readonly<StepUpProof> = Object.freeze({ password: "" });
+
+// The clock hint helps only an authenticator code, not a recovery code
+// (maintainer, #1278; at step-up and change-password too, 2026-11-02).
+const isAuthenticatorCode = (typed: string) => /^\d{6}$/.test(typed.replace(/ /g, ""));
+
+// A code of only spaces is no code: the server would answer it with
+// Auth.SecondFactorRequired, uncharged.
+const withCode = <T extends object>(body: T, code: string | undefined): T & { code?: string } =>
+  code?.trim() ? { ...body, code } : body;
+
 // #165 — self-service password change. The server revokes every session for the
 // user (other devices are signed out) and hands this one a fresh pair, so we
 // swap in the returned access token; the rotated refresh cookie is set by the
@@ -225,9 +254,12 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
 // rotated Set-Cookie — leaving the client holding a revoked refresh cookie
 // (#165 review). Replay protection isn't needed anyway: a repeat can't re-apply,
 // because the current password no longer matches.
+//
+// #1279 — an enrolled user also sends a code, with step-up's answers.
 export async function changePassword(
-  body: { currentPassword: string; newPassword: string },
+  { code, ...passwords }: { currentPassword: string; newPassword: string; code?: string },
 ): Promise<void> {
+  const body = withCode(passwords, code);
   // #310 — this is a token-store writer like login/refresh, so it needs the
   // same generation guard: logout is reachable from every screen (AppLayout's
   // persistent button), so a user who submits a password change and logs out
@@ -240,7 +272,7 @@ export async function changePassword(
   // E+1 cookie this request just issued. Passing the held lock context lets
   // apiFetch do its normal 401 refresh-and-retry inside this lock without
   // trying to acquire the non-reentrant Web Lock a second time.
-  const res = await withAuthCookieLock((signal) => {
+  const res = await noteCode(withAuthCookieLock((signal) => {
     // The operation may have waited behind another tab's refresh. Logout or a
     // newer login that happened while queued wins before this request sends a
     // byte; never let the stale password form act on the superseding session.
@@ -255,7 +287,7 @@ export async function changePassword(
       },
       { generation, signal },
     );
-  });
+  }), code);
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {
@@ -292,8 +324,13 @@ export async function changePassword(
 // password, one typed password would be replayed as two failed accesses —
 // halving the server's five-attempt account lockout and rotating the refresh
 // token per attempt. The contract is pinned by a test in client.test.ts.
-export async function stepUp(password: string): Promise<{ token: string; expiresAt: string }> {
-  return apiPost<{ token: string; expiresAt: string }>("/auth/step-up", { password });
+//
+// #1279 — an enrolled user proves the password AND a code (#1274 decision 11).
+// A wrong code is 400 Auth.SecondFactorIncorrect, never 401, for the same
+// reason. An empty code is not sent, so an unenrolled user's body is unchanged.
+export async function stepUp(proof: StepUpProof): Promise<{ token: string; expiresAt: string }> {
+  const body = withCode({ password: proof.password }, proof.code);
+  return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
 export async function logout(): Promise<void> {
