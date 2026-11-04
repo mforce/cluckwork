@@ -1758,6 +1758,8 @@ export const es = {
       "Su aplicación de autenticación y sus códigos de recuperación dejan de funcionar, y se cierra su "
       + "sesión en todos los dispositivos y apps conectadas. En su próximo inicio de sesión usará solo "
       + "su contraseña y podrá volver a configurar la autenticación en dos pasos.",
+    confirmItsYouHeading: "Confirma que eres tú",
+    signedInAsCaption: "Sesión iniciada como {{email}}",
     stepUpResetTwoFactorHint: "Restablecer la autenticación en dos pasos requiere volver a ingresar tu contraseña actual.",
     twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
     resetTwoFactorNotFoundError: "No se encontró este usuario. Recarga la página.",

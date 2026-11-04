@@ -3,7 +3,7 @@ import { screen, within, fireEvent, act, waitFor } from "@testing-library/react"
 import { UsersPage } from "./UsersPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { listUsers, resetUserTwoFactor } from "../api/cluckwork";
-import type { User } from "../api/cluckwork";
+import type { Me, User } from "../api/cluckwork";
 import { ApiError, stepUp } from "../api/client";
 import { parseError } from "../api/errors";
 import i18n from "../i18n";
@@ -32,10 +32,13 @@ const PASSWORD = crypto.randomUUID();
 const user = (id: string, email: string, twoFactorEnabled: boolean): User =>
   ({ id, email, displayName: null, role: "Worker", disabledAt: null, twoFactorEnabled });
 // The ADMIN token's sub is "u1", so SELF is the actor's own row.
-const ENROLLED = user("u-e", "enrolled@farm.test", true);
+const ENROLLED = { ...user("u-e", "enrolled@farm.test", true), displayName: "Ben" };
 const UNENROLLED = user("u-n", "plain@farm.test", false);
 const SELF = user("u1", "self@farm.test", true);
 const ADMIN = { sub: "u1", role: "Admin" };
+const OWNER_ME: Me = {
+  id: "u1", email: "owner@farm.test", name: null, role: "Admin", language: null, preferredStepperUnit: null,
+};
 
 const inspector = (email: string) => {
   fireEvent.click(screen.getByRole("row", { name: new RegExp(email) }));
@@ -82,6 +85,25 @@ describe("UsersPage two-factor reset (#1280)", () => {
 
     const confirm = screen.getByRole("dialog", { name: `Reset two-factor — ${ENROLLED.email}` });
     expect(confirm).toHaveAccessibleDescription(i18n.t("users:resetTwoFactorWarningBody"));
+  });
+
+  it("names the target and the signed-in Owner who confirms the reset", async () => {
+    renderWithProviders(<UsersPage />, { token: ADMIN, me: OWNER_ME });
+    await screen.findByText(ENROLLED.email);
+    fireEvent.click(resetAction(ENROLLED.email)!);
+
+    expect(within(dialog()).getByText(`Ben · ${ENROLLED.email}`)).toBeInTheDocument();
+    expect(within(dialog()).getByRole("heading", { name: i18n.t("users:confirmItsYouHeading") })).toBeInTheDocument();
+    expect(within(dialog()).getByText(i18n.t("users:signedInAsCaption", { email: "owner@farm.test" }))).toBeInTheDocument();
+  });
+
+  it("names only the email of a target with no display name", async () => {
+    mockListUsers.mockResolvedValue([{ ...ENROLLED, displayName: null }, UNENROLLED, SELF]);
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+    fireEvent.click(resetAction(ENROLLED.email)!);
+
+    expect(within(dialog()).getByText(ENROLLED.email, { selector: "p" })).toBeInTheDocument();
   });
 
   it("steps up, sends the DELETE with the grant, then refreshes the list", async () => {

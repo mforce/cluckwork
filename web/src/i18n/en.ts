@@ -2307,6 +2307,9 @@ export const en = {
       "Their authenticator app and recovery codes stop working, and they are signed out of every "
       + "device and connected app. At their next sign-in they use their password only, and can set "
       + "up two-factor authentication again.",
+    confirmItsYouHeading: "Confirm it's you",
+    // {{email}} is the signed-in Owner's, DATA.
+    signedInAsCaption: "Signed in as {{email}}",
     stepUpResetTwoFactorHint: "Resetting two-factor authentication needs your current password again.",
     twoFactorResetMessage: "Two-factor authentication was reset for {{email}}.",
     resetTwoFactorNotFoundError: "This user was not found. Reload the page.",

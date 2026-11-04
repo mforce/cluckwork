@@ -1821,6 +1821,8 @@ export const tl = {
       "Hihinto sa paggana ang kanilang authenticator app at mga recovery code, at ma-si-sign out sila "
       + "sa lahat ng device at nakakonektang app. Sa susunod nilang pag-sign in, password lang ang gagamitin "
       + "nila, at puwede nilang i-set up ulit ang two-factor authentication.",
+    confirmItsYouHeading: "Kumpirmahin na ikaw ito",
+    signedInAsCaption: "Naka-sign in bilang {{email}}",
     stepUpResetTwoFactorHint: "Ang pag-reset ng two-factor authentication ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     twoFactorResetMessage: "Na-reset ang two-factor authentication ni {{email}}.",
     resetTwoFactorNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
