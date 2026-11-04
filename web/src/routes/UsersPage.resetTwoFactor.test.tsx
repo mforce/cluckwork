@@ -122,7 +122,8 @@ describe("UsersPage two-factor reset (#1280)", () => {
 
     expect(within(dialog()).getByRole("heading", { name: i18n.t("users:confirmItsYouHeading") })).toBeInTheDocument();
     expect(within(dialog()).getByLabelText(/Your current password/)).toBeInTheDocument();
-    expect(within(dialog()).queryByText(/Signed in as/)).not.toBeInTheDocument();
+    const caption = i18n.t("users:signedInAsCaption", { email: "" }).trim();
+    expect(within(dialog()).queryByText(caption, { exact: false })).not.toBeInTheDocument();
   });
 
   it("lets a long target email wrap inside the dialog", async () => {
