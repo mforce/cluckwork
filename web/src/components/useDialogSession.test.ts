@@ -40,9 +40,10 @@ describe("useDialogSession", () => {
 
   it("treats a never-opened dialog as current", () => {
     // Absent means "no session has ever begun", and the claim of 0 matches it.
-    // A screen that has not adopted `begin` therefore behaves exactly as it did
-    // before this hook existed, rather than silently gating every success off —
-    // which would be a far worse failure than the one the hook fixes.
+    // A screen that has not adopted `begin` therefore behaves as it did before
+    // this hook existed for as long as it is mounted, rather than silently
+    // gating every success off — which would be a far worse failure than the
+    // one the hook fixes. The unmount ends it like any other session.
     const { result } = renderHook(() => useDialogSession());
     const claimed = result.current.claim("never-opened");
 

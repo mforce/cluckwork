@@ -13,7 +13,7 @@ In [useDialogAction](../../web/src/components/useDialogAction.ts), `openDialog`,
 ## Accepted limits
 
 - A mistyped `run` scope without an explicit `dialog` option can fall outside `dialogScopes`. Its errors then route to the page and its `current()` predicate always returns true. If that action was meant to belong to a dialog, the abandoned-success bug can return for it.
-- A declared dialog scope whose session has never begun claims generation zero and remains current until that scope is begun. Typing a name does not ensure the screen calls its session-edge helpers.
+- A declared dialog scope whose session has never begun claims generation zero and remains current until that scope is begun or the screen unmounts. Typing a name does not ensure the screen calls its session-edge helpers.
 - Membership checking cannot detect choosing the wrong valid scope or inconsistent semantic use of a consistently declared name. Widening the scope type to `string`, bypassing it with type assertions, or calling from untyped JavaScript can also bypass this protection.
 
 These limits are accepted. The compiler guard does not make abandoned successes impossible; screens still own correct session-edge calls and the per-statement `current()` checks that protect replacement-dialog state.
