@@ -20,6 +20,7 @@ import {
 } from "../api/cluckwork";
 import type { Flock, FlockAssignment, User } from "../api/cluckwork";
 import { apiGet, ApiError, stepUp } from "../api/client";
+import { parseError } from "../api/errors";
 import { getAccessToken } from "../auth/tokenStore";
 import i18n from "../i18n";
 import { freshCode } from "../test/codes";
@@ -3025,8 +3026,9 @@ describe("UsersPage step-up authentication (#308)", () => {
 
   it("expiry: a grant the server refuses as no-longer-valid keeps the dialog open and creates no user", async () => {
     mockStepUp.mockResolvedValue({ token: "stale-grant", expiresAt: "2026-01-01T00:05:00Z" });
-    mockCreateUser.mockRejectedValue(
-      new ApiError(403, "Identity.StepUpRequired", "Recent re-authentication is required for this action."));
+    mockCreateUser.mockRejectedValue(await parseError(new Response(JSON.stringify({
+      title: "Identity.StepUpRequired", status: 403, detail: "Recent re-authentication is required for this action.",
+    }), { status: 403 })));
     await renderReady(ADMIN);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss4@farm.test" } });
@@ -3036,8 +3038,10 @@ describe("UsersPage step-up authentication (#308)", () => {
 
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
 
-    expect(within(dialog()).getByText(/re-authentication is required/i)).toBeInTheDocument();
+    expect(within(dialog()).getByText(i18n.t("errors:Identity.StepUpRequired"))).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mockCreateUser).toHaveBeenCalledTimes(1);
+    expect(mockListUsers).toHaveBeenCalledTimes(1);
   });
 
   it("requires the step-up field when resetting a non-Owner's password", async () => {
