@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { assignFlock as apiAssignFlock, listFlockAssignments, unassignFlock } from "../../api/cluckwork";
 import type { Flock, FlockAssignment } from "../../api/cluckwork";
-import { stepUp } from "../../api/client";
+import { stepUp, NO_PROOF } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
 import type { PickerSnapshot } from "../../components/NamedEntityPicker";
 import type { DialogAction } from "../../components/useDialogAction";
 import { errText } from "../../lib/errText";
@@ -11,7 +12,7 @@ import { errText } from "../../lib/errText";
 // (#1215): the per-worker open/close edges and the step-up-guarded
 // assign/remove. The flight guard, the message slots and the idempotency
 // keys stay on the page (#703) and are passed in, as do the controlled
-// picker state (the page's load effect seeds it) and the proof password the
+// picker state (the page's load effect seeds it) and the step-up proof the
 // page clears on logout (#308).
 export function useFlockAccess({
   dialog,
@@ -22,8 +23,8 @@ export function useFlockAccess({
   setAssignFlockGen,
   assignFlockSnapshot,
   setAssignPickerOpen,
-  flockStepUpPassword,
-  setFlockStepUpPassword,
+  flockStepUpProof,
+  setFlockStepUpProof,
 }: {
   dialog: DialogAction<"flock-access">;
   keyFor: (scope: string) => string;
@@ -33,8 +34,8 @@ export function useFlockAccess({
   setAssignFlockGen: Dispatch<SetStateAction<number>>;
   assignFlockSnapshot: PickerSnapshot<Flock>;
   setAssignPickerOpen: Dispatch<SetStateAction<boolean>>;
-  flockStepUpPassword: string;
-  setFlockStepUpPassword: Dispatch<SetStateAction<string>>;
+  flockStepUpProof: StepUpProof;
+  setFlockStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { busy, errors, run, startLoad, openDialog, dismissDialog } = dialog;
 
@@ -95,12 +96,12 @@ export function useFlockAccess({
     // this screen (#703).
     openDialog("flock-access");
     setOpenUser(userId);
-    setFlockStepUpPassword(""); // fresh re-entry per open, including same-worker reopen
+    setFlockStepUpProof(NO_PROOF); // fresh re-entry per open, including same-worker reopen
   }
 
   function closeAssignments() {
     setOpenUser(null);
-    setFlockStepUpPassword(""); // #308 — never leave a typed proof password behind
+    setFlockStepUpProof(NO_PROOF); // #308 — never leave a typed proof behind
     // A closed dialog must not keep a picker armed for a write that no dialog
     // can present: the next open issues its own fresh generation (above), but
     // until then the engine would still report canSubmit for whatever the
@@ -126,9 +127,9 @@ export function useFlockAccess({
     await run(scope, async (current) => {
       // #606/#308 — read then clear before awaiting issuance; the grant is
       // spent on this write only, never cached across assign/remove.
-      const enteredPassword = flockStepUpPassword;
-      setFlockStepUpPassword("");
-      const stepUpToken = (await stepUp(enteredPassword)).token;
+      const enteredProof = flockStepUpProof;
+      setFlockStepUpProof(NO_PROOF);
+      const stepUpToken = (await stepUp(enteredProof)).token;
       if (!current()) return;
 
       setFlockWriteInFlight(true);
@@ -151,9 +152,9 @@ export function useFlockAccess({
     // what the admin sees themselves removing.
     const keyScope = `unassign:${a.id}`;
     await run(`unassign:${target}:${a.flockId}`, async (current) => {
-      const enteredPassword = flockStepUpPassword;
-      setFlockStepUpPassword("");
-      const stepUpToken = (await stepUp(enteredPassword)).token;
+      const enteredProof = flockStepUpProof;
+      setFlockStepUpProof(NO_PROOF);
+      const stepUpToken = (await stepUp(enteredProof)).token;
       if (!current()) return;
 
       setFlockWriteInFlight(true);

@@ -127,6 +127,18 @@ export const en = {
     secondFactorExpired: "Your sign-in expired. Sign in again.",
     secondFactorThrottled:
       "Too many wrong authenticator codes for this account. Use a recovery code or try again later.",
+    // #1279 — the server's Retry-After, rounded up.
+    secondFactorThrottledMinutes_one:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} minute.",
+    secondFactorThrottledMinutes_other:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} minutes.",
+    secondFactorThrottledHours_one:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} hour.",
+    secondFactorThrottledHours_other:
+      "Too many wrong authenticator codes for this account. Use a recovery code or try again in {{count}} hours.",
+    // #1279 — step-up and change-password, for a user with two-factor authentication on.
+    secondFactorRequired: "Enter the code from your authenticator app, or a recovery code.",
+    stepUpRetry: "That did not go through. Wait for the next code from your authenticator app and try again.",
     invalidCredentials: "Invalid email or password.",
     credentialsSuperseded: "Your credentials changed. Please sign in again.",
     accountDisabled: "Your account has been disabled.",
@@ -2155,6 +2167,9 @@ export const en = {
     // #308/#360 — step-up re-confirmation for every durable user-access
     // mutation. Shared field label; distinct hints explain each action.
     stepUpFieldLabel: "Your current password *",
+    // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
+    // label does not fit there at 390px. The field adds its own asterisk.
+    stepUpCodeFieldLabel: "Authenticator or recovery code",
     stepUpCreateHint: "Creating any user needs your current password again.",
     stepUpResetHint: "Resetting any user's password needs your current password again.",
     stepUpRoleHint: "Changing any user's role needs your current password again.",
@@ -3258,7 +3273,10 @@ export const en = {
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
       + "changing a login email, disabling a user, re-enabling a user, assigning a worker to a flock, and "
       + "removing a worker's flock assignment. This confirms it's really you before "
-      + "handing out access or cutting someone else's off. Display-name changes do not ask again.",
+      + "handing out access or cutting someone else's off. Display-name changes do not ask again. "
+      + "When two-factor authentication is on for your account, these actions, <strong>Allow</strong> for a "
+      + "connected app and <strong>Change password</strong> also ask for an <strong>Authenticator code or recovery "
+      + "code</strong>. Each code works once, so for a second action straight after, wait for the next code.",
     signingInAppAddress:
       "<strong>Connecting an AI app.</strong> To connect a compatible AI app, add Cluckwork in the app with "
       + "this address: <code>{{address}}</code>. The app opens Cluckwork in your browser; sign in if asked. "
@@ -4160,14 +4178,16 @@ export const en = {
       + "don't want, and allow the rest with your current password; it can never do more than your role. Every "
       + "connection asks for the password, and unticking everything is the same as <strong>Cancel</strong>. When Cluckwork could fetch the app's details from its own website, the "
       + "screen shows <strong>Verified domain</strong> and that website's address; otherwise it says "
-      + "<strong>Unverified app</strong>. Either way the app chose its own name. To give an app new permissions, connect it again and tick them: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong> and cannot be ticked. To take a permission away, disconnect the app, then connect it again.",
+      + "<strong>Unverified app</strong>. Either way the app chose its own name. To give an app new permissions, connect it again and tick them: each new permission is marked <strong>New</strong>, and one your role cannot use is marked <strong>Not allowed for your role</strong> and cannot be ticked. To take a permission away, disconnect the app, then connect it again. "
+      + "With two-factor authentication on, the connection screen also asks for a code from your authenticator app or a recovery code.",
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "
       + "changing any user's role, changing a login email, disabling a user, re-enabling a user, assigning a "
       + "worker to a flock, or removing a worker's flock assignment, the Users "
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
-      + "you before handing out — or taking away — access. Display-name changes do not ask again.",
+      + "you before handing out — or taking away — access. Display-name changes do not ask again. "
+      + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

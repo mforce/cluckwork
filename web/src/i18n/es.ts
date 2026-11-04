@@ -88,6 +88,16 @@ export const es = {
     secondFactorExpired: "Su inicio de sesión caducó. Inicie sesión de nuevo.",
     secondFactorThrottled:
       "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo más tarde.",
+    secondFactorThrottledMinutes_one:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} minuto.",
+    secondFactorThrottledMinutes_other:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} minutos.",
+    secondFactorThrottledHours_one:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} hora.",
+    secondFactorThrottledHours_other:
+      "Demasiados códigos de autenticación incorrectos para esta cuenta. Use un código de recuperación o inténtelo de nuevo en {{count}} horas.",
+    secondFactorRequired: "Ingrese el código de su aplicación de autenticación o un código de recuperación.",
+    stepUpRetry: "No se completó. Espere el siguiente código de su aplicación de autenticación e inténtelo de nuevo.",
     invalidCredentials: "Correo electrónico o contraseña inválidos.",
     credentialsSuperseded: "Sus credenciales cambiaron. Inicie sesión de nuevo.",
     accountDisabled: "Su cuenta ha sido deshabilitada.",
@@ -1637,6 +1647,9 @@ export const es = {
 
     // #308/#360 — re-confirmación de contraseña (machine-drafted, pending native review)
     stepUpFieldLabel: "Tu contraseña actual *",
+    // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
+    // label does not fit there at 390px. The field adds its own asterisk.
+    stepUpCodeFieldLabel: "Código de la app o de recuperación",
     stepUpCreateHint: "Crear cualquier usuario requiere volver a ingresar tu contraseña actual.",
     stepUpResetHint: "Restablecer la contraseña de cualquier usuario requiere volver a ingresar tu contraseña actual.",
     stepUpRoleHint: "Cambiar el rol de cualquier usuario requiere volver a ingresar tu contraseña actual.",
@@ -2515,7 +2528,11 @@ export const es = {
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
       + "volver a habilitar un usuario, asignar un trabajador a un lote, y quitarle a un trabajador la asignación "
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
-      + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla.",
+      + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla. "
+      + "Cuando la autenticación en dos pasos está activada en su cuenta, estas acciones, <strong>Permitir</strong> "
+      + "para una aplicación conectada y <strong>Cambiar contraseña</strong> piden también un <strong>Código de "
+      + "autenticación o código de recuperación</strong>. Cada código funciona una vez, así que para una segunda "
+      + "acción justo después, espere el siguiente código.",
     signingInAppAddress:
       "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, agrega "
       + "Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre Cluckwork en "
@@ -3469,7 +3486,8 @@ export const es = {
       + "quieres y permites el resto con tu contraseña actual; nunca puede hacer más que tu rol. Cada conexión pide "
       + "la contraseña, y desmarcarlo todo es lo mismo que <strong>Cancelar</strong>. Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la "
       + "pantalla muestra <strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice "
-      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos a una aplicación, vuelve a conectarla y márcalos: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>, sin casilla. Para quitar un permiso, desconecta la aplicación y vuelve a conectarla.",
+      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos a una aplicación, vuelve a conectarla y márcalos: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>, sin casilla. Para quitar un permiso, desconecta la aplicación y vuelve a conectarla. "
+      + "Con la autenticación en dos pasos activada, la pantalla de conexión también pide un código de tu aplicación de autenticación o un código de recuperación.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
@@ -3477,7 +3495,8 @@ export const es = {
       + "de inicio de sesión, deshabilitar un usuario, volver a habilitarlo, asignar un trabajador a un lote, o "
       + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
-      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla.",
+      + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
+      + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

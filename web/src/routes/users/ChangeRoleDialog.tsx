@@ -1,11 +1,12 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { DialogActions, Stack, TextField } from "@mui/material";
+import type { StepUpProof } from "../../api/client";
 import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpPasswordField } from "../../components/StepUpPasswordField";
+import { StepUpProofFields } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 import { ROLE_VALUES, roleLabel } from "../../i18n/enums";
 
@@ -21,8 +22,8 @@ export function ChangeRoleDialog({
   errors,
   roleValue,
   setRoleValue,
-  roleStepUpPassword,
-  setRoleStepUpPassword,
+  roleStepUpProof,
+  setRoleStepUpProof,
 }: {
   roleUser: User | null;
   closeRole: () => void;
@@ -32,8 +33,8 @@ export function ChangeRoleDialog({
   errors: DialogErrors;
   roleValue: string;
   setRoleValue: Dispatch<SetStateAction<string>>;
-  roleStepUpPassword: string;
-  setRoleStepUpPassword: Dispatch<SetStateAction<string>>;
+  roleStepUpProof: StepUpProof;
+  setRoleStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { t } = useTranslation("users");
   const { t: tc } = useTranslation("common");
@@ -69,10 +70,11 @@ export function ChangeRoleDialog({
           ))}
         </TextField>
         <p className="muted">{t("stepUpRoleHint")}</p>
-        <StepUpPasswordField
+        <StepUpProofFields
           label={t("stepUpFieldLabel")}
-          value={roleStepUpPassword}
-          onChange={setRoleStepUpPassword}
+          codeLabel={t("stepUpCodeFieldLabel")}
+          value={roleStepUpProof}
+          onChange={setRoleStepUpProof}
         />
         <DialogError errors={errors} scope="change-role" />
       </Stack>

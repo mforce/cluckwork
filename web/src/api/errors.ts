@@ -2,16 +2,29 @@ import type { ProblemDetails } from "./types";
 import i18n from "../i18n";
 
 export class ApiError extends Error {
+  // #1274 — the problem body's own members, such as the sign-in challenge.
+  // A credential among them is taken off by its reader at once.
+  extensions: Record<string, unknown>;
+  // #1279 — the Retry-After header in whole seconds; null when it is absent,
+  // a date, zero, too large or not a number.
+  retryAfterSeconds: number | null;
+  // #1279 — the refused request carried a 6-digit authenticator code, which
+  // shows the clock hint; set by the API call that sent it.
+  sentAuthenticatorCode: boolean;
+
   constructor(
     public status: number,
     public title: string,
     message: string,
-    // #1274 — the problem body's own members, such as the sign-in challenge.
-    // A credential among them is taken off by its reader at once.
-    public extensions: Record<string, unknown> = {},
+    { extensions = {}, retryAfterSeconds = null, sentAuthenticatorCode = false }: {
+      extensions?: Record<string, unknown>; retryAfterSeconds?: number | null; sentAuthenticatorCode?: boolean;
+    } = {},
   ) {
     super(message);
     this.name = "ApiError";
+    this.extensions = extensions;
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.sentAuthenticatorCode = sentAuthenticatorCode;
   }
 }
 
@@ -63,5 +76,9 @@ export async function parseError(res: Response): Promise<ApiError> {
   } catch {
     // non-JSON body — keep status text
   }
-  return new ApiError(res.status, title, detail, extensions);
+  // Only the delta-seconds form; an HTTP date or anything else gives no wait.
+  const retryAfter = res.headers.get("Retry-After") ?? "";
+  const seconds = /^\d+$/.test(retryAfter) ? Number(retryAfter) : 0;
+  const retryAfterSeconds = Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
+  return new ApiError(res.status, title, detail, { extensions, retryAfterSeconds });
 }

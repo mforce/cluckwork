@@ -82,3 +82,11 @@ export function currentUserMustChangePassword(): boolean {
   const payload = decodedPayload() as { must_change_password?: string } | null;
   return payload?.must_change_password === "true";
 }
+
+// #1279 — "two_factor" is "true" only for a user with two-factor
+// authentication on (#1274 decision 11). It shows the code field at step-up
+// and change-password; the API asks for the code regardless.
+export function currentUserHasTwoFactor(): boolean {
+  const payload = decodedPayload() as { two_factor?: string } | null;
+  return payload?.two_factor === "true";
+}

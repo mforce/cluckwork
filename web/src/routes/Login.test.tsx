@@ -10,6 +10,7 @@ import { setStoredToken } from "../test/jwt";
 import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount, getBoundFarmCode } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
+import { freshCode } from "../test/codes";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
 // network + AuthProvider's registration hooks.
@@ -890,15 +891,17 @@ describe("Login code step (#1278)", () => {
     expect(await screen.findByText("connect ?client_id=abc&scope=farm%3Aread")).toBeInTheDocument();
   });
 
-  it("adds the clock hint after a wrong six-digit code, and not after a recovery code", async () => {
-    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
+  // completeSecondFactor marks which kind of code was refused (client.test.ts).
+  it("adds the clock hint when the refusal is marked as an authenticator code, and not otherwise", async () => {
+    mockApiCompleteSecondFactor
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work.", { sentAuthenticatorCode: true }))
+      .mockRejectedValueOnce(new ApiError(400, "Auth.SecondFactorIncorrect", "That code did not work."));
     await reachCodeStep();
 
-    await submitCode("123 456");
-    expect(await screen.findByText(
-      `${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
+    await submitCode(freshCode());
+    expect(await screen.findByText(`${i18n.t("auth:secondFactorIncorrect")} ${i18n.t("auth:secondFactorClockHint")}`)).toBeInTheDocument();
 
-    await submitCode("BCDF-GHJK-MNPQ-RTVW");
+    await submitCode(crypto.randomUUID());
     expect(await screen.findByText(i18n.t("auth:secondFactorIncorrect"))).toBeInTheDocument();
   });
 
@@ -919,6 +922,22 @@ describe("Login code step (#1278)", () => {
     await submitCode("123456");
 
     expect(await screen.findByText(i18n.t("auth:secondFactorThrottled"))).toBeInTheDocument();
+  });
+
+  // #1279 S1 — the server's Retry-After, rounded up to whole minutes, and to
+  // whole hours from two hours on.
+  it.each([
+    [59, "secondFactorThrottledMinutes", 1],
+    [119 * 60, "secondFactorThrottledMinutes", 119],
+    [119 * 60 + 1, "secondFactorThrottledHours", 2],
+    [23 * 3600 + 1, "secondFactorThrottledHours", 24],
+  ] as const)("names the wait for a spent daily budget (%i s)", async (seconds, key, count) => {
+    mockApiCompleteSecondFactor.mockRejectedValue(new ApiError(429, "Auth.SecondFactorThrottled", "Too many.", { retryAfterSeconds: seconds }));
+    await reachCodeStep();
+
+    await submitCode(freshCode());
+
+    expect(await screen.findByText(i18n.t(`auth:${key}`, { count }))).toBeInTheDocument();
   });
 
   it("sends a farm suspended between the steps back to the password step", async () => {

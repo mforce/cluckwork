@@ -5,12 +5,13 @@ import { ChevronDown, Plug } from "lucide-react";
 import {
   Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Stack, TextField, Typography,
 } from "@mui/material";
-import { changePassword, ApiError } from "../api/client";
+import { changePassword } from "../api/client";
 import { disconnectMyApp, listMyConnectedApps } from "../api/cluckwork";
 import type { AppConnection } from "../api/cluckwork";
 import { useConnectionFacts, useDisconnect } from "../components/ConnectedApps";
 import { EmptyState } from "../components/EmptyState";
 import { PhoneDetailsField } from "../components/PhoneLedger";
+import { SecondFactorCodeField } from "../components/SecondFactorCodeField";
 import { useAuth } from "../auth/useAuth";
 import { BusyButton } from "../components/BusyButton";
 import { usePendingAction } from "../components/usePendingAction";
@@ -18,11 +19,7 @@ import { LanguageSelector } from "../session/LanguageSelector";
 import { StepperUnitSelector } from "../session/StepperUnitSelector";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 import { roleLabel } from "../i18n/enums";
-
-function errText(err: unknown): string {
-  if (err instanceof ApiError) return err.message;
-  return err instanceof Error ? err.message : String(err);
-}
+import { errText } from "../lib/errText";
 
 const MIN_LENGTH = 12;
 
@@ -31,8 +28,11 @@ const MIN_LENGTH = 12;
 // (the server revokes every refresh token) while keeping this one signed in.
 export function AccountPage() {
   const { t } = useTranslation("account");
-  const { role } = useAuth();
+  const { role, twoFactor } = useAuth();
   const [current, setCurrent] = useState("");
+  // #1279 — an authenticator or recovery code, for a user with two-factor
+  // authentication on. Each one works once, so every attempt clears it.
+  const [code, setCode] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,11 +58,13 @@ export function AccountPage() {
     }
 
     await run("change-password", async () => {
+      const entered = code;
+      setCode("");
       try {
         // No key threaded here: the server exempts this route from the response
         // cache (#165 review), since replaying it would hand back the access token
         // without the rotated refresh cookie.
-        await changePassword({ currentPassword: current, newPassword: next });
+        await changePassword({ currentPassword: current, newPassword: next, ...(twoFactor && { code: entered }) });
         setMessage(t("passwordChangedMessage"));
         setCurrent("");
         setNext("");
@@ -137,6 +139,7 @@ export function AccountPage() {
               onChange={(e) => setConfirm(e.target.value)}
               slotProps={{ htmlInput: { maxLength: 256 } }}
             />
+            {twoFactor && <SecondFactorCodeField value={code} onChange={setCode} />}
             {error && <Alert severity="error">{error}</Alert>}
             {message && <Alert severity="success">{message}</Alert>}
             <Stack direction="row">

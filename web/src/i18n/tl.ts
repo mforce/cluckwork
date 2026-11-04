@@ -94,6 +94,16 @@ export const tl = {
     secondFactorExpired: "Nag-expire ang iyong pag-sign in. Mag-sign in muli.",
     secondFactorThrottled:
       "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit mamaya.",
+    secondFactorThrottledMinutes_one:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} minuto.",
+    secondFactorThrottledMinutes_other:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} minuto.",
+    secondFactorThrottledHours_one:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} oras.",
+    secondFactorThrottledHours_other:
+      "Sobrang dami ng maling authenticator code para sa account na ito. Gumamit ng recovery code o subukan ulit pagkalipas ng {{count}} oras.",
+    secondFactorRequired: "Ilagay ang code mula sa iyong authenticator app, o isang recovery code.",
+    stepUpRetry: "Hindi ito natuloy. Hintayin ang susunod na code mula sa iyong authenticator app at subukan ulit.",
     invalidCredentials: "Mali ang email o password.",
     credentialsSuperseded: "Nagbago ang iyong mga kredensyal. Mag-sign in muli.",
     accountDisabled: "Na-disable ang iyong account.",
@@ -1698,6 +1708,9 @@ export const tl = {
 
     // #308/#360 — muling pagkumpirma ng password (machine-drafted, pending native review)
     stepUpFieldLabel: "Ang kasalukuyan mong password *",
+    // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
+    // label does not fit there at 390px. The field adds its own asterisk.
+    stepUpCodeFieldLabel: "Authenticator o recovery code",
     stepUpCreateHint: "Ang paggawa ng kahit anong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpResetHint: "Ang pag-reset ng password ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     stepUpRoleHint: "Ang pagpapalit ng tungkulin ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
@@ -2607,7 +2620,11 @@ export const tl = {
       + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
       + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-assign ng manggagawa sa "
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
-      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name.",
+      + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name. "
+      + "Kapag naka-on ang two-factor authentication sa iyong account, ang mga aksyong ito, ang <strong>Payagan</strong> "
+      + "para sa isang connected app at ang <strong>Palitan ang password</strong> ay humihingi rin ng <strong>Authenticator "
+      + "code o recovery code</strong>. Isang beses lang gumagana ang bawat code, kaya para sa pangalawang aksyon "
+      + "kaagad pagkatapos, hintayin ang susunod na code.",
     signingInAppAddress:
       "<strong>Pagkonekta ng AI app.</strong> Para ikonekta ang isang compatible na AI app, idagdag ang Cluckwork "
       + "sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app ang Cluckwork sa iyong "
@@ -3600,7 +3617,8 @@ export const tl = {
       + "detalye ng app mula sa sarili nitong website, ipinapakita ng screen ang <strong>Beripikadong domain</strong> "
       + "at ang address ng website na iyon; kung hindi, <strong>Hindi beripikadong app</strong> ang nakasulat. Alinman "
       + "dito, ang app ang pumili ng sarili nitong pangalan. Para bigyan ang app ng mga bagong pahintulot, ikonekta itong muli at lagyan ng tsek ang mga ito: may markang "
-      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong>, na walang checkbox, ang hindi magagamit ng role mo. Para mag-alis ng pahintulot, idiskonekta ang app, saka ikonekta ito ulit.",
+      + "<strong>Bago</strong> ang bawat bagong pahintulot, at <strong>Hindi pinapayagan ng role mo</strong>, na walang checkbox, ang hindi magagamit ng role mo. Para mag-alis ng pahintulot, idiskonekta ang app, saka ikonekta ito ulit. "
+      + "Kapag naka-on ang two-factor authentication, humihingi rin ang screen ng koneksyon ng code mula sa iyong authenticator app o isang recovery code.",
     glossaryStepUpAuthTerm: "Karagdagang pagpapatunay (step-up)",
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
@@ -3608,7 +3626,8 @@ export const tl = {
       + "mag-disable ng user, muling mag-enable ng user, mag-assign ng manggagawa sa isang kawan, o mag-alis ng "
       + "assignment ng manggagawa sa isang kawan, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
-      + "Hindi muling hinihingi ito sa mga pagbabago ng display name.",
+      + "Hindi muling hinihingi ito sa mga pagbabago ng display name. "
+      + "Kapag naka-on ang two-factor authentication, humihingi rin ang dialog ng code mula sa iyong authenticator app o isang recovery code.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "
