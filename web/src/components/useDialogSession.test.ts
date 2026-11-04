@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { useDialogSession } from "./useDialogSession";
@@ -68,10 +69,18 @@ describe("useDialogSession", () => {
 
   it("keeps a claim current through StrictMode's dev remount", () => {
     // StrictMode runs the mount effect, its cleanup, then the effect again; the
-    // second run must undo the first cleanup or no dev write is ever sent.
-    let runs = 0;
-    const { result } = renderHook(() => { runs += 1; return useDialogSession(); }, { reactStrictMode: true });
-    expect(runs).toBe(2); // StrictMode rendered twice, so the remount happened
+    // second run must undo the first cleanup or no dev write is ever sent. Two
+    // renders alone do not prove the replay, so the probe counts the effect.
+    let setups = 0;
+    let cleanups = 0;
+    const { result } = renderHook(() => {
+      useEffect(() => {
+        setups += 1;
+        return () => { cleanups += 1; };
+      }, []);
+      return useDialogSession();
+    }, { reactStrictMode: true });
+    expect({ setups, cleanups }).toEqual({ setups: 2, cleanups: 1 }); // the mount effect was replayed
     act(() => result.current.begin("create-order"));
     const claimed = result.current.claim("create-order");
 
