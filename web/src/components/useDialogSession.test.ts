@@ -65,6 +65,16 @@ describe("useDialogSession", () => {
     expect(result.current.isCurrent("create-order", first)).toBe(false);
   });
 
+  it("keeps a claim current through StrictMode's dev remount", () => {
+    // StrictMode runs the mount effect, its cleanup, then the effect again; the
+    // second run must undo the first cleanup or no dev write is ever sent.
+    const { result } = renderHook(() => useDialogSession(), { reactStrictMode: true });
+    act(() => result.current.begin("create-order"));
+    const claimed = result.current.claim("create-order");
+
+    expect(result.current.isCurrent("create-order", claimed)).toBe(true);
+  });
+
   it("supersedes every claim once the screen unmounts", () => {
     // #1280 review — an Owner who leaves the screen while a step-up grant is
     // being issued has left the dialog too; the write must not follow.
