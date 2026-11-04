@@ -96,13 +96,13 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(inspector(UNENROLLED.email).getByText("Off")).toBeInTheDocument();
   });
 
-  it("says in the confirmation what the reset ends", async () => {
+  it("describes the confirmation by its target, then what the reset ends", async () => {
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
     fireEvent.click(resetAction(ENROLLED.email)!);
 
     const confirm = screen.getByRole("dialog", { name: "Reset two-factor authentication?" });
-    expect(confirm).toHaveAccessibleDescription(i18n.t("users:resetTwoFactorWarningBody"));
+    expect(confirm).toHaveAccessibleDescription(`Ben · ${ENROLLED.email} ${i18n.t("users:resetTwoFactorWarningBody")}`);
   });
 
   it("names the target and the signed-in Owner who confirms the reset", async () => {

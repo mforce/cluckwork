@@ -32,6 +32,7 @@ export function ResetTwoFactorDialog({
   resetStepUpProof: StepUpProof;
   setResetStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
+  const identityId = useId();
   const warningId = useId();
   const { t } = useTranslation("users");
   const { t: tc } = useTranslation("common");
@@ -41,7 +42,7 @@ export function ResetTwoFactorDialog({
       open={resetUser !== null}
       title={t("resetTwoFactorTitle")}
       onClose={closeReset}
-      describedBy={warningId}
+      describedBy={`${identityId} ${warningId}`}
       actions={(
         <DialogActions>
           <button type="button" className="link" onClick={closeReset}>{tc("cancel")}</button>
@@ -54,7 +55,7 @@ export function ResetTwoFactorDialog({
       formProps={{ onSubmit: onReset }}
     >
       <Stack spacing={2}>
-        <Typography sx={{ fontWeight: 600 }}>
+        <Typography id={identityId} sx={{ fontWeight: 600 }}>
           {[resetUser?.displayName, resetUser?.email].filter(Boolean).join(" · ")}
         </Typography>
         <Typography id={warningId} color="text.secondary" sx={{ lineHeight: 1.55 }}>
