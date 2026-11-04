@@ -115,6 +115,16 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(within(dialog()).getByText(i18n.t("users:signedInAsCaption", { email: "owner@farm.test" }))).toBeInTheDocument();
   });
 
+  it("still offers the proof, with no signed-in caption, when /me failed", async () => {
+    renderWithProviders(<UsersPage />, { token: ADMIN, me: null });
+    await screen.findByText(ENROLLED.email);
+    fireEvent.click(resetAction(ENROLLED.email)!);
+
+    expect(within(dialog()).getByRole("heading", { name: i18n.t("users:confirmItsYouHeading") })).toBeInTheDocument();
+    expect(within(dialog()).getByLabelText(/Your current password/)).toBeInTheDocument();
+    expect(within(dialog()).queryByText(/Signed in as/)).not.toBeInTheDocument();
+  });
+
   it("names only the email of a target with no display name", async () => {
     mockListUsers.mockResolvedValue([{ ...ENROLLED, displayName: null }, UNENROLLED, SELF]);
     renderWithProviders(<UsersPage />, { token: ADMIN });
