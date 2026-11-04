@@ -337,7 +337,7 @@ export const en = {
   errors: {
     // #1280 — step-up and Owner refusals shared by the Users routes, and the
     // two-factor reset's own self-target refusal.
-    "Identity.StepUpRequired": "Your confirmation is no longer valid. Enter your current password again, and your code if you use two-factor authentication.",
+    "Identity.StepUpRequired": "Your confirmation is no longer valid. Enter your current password again, and a new code if you use two-factor authentication.",
     "Auth.Forbidden": "You do not have permission to do this.",
     "Users.CannotResetOwnTwoFactor": "You can't reset your own two-factor authentication. Ask another Owner.",
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",

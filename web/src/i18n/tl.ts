@@ -272,7 +272,7 @@ export const tl = {
     farmEmpty: "Wala pang nagkonekta ng app sa bukid na ito.",
   },
   errors: {
-    "Identity.StepUpRequired": "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password, at ang iyong code kung gumagamit ka ng two-factor authentication.",
+    "Identity.StepUpRequired": "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password, at isang bagong code kung gumagamit ka ng two-factor authentication.",
     "Auth.Forbidden": "Wala kang pahintulot na gawin ito.",
     "Users.CannotResetOwnTwoFactor": "Hindi mo puwedeng i-reset ang sarili mong two-factor authentication. Humingi ng tulong sa ibang Owner.",
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",

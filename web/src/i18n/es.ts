@@ -263,7 +263,7 @@ export const es = {
     farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
   },
   errors: {
-    "Identity.StepUpRequired": "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual y, si usas la autenticación en dos pasos, tu código.",
+    "Identity.StepUpRequired": "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual y, si usas la autenticación en dos pasos, un código nuevo.",
     "Auth.Forbidden": "No tienes permiso para hacer esto.",
     "Users.CannotResetOwnTwoFactor": "No puedes restablecer tu propia autenticación en dos pasos. Pide a otro propietario.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
