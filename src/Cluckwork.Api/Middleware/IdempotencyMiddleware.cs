@@ -50,6 +50,10 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         // account rather than by user and replayable by anyone in that account.
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
+        // #1274 "Transactions": a prefix, from #1280's turn-off on. Turn-off
+        // returns a live token pair, and #1277's enrolment routes return a key
+        // and recovery codes; none may land in idempotency_records.
+        "/api/v1/auth/two-factor",
     ];
 
     public async Task InvokeAsync(

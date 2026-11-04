@@ -24,7 +24,8 @@ public sealed class AdminRecoveryService(
     CurrentUserContext currentUser,
     UserManager<ApplicationUser> userManager,
     IIdentityProvider identity,
-    IAccountRepository accounts)
+    IAccountRepository accounts,
+    ITwoFactorCredentials twoFactor)
 {
     public async Task<Result<AdminRecoveryResult>> RecoverAsync(
         string? email, Guid? accountId, string? reason, CancellationToken ct = default)
@@ -147,8 +148,15 @@ public sealed class AdminRecoveryService(
                     + "Re-enable them from the Users screen first, then re-run this command if the password is "
                     + "still unknown."));
 
+            // #1274 decision 16: before anything else is modified, because
+            // ClearAsync reloads the locked row.
+            var cleared = await twoFactor.ClearAsync(target.AccountId, target.Id, token);
+            if (cleared == ClearOutcome.NotFound)
+                return Result.Failure<AdminRecoveryResult>(Error.NotFound("Recovery", normalized));
+
             var password = TemporaryPassword.Generate();
-            var reset = await identity.BreakGlassResetAsync(target.AccountId, target.Id, password, reason, token);
+            var reset = await identity.BreakGlassResetAsync(target.AccountId, target.Id, password, reason,
+                twoFactorCleared: cleared == ClearOutcome.Cleared, mustChangePassword: true, token);
             if (reset.IsFailure)
                 return Result.Failure<AdminRecoveryResult>(reset.Error);
 

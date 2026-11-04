@@ -21,7 +21,7 @@ public sealed partial class IdentityProvider
             return Result.Failure(Error.NotFound("Users", userId));
 
         return await ResetPasswordAndRevokeAsync(
-            user, newPassword, AuditActions.UserPasswordSet, reason: null, details: null, ct);
+            user, newPassword, AuditActions.UserPasswordSet, reason: null, details: null, mustChangePassword: false, ct);
     }
 
     // #356 (codex review of #492 round 2) — the reset paths need their own
@@ -41,7 +41,7 @@ public sealed partial class IdentityProvider
 
     public async Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
-        CancellationToken ct = default)
+        bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default)
     {
         // Same account-scoped lookup as SetUserPasswordAsync — a foreign id
         // resolves to NotFound, never a cross-tenant reset.
@@ -59,12 +59,12 @@ public sealed partial class IdentityProvider
         // SystemActors.BreakGlass before calling in, and IAuditWriter now
         // refuses an event with no actor at all. These details still matter for
         // exactly the reason above: the actor names the COMMAND, not a person.
-        var details = new { host = Environment.MachineName, osUser = Environment.UserName };
+        var details = new { host = Environment.MachineName, osUser = Environment.UserName, twoFactorCleared };
 
         // A DISTINCT audit action + the operator's reason so a break-glass reset
         // stands out from an ordinary Owner-initiated one (#265).
         return await ResetPasswordAndRevokeAsync(
-            user, newPassword, AuditActions.UserBreakGlassReset, reason, details, ct);
+            user, newPassword, AuditActions.UserBreakGlassReset, reason, details, mustChangePassword, ct);
     }
 
     // Shared core (#165 SetUserPassword + #265 break-glass): reset the password
@@ -78,7 +78,7 @@ public sealed partial class IdentityProvider
     // access-token lifetime.
     private Task<Result> ResetPasswordAndRevokeAsync(
         ApplicationUser user, string newPassword, string auditAction, string? reason,
-        object? details, CancellationToken ct)
+        object? details, bool mustChangePassword, CancellationToken ct)
     {
         // #307 — joins IdempotencyMiddleware's ambient request transaction
         // when one is open, instead of nesting a second one.
@@ -114,13 +114,12 @@ public sealed partial class IdentityProvider
                     ? ResetConcurrencyConflict()
                     : Error.Validation("Users.PasswordRejected", Describe(reset)));
 
-            // #283 — any successful password reset clears a pending first-run gate.
-            // Covers an Owner using SetUserPassword or an offline break-glass reset
-            // on a user who never got around to their forced first-run change; the
-            // user obviously already has a working password at that point, so
-            // there is nothing left to force. `user` is the same DbContext-tracked
-            // instance db.SaveChangesAsync persists below — no separate save needed.
-            user.MustChangePassword = false;
+            // #283 — an Owner's reset clears a pending first-run gate: the user
+            // already has a working password, so there is nothing left to force.
+            // #1274 decision 16: recover-admin sets it instead, so the printed
+            // temporary password is used once. `user` is the same tracked
+            // instance db.SaveChangesAsync persists below.
+            user.MustChangePassword = mustChangePassword;
             user.CredentialEpoch++;
 
             // Clear any active lockout / failed-attempt count (#265 review). Without

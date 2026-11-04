@@ -28,6 +28,9 @@ public interface IAccessModule
     Task<Result> EnableUserAsync(
         EnableUserCommand command, Guid accountId, Guid actingUserId, CancellationToken ct);
 
+    Task<Result> ResetUserTwoFactorAsync(
+        ResetUserTwoFactorCommand command, Guid accountId, Guid actingUserId, CancellationToken ct);
+
     Task<IReadOnlyList<UserFlockAssignment>> ListFlockAssignmentsAsync(Guid userId, CancellationToken ct);
 
     Task<Result<Guid>> AssignFlockAsync(
@@ -67,6 +70,11 @@ public interface IAccessModule
     // The account is the endpoint's tenant.
     Task<Result<TokenPair>> ChangeOwnPasswordAsync(
         ChangeOwnPasswordCommand command, Guid accountId, Guid userId, CancellationToken ct);
+
+    // Null when the user was not enrolled, so no session changed.
+    // credentialEpoch is the acting token's claim.
+    Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
 
     // An enrolled user also proves code; anyone else's code is ignored.
     Task<Result<StepUpGrant>> IssueStepUpGrantAsync(

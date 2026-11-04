@@ -165,9 +165,27 @@ public interface IIdentityProvider
     // Invoked only by the offline `recover-admin` CLI command; the caller must
     // have resolved the tenant to accountId first so the audit row can be
     // stamped (IAuditWriter fails closed on an unresolved tenant).
+    // #1274 decision 16: recover-admin clears two-factor first and says so in
+    // the row's twoFactorCleared, and sets MustChangePassword.
     Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
-        CancellationToken ct = default);
+        bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default);
+
+    // #1280 — the caller turns their own two-factor off, after step-up. For an
+    // enrolled user it ends every other session and connected app, writes
+    // User.TwoFactorDisabled and returns the acting session's fresh pair; for
+    // anyone else it ends a started enrolment, if any, and returns null.
+    // credentialEpoch is the acting token's: a session superseded or disabled
+    // since it authenticated gets Auth.CredentialsSuperseded and changes nothing.
+    Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);
+
+    // #1280 — an Owner resets another user's two-factor, account-scoped
+    // (foreign id -> NotFound), with the actor re-checked inside the account
+    // lock as DisableUserAsync does. An enrolled target's sessions and
+    // connected apps end; an ended enrolment alone is audited with pending.
+    Task<Result> ResetUserTwoFactorAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
 
     // #165 — self-service change, proving the current password. Revokes every
     // refresh token for the user and returns a FRESH pair, so other devices are
