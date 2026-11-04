@@ -12,6 +12,7 @@ import i18n from "../i18n";
 // SPA part). The step-up proof cases shared by every Users dialog run for this
 // one too, in UsersPage.test.tsx's #1279 caller table.
 
+// Only the reset's paths run here; the other exports the page imports stay stubs.
 vi.mock("../api/cluckwork", () => ({
   listUsers: vi.fn(),
   resetUserTwoFactor: vi.fn(),
