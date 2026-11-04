@@ -239,6 +239,16 @@ export function UsersPage() {
   const selectedUser = users.find((u) => u.id === selectedId) ?? null;
 
   function renderActions(u: User, location: "row" | "inspector") {
+    const reset = u.twoFactorEnabled && (
+      <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openReset(u)}>
+        <ShieldOff size={14} aria-hidden /> {t("resetTwoFactorButton")}
+      </BusyButton>
+    );
+    const disableAction = !u.disabledAt && (
+      <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
+        <Ban size={14} aria-hidden /> {t("disableButton")}
+      </BusyButton>
+    );
     return {
       primary: <button className="link" onClick={() => openEdit(u)}>
         <Pencil size={14} aria-hidden /> {t("editButton")}
@@ -265,18 +275,7 @@ export function UsersPage() {
           )}
         </>}
       </>,
-      destructive: location === "inspector" && myId !== u.id && (u.twoFactorEnabled || !u.disabledAt) && <>
-        {u.twoFactorEnabled && (
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openReset(u)}>
-            <ShieldOff size={14} aria-hidden /> {t("resetTwoFactorButton")}
-          </BusyButton>
-        )}
-        {!u.disabledAt && (
-          <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
-            <Ban size={14} aria-hidden /> {t("disableButton")}
-          </BusyButton>
-        )}
-      </>,
+      destructive: location === "inspector" && myId !== u.id && (reset || disableAction) && <>{reset}{disableAction}</>,
     };
   }
 

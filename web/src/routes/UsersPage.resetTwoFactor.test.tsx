@@ -75,6 +75,18 @@ describe("UsersPage two-factor reset (#1280)", () => {
     expect(resetAction(SELF.email)).not.toBeInTheDocument();
   });
 
+  it("offers the reset and enable, but not disable, for a disabled user with two-factor on", async () => {
+    const disabled = { ...user("u-d", "disabled@farm.test", true), disabledAt: "2026-08-01T00:00:00Z" };
+    mockListUsers.mockResolvedValue([ENROLLED, disabled, SELF]);
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(disabled.email);
+
+    const actions = inspector(disabled.email);
+    expect(actions.getByRole("button", { name: "reset two-factor" })).toBeInTheDocument();
+    expect(actions.getByRole("button", { name: "enable" })).toBeInTheDocument();
+    expect(actions.queryByRole("button", { name: "disable" })).not.toBeInTheDocument();
+  });
+
   it("shows whether two-factor is on in the inspector", async () => {
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
