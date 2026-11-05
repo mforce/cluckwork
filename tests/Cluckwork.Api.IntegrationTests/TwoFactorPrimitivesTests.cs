@@ -73,7 +73,11 @@ public sealed class TwoFactorPrimitivesTests
     }
 
     // G3.29: a record prints its members, so every type that can hold a code, a
-    // challenge, a key or a stamp hash overrides ToString.
+    // challenge, a key or a stamp hash overrides ToString. The two closed
+    // hierarchies are walked; the rest is a list, because nothing a type
+    // declares marks it as a credential carrier: the member names (Key, Code,
+    // Value, Token) also name non-secrets, and TokenPair, AccessTokenResponse
+    // and StepUpResponse carry live tokens and print them by design today.
     [Fact]
     public void EveryCredentialCarryingType_PrintsOnlyRedacted()
     {
@@ -85,11 +89,16 @@ public sealed class TwoFactorPrimitivesTests
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.SecondFactorLoginRequest))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.LoginRequest))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.ChangeOwnPasswordRequest))
+            .Append(typeof(EnrolmentConfirmation))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentStartResponse))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.ConfirmEnrolmentRequest))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentConfirmedResponse))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.RecoveryCodesResponse))
             .Append(typeof(TwoFactorCredentials).GetNestedType("PendingPayload", System.Reflection.BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("TwoFactorCredentials.PendingPayload is gone; update this walk"))
             .ToList();
 
-        Assert.True(types.Count >= 10, $"the walk found {types.Count} types, below its floor of 10");
+        Assert.True(types.Count >= 15, $"the walk found {types.Count} types, below its floor of 15");
         foreach (var type in types)
             Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
     }
