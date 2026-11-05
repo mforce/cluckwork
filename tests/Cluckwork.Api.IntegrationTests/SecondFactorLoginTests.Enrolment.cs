@@ -280,46 +280,60 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(0, await PendingRowsAsync(accountId, userId));
     }
 
-    // A replacement and a regenerate each spend a grant that proved a code, so
-    // a missing or bad grant changes nothing.
-    [Theory]
-    [InlineData(StartPath, null)]
-    [InlineData(StartPath, "not-a-grant")]
-    [InlineData(RecoveryCodesPath, null)]
-    [InlineData(RecoveryCodesPath, "not-a-grant")]
-    public async Task AnEnrolledUsersStartOrRegenerate_WithoutAValidGrant_Is403_AndChangesNothing(string path, string? grant)
+    // The credentials a caller could send in the step-up header that are not
+    // the caller's own grant: none, a malformed one, the session's access and
+    // refresh tokens, and a valid grant of another user in the same farm and in
+    // another farm. Each is refused before any work.
+    public static TheoryData<string, string> WrongGrants()
     {
-        var (_, factor, client) = await SignedInEnrolledAsync();
-        var before = await TwoFactorRowsAsync(factor.AccountId, factor.UserId);
-
-        var response = grant is null
-            ? await client.PostWithKeyAsync(path, Guid.NewGuid().ToString())
-            : await PostWithGrantAsync(client, path, grant);
-
-        Assert.Equal((HttpStatusCode.Forbidden, StepUpErrorCodes.Required), await TitleOf(response));
-        Assert.Equal(before.Order(), (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Order());
-        Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
+        string[] paths = [StartPath, RecoveryCodesPath, TwoFactorPath];
+        string[] grants = ["missing", "malformed", "access token", "refresh token", "same-farm grant", "other-farm grant"];
+        var data = new TheoryData<string, string>();
+        foreach (var path in paths)
+            foreach (var grant in grants)
+                data.Add(path, grant);
+        return data;
     }
 
-    // The session's own access token is not a step-up grant: the grant has its
-    // own audience, so sending the bearer in the step-up header proves nothing.
+    // A start, a regenerate and a turn-off spend a grant that proved the
+    // caller's own password and code, so any other credential changes nothing.
     [Theory]
-    [InlineData(StartPath)]
-    [InlineData(RecoveryCodesPath)]
-    [InlineData(TwoFactorPath)]
-    public async Task TheAccessToken_SentAsTheStepUpGrant_Is403_AndChangesNothing(string path)
+    [MemberData(nameof(WrongGrants))]
+    public async Task AStartRegenerateOrTurnOff_WithAnythingButTheCallersGrant_Is403_AndChangesNothing(string path, string grant)
     {
-        var (_, factor, client) = await SignedInEnrolledAsync();
+        var (email, factor) = await SeedEnrolledAsync();
+        var session = await factory.LoginAsync(email);
+        var client = factory.CreateAuthedClient(session.AccessToken);
+        var header = grant switch
+        {
+            "missing" => null,
+            "malformed" => Guid.NewGuid().ToString("N"),
+            "access token" => session.AccessToken,
+            "refresh token" => session.RefreshTokenForDirectCall,
+            _ => await DonorGrantAsync(factor.AccountId, sameFarm: grant == "same-farm grant"),
+        };
         var before = await TwoFactorRowsAsync(factor.AccountId, factor.UserId);
-        var accessToken = client.DefaultRequestHeaders.Authorization!.Parameter!;
 
-        var response = path == TwoFactorPath
-            ? await DeleteWithGrantAsync(client, path, accessToken)
-            : await PostWithGrantAsync(client, path, accessToken);
+        using var request = new HttpRequestMessage(path == TwoFactorPath ? HttpMethod.Delete : HttpMethod.Post, path);
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        if (header is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, header);
+        var response = await client.SendAsync(request);
 
         Assert.Equal((HttpStatusCode.Forbidden, StepUpErrorCodes.Required), await TitleOf(response));
         Assert.Equal(before.Order(), (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Order());
         Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
+        Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
+        Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+    }
+
+    // A valid, unspent grant of an unenrolled user in the given farm or a new one.
+    private async Task<string> DonorGrantAsync(Guid accountId, bool sameFarm)
+    {
+        var email = $"tf-donor-{Guid.NewGuid():N}@test.local";
+        if (sameFarm) await factory.SeedUserAsync(accountId, email, asAdmin: false);
+        else await factory.SeedAccountWithUserAsync(email);
+        var donor = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        return (await GrantOf(await StepUpAsync(donor, TestHarness.Password)))!;
     }
 
     // A grant made with the password alone, before the user enrolled, died

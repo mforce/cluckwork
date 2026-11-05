@@ -138,17 +138,6 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, session.RefreshToken)).StatusCode);
     }
 
-    [Fact]
-    public async Task TurningTwoFactorOff_WithoutAGrant_Is403_AndChangesNothing()
-    {
-        var (_, factor, client) = await SignedInEnrolledAsync();
-
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, "not-a-grant");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Equal(1 + factor.RecoveryCodes.Count, (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Count);
-    }
-
     // The turn-off spends its grant before it takes the user-row lock; a
     // change that lands in between leaves the asking session stale.
     private async Task AssertStaleTurnOffRefusedAsync(HttpResponseMessage response, EnrolledFactor factor)
