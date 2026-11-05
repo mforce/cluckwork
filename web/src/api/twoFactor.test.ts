@@ -164,7 +164,10 @@ describe("a stale session's 401 Auth.CredentialsSuperseded", () => {
     await expect(getTwoFactorStatus()).resolves.toEqual({ enabled: true, recoveryCodesLeft: 10 });
     expect(to("/auth/refresh")).toHaveLength(1);
   });
+});
 
+// A plain 401 is an expired token: the write is refreshed and resent once.
+describe("an expired token's plain 401", () => {
   it("surfaces confirm's wrong code after a refresh, and keeps the session", async () => {
     const refreshed = token("acct-G");
     fetchMock

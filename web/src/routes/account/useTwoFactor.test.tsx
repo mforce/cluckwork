@@ -18,10 +18,13 @@ vi.mock("../../api/client", async (original) => ({
   ...await original<typeof import("../../api/client")>(), stepUp: vi.fn(),
 }));
 
+let code: string;
+
 beforeEach(() => {
+  code = crypto.randomUUID();
   auth.isAuthenticated = true;
   vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
-  vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: [crypto.randomUUID()] });
+  vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: [code] });
   vi.mocked(stepUp).mockResolvedValue({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
 });
 
@@ -32,6 +35,7 @@ async function onCodesStep() {
   act(() => hook.result.current.setProof({ password: crypto.randomUUID() }));
   await act(async () => { await hook.result.current.onProof({ preventDefault() {} } as FormEvent); });
   expect(hook.result.current.flow.step).toBe("codes");
+  expect(JSON.stringify(hook.result.current)).toContain(code);
   return hook;
 }
 
@@ -42,6 +46,7 @@ describe("the recovery codes' lifetime", () => {
     act(() => result.current.leaveFlow());
 
     expect(result.current.flow).toEqual({ step: "summary" });
+    expect(JSON.stringify(result.current)).not.toContain(code);
   });
 
   it("ends when the session does", async () => {
@@ -51,5 +56,6 @@ describe("the recovery codes' lifetime", () => {
     rerender();
 
     expect(result.current.flow).toEqual({ step: "summary" });
+    expect(JSON.stringify(result.current)).not.toContain(code);
   });
 });
