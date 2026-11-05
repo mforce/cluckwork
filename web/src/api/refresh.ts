@@ -325,6 +325,14 @@ export async function apiGetBlob(
   }
 }
 
+// #1277 — a two-factor write that answers 401 Auth.CredentialsSuperseded found
+// the session stale under the user-row lock, after it may have spent its
+// step-up grant. Resending it on a refreshed session would act on a security
+// state the user never confirmed, so the refusal goes back to the dialog.
+const isUnresendable = (path: string, init: RequestInit, err: ApiError) =>
+  path.startsWith("/auth/two-factor") && (init.method ?? "GET") !== "GET"
+  && err.title === "Auth.CredentialsSuperseded";
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -339,7 +347,7 @@ export async function apiFetch<T>(
   try {
     return await raw<T>(path, init, token);
   } catch (err) {
-    if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    if (!(err instanceof ApiError) || err.status !== 401 || isUnresendable(path, init, err)) throw err;
     // A held context identifies the non-replayable password form. Generic API
     // requests may continue on a newer login after supersession; this one must
     // not refresh that newer cookie or resend the old password body against it.

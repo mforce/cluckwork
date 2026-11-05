@@ -15,6 +15,13 @@ export const CSRF_HEADER = "X-Cluckwork-Auth";
 // session, see executeRefresh).
 export const ACCOUNT_HEADER = "X-Cluckwork-Account";
 
+// #308/#360/#606 — carries a short-lived step-up grant (see stepUp() in
+// ./session) on the user-administration calls that require recent proof (every user
+// creation, every administrative password reset, every role change,
+// login-email change, disable/re-enable, and every flock assign/unassign).
+// Mirrors AuthEndpoints.StepUpHeaderName.
+export const STEP_UP_HEADER = "X-Cluckwork-Step-Up";
+
 export async function raw<T>(
   path: string,
   init: RequestInit,

@@ -8,7 +8,7 @@ import { clearAccessToken, getAccessToken, setAccessToken, bindAccount, clearBou
 import { accountIdFromToken } from "../auth/claims";
 import { newId } from "../lib/ids";
 import type { AccessTokenResponse, LoginRequest } from "./types";
-import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
+import { raw, CSRF_HEADER, ACCOUNT_HEADER, STEP_UP_HEADER } from "./request";
 import { ApiError } from "./errors";
 import { StaleSessionError, revokeSupersededCookie, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS, abortInFlightAuthCookieOperation } from "./authCookieLock";
@@ -259,35 +259,55 @@ const withCode = <T extends object>(body: T, code: string | undefined): T & { co
 export async function changePassword(
   { code, ...passwords }: { currentPassword: string; newPassword: string; code?: string },
 ): Promise<void> {
-  const body = withCode(passwords, code);
+  await noteCode(adoptingWrite<AccessTokenResponse>("/auth/change-password", {
+    method: "POST",
+    headers: { "Idempotency-Key": newId() },
+    body: JSON.stringify(withCode(passwords, code)),
+  }), code);
+}
+
+// #1277 — confirming an enrolment ends every other session and hands this one
+// a fresh pair, as change-password does. A first enrolment's answer also holds
+// the recovery codes, which the caller shows once and keeps nowhere else.
+export function confirmTwoFactor(code: string, idempotencyKey: string): Promise<{ recoveryCodes?: string[] }> {
+  return adoptingWrite<AccessTokenResponse & { recoveryCodes?: string[] }>("/auth/two-factor/confirm", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify({ code }),
+  }).then((res) => ({ recoveryCodes: res?.recoveryCodes }));
+}
+
+// #1280 — 200 with a fresh pair when two-factor was on, 204 when it was not.
+export async function turnOffTwoFactor(idempotencyKey: string, stepUpToken: string): Promise<void> {
+  await adoptingWrite<AccessTokenResponse>("/auth/two-factor", {
+    method: "DELETE",
+    headers: { "Idempotency-Key": idempotencyKey, [STEP_UP_HEADER]: stepUpToken },
+  });
+}
+
+// A write whose answer rotates this farm's refresh cookie and hands this tab a
+// fresh pair; undefined for a 204, which rotates nothing.
+async function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit): Promise<T | undefined> {
   // #310 — this is a token-store writer like login/refresh, so it needs the
   // same generation guard: logout is reachable from every screen (AppLayout's
-  // persistent button), so a user who submits a password change and logs out
-  // before it lands would otherwise have the response write a fresh token back
-  // over the cleared session.
+  // persistent button), so a user who submits and logs out before the answer
+  // lands would otherwise have the response write a fresh token back over the
+  // cleared session.
   const generation = sessionGeneration;
-  // Refresh and password-change both replace this farm's HttpOnly cookie.
-  // Keep the password change inside the same cross-tab lock as refresh,
-  // or an already-started old-epoch refresh can answer last and overwrite the
-  // E+1 cookie this request just issued. Passing the held lock context lets
-  // apiFetch do its normal 401 refresh-and-retry inside this lock without
-  // trying to acquire the non-reentrant Web Lock a second time.
-  const res = await noteCode(withAuthCookieLock((signal) => {
+  // Refresh and these writes all replace this farm's HttpOnly cookie. Keep the
+  // write inside the same cross-tab lock as refresh, or an already-started
+  // old-epoch refresh can answer last and overwrite the E+1 cookie this request
+  // just issued. Passing the held lock context lets apiFetch do its normal 401
+  // refresh-and-retry inside this lock without trying to acquire the
+  // non-reentrant Web Lock a second time.
+  const res = await withAuthCookieLock((signal) => {
     // The operation may have waited behind another tab's refresh. Logout or a
     // newer login that happened while queued wins before this request sends a
-    // byte; never let the stale password form act on the superseding session.
+    // byte; never let the stale form act on the superseding session.
     if (sessionGeneration !== generation) throw new StaleSessionError();
-    return apiFetch<AccessTokenResponse>(
-      "/auth/change-password",
-      {
-        method: "POST",
-        headers: { "Idempotency-Key": newId() },
-        body: JSON.stringify(body),
-        signal,
-      },
-      { generation, signal },
-    );
-  }), code);
+    return apiFetch<T | undefined>(path, { ...init, signal }, { generation, signal });
+  });
+  if (res === undefined) return undefined;
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {
@@ -295,13 +315,14 @@ export async function changePassword(
     throw new StaleSessionError();
   }
   setAccessToken(res.accessToken);
-  // #532 — changePassword adopts a token (the server hands this device a fresh
+  // #532 — the write adopts a token (the server hands this device a fresh
   // pair after revoking every other session), so like login it must bind the
   // tab to its farm. Without this, the tab's next refresh would omit
   // X-Cluckwork-Account and fall into the bootstrap path instead of naming
   // the farm it just authenticated.
   bindAccount(accountIdFromToken(res.accessToken));
   onTokensChanged?.();
+  return res;
 }
 
 // #308/#360/#606 — re-confirms the CURRENT password to mint a short-lived
