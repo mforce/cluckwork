@@ -76,7 +76,7 @@ function Row({ children, action }: { children: ReactNode; action?: ReactNode }) 
       display: "flex", flexWrap: { xs: "wrap", md: "nowrap" }, alignItems: { md: "center" }, gap: 2,
       py: 1.5, borderTop: "1px solid var(--rule)",
     }}>
-      <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>{children}</Stack>
+      <Stack spacing={0.5} sx={{ flex: "1 1 14rem", minWidth: 0 }}>{children}</Stack>
       {action && <Box sx={{ flexShrink: 0 }}>{action}</Box>}
     </Box>
   );
