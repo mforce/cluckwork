@@ -311,6 +311,44 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(0, await PendingRowsAsync(accountId, userId));
     }
 
+    // G3.23 over HTTP: two confirms of one payload, the second sent while the
+    // first waits at the user-row lock, give one enrolment and one set of codes.
+    [Fact]
+    public async Task TwoConcurrentConfirms_OfOnePayload_EnrolOnce()
+    {
+        var (_, accountId, userId, client, acting) = await SignedInPlainAsync();
+        var other = factory.CreateAuthedClient(acting.AccessToken);
+        var start = await StartWithPasswordAsync(client);
+        var code = CurrentCode(start.Key);
+        var reachedLock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resumeFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        factory.BeforeCommand.Arm("FOR NO KEY UPDATE", async () =>
+        {
+            reachedLock.SetResult();
+            await resumeFirst.Task;
+        });
+
+        var first = ConfirmAsync(client, code);
+        await reachedLock.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        HttpResponseMessage second;
+        try
+        {
+            second = await ConfirmAsync(other, code);
+        }
+        finally
+        {
+            resumeFirst.TrySetResult();
+        }
+        HttpResponseMessage[] responses = [await first, second];
+
+        var success = Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Single(responses, r => r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Conflict);
+        Assert.Equal(10, RecoveryCodesOf(await success.Content.ReadFromJsonAsync<JsonElement>()).Length);
+        Assert.Single(await AuditRowsAsync(accountId, userId, AuditActions.UserTwoFactorEnabled));
+        Assert.Equal(0, await PendingRowsAsync(accountId, userId));
+        Assert.Equal(10, (await TwoFactorRowsAsync(accountId, userId)).Count(n => n.StartsWith("RecoveryCode:", StringComparison.Ordinal)));
+    }
+
     // G2.4
     [Fact]
     public async Task AStartedReplacement_LeavesTheLiveKeyWorking_AndARecoveryCodeGrantCompletesIt()
