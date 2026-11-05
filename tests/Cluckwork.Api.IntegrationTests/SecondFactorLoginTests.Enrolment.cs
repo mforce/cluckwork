@@ -110,6 +110,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(acting.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(accountId, other.RefreshToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
+        await AssertEverySessionAndAppEndedAsync(accountId, userId, freshRefreshRows: 1);
         Assert.Equal(SecondFactorErrorCodes.Required, await factory.LoginRefusalTitleAsync(email, TestHarness.Password));
         var row = Assert.Single(await AuditRowsAsync(accountId, userId, AuditActions.UserTwoFactorEnabled));
         Assert.Equal(userId, row.Actor);

@@ -2,11 +2,13 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -50,6 +52,26 @@ public sealed partial class SecondFactorLoginTests
         return probe.StatusCode;
     }
 
+    // Decision 8: a factor change revokes every refresh row but the acting
+    // session's fresh one and disconnects every connected app (#1229), so the
+    // app leaves the list rather than staying listed and refused. The epoch
+    // bump alone refuses them, so the 401s cannot show this.
+    private async Task AssertEverySessionAndAppEndedAsync(Guid accountId, Guid userId, int freshRefreshRows)
+    {
+        var subject = userId.ToString();
+        var (authorizations, tokens, refreshRows) = await factory.WithTenantScopeAsync(accountId, async db => (
+            await db.OAuthAuthorizations.CountAsync(a => a.Subject == subject && a.Status == Statuses.Valid),
+            await db.OAuthTokens.CountAsync(t => t.Subject == subject && t.Status == Statuses.Valid),
+            await db.RefreshTokens.CountAsync(t => t.UserId == userId && t.RevokedAt == null)));
+        using var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, userId);
+        var listed = await scope.ServiceProvider.GetRequiredService<IAccessModule>().ListConnectedAppsAsync(userId, CancellationToken.None);
+
+        Assert.True(authorizations == 0, $"{authorizations} authorization(s) stayed valid");
+        Assert.True(tokens == 0, $"{tokens} connected-app token(s) stayed valid");
+        Assert.Empty(listed);
+        Assert.Equal(freshRefreshRows, refreshRows);
+    }
+
     // A started enrolment, so a clear has a pending payload to delete.
     private async Task StartEnrolmentAsync(Guid accountId, Guid userId)
     {
@@ -84,6 +106,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(acting.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(factor.AccountId, other.RefreshToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
+        await AssertEverySessionAndAppEndedAsync(factor.AccountId, factor.UserId, freshRefreshRows: 1);
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(fresh.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(factor.AccountId, fresh.RefreshToken)).StatusCode);
         // Login asks for no code.
