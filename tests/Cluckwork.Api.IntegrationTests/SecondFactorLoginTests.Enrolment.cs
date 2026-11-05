@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.Auth;
@@ -541,22 +542,37 @@ public sealed partial class SecondFactorLoginTests
         Assert.Empty(await AuditRowsAsync(accountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
     }
 
+    // A route under ResponseNotCacheable that reads its body by hand has no
+    // bound type for the walk below to check, so it is named here, by its
+    // endpoint name, with the reason its body holds no secret.
+    private static readonly Dictionary<string, string> HandReadBodies = new()
+    {
+        ["RefreshToken"] = "drains a body it never keeps; the refresh token rides in the cookie",
+    };
+
     // G3.29's walk of request bodies: every body a not-cacheable route binds
     // carries a password, a code or a challenge, so each prints only
-    // "[redacted]". A new route under those prefixes joins the walk.
+    // "[redacted]". A new route under those prefixes joins the walk, and one
+    // that reads its body by hand fails it until HandReadBodies names it.
     [Fact]
     public void EveryRequestBody_OnANotCacheableRoute_PrintsOnlyRedacted()
     {
         var notCacheable = (string[])typeof(IdempotencyMiddleware)
             .GetField("ResponseNotCacheable", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
-        var bodies = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+        var routes = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
             .Where(e => e.RoutePattern.RawText is { } raw
                 && notCacheable.Any(entry => new PathString("/" + raw.TrimStart('/')).StartsWithSegments(entry, StringComparison.OrdinalIgnoreCase)))
-            .Select(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType)
-            .OfType<Type>()
-            .ToHashSet();
+            .ToList();
+        var bodies = routes.Select(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType).OfType<Type>().ToHashSet();
+        var handRead = routes
+            .Where(e => e.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is not null
+                && e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is null)
+            .Select(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? e.DisplayName ?? "(unnamed)")
+            .Order();
 
+        Assert.Equal(HandReadBodies.Keys.Order(), handRead);
         Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
+        Assert.Contains(typeof(LoginRequest), bodies);
         Assert.Contains(typeof(StepUpRequest), bodies);
         foreach (var type in bodies)
             Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
