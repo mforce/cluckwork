@@ -199,39 +199,63 @@ describe("apiFetch — no in-memory token", () => {
   });
 });
 
-// #1277 review — the resend after a successful refresh answers for the request
-// itself. Its refusal is the caller's to show; only a failed refresh ends the
-// session.
-describe("apiFetch — a refused resend after a successful refresh", () => {
-  it.each([
-    ["a 400 with its extensions", 400, { title: "Auth.EnrolmentCodeIncorrect", attemptsLeft: 3 }],
-    ["a 409", 409, { title: "Auth.EnrolmentExpired" }],
-  ])("surfaces %s and keeps the session", async (_, status, body) => {
+// #1277 review — after a 401 and a successful refresh, the resend answers for
+// the request itself: its refusal, a 5xx or a network error is the caller's to
+// show. Only a 401 to the fresh token ends the session. Adapted from the
+// round-2 runner's matrix.
+describe.each(["json", "blob"] as const)("the %s resend after a successful refresh", (kind) => {
+  const send = () => kind === "json" ? apiPost("/thing", { value: 42 }) : apiGetBlob("/thing");
+  const afterRefresh = (resend: Response | Error) => {
     const refreshed = claimfulToken("at2-resend");
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
-      .mockResolvedValueOnce(accessResponse(refreshed))
-      .mockResolvedValueOnce(jsonResponse(body, status));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Original401" }, 401))
+      .mockResolvedValueOnce(accessResponse(refreshed));
+    if (resend instanceof Error) fetchMock.mockRejectedValueOnce(resend);
+    else fetchMock.mockResolvedValueOnce(resend);
+    return refreshed;
+  };
 
-    const refusal = await apiPost("/thing", {}).catch((err: unknown) => err);
+  it.each([400, 403, 409, 429, 500, 503])("returns a %i as itself, sent once, and keeps the session", async (status) => {
+    const refreshed = afterRefresh(jsonResponse({ title: "Thing.Refused", attemptsLeft: 3 }, status));
 
-    expect(refusal).toMatchObject({ status, title: body.title });
-    if ("attemptsLeft" in body) expect((refusal as ApiError).extensions).toEqual({ attemptsLeft: 3 });
+    const error = await send().catch((err: unknown) => err);
+
+    expect(error).toMatchObject({ status, title: "Thing.Refused", extensions: { attemptsLeft: 3 } });
     expect(onUnauth).not.toHaveBeenCalled();
     expect(getAccessToken()).toBe(refreshed);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(1);
+    expect(callsTo(fetchMock, "/thing")).toHaveLength(2);
   });
 
-  it("does the same for a file download", async () => {
-    const refreshed = claimfulToken("at2-blob");
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
-      .mockResolvedValueOnce(accessResponse(refreshed))
-      .mockResolvedValueOnce(jsonResponse({ title: "Export.NotFound" }, 404));
+  it("returns a network error as itself and keeps the session", async () => {
+    const offline = new TypeError("offline");
+    const refreshed = afterRefresh(offline);
 
-    await expect(apiGetBlob("/export")).rejects.toMatchObject({ status: 404 });
+    await expect(send()).rejects.toBe(offline);
 
     expect(onUnauth).not.toHaveBeenCalled();
     expect(getAccessToken()).toBe(refreshed);
+    expect(callsTo(fetchMock, "/thing")).toHaveLength(2);
+  });
+
+  it("ends the session once on a 401 to the fresh token, with the original 401", async () => {
+    afterRefresh(jsonResponse({ title: "Fresh401" }, 401));
+
+    await expect(send()).rejects.toMatchObject({ status: 401, title: "Original401" });
+
+    expect(onUnauth).toHaveBeenCalledExactlyOnceWith("Original401");
+    expect(getAccessToken()).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("returns a 200 once", async () => {
+    afterRefresh(kind === "json" ? jsonResponse({ value: 42 }) : new Response("export"));
+
+    const answer = await send();
+
+    if (kind === "json") expect(answer).toEqual({ value: 42 });
+    else expect(answer).toHaveProperty("blob");
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
 
