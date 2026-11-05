@@ -3369,7 +3369,7 @@ export const en = {
     // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
     // that's internal mechanism, not user-facing language.
     signingInStepUp:
-      "These actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      "Some actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
       + "changing a login email, disabling a user, re-enabling a user, resetting a user's two-factor authentication, "
       + "assigning a worker to a flock, and "
@@ -3378,7 +3378,7 @@ export const en = {
       + "When two-factor authentication is on for your account, these actions, <strong>Allow</strong> for a "
       + "connected app and <strong>Change password</strong> also ask for an <strong>Authenticator code or recovery "
       + "code</strong>. Each code works once, so for a second action straight after, wait for the next code. "
-      + "On <strong>Account</strong>, <strong>Security</strong>, <strong>Set up</strong> asks for your password, and "
+      + "Under <strong>Account</strong> › <strong>Security</strong>, <strong>Set up</strong> asks for your password, and "
       + "<strong>Replace authenticator app</strong>, <strong>Regenerate</strong> and <strong>Turn off</strong> ask "
       + "for your password and a code.",
     signingInAppAddress:
@@ -4307,7 +4307,7 @@ export const en = {
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
       + "you before handing out — or taking away — access. Display-name changes do not ask again. "
       + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code. "
-      + "On Account, Security, Set up asks for your password, and Replace authenticator app, Regenerate and Turn off "
+      + "Under Account › Security, Set up asks for your password, and Replace authenticator app, Regenerate and Turn off "
       + "ask for your password and a code.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
@@ -4623,7 +4623,7 @@ export const en = {
     glossaryTwoFactorAuthTerm: "Two-factor authentication",
     glossaryTwoFactorAuthDef:
       "Signing in with your password and a second proof from your phone: a code from your authenticator app, "
-      + "or a recovery code without the phone. Turn it on in Account, Security, with Set up. Turning it on signs "
+      + "or a recovery code without the phone. Turn it on in Account › Security, with Set up. Turning it on signs "
       + "out your other devices and connected apps.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
@@ -4636,10 +4636,10 @@ export const en = {
     glossaryRecoveryCodeTerm: "Recovery code",
     glossaryRecoveryCodeDef:
       "One of ten codes you get once, when you turn on two-factor authentication, for when you can't use your "
-      + "phone. Each works once. Account, Security, shows how many are left, and Regenerate replaces the set.",
+      + "phone. Each works once. Account › Security shows how many are left, and Regenerate replaces the set.",
     glossaryTurnOffTwoFactorTerm: "Turn off two-factor authentication",
     glossaryTurnOffTwoFactorDef:
-      "Removing your own second factor, with Turn off in Account, Security. Your authenticator app and recovery "
+      "Removing your own second factor, with Turn off in Account › Security. Your authenticator app and recovery "
       + "codes stop working, your other devices and connected apps are signed out, and you sign in with your "
       + "password only.",
 

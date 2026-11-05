@@ -1543,8 +1543,8 @@ is checked against it — so an already-issued access token is rejected on its
 very next request, not merely bounded by the ~15-min access-token lifetime.
 
 **Step-up authentication (#308, #360, #606, #1277)** — a fresh proof of identity
-required, on top of a normal valid Owner access token, before these Users-screen
-actions: **creating any user**, **resetting any user's password**,
+required on top of a valid access token. An Owner gives it before these
+Users-screen actions: **creating any user**, **resetting any user's password**,
 **changing any user's role** (#355), **changing a login email**, **disabling a
 user**, **re-enabling a user** (#356), **assigning a worker to a flock**,
 **removing a worker's flock assignment** (#606), or **resetting a user's

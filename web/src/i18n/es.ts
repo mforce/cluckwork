@@ -2618,7 +2618,7 @@ export const es = {
       + "incorrectos.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "Estas acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Algunas acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
       + "volver a habilitar un usuario, restablecer la autenticación en dos pasos de un usuario, asignar un "
@@ -2629,7 +2629,7 @@ export const es = {
       + "para una aplicación conectada y <strong>Cambiar contraseña</strong> piden también un <strong>Código de "
       + "autenticación o código de recuperación</strong>. Cada código funciona una vez, así que para una segunda "
       + "acción justo después, espere el siguiente código. "
-      + "En <strong>Cuenta</strong>, <strong>Seguridad</strong>, <strong>Configurar</strong> pide su contraseña, y "
+      + "En <strong>Cuenta</strong> › <strong>Seguridad</strong>, <strong>Configurar</strong> pide su contraseña, y "
       + "<strong>Reemplazar aplicación de autenticación</strong>, <strong>Regenerar</strong> y "
       + "<strong>Desactivar</strong> piden su contraseña y un código.",
     signingInAppAddress:
@@ -3613,7 +3613,7 @@ export const es = {
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
       + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
       + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación. "
-      + "En Cuenta, Seguridad, Configurar pide su contraseña, y Reemplazar aplicación de autenticación, Regenerar y "
+      + "En Cuenta › Seguridad, Configurar pide su contraseña, y Reemplazar aplicación de autenticación, Regenerar y "
       + "Desactivar piden su contraseña y un código.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
@@ -3964,7 +3964,7 @@ export const es = {
     glossaryTwoFactorAuthTerm: "Autenticación en dos pasos",
     glossaryTwoFactorAuthDef:
       "Iniciar sesión con su contraseña y una segunda prueba de su teléfono: un código de su aplicación de "
-      + "autenticación, o un código de recuperación sin el teléfono. Actívela en Cuenta, Seguridad, con "
+      + "autenticación, o un código de recuperación sin el teléfono. Actívela en Cuenta › Seguridad, con "
       + "Configurar. Al activarla se cierra la sesión en sus otros dispositivos y aplicaciones conectadas.",
     glossaryAuthenticatorAppTerm: "Aplicación de autenticación",
     glossaryAuthenticatorAppDef:
@@ -3977,11 +3977,11 @@ export const es = {
     glossaryRecoveryCodeTerm: "Código de recuperación",
     glossaryRecoveryCodeDef:
       "Uno de diez códigos que recibe una vez, al activar la autenticación en dos pasos, para cuando no puede "
-      + "usar su teléfono. Cada uno funciona una vez. Cuenta, Seguridad, muestra cuántos quedan, y Regenerar "
+      + "usar su teléfono. Cada uno funciona una vez. Cuenta › Seguridad muestra cuántos quedan, y Regenerar "
       + "reemplaza el juego.",
     glossaryTurnOffTwoFactorTerm: "Desactivar la autenticación en dos pasos",
     glossaryTurnOffTwoFactorDef:
-      "Quitar su propio segundo factor, con Desactivar en Cuenta, Seguridad. Su aplicación de autenticación y "
+      "Quitar su propio segundo factor, con Desactivar en Cuenta › Seguridad. Su aplicación de autenticación y "
       + "sus códigos de recuperación dejan de funcionar, se cierra la sesión en sus otros dispositivos y "
       + "aplicaciones conectadas, e inicia sesión solo con su contraseña.",
 

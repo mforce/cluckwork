@@ -2721,7 +2721,7 @@ export const tl = {
       + "para sa isang connected app at ang <strong>Palitan ang password</strong> ay humihingi rin ng <strong>Authenticator "
       + "code o recovery code</strong>. Isang beses lang gumagana ang bawat code, kaya para sa pangalawang aksyon "
       + "kaagad pagkatapos, hintayin ang susunod na code. "
-      + "Sa <strong>Account</strong>, <strong>Seguridad</strong>, hinihingi ng <strong>I-set up</strong> ang iyong "
+      + "Sa <strong>Account</strong> › <strong>Seguridad</strong>, hinihingi ng <strong>I-set up</strong> ang iyong "
       + "password, at hinihingi ng <strong>Palitan ang authenticator app</strong>, <strong>Gumawa ulit</strong> at "
       + "<strong>I-off</strong> ang iyong password at isang code.",
     signingInAppAddress:
@@ -3743,7 +3743,7 @@ export const tl = {
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
       + "Hindi muling hinihingi ito sa mga pagbabago ng display name. "
       + "Kapag naka-on ang two-factor authentication, humihingi rin ang dialog ng code mula sa iyong authenticator app o isang recovery code. "
-      + "Sa Account, Seguridad, hinihingi ng I-set up ang iyong password, at hinihingi ng Palitan ang authenticator app, "
+      + "Sa Account › Seguridad, hinihingi ng I-set up ang iyong password, at hinihingi ng Palitan ang authenticator app, "
       + "Gumawa ulit at I-off ang iyong password at isang code.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
@@ -4104,7 +4104,7 @@ export const tl = {
     glossaryTwoFactorAuthTerm: "Two-factor authentication",
     glossaryTwoFactorAuthDef:
       "Pag-sign in gamit ang iyong password at pangalawang patunay mula sa iyong phone: isang code mula sa "
-      + "iyong authenticator app, o isang recovery code kung wala ang phone. I-on ito sa Account, Seguridad, "
+      + "iyong authenticator app, o isang recovery code kung wala ang phone. I-on ito sa Account › Seguridad, "
       + "gamit ang I-set up. Kapag in-on ito, masa-sign out ang iba mo pang device at mga connected app.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
@@ -4117,11 +4117,11 @@ export const tl = {
     glossaryRecoveryCodeTerm: "Recovery code",
     glossaryRecoveryCodeDef:
       "Isa sa sampung code na isang beses mong makukuha, kapag in-on mo ang two-factor authentication, para sa "
-      + "oras na hindi mo magamit ang iyong phone. Isang beses gumagana ang bawat isa. Ipinapakita ng Account, "
-      + "Seguridad, kung ilan ang natitira, at pinapalitan ng Gumawa ulit ang buong set.",
+      + "oras na hindi mo magamit ang iyong phone. Isang beses gumagana ang bawat isa. Ipinapakita ng Account › "
+      + "Seguridad kung ilan ang natitira, at pinapalitan ng Gumawa ulit ang buong set.",
     glossaryTurnOffTwoFactorTerm: "I-off ang two-factor authentication",
     glossaryTurnOffTwoFactorDef:
-      "Pag-alis ng sarili mong pangalawang factor, gamit ang I-off sa Account, Seguridad. Hihinto sa paggana "
+      "Pag-alis ng sarili mong pangalawang factor, gamit ang I-off sa Account › Seguridad. Hihinto sa paggana "
       + "ang iyong authenticator app at mga recovery code, masa-sign out ang iba mo pang device at mga connected "
       + "app, at password lang ang gagamitin mo sa pag-sign in.",
 
