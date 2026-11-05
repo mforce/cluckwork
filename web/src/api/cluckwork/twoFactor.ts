@@ -18,8 +18,10 @@ export interface EnrolmentStart {
 
 export const getTwoFactorStatus = (signal?: AbortSignal) => apiGet<TwoFactorStatus>("/auth/two-factor", signal);
 
-export const startTwoFactor = (key: string, stepUpToken: string) =>
-  apiPost<EnrolmentStart>("/auth/two-factor/start", undefined, key, { [STEP_UP_HEADER]: stepUpToken });
+// apiPost sends a fresh Idempotency-Key: the server keeps no response for
+// these routes, so a reused key would replay nothing.
+export const startTwoFactor = (stepUpToken: string) =>
+  apiPost<EnrolmentStart>("/auth/two-factor/start", undefined, undefined, { [STEP_UP_HEADER]: stepUpToken });
 
-export const regenerateRecoveryCodes = (key: string, stepUpToken: string) =>
-  apiPost<{ recoveryCodes: string[] }>("/auth/two-factor/recovery-codes", undefined, key, { [STEP_UP_HEADER]: stepUpToken });
+export const regenerateRecoveryCodes = (stepUpToken: string) =>
+  apiPost<{ recoveryCodes: string[] }>("/auth/two-factor/recovery-codes", undefined, undefined, { [STEP_UP_HEADER]: stepUpToken });

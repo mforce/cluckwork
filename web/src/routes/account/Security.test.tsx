@@ -147,7 +147,7 @@ describe("enrolment", () => {
     await press(t("continueButton"), dialog());
 
     expect(mockStepUp).toHaveBeenCalledWith(proof);
-    expect(mockStart).toHaveBeenCalledWith(expect.any(String), grantToken);
+    expect(mockStart).toHaveBeenCalledWith(grantToken);
     const { key: shownKey, otpauthUri: shownUri } = await mockStart.mock.results[0]!.value;
     const qr = screen.getByRole("img", { name: t("qrLabel") });
     expect(qr.querySelector("path")!.getAttribute("d")).toMatch(/^M\d+ \d+h1v1h-1z/);
@@ -167,7 +167,7 @@ describe("enrolment", () => {
     const code = typeCode();
     await press(t("confirmButton"));
 
-    expect(mockConfirm).toHaveBeenCalledWith(code, expect.any(String));
+    expect(mockConfirm).toHaveBeenCalledWith(code);
     const list = await screen.findByRole("list", { name: t("codesListLabel") });
     expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual(codes);
     expect(screen.queryByText(t("codesReplaced"))).not.toBeInTheDocument();
@@ -284,7 +284,7 @@ describe("an enrolled user's step-up actions", () => {
     prove(true);
     await press(t("turnOffButton"), dialog());
 
-    expect(mockTurnOff).toHaveBeenCalledWith(expect.any(String), grantToken);
+    expect(mockTurnOff).toHaveBeenCalledWith(grantToken);
     expect(await screen.findByText(t("turnedOffMessage"))).toBeInTheDocument();
     expect(await screen.findByText(t("twoFactorOff"))).toBeInTheDocument();
   });
@@ -393,78 +393,5 @@ describe("the step-up proof", () => {
     await press(t("turnOffButton"));
     expect(passwordField()).toHaveValue("");
     expect(codeField()).toHaveValue("");
-  });
-});
-
-// Each write keeps its key across a failure, so a retry replays it, and takes
-// a new one after a success.
-describe("idempotency keys", () => {
-  const failure = () => new ApiError(503, "Service.Unavailable", "Try later.");
-
-  const writes: Record<string, ReturnType<typeof vi.fn>> = { start: mockStart, regenerate: mockRegenerate, "turn-off": mockTurnOff };
-  const answers: Record<string, () => unknown> = {
-    start: () => enrolmentFor(), regenerate: () => ({ recoveryCodes: freshCodes() }), "turn-off": () => undefined,
-  };
-
-  it.each([
-    ["start", OFF, "setUpButton", "continueButton"],
-    ["regenerate", ON, "regenerateButton", "regenerateButton"],
-    ["turn-off", ON, "turnOffButton", "turnOffButton"],
-  ] as const)("%s reuses its key after a failure and rotates it after a success", async (name, status, openKey, submitKey) => {
-    await renderAccount(status);
-    const write = writes[name]!;
-    const ok = answers[name]!;
-    const open = () => t(openKey);
-    const submit = () => t(submitKey);
-    write.mockRejectedValueOnce(failure()).mockResolvedValueOnce(ok()).mockResolvedValueOnce(ok());
-    const attempt = async (reopen: boolean) => {
-      if (reopen) await press(open());
-      prove(status.enabled);
-      await press(submit(), dialog());
-    };
-
-    await attempt(true);
-    await within(dialog()).findByRole("alert");
-    await attempt(false);
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(2));
-    if (name === "start") await press(i18n.t("common:cancel"));
-    if (name === "regenerate") {
-      fireEvent.click(screen.getByRole("checkbox", { name: t("savedCheckbox") }));
-      await press(t("doneButton"));
-    }
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    await attempt(true);
-    await waitFor(() => expect(write).toHaveBeenCalledTimes(3));
-
-    const keys = write.mock.calls.map((call: unknown[]) => call[0]);
-    expect(keys[1]).toBe(keys[0]);
-    expect(keys[2]).not.toBe(keys[1]);
-  });
-
-  it("confirm reuses its key after a wrong code and rotates it after a success", async () => {
-    await renderAccount(OFF);
-    await enrol();
-    mockConfirm
-      .mockRejectedValueOnce(new ApiError(400, "Auth.EnrolmentCodeIncorrect", "Wrong.", { extensions: { attemptsLeft: 4 } }))
-      .mockResolvedValueOnce({ recoveryCodes: freshCodes() });
-    typeCode();
-    await press(t("confirmButton"));
-    await screen.findByRole("alert");
-    typeCode();
-    await press(t("confirmButton"));
-    fireEvent.click(await screen.findByRole("checkbox", { name: t("savedCheckbox") }));
-    await press(t("doneButton"));
-
-    mockStart.mockResolvedValueOnce(enrolmentFor());
-    await press(t("setUpButton"));
-    prove(false);
-    await press(t("continueButton"), dialog());
-    mockConfirm.mockResolvedValueOnce({ recoveryCodes: undefined });
-    typeCode();
-    await press(t("confirmButton"));
-
-    const keys = mockConfirm.mock.calls.map((call) => call[1]);
-    expect(keys[1]).toBe(keys[0]);
-    expect(keys[2]).not.toBe(keys[1]);
   });
 });

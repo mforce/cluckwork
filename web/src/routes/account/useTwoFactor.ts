@@ -8,7 +8,6 @@ import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
 import i18n from "../../i18n";
-import { useIdempotencyKeys } from "../sales/useIdempotencyKeys";
 
 // #1277 — the Security section's two-factor authentication. Start,
 // Regenerate and Turn off each step up in a dialog first; confirm is the
@@ -43,7 +42,6 @@ export function useTwoFactor() {
   const status = useLatestLoad([], getTwoFactorStatus);
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
-  const { keyFor, clearKey } = useIdempotencyKeys();
   const [flow, setFlow] = useState<Flow>(SUMMARY);
   const [action, setAction] = useState<ProofAction | null>(null);
   const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
@@ -76,27 +74,23 @@ export function useTwoFactor() {
   async function send(next: ProofAction, token: string, current: () => boolean) {
     if (next === "start") {
       const replacing = status.data?.enabled ?? false;
-      const enrolment = await startTwoFactor(keyFor(next), token);
-      clearKey(next);
+      const enrolment = await startTwoFactor(token);
       if (!current()) return;
       setCode("");
       openDialog("confirm");
       setFlow({ step: "scan", enrolment, replacing });
     } else if (next === "regenerate") {
-      const { recoveryCodes } = await regenerateRecoveryCodes(keyFor(next), token).catch((err: unknown) => {
+      const { recoveryCodes } = await regenerateRecoveryCodes(token).catch((err: unknown) => {
         // The status was stale (#1277 contract item 8): reload it.
         if (!isProblem(err, 409, "Auth.TwoFactorNotEnabled")) throw err;
-        clearKey(next);
         status.retry();
         throw new Error(i18n.t("account:regenerateNotEnabled"));
       });
-      clearKey(next);
       status.retry();
       if (!current()) return;
       setFlow({ step: "codes", codes: recoveryCodes, regenerated: true });
     } else {
-      await turnOffTwoFactor(keyFor(next), token);
-      clearKey(next);
+      await turnOffTwoFactor(token);
       status.retry();
       if (!current()) return;
       setMessage(i18n.t("account:turnedOffMessage"));
@@ -128,7 +122,7 @@ export function useTwoFactor() {
       setCode("");
       let recoveryCodes: string[] | undefined;
       try {
-        ({ recoveryCodes } = await confirmTwoFactor(typed, keyFor("confirm")));
+        ({ recoveryCodes } = await confirmTwoFactor(typed));
       } catch (err) {
         // The fifth wrong code ended the enrolment, and every later confirm
         // answers 409: either way the user starts again.
@@ -136,11 +130,9 @@ export function useTwoFactor() {
         const reason = isProblem(err, 409, "Auth.EnrolmentExpired") ? "expired"
           : isProblem(err, 400, "Auth.EnrolmentCodeIncorrect") && attemptsLeft === 0 ? "attempts" : null;
         if (reason === null) throw incorrect(err, attemptsLeft);
-        clearKey("confirm");
         if (current()) setFlow({ step: "restart", replacing, reason });
         return;
       }
-      clearKey("confirm");
       status.retry();
       if (!current()) return;
       if (recoveryCodes) {

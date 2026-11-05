@@ -43,19 +43,18 @@ afterEach(() => {
 });
 
 describe("confirmTwoFactor", () => {
-  it("sends the code with its key, adopts the fresh pair and returns the codes", async () => {
+  it("sends the code with a key, adopts the fresh pair and returns the codes", async () => {
     const fresh = token("acct-A");
     const codes = [crypto.randomUUID(), crypto.randomUUID()];
     fetchMock.mockResolvedValueOnce(pair(fresh, { recoveryCodes: codes }));
     const code = freshCode();
-    const key = crypto.randomUUID();
 
-    await expect(confirmTwoFactor(code, key)).resolves.toEqual({ recoveryCodes: codes });
+    await expect(confirmTwoFactor(code)).resolves.toEqual({ recoveryCodes: codes });
 
     const [call] = to("/auth/two-factor/confirm");
     expect(call![1].method).toBe("POST");
     expect(JSON.parse(String(call![1].body))).toEqual({ code });
-    expect(header(call!, "Idempotency-Key")).toBe(key);
+    expect(header(call!, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
     expect(header(call!, "Authorization")).toBe("Bearer at1");
     expect(getAccessToken()).toBe(fresh);
     expect(getBoundAccountId()).toBe("acct-A");
@@ -66,32 +65,31 @@ describe("confirmTwoFactor", () => {
     const fresh = token("acct-B");
     fetchMock.mockResolvedValueOnce(pair(fresh));
 
-    await expect(confirmTwoFactor(freshCode(), crypto.randomUUID())).resolves.toEqual({ recoveryCodes: undefined });
+    await expect(confirmTwoFactor(freshCode())).resolves.toEqual({ recoveryCodes: undefined });
     expect(getAccessToken()).toBe(fresh);
   });
 
   it("keeps attemptsLeft on a wrong code's error", async () => {
     fetchMock.mockResolvedValueOnce(json({ title: "Auth.EnrolmentCodeIncorrect", attemptsLeft: 3 }, 400));
 
-    await expect(confirmTwoFactor(freshCode(), crypto.randomUUID()))
+    await expect(confirmTwoFactor(freshCode()))
       .rejects.toMatchObject({ status: 400, title: "Auth.EnrolmentCodeIncorrect", extensions: { attemptsLeft: 3 } });
     expect(getAccessToken()).toBe("at1");
   });
 });
 
 describe("turnOffTwoFactor", () => {
-  it("sends DELETE with the grant and the key, and adopts the 200's fresh pair", async () => {
+  it("sends DELETE with the grant and a key, and adopts the 200's fresh pair", async () => {
     const fresh = token("acct-C");
     fetchMock.mockResolvedValueOnce(pair(fresh));
-    const key = crypto.randomUUID();
     const grant = crypto.randomUUID();
 
-    await turnOffTwoFactor(key, grant);
+    await turnOffTwoFactor(grant);
 
     const [call] = to("/auth/two-factor");
     expect(call![1].method).toBe("DELETE");
     expect(header(call!, STEP_UP_HEADER)).toBe(grant);
-    expect(header(call!, "Idempotency-Key")).toBe(key);
+    expect(header(call!, "Idempotency-Key")).toMatch(/^[0-9a-f-]{36}$/);
     expect(getAccessToken()).toBe(fresh);
     expect(onTokens).toHaveBeenCalled();
   });
@@ -99,7 +97,7 @@ describe("turnOffTwoFactor", () => {
   it("adopts nothing on a 204", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    await turnOffTwoFactor(crypto.randomUUID(), crypto.randomUUID());
+    await turnOffTwoFactor(crypto.randomUUID());
 
     expect(getAccessToken()).toBe("at1");
     expect(onTokens).not.toHaveBeenCalled();
@@ -110,10 +108,10 @@ describe("turnOffTwoFactor", () => {
 // spent. A refresh-and-resend would act on a state the user never confirmed.
 describe("a stale session's 401 Auth.CredentialsSuperseded", () => {
   const writes: [string, string, () => Promise<unknown>][] = [
-    ["turn-off", "/auth/two-factor", () => turnOffTwoFactor(crypto.randomUUID(), crypto.randomUUID())],
-    ["confirm", "/auth/two-factor/confirm", () => confirmTwoFactor(freshCode(), crypto.randomUUID())],
-    ["start", "/auth/two-factor/start", () => startTwoFactor(crypto.randomUUID(), crypto.randomUUID())],
-    ["regenerate", "/auth/two-factor/recovery-codes", () => regenerateRecoveryCodes(crypto.randomUUID(), crypto.randomUUID())],
+    ["turn-off", "/auth/two-factor", () => turnOffTwoFactor(crypto.randomUUID())],
+    ["confirm", "/auth/two-factor/confirm", () => confirmTwoFactor(freshCode())],
+    ["start", "/auth/two-factor/start", () => startTwoFactor(crypto.randomUUID())],
+    ["regenerate", "/auth/two-factor/recovery-codes", () => regenerateRecoveryCodes(crypto.randomUUID())],
   ];
 
   it.each(writes)("on %s is sent once, with no refresh, and does not end the session", async (_, path, write) => {
@@ -143,7 +141,7 @@ describe("a stale session's 401 Auth.CredentialsSuperseded", () => {
       .mockResolvedValueOnce(pair(refreshed))
       .mockResolvedValueOnce(json({ title: "Auth.EnrolmentCodeIncorrect", attemptsLeft: 2 }, 400));
 
-    await expect(confirmTwoFactor(freshCode(), crypto.randomUUID()))
+    await expect(confirmTwoFactor(freshCode()))
       .rejects.toMatchObject({ status: 400, title: "Auth.EnrolmentCodeIncorrect", extensions: { attemptsLeft: 2 } });
     expect(onUnauth).not.toHaveBeenCalled();
     expect(getAccessToken()).toBe(refreshed);
@@ -154,12 +152,8 @@ describe("a stale session's 401 Auth.CredentialsSuperseded", () => {
       .mockResolvedValueOnce(json({ title: "Unauthorized" }, 401))
       .mockResolvedValueOnce(pair(token("acct-F")))
       .mockResolvedValueOnce(json({ recoveryCodes: [] }));
-    const key = crypto.randomUUID();
+    await regenerateRecoveryCodes(crypto.randomUUID());
 
-    await regenerateRecoveryCodes(key, crypto.randomUUID());
-
-    const sent = to("/auth/two-factor/recovery-codes");
-    expect(sent).toHaveLength(2);
-    expect(sent.map((call) => header(call, "Idempotency-Key"))).toEqual([key, key]);
+    expect(to("/auth/two-factor/recovery-codes")).toHaveLength(2);
   });
 });

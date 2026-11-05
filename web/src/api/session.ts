@@ -269,19 +269,21 @@ export async function changePassword(
 // #1277 — confirming an enrolment ends every other session and hands this one
 // a fresh pair, as change-password does. A first enrolment's answer also holds
 // the recovery codes, which the caller shows once and keeps nowhere else.
-export function confirmTwoFactor(code: string, idempotencyKey: string): Promise<{ recoveryCodes?: string[] }> {
+// The server keeps no response for any two-factor route (ResponseNotCacheable),
+// so the key each write must carry is a fresh one, as change-password's is.
+export function confirmTwoFactor(code: string): Promise<{ recoveryCodes?: string[] }> {
   return adoptingWrite<AccessTokenResponse & { recoveryCodes?: string[] }>("/auth/two-factor/confirm", {
     method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey },
+    headers: { "Idempotency-Key": newId() },
     body: JSON.stringify({ code }),
   }).then((res) => ({ recoveryCodes: res?.recoveryCodes }));
 }
 
 // #1280 — 200 with a fresh pair when two-factor was on, 204 when it was not.
-export async function turnOffTwoFactor(idempotencyKey: string, stepUpToken: string): Promise<void> {
+export async function turnOffTwoFactor(stepUpToken: string): Promise<void> {
   await adoptingWrite<AccessTokenResponse>("/auth/two-factor", {
     method: "DELETE",
-    headers: { "Idempotency-Key": idempotencyKey, [STEP_UP_HEADER]: stepUpToken },
+    headers: { "Idempotency-Key": newId(), [STEP_UP_HEADER]: stepUpToken },
   });
 }
 
