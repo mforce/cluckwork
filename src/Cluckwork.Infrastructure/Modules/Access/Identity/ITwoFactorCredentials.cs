@@ -68,8 +68,11 @@ public abstract record ConfirmOutcome
 {
     private ConfirmOutcome() { }
 
-    // A first enrolment.
-    public sealed record Enrolled(IReadOnlyList<string> RecoveryCodes) : ConfirmOutcome;
+    // A first enrolment. The codes are plaintext, so the record never prints them.
+    public sealed record Enrolled(IReadOnlyList<string> RecoveryCodes) : ConfirmOutcome
+    {
+        public override string ToString() => "[redacted]";
+    }
 
     public sealed record Replaced : ConfirmOutcome;
 

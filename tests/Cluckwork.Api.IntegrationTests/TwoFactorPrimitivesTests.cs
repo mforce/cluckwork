@@ -72,14 +72,15 @@ public sealed class TwoFactorPrimitivesTests
         Assert.Equal(new TotpMatch(current + 1, Reused: false), next);
     }
 
-    // G3.29: a record prints its members, so every type that can hold a code, a
-    // challenge, a key, a password or a stamp hash overrides ToString. The
-    // request bodies of the not-cacheable routes are walked in
-    // SecondFactorLoginTests, and the two closed hierarchies here. The rest is
-    // a list, because nothing a type declares marks it as a credential
-    // carrier: Key, Code, Value and Token also name non-secrets. Excluded:
-    // TokenPair, AccessTokenResponse and StepUpResponse carry live tokens and
-    // print them; redacting them is outside #1277.
+    // G3.29: a record prints its members, so the two-factor and step-up records
+    // that hold a code, a challenge, a key, a password or a stamp hash override
+    // ToString. The two closed hierarchies are walked here, and the request
+    // bodies of the routes under ResponseNotCacheable in SecondFactorLoginTests.
+    // The rest is a list, because nothing a type declares marks it as a
+    // credential carrier: Key, Code, Value and Token also name non-secrets.
+    // Routes outside those prefixes are not covered. Excluded: TokenPair,
+    // AccessTokenResponse and StepUpResponse carry live tokens and print them;
+    // redacting them is outside #1277.
     [Fact]
     public void EveryCredentialCarryingType_PrintsOnlyRedacted()
     {
@@ -91,6 +92,7 @@ public sealed class TwoFactorPrimitivesTests
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.StepUpRequest))
             .Append(typeof(ChangeOwnPasswordCommand))
             .Append(typeof(EnrolmentConfirmation))
+            .Append(typeof(ConfirmOutcome.Enrolled))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentStartResponse))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentConfirmedResponse))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.RecoveryCodesResponse))
@@ -98,7 +100,7 @@ public sealed class TwoFactorPrimitivesTests
                 ?? throw new InvalidOperationException("TwoFactorCredentials.PendingPayload is gone; update this walk"))
             .ToList();
 
-        Assert.True(types.Count >= 13, $"the walk found {types.Count} types, below its floor of 13");
+        Assert.True(types.Count >= 14, $"the walk found {types.Count} types, below its floor of 14");
         foreach (var type in types)
             CredentialSample.AssertRedacted(type);
     }
