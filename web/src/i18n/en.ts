@@ -3367,7 +3367,7 @@ export const en = {
     // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
     // that's internal mechanism, not user-facing language.
     signingInStepUp:
-      "Nine actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      "These actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
       + "changing a login email, disabling a user, re-enabling a user, resetting a user's two-factor authentication, "
       + "assigning a worker to a flock, and "
@@ -3375,7 +3375,10 @@ export const en = {
       + "handing out access or cutting someone else's off. Display-name changes do not ask again. "
       + "When two-factor authentication is on for your account, these actions, <strong>Allow</strong> for a "
       + "connected app and <strong>Change password</strong> also ask for an <strong>Authenticator code or recovery "
-      + "code</strong>. Each code works once, so for a second action straight after, wait for the next code.",
+      + "code</strong>. Each code works once, so for a second action straight after, wait for the next code. "
+      + "On <strong>Account</strong>, <strong>Security</strong>, <strong>Set up</strong> asks for your password, and "
+      + "<strong>Replace authenticator app</strong>, <strong>Regenerate</strong> and <strong>Turn off</strong> ask "
+      + "for your password and a code.",
     signingInAppAddress:
       "<strong>Connecting an AI app.</strong> To connect a compatible AI app, add Cluckwork in the app with "
       + "this address: <code>{{address}}</code>. The app opens Cluckwork in your browser; sign in if asked. "
@@ -4085,8 +4088,8 @@ export const en = {
       "<strong>Security</strong> turns on two-factor authentication with <strong>Set up</strong>: scan the QR "
       + "code with your authenticator app, enter its code, then save the ten recovery codes it shows once. "
       + "Once it's on, <strong>Regenerate</strong> replaces your recovery codes, <strong>Replace authenticator "
-      + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Each asks for "
-      + "your password and a code first. Turning it on, replacing the app and turning it off sign out your "
+      + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
+      + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "
       + "other devices and connected apps.",
 
     // Install on a phone
@@ -4301,7 +4304,9 @@ export const en = {
       + "worker to a flock, or removing a worker's flock assignment, the Users "
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
       + "you before handing out — or taking away — access. Display-name changes do not ask again. "
-      + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code.",
+      + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code. "
+      + "On Account, Security, Set up asks for your password, and Replace authenticator app, Regenerate and Turn off "
+      + "ask for your password and a code.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "

@@ -2616,7 +2616,7 @@ export const es = {
       + "incorrectos.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "Nueve acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Estas acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
       + "volver a habilitar un usuario, restablecer la autenticación en dos pasos de un usuario, asignar un "
@@ -2626,7 +2626,10 @@ export const es = {
       + "Cuando la autenticación en dos pasos está activada en su cuenta, estas acciones, <strong>Permitir</strong> "
       + "para una aplicación conectada y <strong>Cambiar contraseña</strong> piden también un <strong>Código de "
       + "autenticación o código de recuperación</strong>. Cada código funciona una vez, así que para una segunda "
-      + "acción justo después, espere el siguiente código.",
+      + "acción justo después, espere el siguiente código. "
+      + "En <strong>Cuenta</strong>, <strong>Seguridad</strong>, <strong>Configurar</strong> pide su contraseña, y "
+      + "<strong>Reemplazar aplicación de autenticación</strong>, <strong>Regenerar</strong> y "
+      + "<strong>Desactivar</strong> piden su contraseña y un código.",
     signingInAppAddress:
       "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, agrega "
       + "Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre Cluckwork en "
@@ -3375,7 +3378,7 @@ export const es = {
       + "el código QR con su aplicación de autenticación, ingrese su código y guarde los diez códigos de "
       + "recuperación que muestra una sola vez. Una vez activada, <strong>Regenerar</strong> reemplaza sus "
       + "códigos de recuperación, <strong>Reemplazar aplicación de autenticación</strong> pasa Cluckwork a un "
-      + "teléfono nuevo y <strong>Desactivar</strong> la quita. Cada uno pide antes su contraseña y un código. "
+      + "teléfono nuevo y <strong>Desactivar</strong> la quita. Configurar pide antes su contraseña, y los otros tres su contraseña y un código. "
       + "Activarla, reemplazar la aplicación y desactivarla cierran la sesión en sus otros dispositivos y "
       + "aplicaciones conectadas.",
 
@@ -3607,7 +3610,9 @@ export const es = {
       + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
       + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
-      + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación.",
+      + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación. "
+      + "En Cuenta, Seguridad, Configurar pide su contraseña, y Reemplazar aplicación de autenticación, Regenerar y "
+      + "Desactivar piden su contraseña y un código.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "

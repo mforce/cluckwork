@@ -2708,7 +2708,7 @@ export const tl = {
       + "na sabihing mali ang iyong mga detalye.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "May siyam na aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      "May mga aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
       + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng kahit anong user, ang pag-reset ng "
       + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
       + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-reset ng two-factor "
@@ -2718,7 +2718,10 @@ export const tl = {
       + "Kapag naka-on ang two-factor authentication sa iyong account, ang mga aksyong ito, ang <strong>Payagan</strong> "
       + "para sa isang connected app at ang <strong>Palitan ang password</strong> ay humihingi rin ng <strong>Authenticator "
       + "code o recovery code</strong>. Isang beses lang gumagana ang bawat code, kaya para sa pangalawang aksyon "
-      + "kaagad pagkatapos, hintayin ang susunod na code.",
+      + "kaagad pagkatapos, hintayin ang susunod na code. "
+      + "Sa <strong>Account</strong>, <strong>Seguridad</strong>, hinihingi ng <strong>I-set up</strong> ang iyong "
+      + "password, at hinihingi ng <strong>Palitan ang authenticator app</strong>, <strong>Gumawa ulit</strong> at "
+      + "<strong>I-off</strong> ang iyong password at isang code.",
     signingInAppAddress:
       "<strong>Pagkonekta ng AI app.</strong> Para ikonekta ang isang compatible na AI app, idagdag ang Cluckwork "
       + "sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app ang Cluckwork sa iyong "
@@ -3495,8 +3498,8 @@ export const tl = {
       + "i-scan ang QR code gamit ang iyong authenticator app, ilagay ang code nito, tapos i-save ang sampung "
       + "recovery code na isang beses lang nitong ipapakita. Kapag naka-on na, pinapalitan ng <strong>Gumawa "
       + "ulit</strong> ang iyong mga recovery code, inililipat ng <strong>Palitan ang authenticator app</strong> "
-      + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng bawat isa "
-      + "ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "
+      + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng I-set up "
+      + "ang iyong password, at ng tatlo pa ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "
       + "mo pang device at mga connected app.",
 
     installHeading: "Pag-install sa Telepono",
@@ -3737,7 +3740,9 @@ export const tl = {
       + "assignment ng manggagawa sa isang kawan, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
       + "Hindi muling hinihingi ito sa mga pagbabago ng display name. "
-      + "Kapag naka-on ang two-factor authentication, humihingi rin ang dialog ng code mula sa iyong authenticator app o isang recovery code.",
+      + "Kapag naka-on ang two-factor authentication, humihingi rin ang dialog ng code mula sa iyong authenticator app o isang recovery code. "
+      + "Sa Account, Seguridad, hinihingi ng I-set up ang iyong password, at hinihingi ng Palitan ang authenticator app, "
+      + "Gumawa ulit at I-off ang iyong password at isang code.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "
