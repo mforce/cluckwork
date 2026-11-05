@@ -230,6 +230,78 @@ export const tl = {
     passwordMismatchError: "Hindi magkatugma ang mga bagong password.",
     passwordTooShortError: "Dapat hindi bababa sa {{min}} na karakter ang bagong password.",
     passwordChangedMessage: "Napalitan ang password. Na-sign out na ang ibang mga device.",
+
+    // #1277 — ang Security section: ang sariling two-factor authentication ng user.
+    securityHeading: "Seguridad",
+    twoFactorHeading: "Two-factor authentication",
+    twoFactorHint: "Magdagdag ng code mula sa iyong authenticator app kapag nagsa-sign in ka.",
+    twoFactorOn: "Naka-on",
+    twoFactorOff: "Naka-off",
+    twoFactorOffHint: "Password lang ang gamit mo sa pag-sign in.",
+    setUpButton: "I-set up",
+    statusLoadFailed: "Hindi ma-load ang iyong two-factor authentication.",
+    statusRetry: "Subukan ulit",
+    recoveryCodesHeading: "Mga recovery code",
+    recoveryCodesLeft_one: "{{count}} code ang natitira",
+    recoveryCodesLeft_other: "{{count}} code ang natitira",
+    recoveryCodesCaption: "Isang beses gumagana ang bawat code kung hindi mo magamit ang iyong authenticator app.",
+    recoveryCodesLow_one: "{{count}} recovery code na lang ang natitira sa iyo. Mag-save ng bagong set bago mo ito kailanganin.",
+    recoveryCodesLow_other: "{{count}} recovery code na lang ang natitira sa iyo. Mag-save ng bagong set bago mo ito kailanganin.",
+    regenerateButton: "Gumawa ulit",
+    replaceHint: "Bagong phone? Ilipat ang Cluckwork sa authenticator app nito.",
+    replaceButton: "Palitan ang authenticator app",
+    turnOffHint: "Alisin ang dagdag na code sa pag-sign in.",
+    turnOffButton: "I-off",
+    setUpTitle: "I-set up ang two-factor authentication",
+    setUpBody: "Idaragdag mo ang Cluckwork sa isang authenticator app sa iyong phone, tapos kukumpirmahin mo ang isang code mula rito.",
+    replaceTitle: "Palitan ang iyong authenticator app?",
+    replaceBody: "Gumagana pa rin ang kasalukuyan mong authenticator app hanggang makumpirma mo ang code mula sa bago.",
+    regenerateTitle: "Gumawa ulit ng mga recovery code?",
+    regenerateBody: "Papalitan ng bagong set ang lahat ng code na na-save mo dati. I-save ang mga bagong code pagkatapos ng hakbang na ito.",
+    turnOffTitle: "I-off ang two-factor authentication?",
+    turnOffBody: "Password lang ang gagamitin mo sa pag-sign in. Kailangang mag-sign in ulit ng iba mo pang device at mga connected app.",
+    proofHintPassword: "Ilagay ang iyong password para kumpirmahin ang pagbabagong ito.",
+    proofHint: "Ilagay ang iyong password at isang code mula sa iyong authenticator app, o isang recovery code, para kumpirmahin ang pagbabagong ito.",
+    continueButton: "Magpatuloy",
+    flowEyebrow: "Account / Seguridad",
+    enrolHeading: "I-set up ang two-factor authentication",
+    replaceHeading: "Palitan ang iyong authenticator app",
+    scanHeading: "Idagdag ang Cluckwork",
+    scanHint: "Buksan ang iyong authenticator app at i-scan ang QR code na ito.",
+    qrLabel: "QR code para idagdag ang Cluckwork sa iyong authenticator app",
+    cannotScan: "Hindi ma-scan ang QR code?",
+    keyHint: "Sa iyong authenticator app, magdagdag ng set-up key para sa Cluckwork.",
+    copyKeyButton: "Kopyahin ang key",
+    keyCopied: "Nakopya ang key.",
+    openInAppLink: "Buksan sa iyong authenticator app",
+    confirmHeading: "Kumpirmahin ang isang code",
+    confirmHint: "Ilagay ang code para sa Cluckwork mula sa iyong authenticator app.",
+    codeLabel: "Authenticator code",
+    signOutWarning: "Kailangang mag-sign in ulit ng iba mo pang device at mga connected app.",
+    confirmButton: "Kumpirmahin ang code",
+    codeIncorrect: "Hindi gumana ang code na iyon. Subukan ang susunod na code sa iyong app.",
+    codeIncorrectAttempts_one: "Hindi gumana ang code na iyon. Subukan ang susunod na code sa iyong app. {{count}} subok na lang.",
+    codeIncorrectAttempts_other: "Hindi gumana ang code na iyon. Subukan ang susunod na code sa iyong app. {{count}} subok na lang.",
+    setUpExpired: "Nag-expire ang set-up na ito. Magsimula ulit para makakuha ng bagong QR code.",
+    setUpTooManyAttempts: "Sobrang daming maling code. Magsimula ulit para makakuha ng bagong QR code.",
+    startAgainButton: "Magsimula ulit",
+    codesHeading: "I-save ang iyong mga recovery code",
+    codesOn: "Naka-on na ang two-factor authentication.",
+    codesReplaced: "Papalitan ng mga ito ang dati mong mga code. Hindi na gumagana ang mga lumang code.",
+    codesHint: "Gumamit ng isa kung hindi mo magamit ang iyong authenticator app. Isang beses gumagana ang bawat code. Hindi mo na ito makikita ulit.",
+    codesListLabel: "Mga recovery code",
+    copyCodesButton: "Kopyahin lahat ng code",
+    codesCopied: "Nakopya ang mga code. Itago ang mga ito sa ligtas na lugar.",
+    copyFailed: "Hindi makopya. Piliin ang text at ikaw na ang kumopya.",
+    downloadButton: "I-download ang mga code",
+    codesDownloaded: "Nagsimula ang download. Tingnan ang file bago ka umalis.",
+    codesFileTitle: "Mga recovery code ng Cluckwork para kay {{email}}",
+    savedCheckbox: "Na-save ko ang aking mga recovery code sa ligtas na lugar.",
+    doneButton: "Tapos na",
+    replacedMessage: "Naka-set up na ang bago mong authenticator app. Hindi na gumagana ang luma.",
+    turnedOffMessage: "Naka-off na ang two-factor authentication.",
+    regenerateNotEnabled: "Hindi naka-on ang two-factor authentication sa iyong account, kaya wala itong recovery code na papalitan.",
+    sessionChanged: "Nagbago ang iyong sign-in habang ipinapadala ito, kaya walang nagbago. Subukan ulit.",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
@@ -3418,6 +3490,14 @@ export const tl = {
       + "+/−, na nag-o-override sa default ng bukid mula sa Settings. Pumili ng pack unit tulad ng Tray "
       + "para magbilang bawat tray, o sundin ang default ng bukid para awtomatikong sumunod sa iyo ang "
       + "isang susunod na pagbabago sa buong bukid.",
+    accountSecurity:
+      "Ino-on ng <strong>Seguridad</strong> ang two-factor authentication gamit ang <strong>I-set up</strong>: "
+      + "i-scan ang QR code gamit ang iyong authenticator app, ilagay ang code nito, tapos i-save ang sampung "
+      + "recovery code na isang beses lang nitong ipapakita. Kapag naka-on na, pinapalitan ng <strong>Gumawa "
+      + "ulit</strong> ang iyong mga recovery code, inililipat ng <strong>Palitan ang authenticator app</strong> "
+      + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng bawat isa "
+      + "ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "
+      + "mo pang device at mga connected app.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:
@@ -4012,6 +4092,31 @@ export const tl = {
       + "request. Ibinabalik ng muling pag-enable ang sign-in pero hindi ang mga lumang session na iyon — "
       + "kahit anong ibinigay bago ang pag-disable ay hindi na kailanman gagana. Hindi puwedeng i-disable "
       + "ang huling aktibong Admin (may-ari) ng account, at walang puwedeng mag-disable sa sarili niya.",
+
+    // #1277
+    glossaryTwoFactorAuthTerm: "Two-factor authentication",
+    glossaryTwoFactorAuthDef:
+      "Pag-sign in gamit ang iyong password at pangalawang patunay mula sa iyong phone: isang code mula sa "
+      + "iyong authenticator app, o isang recovery code kung wala ang phone. I-on ito sa Account, Seguridad, "
+      + "gamit ang I-set up. Kapag in-on ito, masa-sign out ang iba mo pang device at mga connected app.",
+    glossaryAuthenticatorAppTerm: "Authenticator app",
+    glossaryAuthenticatorAppDef:
+      "Ang app sa iyong phone na nagpapakita ng bagong 6-digit na code bawat 30 segundo. Lumalabas dito ang "
+      + "Cluckwork kasama ang pangalan ng iyong farm at ang iyong email.",
+    glossaryAuthenticatorCodeTerm: "Authenticator code",
+    glossaryAuthenticatorCodeDef:
+      "Ang 6-digit na code na ipinapakita ng iyong authenticator app para sa Cluckwork. Isang beses lang "
+      + "gumagana ang bawat isa, kaya pagkatapos ng pagtanggi, hintayin ang susunod.",
+    glossaryRecoveryCodeTerm: "Recovery code",
+    glossaryRecoveryCodeDef:
+      "Isa sa sampung code na isang beses mong makukuha, kapag in-on mo ang two-factor authentication, para sa "
+      + "oras na hindi mo magamit ang iyong phone. Isang beses gumagana ang bawat isa. Ipinapakita ng Account, "
+      + "Seguridad, kung ilan ang natitira, at pinapalitan ng Gumawa ulit ang buong set.",
+    glossaryTurnOffTwoFactorTerm: "I-off ang two-factor authentication",
+    glossaryTurnOffTwoFactorDef:
+      "Pag-alis ng sarili mong pangalawang factor, gamit ang I-off sa Account, Seguridad. Hihinto sa paggana "
+      + "ang iyong authenticator app at mga recovery code, masa-sign out ang iba mo pang device at mga connected "
+      + "app, at password lang ang gagamitin mo sa pag-sign in.",
 
     glossaryResetTwoFactorTerm: "Pag-reset ng two-factor authentication",
     glossaryResetTwoFactorDef:

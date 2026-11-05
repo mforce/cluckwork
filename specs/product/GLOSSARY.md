@@ -1380,6 +1380,47 @@ out of scope here (personal-data erasure is #272). Break-glass recovery
 would not restore access, because a disabled user is turned away before the
 password is ever checked; re-enable them first.
 
+**Two-factor authentication (#1277)** — signing in with the password and a
+second proof from a phone: an **authenticator code**, or a **recovery code**
+without the phone. Any user turns it on from **Account** → **Security** →
+**Set up**, after confirming it's them with their password (see **Step-up
+authentication**). The set-up screen shows a QR code, the set-up key as text
+and, on a phone, a link that opens the authenticator app. It warns that the
+user's other devices and connected apps will need to sign in again, and
+confirming a code from the app turns it on, ends every other session and
+connected app, keeps this device signed in, and shows the ten recovery codes
+once. A wrong code shows the tries left; the fifth wrong code, or a set-up older
+than 10 minutes, ends the set-up and the user starts again. **Replace
+authenticator app** (for a new phone) runs the same set-up after a step-up with
+the password and a code; the old app keeps working until the new one's code is
+confirmed. Turning it on and replacing the app are audited
+(`User.TwoFactorEnabled`).
+
+**Authenticator app (#1277)** — the phone app that shows a new 6-digit code
+every 30 seconds for each account added to it. Cluckwork appears in it as
+"Cluckwork (farm name)" with the user's email.
+
+**Authenticator code (#1277)** — the 6-digit code from the **authenticator app**.
+Not "verification code", and never shortened to "code" where the **farm code**
+is also on screen. Each one works once.
+
+**Recovery code (#1277)** — one of ten single-use codes, shown once when
+two-factor authentication is turned on, for signing in or confirming it's you
+without the phone. Each is 16 letters in four groups of four, and is accepted
+with or without the hyphens. The **Security** section shows how many are left
+and, from 2 or fewer, warns. **Regenerate** (password and a code) replaces the
+whole set and shows the new one once; the old codes stop working. It is audited
+(`User.RecoveryCodesRegenerated`). Using one is audited too
+(`User.RecoveryCodeUsed`).
+
+**Turn off two-factor authentication (#1277)** — a user removes their own
+second factor from **Account** → **Security** → **Turn off**, after a step-up
+with the password and a code. Their authenticator app and recovery codes stop
+working, every other session and connected app ends, this device stays signed
+in, and the next sign-in asks for the password only. It is audited
+(`User.TwoFactorDisabled`). Removing another user's is **Reset two-factor
+authentication**.
+
 **Reset two-factor authentication (#1280)** — an Owner, or `recover-admin`,
 removes another user's second factor so they can enrol again, for example after
 they lose their phone or their recovery codes. On the Users screen the selected

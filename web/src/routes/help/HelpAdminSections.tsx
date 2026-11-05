@@ -75,6 +75,9 @@ export function HelpAdminSections({ openLink }: { openLink: (sectionId: string) 
         <li>
           <Trans ns="help" i18nKey="accountCountingUnit" components={{ strong: <strong /> }} />
         </li>
+        <li>
+          <Trans ns="help" i18nKey="accountSecurity" components={{ strong: <strong /> }} />
+        </li>
       </ul>
 
       </section>

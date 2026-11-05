@@ -1,0 +1,176 @@
+import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
+import type { EnrolmentStart } from "../../api/cluckwork";
+import { ApiError, confirmTwoFactor, NO_PROOF, stepUp, turnOffTwoFactor } from "../../api/client";
+import type { StepUpProof } from "../../api/client";
+import { useAuth } from "../../auth/useAuth";
+import { useDialogAction } from "../../components/useDialogAction";
+import { useLatestLoad } from "../../components/useLatestLoad";
+import i18n from "../../i18n";
+import { useIdempotencyKeys } from "../sales/useIdempotencyKeys";
+
+// #1277 — the Security section's two-factor authentication. Start,
+// Regenerate and Turn off each step up in a dialog first; confirm is the
+// enrolment screen's own form.
+export type ProofAction = "start" | "regenerate" | "turn-off";
+const SCOPES = ["start", "regenerate", "turn-off", "confirm"] as const;
+
+// From this many recovery codes left, the section warns (#1274 decision 9).
+export const LOW_RECOVERY_CODES = 2;
+
+// What the section shows. The key, the URI and the recovery codes live only in
+// the step that shows them, and leave with it.
+export type Flow =
+  | { step: "summary" }
+  | { step: "scan"; enrolment: EnrolmentStart; replacing: boolean }
+  | { step: "restart"; replacing: boolean; reason: "expired" | "attempts" }
+  | { step: "codes"; codes: string[]; regenerated: boolean };
+
+const SUMMARY: Flow = { step: "summary" };
+
+const isProblem = (err: unknown, status: number, title: string): err is ApiError =>
+  err instanceof ApiError && err.status === status && err.title === title;
+
+// The stale-session refusal changed nothing on the server (#1280), and the API
+// layer never resends it, so the user only needs to try again.
+function stale(err: unknown): unknown {
+  return isProblem(err, 401, "Auth.CredentialsSuperseded") ? new Error(i18n.t("account:sessionChanged")) : err;
+}
+
+export function useTwoFactor() {
+  const { isAuthenticated } = useAuth();
+  const status = useLatestLoad([], getTwoFactorStatus);
+  const dialog = useDialogAction(SCOPES);
+  const { busy, run, openDialog, dismissDialog } = dialog;
+  const { keyFor, clearKey } = useIdempotencyKeys();
+  const [flow, setFlow] = useState<Flow>(SUMMARY);
+  const [action, setAction] = useState<ProofAction | null>(null);
+  const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+
+  // #308 — a proof, a code, a key or a recovery code never outlives the session.
+  useEffect(() => {
+    if (isAuthenticated) return;
+    setProof(NO_PROOF);
+    setCode("");
+    setFlow(SUMMARY);
+    setAction(null);
+    for (const scope of SCOPES) dismissDialog(scope);
+  }, [isAuthenticated, dismissDialog]);
+
+  function openProof(next: ProofAction) {
+    openDialog(next);
+    setMessage(null);
+    setProof(NO_PROOF);
+    setAction(next);
+  }
+
+  function closeProof() {
+    setProof(NO_PROOF);
+    setAction(null);
+    if (action) dismissDialog(action);
+  }
+
+  async function send(next: ProofAction, token: string, current: () => boolean) {
+    const scope = next;
+    if (next === "start") {
+      const replacing = status.data?.enabled ?? false;
+      const enrolment = await startTwoFactor(keyFor(scope), token);
+      clearKey(scope);
+      if (!current()) return;
+      setCode("");
+      openDialog("confirm");
+      setFlow({ step: "scan", enrolment, replacing });
+    } else if (next === "regenerate") {
+      const { recoveryCodes } = await regenerateRecoveryCodes(keyFor(scope), token).catch((err: unknown) => {
+        // The status was stale: the user is not enrolled, so it says so again.
+        if (!isProblem(err, 409, "Auth.TwoFactorNotEnabled")) throw err;
+        clearKey(scope);
+        status.retry();
+        throw new Error(i18n.t("account:regenerateNotEnabled"));
+      });
+      clearKey(scope);
+      status.retry();
+      if (!current()) return;
+      setFlow({ step: "codes", codes: recoveryCodes, regenerated: true });
+    } else {
+      await turnOffTwoFactor(keyFor(scope), token);
+      clearKey(scope);
+      status.retry();
+      if (!current()) return;
+      setMessage(i18n.t("account:turnedOffMessage"));
+    }
+    setAction(null);
+    dismissDialog(next);
+  }
+
+  async function onProof(e: FormEvent) {
+    e.preventDefault();
+    const next = action;
+    if (!next || busy) return;
+    setMessage(null);
+    await run(next, async (current) => {
+      const entered = proof;
+      setProof(NO_PROOF);
+      const token = (await stepUp(entered)).token;
+      if (!current()) return;
+      await send(next, token, current).catch((err: unknown) => { throw stale(err); });
+    }, { dialog: next });
+  }
+
+  async function onConfirm(e: FormEvent) {
+    e.preventDefault();
+    if (flow.step !== "scan" || busy) return;
+    const { replacing } = flow;
+    await run("confirm", async (current) => {
+      const typed = code;
+      setCode("");
+      let recoveryCodes: string[] | undefined;
+      try {
+        ({ recoveryCodes } = await confirmTwoFactor(typed, keyFor("confirm")));
+      } catch (err) {
+        // The fifth wrong code ended the enrolment, and every later confirm
+        // answers 409: either way the user starts again.
+        const attemptsLeft = err instanceof ApiError ? err.extensions.attemptsLeft : undefined;
+        const reason = isProblem(err, 409, "Auth.EnrolmentExpired") ? "expired"
+          : isProblem(err, 400, "Auth.EnrolmentCodeIncorrect") && attemptsLeft === 0 ? "attempts" : null;
+        if (reason === null) throw incorrect(err, attemptsLeft);
+        clearKey("confirm");
+        if (current()) setFlow({ step: "restart", replacing, reason });
+        return;
+      }
+      clearKey("confirm");
+      status.retry();
+      if (!current()) return;
+      if (recoveryCodes) {
+        setFlow({ step: "codes", codes: recoveryCodes, regenerated: false });
+      } else {
+        setFlow(SUMMARY);
+        setMessage(i18n.t("account:replacedMessage"));
+      }
+    });
+  }
+
+  function leaveFlow() {
+    dismissDialog("confirm");
+    setCode("");
+    setFlow(SUMMARY);
+  }
+
+  return {
+    status, flow, action, proof, setProof, code, setCode, message, dialog,
+    openProof, closeProof, onProof, onConfirm, leaveFlow,
+  };
+}
+
+// A malformed code answers without a count (#1277 contract item 7).
+function incorrect(err: unknown, attemptsLeft: unknown): unknown {
+  if (!isProblem(err, 400, "Auth.EnrolmentCodeIncorrect")) return stale(err);
+  return new Error(typeof attemptsLeft === "number"
+    ? i18n.t("account:codeIncorrectAttempts", { count: attemptsLeft })
+    : i18n.t("account:codeIncorrect"));
+}
+
+export type TwoFactor = ReturnType<typeof useTwoFactor>;

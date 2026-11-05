@@ -105,12 +105,13 @@ describe("isProductionSource", () => {
 });
 
 describe("productionStepUpUses", () => {
-  // Seven in the Users hooks (disable and enable share one) and /connect's.
+  // Seven in the Users hooks (disable and enable share one), /connect's and
+  // the Account page Security section's.
   it("finds every call site in the SPA, each under its own name, and no other use", () => {
     const { sites: found, violations } = productionStepUpUses();
 
     expect(violations).toEqual([]);
-    expect(found.length).toBeGreaterThanOrEqual(8);
+    expect(found.length).toBeGreaterThanOrEqual(9);
     expect(new Set(found).size).toBe(found.length);
   });
 });

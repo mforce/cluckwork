@@ -7,21 +7,11 @@ import {
   downloadFullBackup,
 } from "../api/cluckwork";
 import { ApiError } from "../api/client";
+import { saveBlob } from "../lib/saveBlob";
 
 function errText(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : String(err);
-}
-
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 export function ExportPage() {

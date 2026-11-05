@@ -40,6 +40,11 @@ const ENTRIES = [
   { key: "Roles", group: "signingIn", spec: "Roles" },
   { key: "FlockScoping", group: "signingIn", spec: "Flock scoping" },
   { key: "DisabledUser", group: "signingIn", spec: "Disabled user" },
+  { key: "TwoFactorAuth", group: "signingIn", spec: "Two-factor authentication" },
+  { key: "AuthenticatorApp", group: "signingIn", spec: "Authenticator app" },
+  { key: "AuthenticatorCode", group: "signingIn", spec: "Authenticator code" },
+  { key: "RecoveryCode", group: "signingIn", spec: "Recovery code" },
+  { key: "TurnOffTwoFactor", group: "signingIn", spec: "Turn off two-factor authentication" },
   { key: "ResetTwoFactor", group: "signingIn", spec: "Reset two-factor authentication" },
   { key: "ConnectedApp", group: "signingIn", spec: "Connected app" },
   // Flocks & daily entry

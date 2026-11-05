@@ -20,6 +20,9 @@ import { StepperUnitSelector } from "../session/StepperUnitSelector";
 import { SUPPORTED_LANGUAGES } from "../i18n";
 import { roleLabel } from "../i18n/enums";
 import { errText } from "../lib/errText";
+import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
+import { TwoFactorFlow } from "./account/TwoFactorFlow";
+import { useTwoFactor } from "./account/useTwoFactor";
 
 const MIN_LENGTH = 12;
 
@@ -38,6 +41,7 @@ export function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+  const twoFactorSection = useTwoFactor();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -74,6 +78,10 @@ export function AccountPage() {
       }
     });
   }
+
+  // #1277 — enrolment and new recovery codes take the page while they run.
+  const proofDialog = <ProofDialog twoFactor={twoFactorSection} />;
+  if (twoFactorSection.flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{proofDialog}</>;
 
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
@@ -148,6 +156,9 @@ export function AccountPage() {
           </Stack>
         </AccordionDetails>
       </Accordion>
+
+      <SecurityPanel twoFactor={twoFactorSection} />
+      {proofDialog}
 
       <ConnectedAppsPanel />
     </Box>
