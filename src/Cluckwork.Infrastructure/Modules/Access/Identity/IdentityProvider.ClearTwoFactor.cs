@@ -12,7 +12,7 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 public sealed partial class IdentityProvider
 {
     private static readonly Error CredentialsSuperseded =
-        new(EnrolmentErrorCodes.CredentialsSuperseded, "Your credentials have been superseded. Sign in again.");
+        new(CredentialErrorCodes.Superseded, "Your credentials have been superseded. Sign in again.");
 
     // Turn-off, start and regenerate spend their step-up grant before this
     // lock, so a password reset, an enrolment or a disable can land in

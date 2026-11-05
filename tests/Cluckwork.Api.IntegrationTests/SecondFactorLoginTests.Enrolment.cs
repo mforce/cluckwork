@@ -371,8 +371,8 @@ public sealed partial class SecondFactorLoginTests
         var confirmed = await identity.ConfirmTwoFactorEnrolmentAsync(otherAccount, victim.UserId, CodeAt(victim, 0));
 
         Assert.Equal(new TwoFactorStatus(false, 0), status);
-        Assert.Equal(EnrolmentErrorCodes.CredentialsSuperseded, started.Error.Code);
-        Assert.Equal(EnrolmentErrorCodes.CredentialsSuperseded, regenerated.Error.Code);
+        Assert.Equal(CredentialErrorCodes.Superseded, started.Error.Code);
+        Assert.Equal(CredentialErrorCodes.Superseded, regenerated.Error.Code);
         Assert.Equal(EnrolmentErrorCodes.Expired, confirmed.Error.Code);
         Assert.Equal(rowsBefore, (await TwoFactorRowsAsync(victim.AccountId, victim.UserId)).Order());
         Assert.Equal(epoch, (await FactorStateAsync(victim.AccountId, victim.UserId)).Epoch);
@@ -382,7 +382,7 @@ public sealed partial class SecondFactorLoginTests
     // answers 401 only for a session that went stale under it.
     [Theory]
     [InlineData(StepUpErrorCodes.Required, HttpStatusCode.Forbidden)]
-    [InlineData(EnrolmentErrorCodes.CredentialsSuperseded, HttpStatusCode.Unauthorized)]
+    [InlineData(CredentialErrorCodes.Superseded, HttpStatusCode.Unauthorized)]
     [InlineData(EnrolmentErrorCodes.NotEnabled, HttpStatusCode.Conflict)]
     public void AGrantSpendingRoutesRefusal_HasItsOwnStatus(string code, HttpStatusCode status)
     {
@@ -488,7 +488,7 @@ public sealed partial class SecondFactorLoginTests
         var response = await PostWithGrantAsync(client, path, grant!);
 
         Assert.True(factory.BeforeCommand.Fired, "the concurrent reset never ran");
-        Assert.Equal((HttpStatusCode.Unauthorized, EnrolmentErrorCodes.CredentialsSuperseded), await TitleOf(response));
+        Assert.Equal((HttpStatusCode.Unauthorized, CredentialErrorCodes.Superseded), await TitleOf(response));
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("recoveryCodes", body, StringComparison.Ordinal);
         Assert.DoesNotContain("otpauth", body, StringComparison.Ordinal);

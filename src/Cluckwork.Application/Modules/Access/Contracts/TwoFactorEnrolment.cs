@@ -20,8 +20,6 @@ public static class EnrolmentErrorCodes
     public const string CodeIncorrect = "Auth.EnrolmentCodeIncorrect";
     public const string Expired = "Auth.EnrolmentExpired";
     public const string NotEnabled = "Auth.TwoFactorNotEnabled";
-    // The answer CredentialEpochMiddleware gives a superseded token.
-    public const string CredentialsSuperseded = "Auth.CredentialsSuperseded";
 }
 
 // AttemptsLeft is null for a malformed code, which counts nothing.

@@ -104,7 +104,7 @@ public static partial class AuthEndpoints
         Results.Problem(error.Description, title: error.Code, statusCode: error.Code switch
         {
             StepUpErrorCodes.Required => StatusCodes.Status403Forbidden,
-            EnrolmentErrorCodes.CredentialsSuperseded => StatusCodes.Status401Unauthorized,
+            CredentialErrorCodes.Superseded => StatusCodes.Status401Unauthorized,
             EnrolmentErrorCodes.NotEnabled => StatusCodes.Status409Conflict,
             _ => throw new InvalidOperationException($"No answer is mapped for {error.Code}."),
         });
