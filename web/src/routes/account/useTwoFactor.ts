@@ -7,7 +7,9 @@ import type { StepUpProof } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
+import { useShellLock } from "../../components/ShellLock";
 import i18n from "../../i18n";
+import { useHistoryHold } from "./useHistoryHold";
 
 // #1277 — the Security section's two-factor authentication. Start,
 // Regenerate and Turn off each step up in a dialog first; confirm is the
@@ -47,6 +49,14 @@ export function useTwoFactor() {
   const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [codesSaved, setCodesSaved] = useState(false);
+
+  // #1277 MC3 (maintainer, 2026-11-05: "Block both"): confirm and regenerate
+  // hand out codes once, and unsaved codes exist only here, so the nav and
+  // Back stay on the page until they are settled and saved.
+  const confirming = dialog.isPending("confirm");
+  useShellLock(confirming);
+  useHistoryHold(confirming || dialog.isPending("regenerate") || (flow.step === "codes" && !codesSaved));
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
   useEffect(() => {
@@ -89,6 +99,7 @@ export function useTwoFactor() {
       });
       status.retry();
       if (!current()) return;
+      setCodesSaved(false);
       setFlow({ step: "codes", codes: recoveryCodes, regenerated: true });
     } else {
       await turnOffTwoFactor(token);
@@ -138,6 +149,7 @@ export function useTwoFactor() {
       status.retry();
       if (!current()) return;
       if (recoveryCodes) {
+        setCodesSaved(false);
         setFlow({ step: "codes", codes: recoveryCodes, regenerated: false });
       } else {
         setFlow(SUMMARY);
@@ -153,7 +165,7 @@ export function useTwoFactor() {
   }
 
   return {
-    status, flow, action, proof, setProof, code, setCode, message, dialog,
+    status, flow, action, proof, setProof, code, setCode, message, dialog, codesSaved, setCodesSaved,
     openProof, closeProof, onProof, onConfirm, leaveFlow,
   };
 }

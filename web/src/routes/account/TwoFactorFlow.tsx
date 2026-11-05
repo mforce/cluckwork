@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Link, Paper, Stack, TextField, Typography } from "@mui/material";
@@ -113,23 +113,14 @@ function RestartStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<
 // #1275 "Recovery codes", shown once: the codes are in this dialog's props and
 // nowhere else, and leaving drops them. The maintainer chose a locked dialog
 // (2026-11-05): until the codes are saved, nothing dismisses it, and the modal
-// keeps the sidebar, the bottom nav and Help out of reach. Closing the tab asks
-// the browser to confirm. Browser Back is not guarded.
+// keeps the sidebar, the bottom nav and Help out of reach. useTwoFactor holds
+// Back and closing the tab until "saved" is ticked (MC3).
 export function RecoveryCodesDialog({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "codes" }> }) {
   const { t } = useTranslation("account");
   const me = useMe();
   const { copy, notice, setNote } = useCopy();
-  const [saved, setSaved] = useState(false);
+  const { codesSaved: saved, setCodesSaved: setSaved } = twoFactor;
   const text = flow.codes.join("\n");
-
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, []);
 
   const download = () => {
     saveBlob(new Blob([`${t("codesFileTitle", { email: me?.email ?? "" })}\n\n${text}\n`], { type: "text/plain" }), "cluckwork-recovery-codes.txt");
