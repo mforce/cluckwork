@@ -116,9 +116,8 @@ describe("the status drives the Security section", () => {
   it.each([[3, false], [2, true], [1, true], [0, true]])("with %i codes left, warns: %s", async (left, warns) => {
     await renderAccount({ enabled: true, recoveryCodesLeft: left });
 
-    const warning = screen.queryByText(t("recoveryCodesLow", { count: left }));
-    expect(warning !== null).toBe(warns);
-    if (warns) expect(within(warning!.closest(".MuiAlert-root")!.parentElement!).getByRole("button", { name: t("regenerateButton") })).toBeInTheDocument();
+    expect(screen.queryByText(t("recoveryCodesLow", { count: left })) !== null).toBe(warns);
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeInTheDocument();
   });
 
   it("says when the status could not load, and loads it again on Try again", async () => {

@@ -29,7 +29,7 @@ export function TwoFactorFlow({ twoFactor }: { twoFactor: TwoFactor }) {
 
 const heading = (replacing: boolean) => (replacing ? "replaceHeading" : "enrolHeading");
 
-// Copy feedback, keyed so a second press announces again.
+// Copy and download feedback, announced in one live region.
 function useCopy() {
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
   // Started inside the promise: a plain-http origin has no clipboard at all.

@@ -60,10 +60,10 @@ export function useTwoFactor() {
     for (const scope of SCOPES) dismissDialog(scope);
   }, [isAuthenticated, dismissDialog]);
 
+  // Every way out clears the proof (cancel, send, logout), so opening does not.
   function openProof(next: ProofAction) {
     openDialog(next);
     setMessage(null);
-    setProof(NO_PROOF);
     setAction(next);
   }
 
@@ -74,30 +74,29 @@ export function useTwoFactor() {
   }
 
   async function send(next: ProofAction, token: string, current: () => boolean) {
-    const scope = next;
     if (next === "start") {
       const replacing = status.data?.enabled ?? false;
-      const enrolment = await startTwoFactor(keyFor(scope), token);
-      clearKey(scope);
+      const enrolment = await startTwoFactor(keyFor(next), token);
+      clearKey(next);
       if (!current()) return;
       setCode("");
       openDialog("confirm");
       setFlow({ step: "scan", enrolment, replacing });
     } else if (next === "regenerate") {
-      const { recoveryCodes } = await regenerateRecoveryCodes(keyFor(scope), token).catch((err: unknown) => {
-        // The status was stale: the user is not enrolled, so it says so again.
+      const { recoveryCodes } = await regenerateRecoveryCodes(keyFor(next), token).catch((err: unknown) => {
+        // The status was stale (#1277 contract item 8): reload it.
         if (!isProblem(err, 409, "Auth.TwoFactorNotEnabled")) throw err;
-        clearKey(scope);
+        clearKey(next);
         status.retry();
         throw new Error(i18n.t("account:regenerateNotEnabled"));
       });
-      clearKey(scope);
+      clearKey(next);
       status.retry();
       if (!current()) return;
       setFlow({ step: "codes", codes: recoveryCodes, regenerated: true });
     } else {
-      await turnOffTwoFactor(keyFor(scope), token);
-      clearKey(scope);
+      await turnOffTwoFactor(keyFor(next), token);
+      clearKey(next);
       status.retry();
       if (!current()) return;
       setMessage(i18n.t("account:turnedOffMessage"));
