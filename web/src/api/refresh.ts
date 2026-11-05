@@ -321,7 +321,7 @@ export async function apiFetch<T>(
     throw new StaleSessionError();
   return sendWithRefresh((bearer) => raw<T>(path, init, bearer), token, {
     held: heldAuthCookieLock,
-    resendable: (err) => !isUnresendable(path, init, err),
+    unresendable: (err) => isUnresendable(path, init, err),
   });
 }
 
@@ -338,7 +338,7 @@ function endSession(err: ApiError): never {
 async function sendWithRefresh<T>(
   send: (token: string) => Promise<T>,
   token: string,
-  { held, resendable = () => true }: { held?: HeldAuthCookieLock; resendable?: (err: ApiError) => boolean } = {},
+  { held, unresendable = () => false }: { held?: HeldAuthCookieLock; unresendable?: (err: ApiError) => boolean } = {},
 ): Promise<T> {
   // A held context identifies the non-replayable password form. Generic API
   // requests may continue on a newer login after supersession; this one must
@@ -347,7 +347,7 @@ async function sendWithRefresh<T>(
   try {
     return await send(token);
   } catch (err) {
-    if (!(err instanceof ApiError) || err.status !== 401 || !resendable(err)) throw err;
+    if (!(err instanceof ApiError) || err.status !== 401 || unresendable(err)) throw err;
     if (superseded()) throw new StaleSessionError();
     let refreshed: string;
     try {
