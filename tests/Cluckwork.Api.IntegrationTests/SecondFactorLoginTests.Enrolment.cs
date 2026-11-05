@@ -1,6 +1,9 @@
 using System.Net;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
@@ -8,6 +11,7 @@ using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -517,6 +521,27 @@ public sealed partial class SecondFactorLoginTests
         Assert.DoesNotContain("otpauth", body, StringComparison.Ordinal);
         Assert.Equal(rowsBefore.Order(), (await TwoFactorRowsAsync(accountId, factor.UserId)).Order());
         Assert.Empty(await AuditRowsAsync(accountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
+    }
+
+    // G3.29's walk of request bodies: every body a not-cacheable route binds
+    // carries a password, a code or a challenge, so each prints only
+    // "[redacted]". A new route under those prefixes joins the walk.
+    [Fact]
+    public void EveryRequestBody_OnANotCacheableRoute_PrintsOnlyRedacted()
+    {
+        var notCacheable = (string[])typeof(IdempotencyMiddleware)
+            .GetField("ResponseNotCacheable", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+        var bodies = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .Where(e => e.RoutePattern.RawText is { } raw
+                && notCacheable.Any(entry => new PathString("/" + raw.TrimStart('/')).StartsWithSegments(entry, StringComparison.OrdinalIgnoreCase)))
+            .Select(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType)
+            .OfType<Type>()
+            .ToHashSet();
+
+        Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
+        Assert.Contains(typeof(StepUpRequest), bodies);
+        foreach (var type in bodies)
+            Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
     }
 
     // G2.5: every route under the prefix, plus the code step and step-up,
