@@ -11,7 +11,6 @@ using Cluckwork.Application.Modules.Access.Users.ResetUserTwoFactor;
 using Cluckwork.Application.Modules.Access.Users.SetLanguage;
 using Cluckwork.Application.Modules.Access.Users.SetStepperUnit;
 using Cluckwork.Application.Modules.Access.Users.SetUserPassword;
-using Cluckwork.Application.Modules.Access.Users.TurnOffTwoFactor;
 using Cluckwork.Application.Modules.Access.Users.UpdateUser;
 using Cluckwork.Application.Modules.FlockManagement.Contracts;
 using Cluckwork.Domain.Common;
@@ -32,7 +31,6 @@ public sealed class AccessModule(
     DisableUserHandler disableUser,
     EnableUserHandler enableUser,
     ResetUserTwoFactorHandler resetUserTwoFactor,
-    TurnOffTwoFactorHandler turnOffTwoFactor,
     AssignFlockHandler assignFlock,
     UnassignFlockHandler unassignFlock,
     SetLanguageHandler setLanguage,
@@ -137,33 +135,37 @@ public sealed class AccessModule(
         ChangeOwnPasswordCommand command, Guid accountId, Guid userId, CancellationToken ct) =>
         changeOwnPassword.HandleAsync(command, accountId, userId, ct);
 
+    // #1274 decision 8: an enrolled user's step-up proved the password and a
+    // code, so the grant is the proof.
     public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct) =>
-        turnOffTwoFactor.HandleAsync(accountId, userId, credentialEpoch, stepUpToken, ct);
+        WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.TurnOffTwoFactorAsync(accountId, userId, credentialEpoch, ct), ct);
 
     public Task<TwoFactorStatus> GetTwoFactorStatusAsync(Guid accountId, Guid userId, CancellationToken ct) =>
         identity.GetTwoFactorStatusAsync(accountId, userId, ct);
 
-    public async Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
-        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct)
-    {
-        var proof = await stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
-        return proof.IsSuccess
-            ? await identity.StartTwoFactorEnrolmentAsync(accountId, userId, credentialEpoch, ct)
-            : Result.Failure<EnrolmentStart>(proof.Error);
-    }
+    public Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct) =>
+        WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.StartTwoFactorEnrolmentAsync(accountId, userId, credentialEpoch, ct), ct);
 
     public Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
         Guid accountId, Guid userId, string? code, CancellationToken ct) =>
         identity.ConfirmTwoFactorEnrolmentAsync(accountId, userId, code, ct);
 
-    public async Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
-        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct)
+    public Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct) =>
+        WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct), ct);
+
+    // Spends the caller's own step-up grant before the work, which compares
+    // the acting token's epoch under its lock, because the grant is spent first.
+    private async Task<Result<T>> WithGrantAsync<T>(
+        Guid accountId, Guid userId, string? stepUpToken, Func<Task<Result<T>>> work, CancellationToken ct)
     {
         var proof = await stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
-        return proof.IsSuccess
-            ? await identity.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct)
-            : Result.Failure<IReadOnlyList<string>>(proof.Error);
+        return proof.IsSuccess ? await work() : Result.Failure<T>(proof.Error);
     }
 
     public Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
