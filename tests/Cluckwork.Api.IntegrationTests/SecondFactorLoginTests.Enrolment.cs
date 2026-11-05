@@ -272,6 +272,45 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(0, await PendingRowsAsync(accountId, userId));
     }
 
+    // A replacement and a regenerate each spend a grant that proved a code, so
+    // a missing or bad grant changes nothing.
+    [Theory]
+    [InlineData(StartPath, null)]
+    [InlineData(StartPath, "not-a-grant")]
+    [InlineData(RecoveryCodesPath, null)]
+    [InlineData(RecoveryCodesPath, "not-a-grant")]
+    public async Task AnEnrolledUsersStartOrRegenerate_WithoutAValidGrant_Is403_AndChangesNothing(string path, string? grant)
+    {
+        var (_, factor, client) = await SignedInEnrolledAsync();
+        var before = await TwoFactorRowsAsync(factor.AccountId, factor.UserId);
+
+        var response = grant is null
+            ? await client.PostWithKeyAsync(path, Guid.NewGuid().ToString())
+            : await PostWithGrantAsync(client, path, grant);
+
+        Assert.Equal((HttpStatusCode.Forbidden, StepUpErrorCodes.Required), await TitleOf(response));
+        Assert.Equal(before.Order(), (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Order());
+        Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
+    }
+
+    // A grant made with the password alone, before the user enrolled, died
+    // with the stamp the enrolment rotated: it cannot start a replacement.
+    [Fact]
+    public async Task APasswordOnlyGrant_FromBeforeAnEnrolment_CannotStartAReplacement()
+    {
+        var (email, accountId, userId, client, _) = await SignedInPlainAsync();
+        var earlier = await GrantOf(await StepUpAsync(client, TestHarness.Password));
+        var other = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var start = await StartWithPasswordAsync(other);
+        var confirmed = await ConfirmAsync(other, CurrentCode(start.Key));
+        var fresh = factory.CreateAuthedClient((await confirmed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString()!);
+
+        var response = await PostWithGrantAsync(fresh, StartPath, earlier!);
+
+        Assert.Equal((HttpStatusCode.Forbidden, StepUpErrorCodes.Required), await TitleOf(response));
+        Assert.Equal(0, await PendingRowsAsync(accountId, userId));
+    }
+
     // G2.4
     [Fact]
     public async Task AStartedReplacement_LeavesTheLiveKeyWorking_AndARecoveryCodeGrantCompletesIt()
