@@ -1,6 +1,5 @@
 using System.Net;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -575,7 +574,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Contains(typeof(LoginRequest), bodies);
         Assert.Contains(typeof(StepUpRequest), bodies);
         foreach (var type in bodies)
-            Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
+            CredentialSample.AssertRedacted(type);
     }
 
     // G2.5: every route under the prefix, plus the code step and step-up,

@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text;
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -100,7 +100,7 @@ public sealed class TwoFactorPrimitivesTests
 
         Assert.True(types.Count >= 13, $"the walk found {types.Count} types, below its floor of 13");
         foreach (var type in types)
-            Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
+            CredentialSample.AssertRedacted(type);
     }
 
     // G3.32. Each case reads the URI back with a URI parser, as an app would.
