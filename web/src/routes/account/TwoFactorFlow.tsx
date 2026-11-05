@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Box, Button, Checkbox, FormControlLabel, Link, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Link, Paper, Stack, TextField, Typography } from "@mui/material";
 import { BusyButton } from "../../components/BusyButton";
+import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
 import { saveBlob } from "../../lib/saveBlob";
 import { useMe } from "../../session/SessionContext";
 import { TwoFactorQr } from "./TwoFactorQr";
 import type { Flow, TwoFactor } from "./useTwoFactor";
 
-// #1275 "Enrolment A" and "Recovery codes": the steps that replace the Account
-// page while they run, so the QR code, the key and the codes leave the screen
-// with the step that shows them.
+// #1275 "Enrolment A": the steps that replace the Account page while they run,
+// so the QR code and the key leave the screen with the step that shows them.
 export function TwoFactorFlow({ twoFactor }: { twoFactor: TwoFactor }) {
   const { t } = useTranslation("account");
   const { flow } = twoFactor;
@@ -21,7 +21,6 @@ export function TwoFactorFlow({ twoFactor }: { twoFactor: TwoFactor }) {
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mt: 1 }}>
         {flow.step === "scan" && <ScanStep twoFactor={twoFactor} flow={flow} />}
         {flow.step === "restart" && <RestartStep twoFactor={twoFactor} flow={flow} />}
-        {flow.step === "codes" && <CodesStep twoFactor={twoFactor} flow={flow} />}
       </Paper>
     </Box>
   );
@@ -111,9 +110,12 @@ function RestartStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<
   );
 }
 
-// Shown once: the codes are in this step's props and nowhere else, and Done
-// drops them. Closing the tab first asks the browser to confirm.
-function CodesStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "codes" }> }) {
+// #1275 "Recovery codes", shown once: the codes are in this dialog's props and
+// nowhere else, and leaving drops them. The maintainer chose a locked dialog
+// (2026-11-05): until the codes are saved, nothing dismisses it, and the modal
+// keeps the sidebar, the bottom nav and Help out of reach. Closing the tab asks
+// the browser to confirm. Browser Back is not guarded.
+export function RecoveryCodesDialog({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "codes" }> }) {
   const { t } = useTranslation("account");
   const me = useMe();
   const { copy, notice, setNote } = useCopy();
@@ -121,7 +123,10 @@ function CodesStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Fl
   const text = flow.codes.join("\n");
 
   useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, []);
@@ -132,24 +137,35 @@ function CodesStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Fl
   };
 
   return (
-    <Stack spacing={2}>
-      <Typography variant="h2">{t("codesHeading")}</Typography>
-      <Typography>{t("codesOn")}</Typography>
-      {flow.regenerated && <Alert severity="warning" role="note">{t("codesReplaced")}</Alert>}
-      <Typography color="text.secondary">{t("codesHint")}</Typography>
-      <Box component="ul" aria-label={t("codesListLabel")} sx={{
-        listStyle: "none", m: 0, p: 2, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-        border: "1px solid var(--rule)", borderRadius: 1, fontFamily: "monospace", fontSize: "1.05rem",
-      }}>
-        {flow.codes.map((c) => <li key={c}>{c}</li>)}
-      </Box>
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-        <Button variant="outlined" onClick={() => void copy(text, t("codesCopied"), t("copyFailed"))}>{t("copyCodesButton")}</Button>
-        <Button variant="outlined" onClick={download}>{t("downloadButton")}</Button>
+    <Dialog
+      open
+      title={t("codesHeading")}
+      onClose={twoFactor.leaveFlow}
+      closeDisabled={!saved}
+      fullScreenOnPhone
+      actions={(
+        <DialogActions>
+          <Button variant="contained" disabled={!saved} onClick={twoFactor.leaveFlow}>{t("doneButton")}</Button>
+        </DialogActions>
+      )}
+    >
+      <Stack spacing={2}>
+        <Typography>{t("codesOn")}</Typography>
+        {flow.regenerated && <Alert severity="warning" role="note">{t("codesReplaced")}</Alert>}
+        <Typography color="text.secondary">{t("codesHint")}</Typography>
+        <Box component="ul" aria-label={t("codesListLabel")} sx={{
+          listStyle: "none", m: 0, p: 2, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          border: "1px solid var(--rule)", borderRadius: 1, fontFamily: "monospace", fontSize: "1.05rem",
+        }}>
+          {flow.codes.map((c) => <li key={c}>{c}</li>)}
+        </Box>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+          <Button variant="outlined" onClick={() => void copy(text, t("codesCopied"), t("copyFailed"))}>{t("copyCodesButton")}</Button>
+          <Button variant="outlined" onClick={download}>{t("downloadButton")}</Button>
+        </Stack>
+        {notice}
+        <FormControlLabel control={<Checkbox checked={saved} onChange={(e) => setSaved(e.target.checked)} />} label={t("savedCheckbox")} />
       </Stack>
-      {notice}
-      <FormControlLabel control={<Checkbox checked={saved} onChange={(e) => setSaved(e.target.checked)} />} label={t("savedCheckbox")} />
-      <Box><Button variant="contained" disabled={!saved} onClick={twoFactor.leaveFlow}>{t("doneButton")}</Button></Box>
-    </Stack>
+    </Dialog>
   );
 }

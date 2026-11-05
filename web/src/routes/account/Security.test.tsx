@@ -183,6 +183,28 @@ describe("enrolment", () => {
     expect(mockRegenerate).not.toHaveBeenCalled();
   });
 
+  // Maintainer, 2026-11-05: "Codes in a locked dialog". A modal dialog blocks
+  // the sidebar, the bottom nav and Help, and nothing dismisses it before the
+  // codes are saved.
+  it("shows the codes in a dialog nothing dismisses until they are saved", async () => {
+    await renderAccount(OFF);
+    await enrol();
+    mockConfirm.mockResolvedValueOnce({ recoveryCodes: freshCodes() });
+    typeCode();
+    await press(t("confirmButton"));
+
+    const codes = await screen.findByRole("dialog", { name: t("codesHeading") });
+    expect(within(codes).getByRole("button", { name: "Close" })).toBeDisabled();
+    fireEvent.keyDown(codes, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: t("codesHeading") })).toBeInTheDocument();
+
+    fireEvent.click(within(codes).getByRole("checkbox", { name: t("savedCheckbox") }));
+    expect(within(codes).getByRole("button", { name: "Close" })).toBeEnabled();
+    fireEvent.keyDown(codes, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.queryByRole("list", { name: t("codesListLabel") })).not.toBeInTheDocument();
+  });
+
   it.each([
     ["with attemptsLeft", { attemptsLeft: 3 }, () => t("codeIncorrectAttempts", { count: 3 })],
     ["malformed, with no attemptsLeft", {}, () => t("codeIncorrect")],
