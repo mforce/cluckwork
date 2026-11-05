@@ -106,7 +106,9 @@
   position: absolute;
   top: -3rem;
   left: 0.75rem;
-  z-index: 1000;
+  /* Above MUI's drawer layer (1200), where the docked rail paints over it,
+     and below its modal layer (1300) (#1277 review). */
+  z-index: 1250;
   background: var(--brand);
   color: var(--on-brand);
   padding: 0.6rem 1rem;
