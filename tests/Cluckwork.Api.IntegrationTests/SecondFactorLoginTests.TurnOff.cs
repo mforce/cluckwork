@@ -55,7 +55,8 @@ public sealed partial class SecondFactorLoginTests
     // Decision 8: a factor change revokes every refresh row but the acting
     // session's fresh one and disconnects every connected app (#1229), so the
     // app leaves the list rather than staying listed and refused. The epoch
-    // bump alone refuses them, so the 401s cannot show this.
+    // bump alone refuses them, so the 401s cannot show this. Call it before
+    // a connected-app probe, which revokes the token it is refused with.
     private async Task AssertEverySessionAndAppEndedAsync(Guid accountId, Guid userId, int freshRefreshRows)
     {
         var subject = userId.ToString();
@@ -105,8 +106,8 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(other.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(acting.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(factor.AccountId, other.RefreshToken)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
         await AssertEverySessionAndAppEndedAsync(factor.AccountId, factor.UserId, freshRefreshRows: 1);
+        Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(fresh.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(factor.AccountId, fresh.RefreshToken)).StatusCode);
         // Login asks for no code.

@@ -115,8 +115,8 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, TestHarness.ExtractRefreshCookie(response, accountId))).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(acting.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(accountId, other.RefreshToken)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
         await AssertEverySessionAndAppEndedAsync(accountId, userId, freshRefreshRows: 1);
+        Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
         Assert.Equal(SecondFactorErrorCodes.Required, await factory.LoginRefusalTitleAsync(email, TestHarness.Password));
         var row = Assert.Single(await AuditRowsAsync(accountId, userId, AuditActions.UserTwoFactorEnabled));
         Assert.Equal(userId, row.Actor);
@@ -340,8 +340,9 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(0, await PendingRowsAsync(accountId, userId));
     }
 
-    // G3.23 over HTTP: two confirms of one payload, the second sent while the
-    // first waits at the user-row lock, give one enrolment and one set of codes.
+    // G3.23 over HTTP: two confirms of one payload give one enrolment and one
+    // set of codes. The first is paused before it sends its lock command, so
+    // the second takes the lock, enrols and consumes the payload.
     [Fact]
     public async Task TwoConcurrentConfirms_OfOnePayload_EnrolOnce()
     {
@@ -371,7 +372,7 @@ public sealed partial class SecondFactorLoginTests
         HttpResponseMessage[] responses = [await first, second];
 
         var success = Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
-        Assert.Single(responses, r => r.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Conflict);
+        Assert.Equal((HttpStatusCode.Conflict, EnrolmentErrorCodes.Expired), await TitleOf(Assert.Single(responses, r => r != success)));
         Assert.Equal(10, RecoveryCodesOf(await success.Content.ReadFromJsonAsync<JsonElement>()).Length);
         Assert.Single(await AuditRowsAsync(accountId, userId, AuditActions.UserTwoFactorEnabled));
         Assert.Equal(0, await PendingRowsAsync(accountId, userId));
@@ -380,7 +381,10 @@ public sealed partial class SecondFactorLoginTests
 
     // #530: a session of farm B naming farm A's user reads nothing and changes
     // nothing, because every read and lock filters by the account as well as
-    // the user (GetStatusAsync, ActingSessionIsCurrentAsync, the owner's lock).
+    // the user. Status and the start and regenerate refusals each rest on one
+    // predicate (GetStatusAsync, ActingSessionIsCurrentAsync). Confirm is
+    // stopped by three at once (the user-row lock, the user query and the
+    // token rows), so no single mutation turns its line red.
     [Fact]
     public async Task AnotherFarmsSession_CannotReadOrChangeAUsersEnrolment()
     {

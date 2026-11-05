@@ -211,7 +211,12 @@ public sealed class TwoFactorEnrolmentTests(SecondFactorFactory factory) : IDisp
             (await db.Users.SingleAsync(u => u.Id == user.UserId, ct)).DisplayName = "Unsaved";
             var arguments = write.GetParameters().Select(parameter => parameter.ParameterType switch
             {
-                var type when type == typeof(Guid) => parameter.Name == "accountId" ? user.AccountId : (object)user.UserId,
+                var type when type == typeof(Guid) => parameter.Name switch
+                {
+                    "accountId" => user.AccountId,
+                    "userId" => (object)user.UserId,
+                    var name => throw new NotSupportedException($"no argument for the Guid {name} on {method}; extend this walk"),
+                },
                 var type when typeof(SecondFactorCode).IsAssignableFrom(type) => new SecondFactorCode.Totp(0),
                 var type when type == typeof(ProofBinding) => new ProofBinding(1, "", null),
                 var type when type == typeof(CancellationToken) => ct,
