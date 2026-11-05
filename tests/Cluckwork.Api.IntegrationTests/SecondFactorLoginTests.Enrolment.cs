@@ -138,11 +138,12 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // G3.31, the case only confirm's route can mint: its pair's lineage starts
-    // at the confirm.
+    // at the confirm, ten days after the session's sign-in.
     [Fact]
     public async Task ConfirmsFreshPair_RefreshesUntilTheCap_CountedFromTheConfirm()
     {
         var (_, accountId, _, client, _) = await SignedInPlainAsync();
+        factory.Clock.Advance(TimeSpan.FromDays(10));
         var start = await StartWithPasswordAsync(client);
         var confirmed = await ConfirmAsync(client, CurrentCode(start.Key));
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
@@ -248,8 +249,9 @@ public sealed partial class SecondFactorLoginTests
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync();
         var start = await StartWithPasswordAsync(client);
-        // A recovery code's shape parses, but is not an authenticator code.
-        var malformed = shape == "recovery" ? "ABCD-EFGH-JKMN-PQRT" : shape;
+        // A code in the recovery alphabet parses as a recovery code, which is
+        // not an authenticator code.
+        var malformed = shape == "recovery" ? "2345-6789-BCDF-GHJK" : shape;
 
         var response = await ConfirmAsync(client, malformed);
 
