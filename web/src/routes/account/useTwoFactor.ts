@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { EnrolmentStart } from "../../api/cluckwork";
-import { ApiError, confirmTwoFactor, NO_PROOF, stepUp, turnOffTwoFactor } from "../../api/client";
+import { ApiError, confirmTwoFactor, currentSessionGeneration, NO_PROOF, stepUp, turnOffTwoFactor } from "../../api/client";
 import type { StepUpProof } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
-import { useShellLock } from "../../components/ShellLock";
 import i18n from "../../i18n";
-import { useHistoryHold } from "./useHistoryHold";
+import { useMe } from "../../session/SessionContext";
+import { useHoldRecoveryCodes } from "./recoveryCodes";
 
 // #1277 — the Security section's two-factor authentication. Start,
 // Regenerate and Turn off each step up in a dialog first; confirm is the
@@ -20,13 +20,13 @@ const SCOPES = ["start", "regenerate", "turn-off", "confirm"] as const;
 // From this many recovery codes left, the section warns (#1274 decision 9).
 export const LOW_RECOVERY_CODES = 2;
 
-// What the section shows. The key, the URI and the recovery codes live only in
-// the step that shows them, and leave with it.
+// What the section shows. The key and the URI live only in the step that
+// shows them, and leave with it. New recovery codes go to the slot above the
+// routes (recoveryCodes.tsx), never into this state.
 export type Flow =
   | { step: "summary" }
   | { step: "scan"; enrolment: EnrolmentStart; replacing: boolean }
-  | { step: "restart"; replacing: boolean; reason: "expired" | "attempts" | "session" }
-  | { step: "codes"; codes: string[]; regenerated: boolean };
+  | { step: "restart"; replacing: boolean; reason: "expired" | "attempts" | "session" };
 
 const SUMMARY: Flow = { step: "summary" };
 
@@ -49,14 +49,8 @@ export function useTwoFactor() {
   const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [codesSaved, setCodesSaved] = useState(false);
-
-  // #1277 MC3 (maintainer, 2026-11-05: "Block both"): confirm and regenerate
-  // hand out codes once, and unsaved codes exist only here, so the nav and
-  // Back stay on the page until they are settled and saved.
-  const confirming = dialog.isPending("confirm");
-  useShellLock(confirming);
-  useHistoryHold(confirming || dialog.isPending("regenerate") || (flow.step === "codes" && !codesSaved));
+  const holdCodes = useHoldRecoveryCodes();
+  const email = useMe()?.email ?? "";
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
   useEffect(() => {
@@ -81,7 +75,7 @@ export function useTwoFactor() {
     if (action) dismissDialog(action);
   }
 
-  async function send(next: ProofAction, token: string, current: () => boolean) {
+  async function send(next: ProofAction, token: string, current: () => boolean, generation: number) {
     if (next === "start") {
       // As the dialog does: replacing means the session proved two factors.
       const replacing = enrolled;
@@ -97,10 +91,11 @@ export function useTwoFactor() {
         status.retry();
         throw new Error(i18n.t("account:regenerateNotEnabled"));
       });
+      // Before the current() check: the codes are shown even if the user has
+      // left this page, because the old set no longer works.
+      holdCodes(recoveryCodes, { regenerated: true, email, generation });
       status.retry();
       if (!current()) return;
-      setCodesSaved(false);
-      setFlow({ step: "codes", codes: recoveryCodes, regenerated: true });
     } else {
       await turnOffTwoFactor(token);
       status.retry();
@@ -117,11 +112,12 @@ export function useTwoFactor() {
     if (!next || busy) return;
     setMessage(null);
     await run(next, async (current) => {
+      const generation = currentSessionGeneration();
       const entered = proof;
       setProof(NO_PROOF);
       const token = (await stepUp(entered)).token;
       if (!current()) return;
-      await send(next, token, current).catch((err: unknown) => { throw stale(err); });
+      await send(next, token, current, generation).catch((err: unknown) => { throw stale(err); });
     }, { dialog: next });
   }
 
@@ -130,6 +126,7 @@ export function useTwoFactor() {
     if (flow.step !== "scan" || busy) return;
     const { replacing } = flow;
     await run("confirm", async (current) => {
+      const generation = currentSessionGeneration();
       const typed = code;
       setCode("");
       let recoveryCodes: string[] | undefined;
@@ -147,15 +144,13 @@ export function useTwoFactor() {
         if (current()) setFlow({ step: "restart", replacing, reason });
         return;
       }
+      // Before the current() check, as regenerate does: the user is enrolled
+      // now, so the codes are shown wherever the user has gone.
+      if (recoveryCodes) holdCodes(recoveryCodes, { regenerated: false, email, generation });
       status.retry();
       if (!current()) return;
-      if (recoveryCodes) {
-        setCodesSaved(false);
-        setFlow({ step: "codes", codes: recoveryCodes, regenerated: false });
-      } else {
-        setFlow(SUMMARY);
-        setMessage(i18n.t("account:replacedMessage"));
-      }
+      setFlow(SUMMARY);
+      if (!recoveryCodes) setMessage(i18n.t("account:replacedMessage"));
     });
   }
 
@@ -166,7 +161,7 @@ export function useTwoFactor() {
   }
 
   return {
-    status, flow, action, proof, setProof, code, setCode, message, dialog, codesSaved, setCodesSaved,
+    status, flow, action, proof, setProof, code, setCode, message, dialog,
     openProof, closeProof, onProof, onConfirm, leaveFlow,
   };
 }

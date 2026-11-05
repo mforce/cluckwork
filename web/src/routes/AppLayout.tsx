@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -11,7 +11,6 @@ import { BottomNav } from "../components/BottomNav";
 import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
-import { ShellLockContext } from "../components/ShellLock";
 import { useFarm } from "../farm/useFarm";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
@@ -72,20 +71,12 @@ export function AppLayout() {
     navigate("/login", { replace: true });
   }
 
-  // #1277 MC3 — screens that must not be left mid-write hold the shell inert.
-  const [shellLocks, setShellLocks] = useState(0);
-  const adjustShellLock = useCallback((delta: 1 | -1) => setShellLocks((n) => n + delta), []);
-  const shellInert = shellLocks > 0 || undefined;
-
   return (
-    <ShellLockContext.Provider value={adjustShellLock}>
     <Box sx={{ display: "flex", minHeight: "100dvh" }}>
       {/* First focusable element: lets a keyboard/screen-reader user jump past
           the nav links straight to the screen content (#182, Task 7). */}
       <a href="#main-content" className="skip-link">{t("skipToContent")}</a>
 
-      {/* display: contents, as SessionContext's splash wrapper: it only carries inert. */}
-      <div inert={shellInert} style={{ display: "contents" }}>
       <Drawer
         variant="permanent"
         // `<aside>` (the `complementary` landmark, ax.ts / the e2e `nav`
@@ -151,7 +142,6 @@ export function AppLayout() {
           )}
         </Box>
       </Drawer>
-      </div>
 
       <Box component="main" className="content" id="main-content" tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
         {/* Carries the warning the banner below could not announce because a
@@ -199,10 +189,7 @@ export function AppLayout() {
         </ErrorBoundary>
       </Box>
 
-      <div inert={shellInert} style={{ display: "contents" }}>
-        <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />
-      </div>
+      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />
     </Box>
-    </ShellLockContext.Provider>
   );
 }

@@ -12,10 +12,9 @@ import { DialogError } from "../../components/DialogError";
 import { StepUpProofFields } from "../../components/StepUpProofFields";
 import { useMe } from "../../session/SessionContext";
 import { StatusDot } from "../dashboard/StatusDot";
+import { SECURITY_SUMMARY_ID } from "./recoveryCodes";
 import { LOW_RECOVERY_CODES } from "./useTwoFactor";
 import type { ProofAction, TwoFactor } from "./useTwoFactor";
-
-export const SECURITY_SUMMARY_ID = "account-security";
 
 // #1275 "Account": the status, the recovery codes left, Regenerate and Turn
 // off together in one accordion.

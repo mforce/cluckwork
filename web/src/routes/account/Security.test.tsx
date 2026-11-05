@@ -8,6 +8,7 @@ import { freshCode } from "../../test/codes";
 import { AuthContext } from "../../auth/AuthContext";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
+import { RecoveryCodesProvider } from "./recoveryCodes";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
@@ -390,9 +391,11 @@ describe("the step-up proof", () => {
           mustChangePassword: false, twoFactor: true, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}>
-          <MeContext.Provider value={{ id: "u1", email: EMAIL, name: null, role: "Worker", language: null, preferredStepperUnit: null }}>
-            <FarmContext.Provider value={farmState({ farm: null })}><AccountPage /></FarmContext.Provider>
-          </MeContext.Provider>
+          <RecoveryCodesProvider>
+            <MeContext.Provider value={{ id: "u1", email: EMAIL, name: null, role: "Worker", language: null, preferredStepperUnit: null }}>
+              <FarmContext.Provider value={farmState({ farm: null })}><AccountPage /></FarmContext.Provider>
+            </MeContext.Provider>
+          </RecoveryCodesProvider>
         </AuthContext.Provider>
       </MemoryRouter>
     );

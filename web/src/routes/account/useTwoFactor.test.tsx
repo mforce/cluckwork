@@ -1,13 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import type { FormEvent } from "react";
 import { useTwoFactor } from "./useTwoFactor";
+import { RecoveryCodesProvider } from "./recoveryCodes";
 import { getTwoFactorStatus, regenerateRecoveryCodes } from "../../api/cluckwork";
 import { stepUp } from "../../api/client";
 
-// #1277 review W3 — the recovery codes leave the hook's state on every exit
-// from the codes step, not only the rendered page. Adapted from the round-1
-// runner's probe, which caught a summary that kept them.
+// #1277 W3, then MC4 — the hook hands new recovery codes to the slot above
+// the routes and never keeps them itself. JSON.stringify sees only the
+// serializable part of the hook's result (its state, not its closures), which
+// is where a kept set would sit.
 const auth = vi.hoisted(() => ({ isAuthenticated: true }));
 vi.mock("../../auth/useAuth", () => ({ useAuth: () => auth }));
 vi.mock("../../api/cluckwork", async (original) => ({
@@ -28,34 +30,17 @@ beforeEach(() => {
   vi.mocked(stepUp).mockResolvedValue({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
 });
 
-async function onCodesStep() {
-  const hook = renderHook(useTwoFactor);
-  await waitFor(() => expect(hook.result.current.status.data?.enabled).toBe(true));
-  act(() => hook.result.current.openProof("regenerate"));
-  act(() => hook.result.current.setProof({ password: crypto.randomUUID() }));
-  await act(async () => { await hook.result.current.onProof({ preventDefault() {} } as FormEvent); });
-  expect(hook.result.current.flow.step).toBe("codes");
-  expect(JSON.stringify(hook.result.current)).toContain(code);
-  return hook;
-}
+describe("new recovery codes", () => {
+  it("go to the slot, which shows them, and never into the hook's state", async () => {
+    const { result } = renderHook(useTwoFactor, { wrapper: RecoveryCodesProvider });
+    await waitFor(() => expect(result.current.status.data?.enabled).toBe(true));
+    act(() => result.current.openProof("regenerate"));
+    act(() => result.current.setProof({ password: crypto.randomUUID() }));
 
-describe("the recovery codes' lifetime", () => {
-  it("ends when the user leaves the codes step", async () => {
-    const { result } = await onCodesStep();
+    await act(async () => { await result.current.onProof({ preventDefault() {} } as FormEvent); });
 
-    act(() => result.current.leaveFlow());
-
-    expect(result.current.flow).toEqual({ step: "summary" });
+    expect(await screen.findByText(code)).toBeInTheDocument();
     expect(JSON.stringify(result.current)).not.toContain(code);
-  });
-
-  it("ends when the session does", async () => {
-    const { result, rerender } = await onCodesStep();
-
-    auth.isAuthenticated = false;
-    rerender();
-
     expect(result.current.flow).toEqual({ step: "summary" });
-    expect(JSON.stringify(result.current)).not.toContain(code);
   });
 });

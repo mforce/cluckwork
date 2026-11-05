@@ -1,14 +1,9 @@
-import { useId, useState } from "react";
-import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Link, Paper, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Link, Paper, Stack, TextField, Typography } from "@mui/material";
 import { BusyButton } from "../../components/BusyButton";
-import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { saveBlob } from "../../lib/saveBlob";
-import { useMe } from "../../session/SessionContext";
+import { useCopy } from "./recoveryCodes";
 import { TwoFactorQr } from "./TwoFactorQr";
-import { SECURITY_SUMMARY_ID } from "./SecurityPanel";
 import type { Flow, TwoFactor } from "./useTwoFactor";
 
 // #1275 "Enrolment A": the steps that replace the Account page while they run,
@@ -30,21 +25,6 @@ export function TwoFactorFlow({ twoFactor }: { twoFactor: TwoFactor }) {
 const heading = (replacing: boolean) => (replacing ? "replaceHeading" : "enrolHeading");
 
 const RESTART_REASONS = { expired: "setUpExpired", attempts: "setUpTooManyAttempts", session: "setUpSessionChanged" } as const;
-
-// Copy and download feedback, announced in one live region.
-function useCopy() {
-  const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
-  // Started inside the promise: a plain-http origin has no clipboard at all.
-  const copy = (text: string, done: string, failed: string) =>
-    Promise.resolve().then(() => navigator.clipboard.writeText(text))
-      .then(() => setNote({ text: done, ok: true }), () => setNote({ text: failed, ok: false }));
-  const notice: ReactNode = (
-    <Box role="status" sx={{ "&:empty": { display: "none" } }}>
-      {note && <Alert severity={note.ok ? "success" : "warning"} role="none">{note.text}</Alert>}
-    </Box>
-  );
-  return { copy, notice, setNote };
-}
 
 function ScanStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "scan" }> }) {
   const { t } = useTranslation("account");
@@ -110,65 +90,5 @@ function RestartStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<
         <button type="button" className="link" onClick={leaveFlow}>{tc("cancel")}</button>
       </Stack>
     </Stack>
-  );
-}
-
-// #1275 "Recovery codes", shown once: the codes are in this dialog's props and
-// nowhere else, and leaving drops them. The maintainer chose a locked dialog
-// (2026-11-05): until the codes are saved, nothing dismisses it, and the modal
-// keeps the sidebar, the bottom nav and Help out of reach. useTwoFactor holds
-// Back and closing the tab until "saved" is ticked (MC3).
-export function RecoveryCodesDialog({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "codes" }> }) {
-  const { t } = useTranslation("account");
-  const me = useMe();
-  const { copy, notice, setNote } = useCopy();
-  const hintId = useId();
-  const { codesSaved: saved, setCodesSaved: setSaved } = twoFactor;
-  // The trigger that opened this dialog is gone by now, so focus returns to
-  // the Security section instead of falling to <body>.
-  const done = () => {
-    twoFactor.leaveFlow();
-    requestAnimationFrame(() => document.getElementById(SECURITY_SUMMARY_ID)?.focus());
-  };
-  const text = flow.codes.join("\n");
-
-  const download = () => {
-    saveBlob(new Blob([`${t("codesFileTitle", { email: me?.email ?? "" })}\n\n${text}\n`], { type: "text/plain" }), "cluckwork-recovery-codes.txt");
-    setNote({ text: t("codesDownloaded"), ok: true });
-  };
-
-  return (
-    <Dialog
-      open
-      title={t("codesHeading")}
-      onClose={done}
-      closeDisabled={!saved}
-      describedBy={hintId}
-      fullScreenOnPhone
-      actions={(
-        <DialogActions>
-          <Button variant="contained" disabled={!saved} onClick={done}>{t("doneButton")}</Button>
-        </DialogActions>
-      )}
-    >
-      <Stack spacing={2}>
-        <Typography>{t("codesOn")}</Typography>
-        {flow.regenerated && <Alert severity="warning" role="note">{t("codesReplaced")}</Alert>}
-        <Typography color="text.secondary">{t("codesHint")}</Typography>
-        <Box component="ul" aria-label={t("codesListLabel")} sx={{
-          listStyle: "none", m: 0, p: 2, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-          border: "1px solid var(--rule)", borderRadius: 1, fontFamily: "monospace", fontSize: "1.05rem",
-        }}>
-          {flow.codes.map((c) => <li key={c}>{c}</li>)}
-        </Box>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-          <Button variant="outlined" onClick={() => void copy(text, t("codesCopied"), t("copyFailed"))}>{t("copyCodesButton")}</Button>
-          <Button variant="outlined" onClick={download}>{t("downloadButton")}</Button>
-        </Stack>
-        {notice}
-        <Typography id={hintId} color="text.secondary">{t("codesLockedHint")}</Typography>
-        <FormControlLabel control={<Checkbox checked={saved} onChange={(e) => setSaved(e.target.checked)} />} label={t("savedCheckbox")} />
-      </Stack>
-    </Dialog>
   );
 }

@@ -21,7 +21,7 @@ import { SUPPORTED_LANGUAGES } from "../i18n";
 import { roleLabel } from "../i18n/enums";
 import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
-import { RecoveryCodesDialog, TwoFactorFlow } from "./account/TwoFactorFlow";
+import { TwoFactorFlow } from "./account/TwoFactorFlow";
 import { useTwoFactor } from "./account/useTwoFactor";
 
 const MIN_LENGTH = 12;
@@ -79,11 +79,11 @@ export function AccountPage() {
     });
   }
 
-  // #1277 — enrolment takes the page while it runs; new recovery codes open
-  // over it in a locked dialog.
+  // #1277 — enrolment takes the page while it runs. New recovery codes open in
+  // the slot above the routes (account/recoveryCodes.tsx).
   const proofDialog = <ProofDialog twoFactor={twoFactorSection} />;
   const { flow } = twoFactorSection;
-  if (flow.step === "scan" || flow.step === "restart") return <><TwoFactorFlow twoFactor={twoFactorSection} />{proofDialog}</>;
+  if (flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{proofDialog}</>;
 
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
@@ -161,7 +161,6 @@ export function AccountPage() {
 
       <SecurityPanel twoFactor={twoFactorSection} />
       {proofDialog}
-      {flow.step === "codes" && <RecoveryCodesDialog twoFactor={twoFactorSection} flow={flow} />}
 
       <ConnectedAppsPanel />
     </Box>

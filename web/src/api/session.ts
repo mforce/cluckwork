@@ -28,6 +28,10 @@ import { apiFetch, apiPost, refreshInFlight } from "./refresh";
 // clobbering whatever the (newer) generation already did.
 export let sessionGeneration = 0;
 
+// #1277 — read through a call, so a module spread (a test's partial mock)
+// still sees the live value.
+export const currentSessionGeneration = () => sessionGeneration;
+
 // #438 — the settlement handle of the login currently in flight, or null. A
 // request parked on a refresh that came back superseded cannot simply peek at
 // the token store any more: since login joins the cross-tab cookie lock below,
