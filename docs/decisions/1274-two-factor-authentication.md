@@ -198,7 +198,7 @@ public interface ITwoFactorCredentials
 	Task<FactorOutcome> VerifyAsync(Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct);
 	Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct);
 	Task<ConfirmOutcome> ConfirmEnrolmentAsync(Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct);
-	Task<IReadOnlyList<string>> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct);
+	Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct);   // null: missing or not enrolled
 	Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct);               // never reads a protected value
 }
 
@@ -210,7 +210,7 @@ public interface IOwnerGraceStart { Task StartAsync(Guid accountId, Guid userId,
 // #1281. What ICredentialEpochVerifier returns; the middleware hands it to the gate on Current only.
 public readonly record struct CredentialCheck(CredentialVerdict Verdict, bool TwoFactorEnabled, DateTimeOffset? SecondFactorRequiredSince);
 
-public readonly record struct TwoFactorStatus(bool Enabled, int RecoveryCodesLeft, DateTimeOffset? RequiredSince);   // RequiredSince from #1281
+public readonly record struct TwoFactorStatus(bool Enabled, int RecoveryCodesLeft, DateTimeOffset? RequiredSince);   // #1277 ships the first two; #1281 adds RequiredSince
 
 public sealed record EnrolmentStart(string Key, string OtpauthUri) { public override string ToString() => "[redacted]"; }
 
@@ -287,7 +287,7 @@ The same flow replaces the authenticator of an enrolled user, and the old key wo
 
 `GetStatusAsync` returns the enrolment and the recovery codes left, for the status route. Login and step-up read `TwoFactorEnabled` from the row they already loaded.
 
-#1277 maps the routes. `GET /api/v1/auth/two-factor` answers `{enabled, recoveryCodesLeft}`. `POST …/start` and `POST …/recovery-codes` spend a step-up grant (403 `Identity.StepUpRequired` without one) and answer `{key, otpauthUri}` and `{recoveryCodes}`. `POST …/confirm` takes `{code}` and answers as above, with `attemptsLeft` as a problem extension. A malformed confirm code, one that is not six digits or is a recovery code, answers 400 `Auth.EnrolmentCodeIncorrect` with no `attemptsLeft` and counts nothing, as a malformed code at login is not charged (decision 5). Start and regenerate spend the grant before the user-row lock, so each applies turn-off's rule: under the lock it compares the row's `CredentialEpoch` with the acting token's `credential_epoch` and answers 401 `Auth.CredentialsSuperseded`, writing nothing, on a mismatch; otherwise a password reset that lands while the request waits would hand a stale session a key or new codes. `RegenerateRecoveryCodesAsync` returns null for a user who is not enrolled, and the route answers 409 `Auth.TwoFactorNotEnabled`. Regenerating changes no key, flag or epoch, so it ends no session. Decided by the coordinator on 2026-11-05 (`1277-contract.md`).
+#1277 maps the routes. `GET /api/v1/auth/two-factor` answers `{enabled, recoveryCodesLeft}`. `POST …/start` and `POST …/recovery-codes` spend a step-up grant (403 `Identity.StepUpRequired` without one) and answer `{key, otpauthUri}` and `{recoveryCodes}`. `POST …/confirm` takes `{code}` and answers as above, with `attemptsLeft` as a problem extension. A malformed confirm code, one that is not six digits or is a recovery code, answers 400 `Auth.EnrolmentCodeIncorrect` with no `attemptsLeft` and counts nothing, as a malformed code at login is not charged (decision 5). Start and regenerate spend the grant before the user-row lock, so each applies turn-off's rule: under the lock it compares the row's `CredentialEpoch` with the acting token's `credential_epoch` and answers 401 `Auth.CredentialsSuperseded`, writing nothing, on a mismatch; otherwise a password reset that lands while the request waits would hand a stale session a key or new codes. `RegenerateRecoveryCodesAsync` returns null for a user who is not enrolled, and the route answers 409 `Auth.TwoFactorNotEnabled`. Regenerating changes no key, flag or epoch, so it ends no session. The routes, fields, titles and statuses were settled by the coordinator on 2026-11-05, and #1281 adds `requiredBy` to the status answer.
 
 The call chain is three files deep: the endpoint, then `IdentityProvider` or `StepUpGrantService`, then `TwoFactorCredentials`.
 
