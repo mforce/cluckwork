@@ -214,6 +214,29 @@ public sealed partial class SecondFactorLoginTests
         Assert.False((await FactorStateAsync(accountId, userId)).Enabled);
     }
 
+    // A wrong confirm's count commits with no request token, so a client that
+    // hangs up after the check cannot roll its attempt back (#1274
+    // "Transactions").
+    [Fact]
+    public async Task AWrongConfirm_StillCounts_WhenTheClientHangsUpBeforeTheCommit()
+    {
+        var (_, accountId, userId, client, _) = await SignedInPlainAsync();
+        var start = await StartWithPasswordAsync(client);
+        using var cancel = new CancellationTokenSource();
+        using (var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, userId))
+        {
+            var identity = ActivatorUtilities.CreateInstance<IdentityProvider>(scope.ServiceProvider,
+                new CancelAfterCheck(scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>(), cancel));
+
+            var result = await identity.ConfirmTwoFactorEnrolmentAsync(accountId, userId, WrongCodeFor(start.Key), cancel.Token);
+
+            Assert.True(cancel.IsCancellationRequested, "the request was not cancelled after the confirm");
+            Assert.Equal(4, Assert.IsType<EnrolmentCodeIncorrectError>(result.Error).AttemptsLeft);
+        }
+        var next = await ConfirmAsync(client, WrongCodeFor(start.Key));
+        Assert.Equal(3, (await TestHarness.ReadProblemAsync(next)).GetProperty("attemptsLeft").GetInt32());
+    }
+
     // Contract item 7: a malformed code cannot be a guess, so it counts nothing.
     [Theory]
     [InlineData("12345")]

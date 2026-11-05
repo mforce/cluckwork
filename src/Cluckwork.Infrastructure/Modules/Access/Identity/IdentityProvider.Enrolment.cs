@@ -46,8 +46,8 @@ public sealed partial class IdentityProvider
             if (outcome is ConfirmOutcome.Rejected or ConfirmOutcome.Superseded)
             {
                 // The wrong-confirm count, or the deletion of an unreadable
-                // payload, stands.
-                await transaction.CommitAsync(token);
+                // payload, stands, so a client that hangs up cannot undo it.
+                await transaction.CommitAsync(CancellationToken.None);
                 return Result.Failure<EnrolmentConfirmation>(outcome is ConfirmOutcome.Rejected rejected
                     ? new EnrolmentCodeIncorrectError(rejected.AttemptsLeft)
                     : EnrolmentExpired);
