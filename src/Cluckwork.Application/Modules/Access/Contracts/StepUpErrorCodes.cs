@@ -12,11 +12,3 @@ public static class StepUpErrorCodes
     // grant was issued. The user steps up again with the next code.
     public const string Retry = "Auth.StepUpRetry";
 }
-
-// A token minted before the user's credentials changed: CredentialEpochMiddleware's
-// answer, and a grant-spending route's when the change lands while the request
-// waits for the user-row lock (#1280, #1277).
-public static class CredentialErrorCodes
-{
-    public const string Superseded = "Auth.CredentialsSuperseded";
-}

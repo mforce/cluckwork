@@ -159,8 +159,9 @@ public sealed class AccessModule(
         WithGrantAsync(accountId, userId, stepUpToken,
             () => identity.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct), ct);
 
-    // Spends the caller's own step-up grant before the work, which compares
-    // the acting token's epoch under its lock, because the grant is spent first.
+    // The caller's own two-factor routes check their step-up grant here, not
+    // in a handler. The grant is spent before the work starts, so the work
+    // itself must check that the session is still current.
     private async Task<Result<T>> WithGrantAsync<T>(
         Guid accountId, Guid userId, string? stepUpToken, Func<Task<Result<T>>> work, CancellationToken ct)
     {

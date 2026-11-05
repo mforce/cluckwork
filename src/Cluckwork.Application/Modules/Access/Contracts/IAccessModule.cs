@@ -3,7 +3,9 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // #857 — Access's surface for HTTP adapters: user administration, the
 // caller's own profile, flock assignments, and sessions. Each member forwards
 // to the existing handler or identity service, so step-up checks, locks, audit
-// rows, tokens and errors are theirs, unchanged. Peers use IAccessLookup instead.
+// rows, tokens and errors are theirs, unchanged. The exception is the caller's
+// own two-factor turn-off, start and regenerate, whose step-up grant
+// AccessModule checks itself (#1277). Peers use IAccessLookup instead.
 public interface IAccessModule
 {
     Task<Result<Guid>> CreateUserAsync(
