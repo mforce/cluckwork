@@ -202,6 +202,8 @@ describe("enrolment", () => {
   it.each([
     ["an expired enrolment", new ApiError(409, "Auth.EnrolmentExpired", "Expired."), () => t("setUpExpired")],
     ["the fifth wrong code", new ApiError(400, "Auth.EnrolmentCodeIncorrect", "Wrong.", { extensions: { attemptsLeft: 0 } }), () => t("setUpTooManyAttempts")],
+    // The pending enrolment is bound to the old epoch, so Try again could never work.
+    ["a stale session", new ApiError(401, "Auth.CredentialsSuperseded", "Your credentials changed."), () => t("setUpExpired")],
   ])("after %s, drops the QR code and starts again from a fresh step-up", async (_, err, text) => {
     await renderAccount(OFF);
     const { key } = await enrol();

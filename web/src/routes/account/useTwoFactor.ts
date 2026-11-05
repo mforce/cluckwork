@@ -125,9 +125,10 @@ export function useTwoFactor() {
         ({ recoveryCodes } = await confirmTwoFactor(typed));
       } catch (err) {
         // The fifth wrong code ended the enrolment, and every later confirm
-        // answers 409: either way the user starts again.
+        // answers 409. A stale session's enrolment is bound to the old epoch,
+        // so it can only answer 409 too. Each way the user starts again.
         const attemptsLeft = err instanceof ApiError ? err.extensions.attemptsLeft : undefined;
-        const reason = isProblem(err, 409, "Auth.EnrolmentExpired") ? "expired"
+        const reason = isProblem(err, 409, "Auth.EnrolmentExpired") || isProblem(err, 401, "Auth.CredentialsSuperseded") ? "expired"
           : isProblem(err, 400, "Auth.EnrolmentCodeIncorrect") && attemptsLeft === 0 ? "attempts" : null;
         if (reason === null) throw incorrect(err, attemptsLeft);
         if (current()) setFlow({ step: "restart", replacing, reason });
@@ -158,7 +159,7 @@ export function useTwoFactor() {
 
 // A malformed code answers without a count (#1277 contract item 7).
 function incorrect(err: unknown, attemptsLeft: unknown): unknown {
-  if (!isProblem(err, 400, "Auth.EnrolmentCodeIncorrect")) return stale(err);
+  if (!isProblem(err, 400, "Auth.EnrolmentCodeIncorrect")) return err;
   return new Error(typeof attemptsLeft === "number"
     ? i18n.t("account:codeIncorrectAttempts", { count: attemptsLeft })
     : i18n.t("account:codeIncorrect"));
