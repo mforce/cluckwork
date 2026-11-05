@@ -297,6 +297,27 @@ public sealed partial class SecondFactorLoginTests
         Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
     }
 
+    // The session's own access token is not a step-up grant: the grant has its
+    // own audience, so sending the bearer in the step-up header proves nothing.
+    [Theory]
+    [InlineData(StartPath)]
+    [InlineData(RecoveryCodesPath)]
+    [InlineData(TwoFactorPath)]
+    public async Task TheAccessToken_SentAsTheStepUpGrant_Is403_AndChangesNothing(string path)
+    {
+        var (_, factor, client) = await SignedInEnrolledAsync();
+        var before = await TwoFactorRowsAsync(factor.AccountId, factor.UserId);
+        var accessToken = client.DefaultRequestHeaders.Authorization!.Parameter!;
+
+        var response = path == TwoFactorPath
+            ? await DeleteWithGrantAsync(client, path, accessToken)
+            : await PostWithGrantAsync(client, path, accessToken);
+
+        Assert.Equal((HttpStatusCode.Forbidden, StepUpErrorCodes.Required), await TitleOf(response));
+        Assert.Equal(before.Order(), (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Order());
+        Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
+    }
+
     // A grant made with the password alone, before the user enrolled, died
     // with the stamp the enrolment rotated: it cannot start a replacement.
     [Fact]
