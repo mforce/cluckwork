@@ -190,23 +190,35 @@ public sealed class TwoFactorEnrolmentTests(SecondFactorFactory factory) : IDisp
     }
 
     // G3.28: the lock reloads the row, which would discard the caller's change.
-    public static TheoryData<string> WriteMethods => ["VerifyAsync", "StartEnrolmentAsync", "ConfirmEnrolmentAsync"];
+    // Every port method is a write method except the one unlocked read.
+    public static TheoryData<string> WriteMethods()
+    {
+        var methods = typeof(ITwoFactorCredentials).GetMethods().Select(m => m.Name)
+            .Where(name => name != nameof(ITwoFactorCredentials.GetStatusAsync)).ToList();
+        if (methods.Count < 5)
+            throw new InvalidOperationException($"the walk found {methods.Count} write methods, below its floor of 5");
+        return [.. methods];
+    }
 
     [Theory]
     [MemberData(nameof(WriteMethods))]
     public async Task AWriteMethod_WithTheUserModified_Throws(string method)
     {
         var user = await SeedAsync();
+        var write = typeof(ITwoFactorCredentials).GetMethod(method)!;
         await Assert.ThrowsAsync<InvalidOperationException>(() => InTenantAsync(user, async (credentials, db, ct) =>
         {
             (await db.Users.SingleAsync(u => u.Id == user.UserId, ct)).DisplayName = "Unsaved";
-            return method switch
+            var arguments = write.GetParameters().Select(parameter => parameter.ParameterType switch
             {
-                "VerifyAsync" => (object)await credentials.VerifyAsync(
-                    user.AccountId, user.UserId, new SecondFactorCode.Totp(0), new ProofBinding(1, "", null), ct),
-                "StartEnrolmentAsync" => await credentials.StartEnrolmentAsync(user.AccountId, user.UserId, ct),
-                _ => await credentials.ConfirmEnrolmentAsync(user.AccountId, user.UserId, new SecondFactorCode.Totp(0), ct),
-            };
+                var type when type == typeof(Guid) => parameter.Name == "accountId" ? user.AccountId : (object)user.UserId,
+                var type when typeof(SecondFactorCode).IsAssignableFrom(type) => new SecondFactorCode.Totp(0),
+                var type when type == typeof(ProofBinding) => new ProofBinding(1, "", null),
+                var type when type == typeof(CancellationToken) => ct,
+                var type => throw new NotSupportedException($"no argument for {type} on {method}; extend this walk"),
+            }).ToArray();
+            await (Task)write.Invoke(credentials, arguments)!;
+            return true;
         }));
     }
 }
