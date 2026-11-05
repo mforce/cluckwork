@@ -20,7 +20,7 @@ describe("G2.6: the worst-case otpauth URI", () => {
   });
 
   it.each([["as built", ""], ["with the three defaults spelled out", DEFAULTS]])("draws at level M as version 21 or lower, %s", (_, tail) => {
-    expect(QR_OPTIONS.ecc).toBe("M");
+    expect(QR_OPTIONS).toMatchObject({ ecc: "M", boostEcc: false });
     expect(encode(`${uri()}${tail}`, QR_OPTIONS).version).toBeLessThanOrEqual(21);
   });
 });

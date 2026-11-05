@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { Box } from "@mui/material";
 import { encode } from "uqr";
 
-// #1274 decision 21 — level M, as the worst-case URI was measured against
-// (G2.6), and the four-module quiet zone the QR specification asks for.
-export const QR_OPTIONS = { ecc: "M", border: 4 } as const;
+// #1274 decision 21 — exactly level M, as the worst-case URI was measured
+// against (G2.6), never boosted, and the four-module quiet zone the QR
+// specification asks for.
+export const QR_OPTIONS = { ecc: "M", boostEcc: false, border: 4 } as const;
 
 // Drawn here from the module matrix, so the key never leaves the page: no
 // image endpoint, and no data: URI, which the CSP forbids.
