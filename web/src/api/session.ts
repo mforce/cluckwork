@@ -276,7 +276,7 @@ export function confirmTwoFactor(code: string): Promise<{ recoveryCodes?: string
     method: "POST",
     headers: { "Idempotency-Key": newId() },
     body: JSON.stringify({ code }),
-  }).then((res) => ({ recoveryCodes: res?.recoveryCodes }));
+  }).then((res) => ({ recoveryCodes: res.recoveryCodes }));
 }
 
 // #1280 — 200 with a fresh pair when two-factor was on, 204 when it was not.
@@ -284,12 +284,17 @@ export async function turnOffTwoFactor(stepUpToken: string): Promise<void> {
   await adoptingWrite<AccessTokenResponse>("/auth/two-factor", {
     method: "DELETE",
     headers: { "Idempotency-Key": newId(), [STEP_UP_HEADER]: stepUpToken },
-  });
+  }, "noContentAllowed");
 }
 
 // A write whose answer rotates this farm's refresh cookie and hands this tab a
-// fresh pair; undefined for a 204, which rotates nothing.
-async function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit): Promise<T | undefined> {
+// fresh pair. Only turn-off may answer 204, which rotates nothing; from the
+// others a 204 is a broken answer and throws.
+function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit): Promise<T>;
+function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit, noContent: "noContentAllowed"): Promise<T | undefined>;
+async function adoptingWrite<T extends AccessTokenResponse>(
+  path: string, init: RequestInit, noContent?: "noContentAllowed",
+): Promise<T | undefined> {
   // #310 — this is a token-store writer like login/refresh, so it needs the
   // same generation guard: logout is reachable from every screen (AppLayout's
   // persistent button), so a user who submits and logs out before the answer
@@ -309,7 +314,13 @@ async function adoptingWrite<T extends AccessTokenResponse>(path: string, init: 
     if (sessionGeneration !== generation) throw new StaleSessionError();
     return apiFetch<T | undefined>(path, { ...init, signal }, { generation, signal });
   });
-  if (res === undefined) return undefined;
+  if (res === undefined) {
+    if (!noContent) throw new Error(`${path} answered 204 instead of a fresh pair.`);
+    // No cookie to revoke, but a session that ended meanwhile is not told the
+    // write happened, as the 200 path below does not tell it either.
+    if (sessionGeneration !== generation) throw new StaleSessionError();
+    return undefined;
+  }
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {

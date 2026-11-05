@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { confirmTwoFactor, setOnTokensChanged, setOnUnauthenticated, STEP_UP_HEADER, turnOffTwoFactor } from "./client";
+import { changePassword, confirmTwoFactor, logout, setOnTokensChanged, setOnUnauthenticated, STEP_UP_HEADER, turnOffTwoFactor } from "./client";
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "./cluckwork";
 import { clearAccessToken, clearBoundAccount, getAccessToken, getBoundAccountId, setAccessToken } from "../auth/tokenStore";
 import { freshCode } from "../test/codes";
@@ -101,6 +101,36 @@ describe("turnOffTwoFactor", () => {
 
     expect(getAccessToken()).toBe("at1");
     expect(onTokens).not.toHaveBeenCalled();
+  });
+
+  // A 204 rotates nothing, but a session that ended while it was in flight
+  // must not be told its two-factor was turned off.
+  it("does not report a 204 that lands after a logout", async () => {
+    let answer!: (res: Response) => void;
+    fetchMock
+      .mockReturnValueOnce(new Promise<Response>((resolve) => { answer = resolve; }))
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    const turnOff = turnOffTwoFactor(crypto.randomUUID());
+    await vi.waitFor(() => expect(to("/auth/two-factor")).toHaveLength(1));
+    await logout();
+    answer(new Response(null, { status: 204 }));
+
+    await expect(turnOff).rejects.toThrow();
+  });
+});
+
+// Only turn-off answers 204. The other two rotate the session on every
+// success, so a 204 from them is a broken answer, not a quiet success.
+describe("a 204 where a fresh pair is due", () => {
+  it.each([
+    ["confirm", () => confirmTwoFactor(freshCode())],
+    ["change-password", () => changePassword({ currentPassword: crypto.randomUUID(), newPassword: crypto.randomUUID() })],
+  ])("from %s is an error", async (_, write) => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(write()).rejects.toThrow();
+    expect(getAccessToken()).toBe("at1");
   });
 });
 
