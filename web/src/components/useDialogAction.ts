@@ -98,7 +98,7 @@ export interface DialogAction<S extends string = string> {
  * superseded, exactly as before this hook existed, unless the run names its
  * dialog through `RunOptions.dialog`. A declared dialog scope the screen
  * never `openDialog`s claims session 0 and so is never superseded either,
- * until its first `begin` — deliberately open, kept and explained rather
+ * until its first `begin` or the screen unmounts — deliberately open, kept and explained rather
  * than closed by the type narrowing in
  * docs/decisions/703-dialog-session-scope-types.md (#703 finding 3).
  */

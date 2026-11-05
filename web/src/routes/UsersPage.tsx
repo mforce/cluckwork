@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck } from "lucide-react";
+import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff } from "lucide-react";
 import { Stack, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { listUsers } from "../api/cluckwork";
 import type { Flock, User } from "../api/cluckwork";
@@ -23,6 +23,7 @@ import { CreateUserDialog } from "./users/CreateUserDialog";
 import { DisableEnableDialog } from "./users/DisableEnableDialog";
 import { EditUserDialog } from "./users/EditUserDialog";
 import { FlockAccessDialog } from "./users/FlockAccessDialog";
+import { ResetTwoFactorDialog } from "./users/ResetTwoFactorDialog";
 import { SetPasswordDialog } from "./users/SetPasswordDialog";
 import { useChangeEmail } from "./users/useChangeEmail";
 import { useChangeRole } from "./users/useChangeRole";
@@ -30,6 +31,7 @@ import { useCreateUser } from "./users/useCreateUser";
 import { useDisableEnable } from "./users/useDisableEnable";
 import { useEditUser } from "./users/useEditUser";
 import { useFlockAccess } from "./users/useFlockAccess";
+import { useResetTwoFactor } from "./users/useResetTwoFactor";
 import { useSetPassword } from "./users/useSetPassword";
 
 function errText(err: unknown): string {
@@ -43,7 +45,7 @@ function errText(err: unknown): string {
 // `{ dialog }` option for the message slot and the session; `create` is its
 // own dialog name. flock-access loads before it opens, so its open edge is
 // `startLoad` + `openDialog` rather than `openDialog` alone.
-const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable"] as const;
+const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable", "reset-two-factor"] as const;
 
 // MUI's auto table layout shrinks any wrappable cell below its content width,
 // so short values (names, numbers, chips, actions) are pinned; free text wraps.
@@ -82,6 +84,7 @@ export function UsersPage() {
   const [createStepUpProof, setCreateStepUpProof] = useState<StepUpProof>(NO_PROOF);
   const [pwStepUpProof, setPwStepUpProof] = useState<StepUpProof>(NO_PROOF);
   const [roleStepUpProof, setRoleStepUpProof] = useState<StepUpProof>(NO_PROOF);
+  const [resetStepUpProof, setResetStepUpProof] = useState<StepUpProof>(NO_PROOF);
 
   const { isAuthenticated, userId: myId } = useAuth();
   // #356 — this screen's own identity, so the disable/enable actions can be
@@ -103,6 +106,7 @@ export function UsersPage() {
       setCreateStepUpProof(NO_PROOF);
       setPwStepUpProof(NO_PROOF);
       setRoleStepUpProof(NO_PROOF);
+      setResetStepUpProof(NO_PROOF);
       setStepUpProof(NO_PROOF);
       setFlockStepUpProof(NO_PROOF);
       // `emailStepUpProof` is cleared by the change-email effect below,
@@ -217,6 +221,8 @@ export function UsersPage() {
   const { openEmail } = email;
   const disable = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpProof, setStepUpProof });
   const { openStepUp } = disable;
+  const resetTwoFactor = useResetTwoFactor({ dialog, setUsers, keyFor, clearKey, setMessage, resetStepUpProof, setResetStepUpProof });
+  const { openReset } = resetTwoFactor;
   const flock = useFlockAccess({
     dialog, keyFor, clearKey,
     assignFlock, setAssignFlock, setAssignFlockGen, assignFlockSnapshot, setAssignPickerOpen,
@@ -233,6 +239,16 @@ export function UsersPage() {
   const selectedUser = users.find((u) => u.id === selectedId) ?? null;
 
   function renderActions(u: User, location: "row" | "inspector") {
+    const reset = u.twoFactorEnabled && (
+      <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openReset(u)}>
+        <ShieldOff size={14} aria-hidden /> {t("resetTwoFactorButton")}
+      </BusyButton>
+    );
+    const disableAction = !u.disabledAt && (
+      <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
+        <Ban size={14} aria-hidden /> {t("disableButton")}
+      </BusyButton>
+    );
     return {
       primary: <button className="link" onClick={() => openEdit(u)}>
         <Pencil size={14} aria-hidden /> {t("editButton")}
@@ -259,11 +275,7 @@ export function UsersPage() {
           )}
         </>}
       </>,
-      destructive: location === "inspector" && myId !== u.id && !u.disabledAt && (
-        <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openStepUp(u, "disable")}>
-          <Ban size={14} aria-hidden /> {t("disableButton")}
-        </BusyButton>
-      ),
+      destructive: location === "inspector" && myId !== u.id && (reset || disableAction) && <>{reset}{disableAction}</>,
     };
   }
 
@@ -350,6 +362,12 @@ export function UsersPage() {
                   ? <StatusBadge status="Inactive" label={t("disabledBadge")} />
                   : <StatusBadge status="Active" label={statusLabel("Active")} />,
               },
+              {
+                label: t("twoFactorField"),
+                value: selectedUser.twoFactorEnabled
+                  ? <StatusBadge status="Active" label={t("twoFactorOnBadge")} />
+                  : <StatusBadge status="Inactive" label={t("twoFactorOffBadge")} />,
+              },
             ] : undefined}
             actions={selectedUser ? renderActions(selectedUser, "inspector") : undefined}
           />
@@ -369,6 +387,8 @@ export function UsersPage() {
       <ChangeEmailDialog {...email} {...{ emailUser, busy, isPending, errors, clearKey, emailValue, setEmailValue, emailFieldError, setEmailFieldError, emailStepUpProof, setEmailStepUpProof }} />
 
       <DisableEnableDialog {...disable} {...{ busy, isPending, errors, stepUpProof, setStepUpProof }} />
+
+      <ResetTwoFactorDialog {...resetTwoFactor} {...{ busy, isPending, errors, resetStepUpProof, setResetStepUpProof }} />
     </section>
   );
 }

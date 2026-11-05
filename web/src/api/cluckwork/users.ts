@@ -11,6 +11,8 @@ export interface User {
   // #356 — ISO timestamp of when this user was disabled, or null while active.
   // The SPA renders the row muted with a "Disabled" badge when this is set.
   disabledAt: string | null;
+  // #1280 — the Users page offers the two-factor reset only when this is true.
+  twoFactorEnabled: boolean;
 }
 
 export const listUsers = () => apiGet<User[]>("/users");
@@ -117,3 +119,11 @@ export const enableUser = (
   id: string, key?: string, stepUpToken?: string,
 ) => apiPost<void>(
   `/users/${id}/enable`, undefined, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #1280 — an Owner resets another user's two-factor so they can enrol again
+// (#1274 decision 17). Step-up is unconditional; an enrolled target is signed
+// out everywhere.
+export const resetUserTwoFactor = (
+  id: string, key?: string, stepUpToken?: string,
+) => apiDelete<void>(
+  `/users/${id}/two-factor`, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);

@@ -272,6 +272,9 @@ export const tl = {
     farmEmpty: "Wala pang nagkonekta ng app sa bukid na ito.",
   },
   errors: {
+    "Identity.StepUpRequired": "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password, at isang bagong code kung gumagamit ka ng two-factor authentication.",
+    "Auth.Forbidden": "Wala kang pahintulot na gawin ito.",
+    "Users.CannotResetOwnTwoFactor": "Hindi mo puwedeng i-reset ang sarili mong two-factor authentication. Humingi ng tulong sa ibang Owner.",
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
@@ -1807,6 +1810,22 @@ export const tl = {
     emailChangedMessage: "Napalitan ang email sa pag-sign in at naging {{email}}.",
     userDisabledMessage: "Na-disable si {{email}}.",
     userEnabledMessage: "Na-enable ulit si {{email}}.",
+
+    twoFactorField: "Two-factor authentication",
+    twoFactorOnBadge: "Naka-on",
+    twoFactorOffBadge: "Naka-off",
+    resetTwoFactorButton: "i-reset ang two-factor",
+    resetTwoFactorTitle: "I-reset ang two-factor authentication?",
+    resetTwoFactorSubmitButton: "I-reset ang two-factor",
+    resetTwoFactorWarningBody:
+      "Hihinto sa paggana ang kanilang authenticator app at mga recovery code, at ma-si-sign out sila "
+      + "sa lahat ng device at nakakonektang app. Sa susunod nilang pag-sign in, password lang ang gagamitin "
+      + "nila, at puwede nilang i-set up ulit ang two-factor authentication.",
+    confirmItsYouHeading: "Kumpirmahin na ikaw ito",
+    signedInAsCaption: "Naka-sign in bilang {{email}}",
+    stepUpResetTwoFactorHint: "Ang pag-reset ng two-factor authentication ay nangangailangan muling ilagay ang kasalukuyan mong password.",
+    twoFactorResetMessage: "Na-reset ang two-factor authentication ni {{email}}.",
+    resetTwoFactorNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -2617,10 +2636,11 @@ export const tl = {
       + "na sabihing mali ang iyong mga detalye.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "May walong aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
+      "May siyam na aksyon sa <strong>Users</strong> screen na humihiling sa iyong <strong>muling ilagay ang "
       + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng kahit anong user, ang pag-reset ng "
       + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
-      + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-assign ng manggagawa sa "
+      + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-reset ng two-factor "
+      + "authentication ng user, ang pag-assign ng manggagawa sa "
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name. "
       + "Kapag naka-on ang two-factor authentication sa iyong account, ang mga aksyong ito, ang <strong>Payagan</strong> "
@@ -2779,7 +2799,7 @@ export const tl = {
       + "request, gaya ng pag-reset ng password. Nakatago ang mga control na hindi mo puwedeng gamitin, at "
       + "tinatanggihan pa rin ito ng server. "
       + "Pumili ng row ng ibang user para makita ang <strong>password</strong>, <strong>palitan ang email</strong>, "
-      + "<strong>mga kawan</strong>, at <strong>i-disable</strong> o <strong>i-enable</strong> sa panel sa "
+      + "<strong>mga kawan</strong>, <strong>i-reset ang two-factor</strong>, at <strong>i-disable</strong> o <strong>i-enable</strong> sa panel sa "
       + "ilalim ng table.",
     // #356 (machine-drafted, pending native review)
     rolesDisableUser:
@@ -2790,6 +2810,13 @@ export const tl = {
       + "in, pero hindi na buhayin pa ang mga session na natapos ng pag-disable — mag-si-sign in sila ulit "
       + "gamit ang kasalukuyan nilang password. Hindi mo puwedeng i-disable ang sarili mong sign-in, at "
       + "hindi mo puwedeng i-disable ang huling Admin (may-ari) ng account.",
+    rolesResetTwoFactor:
+      "Ang <strong>pag-reset ng two-factor authentication</strong> (Users screen, Admin/owner lang) ay inaalok "
+      + "para sa user na naka-on ito, para makabalik ang taong nawalan ng authenticator app o mga recovery code. "
+      + "Pinapahinto ng <strong>i-reset ang two-factor</strong> ang kanilang authenticator app at mga recovery "
+      + "code, at ina-sign out sila sa lahat ng device at nakakonektang app. Mag-si-sign in sila ulit gamit lang "
+      + "ang password, at puwede nilang i-set up ulit ang two-factor authentication. Hindi mo puwedeng i-reset "
+      + "ang sa iyo.",
     rolesChangeEmail:
       "Maaaring agad palitan ng mga Owner ang <strong>email sa pag-sign in</strong> ng isang user sa Users "
       + "screen. Ang bagong address ang gagamitin sa susunod na pag-sign in, matatapos ang lahat ng bukas na "
@@ -3516,7 +3543,7 @@ export const tl = {
       + "Inaalis ng Isara ang inspector o Escape ang pagpili at ibinabalik ang focus sa row na iyon. "
       + "Sa telepono, nasa inspector ang mga aksyon ng row; makikita rin ang mga ito sa row sa mas malalaking screen. "
       + "Sa Mga User, pumili ng row ng ibang user para gamitin ang password, "
-      + "palitan ang email, mga kawan, at i-disable o i-enable sa panel na ito.",
+      + "palitan ang email, mga kawan, i-reset ang two-factor, at i-disable o i-enable sa panel na ito.",
 
     glossarySearchablePickerTerm: "Picker na may search",
     glossarySearchablePickerDef:
@@ -3625,7 +3652,8 @@ export const tl = {
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
       + "password ng kahit sinong user, magpalit ng tungkulin ng kahit sinong user, magpalit ng email sa pag-sign in, "
-      + "mag-disable ng user, muling mag-enable ng user, mag-assign ng manggagawa sa isang kawan, o mag-alis ng "
+      + "mag-disable ng user, muling mag-enable ng user, mag-reset ng two-factor authentication ng user, "
+      + "mag-assign ng manggagawa sa isang kawan, o mag-alis ng "
       + "assignment ng manggagawa sa isang kawan, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
       + "Hindi muling hinihingi ito sa mga pagbabago ng display name. "
@@ -3984,6 +4012,13 @@ export const tl = {
       + "request. Ibinabalik ng muling pag-enable ang sign-in pero hindi ang mga lumang session na iyon — "
       + "kahit anong ibinigay bago ang pag-disable ay hindi na kailanman gagana. Hindi puwedeng i-disable "
       + "ang huling aktibong Admin (may-ari) ng account, at walang puwedeng mag-disable sa sarili niya.",
+
+    glossaryResetTwoFactorTerm: "Pag-reset ng two-factor authentication",
+    glossaryResetTwoFactorDef:
+      "Inaalis ng isang Owner ang two-factor authentication ng ibang user para ma-set up niya ito ulit, "
+      + "halimbawa pagkatapos mawala ang kanyang telepono. Hihinto sa paggana ang kanyang authenticator app at "
+      + "mga recovery code, at matatapos ang lahat ng kanyang session at nakakonektang app. Password lang ang "
+      + "hihingin sa susunod niyang pag-sign in. Walang puwedeng mag-reset ng sa kanya mismo.",
 
     glossaryRepoNote:
       "Nasa <code>specs/product/GLOSSARY.md</code> ng repository ang kumpletong mga depinisyon sa "

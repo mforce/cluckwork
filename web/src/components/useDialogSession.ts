@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 export interface DialogSession {
   /**
@@ -13,7 +13,7 @@ export interface DialogSession {
    * — not whichever one happens to be current when the network answers.
    */
   claim: (scope: string) => number;
-  /** Whether a claimed session is still the one on screen. */
+  /** Whether a claimed session is still the one on screen. None is, once the screen unmounts. */
   isCurrent: (scope: string, claimed: number) => boolean;
 }
 
@@ -48,10 +48,19 @@ export interface DialogSession {
  */
 export function useDialogSession(): DialogSession {
   // Absent means "never opened", which claims as 0 and stays current until
-  // something begins a session. A dialog whose screen forgets to call `begin`
-  // therefore behaves exactly as it did before this hook existed, rather than
-  // silently gating every success off.
+  // something begins a session or the screen unmounts. While the screen is
+  // mounted, a dialog whose screen forgets to call `begin` behaves as it did
+  // before this hook existed, rather than silently gating every success off;
+  // unmount ends it like any other session.
   const sessions = useRef<Map<string, number>>(new Map());
+  // #1280 review — leaving the screen ends every session on it, so a step-up
+  // grant that arrives after the user navigated away does not send its write.
+  // Set again on mount for StrictMode's remount.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const begin = useCallback((scope: string) => {
     sessions.current.set(scope, (sessions.current.get(scope) ?? 0) + 1);
@@ -60,7 +69,7 @@ export function useDialogSession(): DialogSession {
   const claim = useCallback((scope: string) => sessions.current.get(scope) ?? 0, []);
 
   const isCurrent = useCallback(
-    (scope: string, claimed: number) => (sessions.current.get(scope) ?? 0) === claimed,
+    (scope: string, claimed: number) => mounted.current && (sessions.current.get(scope) ?? 0) === claimed,
     [],
   );
 

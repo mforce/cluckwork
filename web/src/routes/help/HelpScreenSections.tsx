@@ -261,6 +261,9 @@ export function HelpScreenSections({ openLink }: { openLink: (sectionId: string)
           <Trans ns="help" i18nKey="rolesDisableUser" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="rolesResetTwoFactor" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="rolesChangeEmail" components={{ strong: <strong /> }} />
         </li>
       </ul>

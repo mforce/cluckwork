@@ -335,6 +335,11 @@ export const en = {
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
   // literal flat keys, not nested paths. Filled in Task 4.
   errors: {
+    // #1280 — step-up and Owner refusals shared by the Users routes, and the
+    // two-factor reset's own self-target refusal.
+    "Identity.StepUpRequired": "Your confirmation is no longer valid. Enter your current password again, and a new code if you use two-factor authentication.",
+    "Auth.Forbidden": "You do not have permission to do this.",
+    "Users.CannotResetOwnTwoFactor": "You can't reset your own two-factor authentication. Ask another Owner.",
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
     // #612 — the distinct 422 a restricted plain Worker gets when their
     // assigned flocks fall short but the farm's full stock would have
@@ -2289,6 +2294,25 @@ export const en = {
     emailChangedMessage: "Login email changed to {{email}}.",
     userDisabledMessage: "{{email}} has been disabled.",
     userEnabledMessage: "{{email}} has been re-enabled.",
+
+    // #1280 — an Owner resets another user's two-factor authentication. The
+    // dialog's identity line names the target, as the #1275 design draws it.
+    twoFactorField: "Two-factor authentication",
+    twoFactorOnBadge: "On",
+    twoFactorOffBadge: "Off",
+    resetTwoFactorButton: "reset two-factor",
+    resetTwoFactorTitle: "Reset two-factor authentication?",
+    resetTwoFactorSubmitButton: "Reset two-factor",
+    resetTwoFactorWarningBody:
+      "Their authenticator app and recovery codes stop working, and they are signed out of every "
+      + "device and connected app. At their next sign-in they use their password only, and can set "
+      + "up two-factor authentication again.",
+    confirmItsYouHeading: "Confirm it's you",
+    // {{email}} is the signed-in Owner's, DATA.
+    signedInAsCaption: "Signed in as {{email}}",
+    stepUpResetTwoFactorHint: "Resetting two-factor authentication needs your current password again.",
+    twoFactorResetMessage: "Two-factor authentication was reset for {{email}}.",
+    resetTwoFactorNotFoundError: "This user was not found. Reload the page.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category
@@ -3271,9 +3295,10 @@ export const en = {
     // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
     // that's internal mechanism, not user-facing language.
     signingInStepUp:
-      "Eight actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      "Nine actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
-      + "changing a login email, disabling a user, re-enabling a user, assigning a worker to a flock, and "
+      + "changing a login email, disabling a user, re-enabling a user, resetting a user's two-factor authentication, "
+      + "assigning a worker to a flock, and "
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again. "
       + "When two-factor authentication is on for your account, these actions, <strong>Allow</strong> for a "
@@ -3411,7 +3436,7 @@ export const en = {
       + "A role change signs the affected sign-in out everywhere on its next request, the same way a "
       + "password reset does. Controls you can't use are hidden, and the server refuses them regardless. "
       + "Select another user's row to find <strong>password</strong>, <strong>change email</strong>, "
-      + "<strong>flocks</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below "
+      + "<strong>flocks</strong>, <strong>reset two-factor</strong>, and <strong>disable</strong> or <strong>enable</strong> in the panel below "
       + "the table.",
     // #356 — disable/re-enable a colleague's sign-in.
     rolesDisableUser:
@@ -3421,6 +3446,13 @@ export const en = {
       + "<strong>Re-enable</strong> restores their ability to sign in, but never revives the sessions the "
       + "disable ended — they sign in fresh with their existing password. You can't disable your own sign-in, "
       + "and you can't disable the account's last Admin (owner).",
+    // #1280 — an Owner resets another user's two-factor authentication.
+    rolesResetTwoFactor:
+      "<strong>Resetting two-factor authentication</strong> (Users screen, Admin/owner only) is offered for a "
+      + "user who has it on, so someone who lost their authenticator app or recovery codes can get back in. "
+      + "<strong>reset two-factor</strong> stops their authenticator app and recovery codes working and signs "
+      + "them out of every device and connected app. They sign in again with their password only, and can then "
+      + "set up two-factor authentication again. You can't reset your own.",
     rolesChangeEmail:
       "Owners can replace a user's <strong>login email</strong> immediately from the Users screen. The new "
       + "address is used at the next sign-in, every open session ends, and no confirmation email is sent. "
@@ -4091,7 +4123,7 @@ export const en = {
       + "Close inspector or Escape clears the selection and returns focus to its row. "
       + "On a phone, row actions are in the inspector; wider screens also show them in the row. "
       + "On Users, select another user's row for password, change email, "
-      + "flocks, and disable or enable in this panel.",
+      + "flocks, reset two-factor, and disable or enable in this panel.",
 
     // #512 — quotes the picker's own catalog vocabulary (namedEntityPicker),
     // not a paraphrase, for the same reason as gettingAroundSearchablePicker.
@@ -4185,7 +4217,8 @@ export const en = {
     glossaryStepUpAuthTerm: "Step-up authentication",
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "
-      + "changing any user's role, changing a login email, disabling a user, re-enabling a user, assigning a "
+      + "changing any user's role, changing a login email, disabling a user, re-enabling a user, resetting a "
+      + "user's two-factor authentication, assigning a "
       + "worker to a flock, or removing a worker's flock assignment, the Users "
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
       + "you before handing out — or taking away — access. Display-name changes do not ask again. "
@@ -4499,6 +4532,14 @@ export const en = {
       + "every session they had open ends on its very next request. Re-enabling restores sign-in but not "
       + "those old sessions — anything issued before the disable never works again. The account's last "
       + "active Admin (owner) can't be disabled, and nobody can disable themselves.",
+
+    // #1280
+    glossaryResetTwoFactorTerm: "Reset two-factor authentication",
+    glossaryResetTwoFactorDef:
+      "An Owner removes another user's two-factor authentication so they can set it up again, for example "
+      + "after losing their phone. Their authenticator app and recovery codes stop working, and every session "
+      + "and connected app they had ends. Their next sign-in asks for the password only. Nobody can reset "
+      + "their own.",
 
     glossaryRepoNote:
       "Full spec-language definitions live in the repository's <code>specs/product/GLOSSARY.md</code>.",

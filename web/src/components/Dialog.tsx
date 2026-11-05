@@ -82,7 +82,7 @@ interface DialogProps {
   focusKey?: unknown;
   /**
    * Id of the element describing what the dialog is for, read out after its
-   * name. Matters where the prose IS the content — a confirmation's whole job
+   * name, or a space-separated list of ids read in order. Matters where the prose IS the content — a confirmation's whole job
    * is to say what is about to happen, and focus lands on a button, so without
    * this a screen reader announces the title and the control and nothing else.
    */
