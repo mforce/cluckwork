@@ -5,7 +5,9 @@ using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
+using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -374,6 +376,25 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(EnrolmentErrorCodes.Expired, confirmed.Error.Code);
         Assert.Equal(rowsBefore, (await TwoFactorRowsAsync(victim.AccountId, victim.UserId)).Order());
         Assert.Equal(epoch, (await FactorStateAsync(victim.AccountId, victim.UserId)).Epoch);
+    }
+
+    // A plain 401 makes the SPA refresh and resend, so a grant-spending route
+    // answers 401 only for a session that went stale under it.
+    [Theory]
+    [InlineData(StepUpErrorCodes.Required, HttpStatusCode.Forbidden)]
+    [InlineData(EnrolmentErrorCodes.CredentialsSuperseded, HttpStatusCode.Unauthorized)]
+    [InlineData(EnrolmentErrorCodes.NotEnabled, HttpStatusCode.Conflict)]
+    public void AGrantSpendingRoutesRefusal_HasItsOwnStatus(string code, HttpStatusCode status)
+    {
+        var answer = AuthEndpoints.StepUpRouteProblem(new Error(code, "refused"));
+
+        Assert.Equal((int)status, Assert.IsAssignableFrom<IStatusCodeHttpResult>(answer).StatusCode);
+    }
+
+    [Fact]
+    public void AGrantSpendingRoutesUnmappedError_IsNeverA401()
+    {
+        Assert.Throws<InvalidOperationException>(() => AuthEndpoints.StepUpRouteProblem(new Error("Users.Conflict", "unexpected")));
     }
 
     // G2.4

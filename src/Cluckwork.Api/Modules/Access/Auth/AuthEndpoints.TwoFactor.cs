@@ -87,8 +87,6 @@ public static partial class AuthEndpoints
             return Results.Unauthorized();
 
         var result = await access.RegenerateRecoveryCodesAsync(tenant.AccountId, currentUser.UserId, epoch, stepUpToken, ct);
-        if (result.Error is { Code: EnrolmentErrorCodes.NotEnabled })
-            return Results.Problem(result.Error.Description, statusCode: StatusCodes.Status409Conflict, title: result.Error.Code);
         return result.IsSuccess ? Results.Ok(new RecoveryCodesResponse(result.Value)) : StepUpRouteProblem(result.Error);
     }
 
@@ -97,14 +95,19 @@ public static partial class AuthEndpoints
             ? epoch
             : null;
 
-    // A missing or spent grant is 403, as on the Users routes. The other
-    // failure is Auth.CredentialsSuperseded: the session went stale under the
-    // request, and answers as CredentialEpochMiddleware does.
-    private static IResult StepUpRouteProblem(Error error) =>
-        Results.Problem(error.Description, title: error.Code,
-            statusCode: error.Code == StepUpErrorCodes.Required
-                ? StatusCodes.Status403Forbidden
-                : StatusCodes.Status401Unauthorized);
+    // The refusals of the routes that spend a step-up grant. A missing or spent
+    // grant is 403, as on the Users routes. Only a session that went stale
+    // under the request is 401, as CredentialEpochMiddleware answers it,
+    // because the SPA refreshes and resends on a 401. Anything else is a bug,
+    // and reaches the exception handler.
+    internal static IResult StepUpRouteProblem(Error error) =>
+        Results.Problem(error.Description, title: error.Code, statusCode: error.Code switch
+        {
+            StepUpErrorCodes.Required => StatusCodes.Status403Forbidden,
+            EnrolmentErrorCodes.CredentialsSuperseded => StatusCodes.Status401Unauthorized,
+            EnrolmentErrorCodes.NotEnabled => StatusCodes.Status409Conflict,
+            _ => throw new InvalidOperationException($"No answer is mapped for {error.Code}."),
+        });
 }
 
 public sealed record TwoFactorStatusResponse(bool Enabled, int RecoveryCodesLeft);
