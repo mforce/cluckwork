@@ -34,7 +34,7 @@ public sealed partial class IdentityProvider
         }, ct);
 
     public Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
-        Guid accountId, Guid userId, string code, CancellationToken ct = default)
+        Guid accountId, Guid userId, string? code, CancellationToken ct = default)
     {
         // A malformed code cannot be a guess, so it counts nothing (decision 5).
         if (!SecondFactorCode.TryParse(code, out var parsed) || parsed is not SecondFactorCode.Totp totp)

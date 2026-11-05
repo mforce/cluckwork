@@ -735,7 +735,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             inner.StartTwoFactorEnrolmentAsync(accountId, userId, credentialEpoch, ct);
 
         public Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
-            Guid accountId, Guid userId, string code, CancellationToken ct = default) =>
+            Guid accountId, Guid userId, string? code, CancellationToken ct = default) =>
             inner.ConfirmTwoFactorEnrolmentAsync(accountId, userId, code, ct);
 
         public Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(

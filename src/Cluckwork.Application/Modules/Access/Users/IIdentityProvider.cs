@@ -193,7 +193,7 @@ public interface IIdentityProvider
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);
 
     Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
-        Guid accountId, Guid userId, string code, CancellationToken ct = default);
+        Guid accountId, Guid userId, string? code, CancellationToken ct = default);
 
     Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);

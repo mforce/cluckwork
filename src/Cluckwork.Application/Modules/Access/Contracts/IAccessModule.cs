@@ -87,7 +87,7 @@ public interface IAccessModule
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
 
     Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
-        Guid accountId, Guid userId, string code, CancellationToken ct);
+        Guid accountId, Guid userId, string? code, CancellationToken ct);
 
     Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);

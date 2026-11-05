@@ -154,7 +154,7 @@ public sealed class AccessModule(
     }
 
     public Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
-        Guid accountId, Guid userId, string code, CancellationToken ct) =>
+        Guid accountId, Guid userId, string? code, CancellationToken ct) =>
         identity.ConfirmTwoFactorEnrolmentAsync(accountId, userId, code, ct);
 
     public async Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(

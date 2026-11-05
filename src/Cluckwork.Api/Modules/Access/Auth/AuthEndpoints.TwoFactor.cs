@@ -64,7 +64,7 @@ public static partial class AuthEndpoints
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await access.ConfirmTwoFactorEnrolmentAsync(tenant.AccountId, currentUser.UserId, request.Code ?? string.Empty, ct);
+        var result = await access.ConfirmTwoFactorEnrolmentAsync(tenant.AccountId, currentUser.UserId, request.Code, ct);
         if (result.Error is EnrolmentCodeIncorrectError incorrect)
             return Results.Problem(incorrect.Description, statusCode: StatusCodes.Status400BadRequest, title: incorrect.Code,
                 extensions: incorrect.AttemptsLeft is { } left
