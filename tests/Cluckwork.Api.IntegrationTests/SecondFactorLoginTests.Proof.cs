@@ -143,6 +143,12 @@ public sealed partial class SecondFactorLoginTests
             Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct) =>
             inner.ConfirmEnrolmentAsync(accountId, userId, code, ct);
 
+        public Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+            inner.GetStatusAsync(accountId, userId, ct);
+
+        public Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+            inner.RegenerateRecoveryCodesAsync(accountId, userId, ct);
+
         public Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct) =>
             inner.ClearAsync(accountId, userId, ct);
     }

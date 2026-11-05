@@ -76,6 +76,22 @@ public interface IAccessModule
     Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
 
+    // #1277 — the caller's own enrolment. Start and regenerate spend a
+    // step-up grant: a password-only grant can only come from an unenrolled
+    // user, because an enrolled user's step-up needs a code, and a grant dies
+    // with the stamp an enrolment rotates. credentialEpoch is the acting
+    // token's claim.
+    Task<TwoFactorStatus> GetTwoFactorStatusAsync(Guid accountId, Guid userId, CancellationToken ct);
+
+    Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
+
+    Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, string code, CancellationToken ct);
+
+    Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
+
     // An enrolled user also proves code; anyone else's code is ignored.
     Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
         Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct);

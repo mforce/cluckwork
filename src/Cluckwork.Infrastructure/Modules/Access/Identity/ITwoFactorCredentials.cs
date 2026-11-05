@@ -11,6 +11,9 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // changed; the caller commits, a failed outcome included.
 public interface ITwoFactorCredentials
 {
+    // The one read: untracked, unlocked, by Id and AccountId.
+    Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct);
+
     Task<FactorOutcome> VerifyAsync(
         Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct);
 
@@ -20,16 +23,14 @@ public interface ITwoFactorCredentials
     Task<ConfirmOutcome> ConfirmEnrolmentAsync(
         Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct);
 
+    // Null when the user is missing or not enrolled. Replaces every code.
+    Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct);
+
     // Never reads a protected value, so recover-admin runs it under any key ring.
     Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct);
 }
 
 public enum ClearOutcome { NotFound, NotEnrolled, PendingDeleted, Cleared }
-
-public sealed record EnrolmentStart(string Key, string OtpauthUri)
-{
-    public override string ToString() => "[redacted]";
-}
 
 // The credential state the proof was issued against. Login reads it from the
 // challenge, with its sf_signins; step-up reads it from its password check,

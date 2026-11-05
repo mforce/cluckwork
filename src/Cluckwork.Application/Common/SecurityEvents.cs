@@ -102,6 +102,13 @@ public static class SecurityEvents
     // Fires once per window. UserId and ClientIp: it follows a correct password.
     public const string SecondFactorBudgetSpent = "Auth.SecondFactorBudgetSpent";
 
+    // A user started an enrolment, or confirmed one (#1277). UserId and
+    // ClientIp: each follows a step-up or a session, and they make a
+    // first-enrolment takeover visible (#1274 decision 20). Never the key,
+    // the URI or a code.
+    public const string TwoFactorEnrolmentStarted = "Auth.TwoFactorEnrolmentStarted";
+    public const string TwoFactorEnrolled = "Auth.TwoFactorEnrolled";
+
     // Operational, no fields: a stored authenticator key or pending payload no
     // longer decrypts (a certificate change or a ring deletion, #794).
     public const string SecondFactorKeyUnreadable = "Auth.SecondFactorKeyUnreadable";

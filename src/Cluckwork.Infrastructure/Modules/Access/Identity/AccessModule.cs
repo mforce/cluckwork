@@ -141,6 +141,31 @@ public sealed class AccessModule(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct) =>
         turnOffTwoFactor.HandleAsync(accountId, userId, credentialEpoch, stepUpToken, ct);
 
+    public Task<TwoFactorStatus> GetTwoFactorStatusAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+        identity.GetTwoFactorStatusAsync(accountId, userId, ct);
+
+    public async Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct)
+    {
+        var proof = await stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
+        return proof.IsSuccess
+            ? await identity.StartTwoFactorEnrolmentAsync(accountId, userId, credentialEpoch, ct)
+            : Result.Failure<EnrolmentStart>(proof.Error);
+    }
+
+    public Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, string code, CancellationToken ct) =>
+        identity.ConfirmTwoFactorEnrolmentAsync(accountId, userId, code, ct);
+
+    public async Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct)
+    {
+        var proof = await stepUp.ValidateAsync(accountId, userId, stepUpToken, ct);
+        return proof.IsSuccess
+            ? await identity.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct)
+            : Result.Failure<IReadOnlyList<string>>(proof.Error);
+    }
+
     public Task<Result<StepUpGrant>> IssueStepUpGrantAsync(
         Guid accountId, Guid userId, string currentPassword, string? code, CancellationToken ct) =>
         stepUp.IssueAsync(accountId, userId, currentPassword, code, ct);

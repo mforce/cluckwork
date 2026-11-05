@@ -51,6 +51,11 @@ public static class AuditActions
     // #1280 — an Owner reset another user's two-factor. Details carry
     // pending: true when only a started enrolment ended.
     public const string UserTwoFactorReset = "User.TwoFactorReset";
+    // #1277 — the user confirmed an enrolment. Details carry replaced: true
+    // when an enrolled user swapped the authenticator.
+    public const string UserTwoFactorEnabled = "User.TwoFactorEnabled";
+    // #1277 — the user replaced their recovery codes. No details, never a code.
+    public const string UserRecoveryCodesRegenerated = "User.RecoveryCodesRegenerated";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";
     // #799 — a person's connected app was disconnected, by them or by the farm's Owner;

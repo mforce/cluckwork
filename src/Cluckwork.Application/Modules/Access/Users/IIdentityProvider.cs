@@ -180,6 +180,24 @@ public interface IIdentityProvider
     Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);
 
+    // #1277 — the caller's own enrolment (#1274 "Enrolling and replacing a
+    // key"). Start and regenerate run after step-up: credentialEpoch is the
+    // acting token's, compared under the user-row lock as turn-off does, so a
+    // session superseded while the request waited gets
+    // Auth.CredentialsSuperseded and nothing. Confirm needs no grant, because
+    // the new key's code is the proof; it ends every other session and
+    // connected app and returns the acting session's fresh pair.
+    Task<TwoFactorStatus> GetTwoFactorStatusAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+
+    Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);
+
+    Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, string code, CancellationToken ct = default);
+
+    Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default);
+
     // #1280 — an Owner resets another user's two-factor, account-scoped
     // (foreign id -> NotFound), with the actor re-checked inside the account
     // lock as DisableUserAsync does. An enrolled target's sessions and
