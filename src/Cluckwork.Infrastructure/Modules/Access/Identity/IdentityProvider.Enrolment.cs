@@ -40,7 +40,9 @@ public sealed partial class IdentityProvider
         if (!SecondFactorCode.TryParse(code, out var parsed) || parsed is not SecondFactorCode.Totp totp)
             return Task.FromResult(Result.Failure<EnrolmentConfirmation>(new EnrolmentCodeIncorrectError(AttemptsLeft: null)));
 
-        return AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        // A code check, so it owns its transaction: a joined caller could roll
+        // the wrong-confirm count back.
+        return AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
         {
             var outcome = await twoFactor.ConfirmEnrolmentAsync(accountId, userId, totp, token);
             if (outcome is ConfirmOutcome.Rejected or ConfirmOutcome.Superseded)
