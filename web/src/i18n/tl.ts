@@ -283,6 +283,7 @@ export const tl = {
     codeIncorrectAttempts_one: "Hindi gumana ang code na iyon. Subukan ang susunod na code sa iyong app. {{count}} subok na lang.",
     codeIncorrectAttempts_other: "Hindi gumana ang code na iyon. Subukan ang susunod na code sa iyong app. {{count}} subok na lang.",
     setUpExpired: "Nag-expire ang set-up na ito. Magsimula ulit para makakuha ng bagong QR code.",
+    setUpSessionChanged: "Nagbago ang iyong sign-in, kaya natapos ang set-up na ito. Magsimula ulit para makakuha ng bagong QR code.",
     setUpTooManyAttempts: "Sobrang daming maling code. Magsimula ulit para makakuha ng bagong QR code.",
     startAgainButton: "Magsimula ulit",
     codesHeading: "I-save ang iyong mga recovery code",

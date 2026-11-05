@@ -25,7 +25,7 @@ export const LOW_RECOVERY_CODES = 2;
 export type Flow =
   | { step: "summary" }
   | { step: "scan"; enrolment: EnrolmentStart; replacing: boolean }
-  | { step: "restart"; replacing: boolean; reason: "expired" | "attempts" }
+  | { step: "restart"; replacing: boolean; reason: "expired" | "attempts" | "session" }
   | { step: "codes"; codes: string[]; regenerated: boolean };
 
 const SUMMARY: Flow = { step: "summary" };
@@ -140,7 +140,8 @@ export function useTwoFactor() {
         // answers 409. A stale session's enrolment is bound to the old epoch,
         // so it can only answer 409 too. Each way the user starts again.
         const attemptsLeft = err instanceof ApiError ? err.extensions.attemptsLeft : undefined;
-        const reason = isProblem(err, 409, "Auth.EnrolmentExpired") || isProblem(err, 401, "Auth.CredentialsSuperseded") ? "expired"
+        const reason = isProblem(err, 409, "Auth.EnrolmentExpired") ? "expired"
+          : isProblem(err, 401, "Auth.CredentialsSuperseded") ? "session"
           : isProblem(err, 400, "Auth.EnrolmentCodeIncorrect") && attemptsLeft === 0 ? "attempts" : null;
         if (reason === null) throw incorrect(err, attemptsLeft);
         if (current()) setFlow({ step: "restart", replacing, reason });

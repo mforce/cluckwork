@@ -29,6 +29,8 @@ export function TwoFactorFlow({ twoFactor }: { twoFactor: TwoFactor }) {
 
 const heading = (replacing: boolean) => (replacing ? "replaceHeading" : "enrolHeading");
 
+const RESTART_REASONS = { expired: "setUpExpired", attempts: "setUpTooManyAttempts", session: "setUpSessionChanged" } as const;
+
 // Copy and download feedback, announced in one live region.
 function useCopy() {
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
@@ -102,7 +104,7 @@ function RestartStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<
   return (
     <Stack spacing={2}>
       <Typography variant="h2">{t(heading(flow.replacing))}</Typography>
-      <Alert severity="error">{t(flow.reason === "expired" ? "setUpExpired" : "setUpTooManyAttempts")}</Alert>
+      <Alert severity="error">{t(RESTART_REASONS[flow.reason])}</Alert>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
         <Button variant="contained" onClick={() => openProof("start")}>{t("startAgainButton")}</Button>
         <button type="button" className="link" onClick={leaveFlow}>{tc("cancel")}</button>

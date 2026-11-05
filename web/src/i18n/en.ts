@@ -343,6 +343,7 @@ export const en = {
     codeIncorrectAttempts_one: "That code did not work. Try the next code in your app. {{count}} try left.",
     codeIncorrectAttempts_other: "That code did not work. Try the next code in your app. {{count}} tries left.",
     setUpExpired: "This set-up expired. Start again to get a new QR code.",
+    setUpSessionChanged: "Your sign-in changed, so this set-up ended. Start again to get a new QR code.",
     setUpTooManyAttempts: "Too many wrong codes. Start again to get a new QR code.",
     startAgainButton: "Start again",
     codesHeading: "Save your recovery codes",

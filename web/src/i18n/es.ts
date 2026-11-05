@@ -274,6 +274,7 @@ export const es = {
     codeIncorrectAttempts_one: "Ese código no funcionó. Pruebe el siguiente código de su aplicación. Queda {{count}} intento.",
     codeIncorrectAttempts_other: "Ese código no funcionó. Pruebe el siguiente código de su aplicación. Quedan {{count}} intentos.",
     setUpExpired: "Esta configuración caducó. Empiece de nuevo para obtener un código QR nuevo.",
+    setUpSessionChanged: "Su inicio de sesión cambió, así que esta configuración terminó. Empiece de nuevo para obtener un código QR nuevo.",
     setUpTooManyAttempts: "Demasiados códigos incorrectos. Empiece de nuevo para obtener un código QR nuevo.",
     startAgainButton: "Empezar de nuevo",
     codesHeading: "Guarde sus códigos de recuperación",
