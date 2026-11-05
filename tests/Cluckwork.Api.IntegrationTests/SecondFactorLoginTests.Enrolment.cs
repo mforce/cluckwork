@@ -349,6 +349,33 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(10, (await TwoFactorRowsAsync(accountId, userId)).Count(n => n.StartsWith("RecoveryCode:", StringComparison.Ordinal)));
     }
 
+    // #530: a session of farm B naming farm A's user reads nothing and changes
+    // nothing, because every read and lock filters by the account as well as
+    // the user (GetStatusAsync, ActingSessionIsCurrentAsync, the owner's lock).
+    [Fact]
+    public async Task AnotherFarmsSession_CannotReadOrChangeAUsersEnrolment()
+    {
+        var (_, victim) = await SeedEnrolledAsync();
+        await StartEnrolmentAsync(victim.AccountId, victim.UserId);
+        var rowsBefore = (await TwoFactorRowsAsync(victim.AccountId, victim.UserId)).Order().ToList();
+        var epoch = (await FactorStateAsync(victim.AccountId, victim.UserId)).Epoch;
+        var (_, otherAccount, otherUser, _, _) = await SignedInPlainAsync();
+        using var scope = factory.Services.CreateScope().ResolveTenantAndActor(otherAccount, otherUser);
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+
+        var status = await identity.GetTwoFactorStatusAsync(otherAccount, victim.UserId);
+        var started = await identity.StartTwoFactorEnrolmentAsync(otherAccount, victim.UserId, epoch);
+        var regenerated = await identity.RegenerateRecoveryCodesAsync(otherAccount, victim.UserId, epoch);
+        var confirmed = await identity.ConfirmTwoFactorEnrolmentAsync(otherAccount, victim.UserId, CodeAt(victim, 0));
+
+        Assert.Equal(new TwoFactorStatus(false, 0), status);
+        Assert.Equal(EnrolmentErrorCodes.CredentialsSuperseded, started.Error.Code);
+        Assert.Equal(EnrolmentErrorCodes.CredentialsSuperseded, regenerated.Error.Code);
+        Assert.Equal(EnrolmentErrorCodes.Expired, confirmed.Error.Code);
+        Assert.Equal(rowsBefore, (await TwoFactorRowsAsync(victim.AccountId, victim.UserId)).Order());
+        Assert.Equal(epoch, (await FactorStateAsync(victim.AccountId, victim.UserId)).Epoch);
+    }
+
     // G2.4
     [Fact]
     public async Task AStartedReplacement_LeavesTheLiveKeyWorking_AndARecoveryCodeGrantCompletesIt()
