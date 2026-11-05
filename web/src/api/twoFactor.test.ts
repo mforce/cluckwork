@@ -3,6 +3,7 @@ import { changePassword, confirmTwoFactor, logout, setOnTokensChanged, setOnUnau
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "./cluckwork";
 import { clearAccessToken, clearBoundAccount, getAccessToken, getBoundAccountId, setAccessToken } from "../auth/tokenStore";
 import { freshCode } from "../test/codes";
+import { StaleSessionError } from "./sessionState";
 
 // #1277 — the two-factor routes. Confirm and turn-off hand this tab a fresh
 // pair; every write's stale-session 401 goes back to the caller unsent again.
@@ -116,7 +117,7 @@ describe("turnOffTwoFactor", () => {
     await logout();
     answer(new Response(null, { status: 204 }));
 
-    await expect(turnOff).rejects.toThrow();
+    await expect(turnOff).rejects.toBeInstanceOf(StaleSessionError);
   });
 });
 
@@ -129,7 +130,7 @@ describe("a 204 where a fresh pair is due", () => {
   ])("from %s is an error", async (_, write) => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    await expect(write()).rejects.toThrow();
+    await expect(write()).rejects.toThrow(/answered 204/);
     expect(getAccessToken()).toBe("at1");
   });
 });

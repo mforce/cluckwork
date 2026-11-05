@@ -284,16 +284,16 @@ export async function turnOffTwoFactor(stepUpToken: string): Promise<void> {
   await adoptingWrite<AccessTokenResponse>("/auth/two-factor", {
     method: "DELETE",
     headers: { "Idempotency-Key": newId(), [STEP_UP_HEADER]: stepUpToken },
-  }, "noContentAllowed");
+  }, { noContent: true });
 }
 
 // A write whose answer rotates this farm's refresh cookie and hands this tab a
 // fresh pair. Only turn-off may answer 204, which rotates nothing; from the
 // others a 204 is a broken answer and throws.
 function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit): Promise<T>;
-function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit, noContent: "noContentAllowed"): Promise<T | undefined>;
+function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit, options: { noContent: true }): Promise<T | undefined>;
 async function adoptingWrite<T extends AccessTokenResponse>(
-  path: string, init: RequestInit, noContent?: "noContentAllowed",
+  path: string, init: RequestInit, { noContent = false }: { noContent?: boolean } = {},
 ): Promise<T | undefined> {
   // #310 — this is a token-store writer like login/refresh, so it needs the
   // same generation guard: logout is reachable from every screen (AppLayout's
