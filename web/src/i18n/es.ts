@@ -287,6 +287,7 @@ export const es = {
     downloadButton: "Descargar códigos",
     codesDownloaded: "Descarga iniciada. Revise el archivo antes de salir.",
     codesFileTitle: "Códigos de recuperación de Cluckwork para {{email}}",
+    codesLockedHint: "Guarde los códigos y luego marque la casilla para terminar.",
     savedCheckbox: "Guardé mis códigos de recuperación en un lugar seguro.",
     doneButton: "Listo",
     replacedMessage: "Su nueva aplicación de autenticación está configurada. La anterior ya no funciona.",

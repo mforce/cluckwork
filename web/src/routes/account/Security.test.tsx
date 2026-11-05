@@ -179,6 +179,7 @@ describe("enrolment", () => {
 
     expect(await screen.findByText(t("twoFactorOn"))).toBeInTheDocument();
     for (const c of codes) expect(screen.queryByText(c)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: t("securityHeading") })).toHaveFocus());
     expect(mockConfirm).toHaveBeenCalledTimes(1);
     expect(mockRegenerate).not.toHaveBeenCalled();
   });
@@ -194,12 +195,14 @@ describe("enrolment", () => {
     await press(t("confirmButton"));
 
     const codes = await screen.findByRole("dialog", { name: t("codesHeading") });
-    expect(within(codes).getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(within(codes).getByRole("button", { name: i18n.t("common:close") })).toBeDisabled();
+    // Why it does not close, without reading out the codes.
+    expect(codes).toHaveAccessibleDescription(t("codesLockedHint"));
     fireEvent.keyDown(codes, { key: "Escape" });
     expect(screen.getByRole("dialog", { name: t("codesHeading") })).toBeInTheDocument();
 
     fireEvent.click(within(codes).getByRole("checkbox", { name: t("savedCheckbox") }));
-    expect(within(codes).getByRole("button", { name: "Close" })).toBeEnabled();
+    expect(within(codes).getByRole("button", { name: i18n.t("common:close") })).toBeEnabled();
     fireEvent.keyDown(codes, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByRole("list", { name: t("codesListLabel") })).not.toBeInTheDocument();

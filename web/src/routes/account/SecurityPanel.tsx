@@ -15,6 +15,8 @@ import { StatusDot } from "../dashboard/StatusDot";
 import { LOW_RECOVERY_CODES } from "./useTwoFactor";
 import type { ProofAction, TwoFactor } from "./useTwoFactor";
 
+export const SECURITY_SUMMARY_ID = "account-security";
+
 // #1275 "Account": the status, the recovery codes left, Regenerate and Turn
 // off together in one accordion.
 export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
@@ -25,7 +27,7 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
 
   return (
     <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ChevronDown size={18} aria-hidden />}>
+      <AccordionSummary id={SECURITY_SUMMARY_ID} expandIcon={<ChevronDown size={18} aria-hidden />}>
         <Typography variant="h3" component="span">{t("securityHeading")}</Typography>
       </AccordionSummary>
       <AccordionDetails>

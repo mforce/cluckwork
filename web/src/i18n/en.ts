@@ -356,6 +356,7 @@ export const en = {
     downloadButton: "Download codes",
     codesDownloaded: "Download started. Check the file before you leave.",
     codesFileTitle: "Cluckwork recovery codes for {{email}}",
+    codesLockedHint: "Save the codes, then tick the box to finish.",
     savedCheckbox: "I saved my recovery codes somewhere safe.",
     doneButton: "Done",
     replacedMessage: "Your new authenticator app is set up. The old one no longer works.",

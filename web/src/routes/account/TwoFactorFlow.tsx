@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Link, Paper, Stack, TextField, Typography } from "@mui/material";
@@ -8,6 +8,7 @@ import { DialogError } from "../../components/DialogError";
 import { saveBlob } from "../../lib/saveBlob";
 import { useMe } from "../../session/SessionContext";
 import { TwoFactorQr } from "./TwoFactorQr";
+import { SECURITY_SUMMARY_ID } from "./SecurityPanel";
 import type { Flow, TwoFactor } from "./useTwoFactor";
 
 // #1275 "Enrolment A": the steps that replace the Account page while they run,
@@ -119,7 +120,14 @@ export function RecoveryCodesDialog({ twoFactor, flow }: { twoFactor: TwoFactor;
   const { t } = useTranslation("account");
   const me = useMe();
   const { copy, notice, setNote } = useCopy();
+  const hintId = useId();
   const { codesSaved: saved, setCodesSaved: setSaved } = twoFactor;
+  // The trigger that opened this dialog is gone by now, so focus returns to
+  // the Security section instead of falling to <body>.
+  const done = () => {
+    twoFactor.leaveFlow();
+    requestAnimationFrame(() => document.getElementById(SECURITY_SUMMARY_ID)?.focus());
+  };
   const text = flow.codes.join("\n");
 
   const download = () => {
@@ -131,12 +139,13 @@ export function RecoveryCodesDialog({ twoFactor, flow }: { twoFactor: TwoFactor;
     <Dialog
       open
       title={t("codesHeading")}
-      onClose={twoFactor.leaveFlow}
+      onClose={done}
       closeDisabled={!saved}
+      describedBy={hintId}
       fullScreenOnPhone
       actions={(
         <DialogActions>
-          <Button variant="contained" disabled={!saved} onClick={twoFactor.leaveFlow}>{t("doneButton")}</Button>
+          <Button variant="contained" disabled={!saved} onClick={done}>{t("doneButton")}</Button>
         </DialogActions>
       )}
     >
@@ -155,6 +164,7 @@ export function RecoveryCodesDialog({ twoFactor, flow }: { twoFactor: TwoFactor;
           <Button variant="outlined" onClick={download}>{t("downloadButton")}</Button>
         </Stack>
         {notice}
+        <Typography id={hintId} color="text.secondary">{t("codesLockedHint")}</Typography>
         <FormControlLabel control={<Checkbox checked={saved} onChange={(e) => setSaved(e.target.checked)} />} label={t("savedCheckbox")} />
       </Stack>
     </Dialog>

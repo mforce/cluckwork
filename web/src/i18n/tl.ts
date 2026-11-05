@@ -296,6 +296,7 @@ export const tl = {
     downloadButton: "I-download ang mga code",
     codesDownloaded: "Nagsimula ang download. Tingnan ang file bago ka umalis.",
     codesFileTitle: "Mga recovery code ng Cluckwork para kay {{email}}",
+    codesLockedHint: "I-save ang mga code, tapos lagyan ng tsek ang kahon para matapos.",
     savedCheckbox: "Na-save ko ang aking mga recovery code sa ligtas na lugar.",
     doneButton: "Tapos na",
     replacedMessage: "Naka-set up na ang bago mong authenticator app. Hindi na gumagana ang luma.",
