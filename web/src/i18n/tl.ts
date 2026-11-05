@@ -3498,7 +3498,9 @@ export const tl = {
     accountSecurity:
       "Ino-on ng <strong>Seguridad</strong> ang two-factor authentication gamit ang <strong>I-set up</strong>: "
       + "i-scan ang QR code gamit ang iyong authenticator app, ilagay ang code nito, tapos i-save ang sampung "
-      + "recovery code na isang beses lang nitong ipapakita. Kapag naka-on na, pinapalitan ng <strong>Gumawa "
+      + "recovery code na isang beses lang nitong ipapakita. "
+      + "Mananatili ang mga ito sa screen, kahit pumunta ka sa ibang page, hanggang lagyan mo ng tsek na na-save "
+      + "mo ang mga ito. Kapag naka-on na, pinapalitan ng <strong>Gumawa "
       + "ulit</strong> ang iyong mga recovery code, inililipat ng <strong>Palitan ang authenticator app</strong> "
       + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng I-set up "
       + "ang iyong password, at ng tatlo pa ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "

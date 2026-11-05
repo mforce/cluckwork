@@ -3378,7 +3378,8 @@ export const es = {
     accountSecurity:
       "<strong>Seguridad</strong> activa la autenticación en dos pasos con <strong>Configurar</strong>: escanee "
       + "el código QR con su aplicación de autenticación, ingrese su código y guarde los diez códigos de "
-      + "recuperación que muestra una sola vez. Una vez activada, <strong>Regenerar</strong> reemplaza sus "
+      + "recuperación que muestra una sola vez. "
+      + "Siguen en pantalla, aunque vaya a otra página, hasta que marque que los guardó. Una vez activada, <strong>Regenerar</strong> reemplaza sus "
       + "códigos de recuperación, <strong>Reemplazar aplicación de autenticación</strong> pasa Cluckwork a un "
       + "teléfono nuevo y <strong>Desactivar</strong> la quita. Configurar pide antes su contraseña, y los otros tres su contraseña y un código. "
       + "Activarla, reemplazar la aplicación y desactivarla cierran la sesión en sus otros dispositivos y "

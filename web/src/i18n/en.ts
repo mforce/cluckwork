@@ -4089,6 +4089,7 @@ export const en = {
     accountSecurity:
       "<strong>Security</strong> turns on two-factor authentication with <strong>Set up</strong>: scan the QR "
       + "code with your authenticator app, enter its code, then save the ten recovery codes it shows once. "
+      + "They stay on screen, even if you go to another page, until you tick that you saved them. "
       + "Once it's on, <strong>Regenerate</strong> replaces your recovery codes, <strong>Replace authenticator "
       + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
       + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "
