@@ -136,6 +136,19 @@ describe("a stale session's 401 Auth.CredentialsSuperseded", () => {
     expect(to("/auth/refresh")).toHaveLength(1);
   });
 
+  it("surfaces confirm's wrong code after a refresh, and keeps the session", async () => {
+    const refreshed = token("acct-G");
+    fetchMock
+      .mockResolvedValueOnce(json({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(pair(refreshed))
+      .mockResolvedValueOnce(json({ title: "Auth.EnrolmentCodeIncorrect", attemptsLeft: 2 }, 400));
+
+    await expect(confirmTwoFactor(freshCode(), crypto.randomUUID()))
+      .rejects.toMatchObject({ status: 400, title: "Auth.EnrolmentCodeIncorrect", extensions: { attemptsLeft: 2 } });
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBe(refreshed);
+  });
+
   it("refreshes and resends a write after an expired token's plain 401", async () => {
     fetchMock
       .mockResolvedValueOnce(json({ title: "Unauthorized" }, 401))

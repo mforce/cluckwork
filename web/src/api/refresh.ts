@@ -304,9 +304,9 @@ export async function apiGetBlob(
     return await rawBlob(path, token);
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 401) throw err;
+    let refreshed: string;
     try {
-      const refreshed = await refreshTokens();
-      return await rawBlob(path, refreshed);
+      refreshed = await refreshTokens();
     } catch (refreshErr) {
       // #310 review — same supersession handling as apiFetch.
       if (refreshErr instanceof StaleSessionError) {
@@ -318,6 +318,15 @@ export async function apiGetBlob(
         throw err;
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
+      clearAccessToken();
+      onUnauthenticated?.(err.title);
+      throw err;
+    }
+    // As in apiFetch: only a 401 to the resend means the session is dead.
+    try {
+      return await rawBlob(path, refreshed);
+    } catch (resendErr) {
+      if (!(resendErr instanceof ApiError) || resendErr.status !== 401) throw resendErr;
       clearAccessToken();
       onUnauthenticated?.(err.title);
       throw err;
@@ -353,11 +362,11 @@ export async function apiFetch<T>(
     // not refresh that newer cookie or resend the old password body against it.
     if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
       throw new StaleSessionError();
+    let refreshed: string;
     try {
-      const refreshed = await refreshTokens(heldAuthCookieLock);
+      refreshed = await refreshTokens(heldAuthCookieLock);
       if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
         throw new StaleSessionError();
-      return await raw<T>(path, init, refreshed);
     } catch (refreshErr) {
       // #310 review — superseded mid-retry: retry once on the newer login's
       // token, or surface the ORIGINAL 401 if a logout ended the session.
@@ -372,6 +381,17 @@ export async function apiFetch<T>(
         throw err;
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
+      clearAccessToken();
+      onUnauthenticated?.(err.title);
+      throw err;
+    }
+    // #1277 review — the refresh worked, so the resend answers for the request
+    // itself: a 400 or a 409 is the caller's to show. Only a 401 to a fresh
+    // token means the session is dead, and then the original 401 surfaces.
+    try {
+      return await raw<T>(path, init, refreshed);
+    } catch (resendErr) {
+      if (!(resendErr instanceof ApiError) || resendErr.status !== 401) throw resendErr;
       clearAccessToken();
       onUnauthenticated?.(err.title);
       throw err;

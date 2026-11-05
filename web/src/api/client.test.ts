@@ -199,6 +199,42 @@ describe("apiFetch — no in-memory token", () => {
   });
 });
 
+// #1277 review — the resend after a successful refresh answers for the request
+// itself. Its refusal is the caller's to show; only a failed refresh ends the
+// session.
+describe("apiFetch — a refused resend after a successful refresh", () => {
+  it.each([
+    ["a 400 with its extensions", 400, { title: "Auth.EnrolmentCodeIncorrect", attemptsLeft: 3 }],
+    ["a 409", 409, { title: "Auth.EnrolmentExpired" }],
+  ])("surfaces %s and keeps the session", async (_, status, body) => {
+    const refreshed = claimfulToken("at2-resend");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(accessResponse(refreshed))
+      .mockResolvedValueOnce(jsonResponse(body, status));
+
+    const refusal = await apiPost("/thing", {}).catch((err: unknown) => err);
+
+    expect(refusal).toMatchObject({ status, title: body.title });
+    if ("attemptsLeft" in body) expect((refusal as ApiError).extensions).toEqual({ attemptsLeft: 3 });
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBe(refreshed);
+  });
+
+  it("does the same for a file download", async () => {
+    const refreshed = claimfulToken("at2-blob");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ title: "Unauthorized" }, 401))
+      .mockResolvedValueOnce(accessResponse(refreshed))
+      .mockResolvedValueOnce(jsonResponse({ title: "Export.NotFound" }, 404));
+
+    await expect(apiGetBlob("/export")).rejects.toMatchObject({ status: 404 });
+
+    expect(onUnauth).not.toHaveBeenCalled();
+    expect(getAccessToken()).toBe(refreshed);
+  });
+});
+
 describe("apiFetch — unrecoverable session reason", () => {
   it("passes the original protected-request 401 title to auth teardown after refresh fails", async () => {
     fetchMock
