@@ -75,7 +75,13 @@ export function AppLayout() {
     <Box sx={{ display: "flex", minHeight: "100dvh" }}>
       {/* First focusable element: lets a keyboard/screen-reader user jump past
           the nav links straight to the screen content (#182, Task 7). */}
-      <a href="#main-content" className="skip-link">{t("skipToContent")}</a>
+      {/* #1277 review — focused in place, not followed: a fragment navigation
+          writes a history entry with no state, which gives the location a new
+          key and remounts the screen, dropping whatever it held. */}
+      <a href="#main-content" className="skip-link" onClick={(e) => {
+        e.preventDefault();
+        document.getElementById("main-content")?.focus();
+      }}>{t("skipToContent")}</a>
 
       <Drawer
         variant="permanent"

@@ -334,3 +334,23 @@ describe("7. focus after Done", () => {
     await waitFor(() => expect(document.activeElement?.id).toBe("main-content"));
   });
 });
+
+// A browser's fragment navigation writes a history entry with no state, which
+// gives the location a new key and remounts the screen. jsdom fires no
+// popstate for it, so the test pins the cause: the click is never followed.
+describe("the skip link", () => {
+  it("moves focus to the content without a navigation, so the screen keeps its state", async () => {
+    renderApp("/form", false);
+    const key = (await screen.findByTestId("location-key")).textContent;
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "half-typed" } });
+
+    let followed = true;
+    await act(async () => { followed = fireEvent.click(skipLink()); });
+
+    expect(followed).toBe(false);
+    expect(window.location.hash).toBe("");
+    expect(document.activeElement?.id).toBe("main-content");
+    expect(screen.getByTestId("location-key")).toHaveTextContent(key!);
+    expect(screen.getByLabelText("Notes")).toHaveValue("half-typed");
+  });
+});
