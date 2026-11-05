@@ -38,7 +38,7 @@ function stale(err: unknown): unknown {
 }
 
 export function useTwoFactor() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, twoFactor: enrolled } = useAuth();
   const status = useLatestLoad([], getTwoFactorStatus);
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
@@ -73,7 +73,8 @@ export function useTwoFactor() {
 
   async function send(next: ProofAction, token: string, current: () => boolean) {
     if (next === "start") {
-      const replacing = status.data?.enabled ?? false;
+      // As the dialog does: replacing means the session proved two factors.
+      const replacing = enrolled;
       const enrolment = await startTwoFactor(token);
       if (!current()) return;
       setCode("");

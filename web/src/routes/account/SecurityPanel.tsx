@@ -82,22 +82,19 @@ function Row({ children, action }: { children: ReactNode; action?: ReactNode }) 
   );
 }
 
-const TITLES = {
-  start: { title: "setUpTitle", replaceTitle: "replaceTitle", body: "setUpBody", replaceBody: "replaceBody", submit: "continueButton" },
-  regenerate: { title: "regenerateTitle", body: "regenerateBody", submit: "regenerateButton" },
-  "turn-off": { title: "turnOffTitle", body: "turnOffBody", submit: "turnOffButton" },
-} as const;
-
-function copyFor(action: ProofAction, replacing: boolean) {
-  const entry = TITLES[action];
-  return "replaceTitle" in entry && replacing
-    ? { title: entry.replaceTitle, body: entry.replaceBody, submit: entry.submit }
-    : entry;
+function copyFor(action: ProofAction, enrolled: boolean) {
+  if (action === "regenerate") return { title: "regenerateTitle", body: "regenerateBody", submit: "regenerateButton" } as const;
+  if (action === "turn-off") return { title: "turnOffTitle", body: "turnOffBody", submit: "turnOffButton" } as const;
+  return enrolled
+    ? { title: "replaceTitle", body: "replaceBody", submit: "continueButton" } as const
+    : { title: "setUpTitle", body: "setUpBody", submit: "continueButton" } as const;
 }
 
 // The lab's proof(): "Confirm it's you", what to enter and who is signed in,
 // then the password and, once two-factor is on, the code. Start again opens it
-// from the enrolment screen too, so the page renders it outside both.
+// from the enrolment screen too, so the page renders it outside both. Its copy
+// reads the session's two_factor claim, the same fact StepUpProofFields reads
+// for the code field, so the words and the fields always agree.
 export function ProofDialog({ twoFactor }: { twoFactor: TwoFactor }) {
   const bodyId = useId();
   const { t } = useTranslation("account");
@@ -105,8 +102,8 @@ export function ProofDialog({ twoFactor }: { twoFactor: TwoFactor }) {
   const { t: tc } = useTranslation("common");
   const { twoFactor: enrolled } = useAuth();
   const me = useMe();
-  const { action, proof, setProof, closeProof, onProof, status, dialog: { busy, isPending, errors } } = twoFactor;
-  const copy = action && copyFor(action, status.data?.enabled ?? false);
+  const { action, proof, setProof, closeProof, onProof, dialog: { busy, isPending, errors } } = twoFactor;
+  const copy = action && copyFor(action, enrolled);
   return (
     <Dialog
       open={action !== null}
