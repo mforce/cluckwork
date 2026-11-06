@@ -21,7 +21,7 @@ public sealed class RefreshToken
     public string? ReplacedByTokenHash { get; set; }
 
     // #1277 MC7 — why RevokedAt was set. Null on a live row, and on a row
-    // revoked before the column existed, which refresh treats as it did then.
+    // revoked before the column existed, which refresh treats as replay.
     public RefreshRevocationReason? RevocationReason { get; set; }
 
     // #364 — stamped explicitly by every known mint site. The database default
@@ -51,9 +51,10 @@ public sealed class RefreshToken
 // Presenting a revoked token again is classified as replay (#176: family
 // revocation and Auth.RefreshTokenReplayDetected) for every reason except
 // Logout, which fails quietly: the user ended that session, and a browser that
-// missed the logout's cookie-clearing answer still holds it. Reasons other
-// than Rotated and ReplayDetected also bump the credential epoch, so their
-// tokens fail refresh's epoch check before classification.
+// missed the logout's cookie-clearing answer still holds it. A row with no
+// reason is replay too. CredentialsChanged and FarmSuspended also bump the
+// credential epoch, so their tokens fail refresh's epoch check before
+// classification.
 public enum RefreshRevocationReason
 {
     // Refresh rotated it to a child (IdentityProvider.Refresh).
