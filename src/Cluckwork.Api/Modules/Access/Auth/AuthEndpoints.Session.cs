@@ -105,6 +105,12 @@ public static partial class AuthEndpoints
                 // A dead legacy cookie (rotated elsewhere / expired) is not
                 // this farm's to clear on the legacy name — it is not per-farm.
                 // Leave it; it is inert. Fall through to the no-cookie 401.
+                // The one exception is a token logout retired (#1277): the
+                // user ended that session, so its cookie goes. Another farm's
+                // token never gets here: RefreshAsync refuses it on the farm
+                // check first.
+                if (legacyResult.Error.Code == CredentialErrorCodes.RetiredByLogout)
+                    AuthCookies.ClearLegacyRefreshCookie(response, CookieSecure(env));
             }
 
             // A named farm with no matching cookie is a changed session. With
@@ -140,7 +146,9 @@ public static partial class AuthEndpoints
             // named (#532): P1-2's "cleared the other farm's cookie" is
             // unrepresentable here, not guarded.
             AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
-            return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+            // A token logout retired answers as any other invalid one (#1277).
+            var title = result.Error.Code == CredentialErrorCodes.RetiredByLogout ? "Identity.InvalidRefreshToken" : result.Error.Code;
+            return Results.Problem(result.Error.Description, statusCode: 401, title: title);
         }
 
         // #547 — RefreshAsync's expectedAccountId check above is
@@ -219,13 +227,17 @@ public static partial class AuthEndpoints
     // preserve every session (RefreshAccountBindingTests, #569/#570).
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IAccessModule access,
-        ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
+        ICurrentUser currentUser, IWebHostEnvironment env)
     {
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
+        // #1277: the writes run to the end even when the client stops
+        // waiting. The SPA abandons a slow logout and signs in again; if a
+        // cancelled revoke left the old session alive, or the SPA waited for a
+        // late answer, that answer's cookie clear would end the new sign-in.
         if (currentUser.IsResolved)
-            await access.RecordLogoutAsync(currentUser.UserId, ct);
+            await access.RecordLogoutAsync(currentUser.UserId, CancellationToken.None);
 
         // The header is checked first, and it wins: it is the tab declaring
         // which farm it is ending. The per-farm rename made that declaration
@@ -268,17 +280,17 @@ public static partial class AuthEndpoints
         if (selectedRefreshToken is not null)
         {
             var selectedOutcome = await access.RevokeRefreshTokenAsync(
-                selectedRefreshToken, accountId, ct);
+                selectedRefreshToken, accountId, CancellationToken.None);
             if (legacyMatchesSelected)
                 clearLegacyCookie = selectedOutcome == RefreshTokenRevocationOutcome.InScope;
         }
         if (legacyRefreshToken is not null && !legacyMatchesSelected)
         {
             if (legacyIsOnlyPresentedSession)
-                await access.RevokeRefreshTokenAsync(legacyRefreshToken, null, ct);
+                await access.RevokeRefreshTokenAsync(legacyRefreshToken, null, CancellationToken.None);
             else if (accountId is not null)
             {
-                var legacyOutcome = await access.RevokeRefreshTokenAsync(legacyRefreshToken, accountId, ct);
+                var legacyOutcome = await access.RevokeRefreshTokenAsync(legacyRefreshToken, accountId, CancellationToken.None);
                 clearLegacyCookie = legacyOutcome == RefreshTokenRevocationOutcome.InScope;
             }
         }

@@ -54,6 +54,14 @@ public sealed class AuthSecurityEventLogger(
         logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
             SecurityEvents.SecondFactorBudgetSpent, userId, ClientIp);
 
+    public void TwoFactorEnrolmentStarted(Guid userId) =>
+        logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+            SecurityEvents.TwoFactorEnrolmentStarted, userId, ClientIp);
+
+    public void TwoFactorEnrolled(Guid userId) =>
+        logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+            SecurityEvents.TwoFactorEnrolled, userId, ClientIp);
+
     public void SecondFactorKeyUnreadable() =>
         logger.LogError("{SecurityEvent}", SecurityEvents.SecondFactorKeyUnreadable);
 }

@@ -53,7 +53,9 @@ field conversion.
 registered in Production and its creation operation bypasses interactive
 step-up. The contract guard permits other adapters and peers to take this port;
 only review enforces that caller restriction. Interactive creation uses
-`IAccessModule` and retains its handler's proof check.
+`IAccessModule` and retains its handler's proof check. The caller's own
+two-factor turn-off, start and regenerate have no handler: `AccessModule`
+checks their step-up grant itself (#1277).
 
 `IAccessModule` still delegates session and profile operations. A deeper session
 reshape suggested during #1041 review is deferred: splitting the sign-in
