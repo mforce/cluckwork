@@ -186,8 +186,9 @@ public sealed class AccountSuspensionService(
                     .Where(refreshToken => refreshToken.AccountId == accountId
                         && refreshToken.RevokedAt == null)
                     .ExecuteUpdateAsync(
-                        setters => setters.SetProperty(
-                            refreshToken => refreshToken.RevokedAt, timeProvider.GetUtcNow()),
+                        setters => setters
+                            .SetProperty(refreshToken => refreshToken.RevokedAt, timeProvider.GetUtcNow())
+                            .SetProperty(refreshToken => refreshToken.RevocationReason, RefreshRevocationReason.FarmSuspended),
                         token);
             }
 

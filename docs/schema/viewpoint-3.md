@@ -10,7 +10,7 @@ ASP.NET Identity, refresh tokens, per-flock role assignments.
 | ---- | ------- | ------- | ---- |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
 | [public.AspNetUsers](public.AspNetUsers.md) | 31 |  | BASE TABLE |
-| [public.refresh_tokens](public.refresh_tokens.md) | 12 |  | BASE TABLE |
+| [public.refresh_tokens](public.refresh_tokens.md) | 13 |  | BASE TABLE |
 | [public.UserRoleAssignments](public.UserRoleAssignments.md) | 7 |  | BASE TABLE |
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
 | [public.AspNetUserClaims](public.AspNetUserClaims.md) | 4 |  | BASE TABLE |
@@ -84,6 +84,7 @@ erDiagram
   varchar_36_ ConcurrencyStamp
   integer IssuedEpoch
   timestamp_with_time_zone SignedInAt
+  varchar_32_ RevocationReason
 }
 "public.UserRoleAssignments" {
   uuid Id

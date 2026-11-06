@@ -142,6 +142,34 @@ public static partial class AuthEndpoints
             .WithName("TurnOffTwoFactor")
             .WithSummary("Turn off your own two-factor; signs out other devices and connected apps.");
 
+        // #1277 — the enrolment routes, under the not-cacheable prefix so a key,
+        // a code or a pair never lands in idempotency_records and a wrong
+        // confirm's count commits with its 400. Start and recovery-codes spend
+        // a step-up grant, which was rate-limited when it was minted; the fifth
+        // wrong confirm ends the enrolment.
+        group.MapGet("/two-factor", TwoFactorStatus)
+            .RequireAuthorization()
+            .WithName("TwoFactorStatus")
+            .WithSummary("Whether your two-factor is on, and how many recovery codes are left.");
+
+        group.MapPost("/two-factor/start", StartTwoFactorEnrolment)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(512)
+            .WithName("StartTwoFactorEnrolment")
+            .WithSummary("Start turning on two-factor, or replacing your authenticator; returns the new key.");
+
+        group.MapPost("/two-factor/confirm", ConfirmTwoFactorEnrolment)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(512)
+            .WithName("ConfirmTwoFactorEnrolment")
+            .WithSummary("Confirm the new key with its code; signs out other devices and connected apps.");
+
+        group.MapPost("/two-factor/recovery-codes", RegenerateRecoveryCodes)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(512)
+            .WithName("RegenerateRecoveryCodes")
+            .WithSummary("Replace your recovery codes; the old ones stop working.");
+
         return group;
     }
 

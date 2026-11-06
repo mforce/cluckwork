@@ -79,6 +79,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.True((await ValidateGrantAsync(accountId, factor.UserId, targetGrant!)).IsFailure, "the target's step-up grant survived");
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(session.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(accountId, session.RefreshToken)).StatusCode);
+        await AssertEverySessionAndAppEndedAsync(accountId, factor.UserId, freshRefreshRows: 0);
         Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
         Assert.Equal([(ownerId, (string?)null)], await AuditRowsAsync(accountId, factor.UserId, AuditActions.UserTwoFactorReset));
     }
