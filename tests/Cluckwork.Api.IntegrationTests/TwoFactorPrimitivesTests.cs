@@ -73,15 +73,21 @@ public sealed class TwoFactorPrimitivesTests
     }
 
     // G3.29: a record prints its members, so the two-factor and step-up records
-    // that hold a code, a challenge, a key, a password or a stamp hash override
-    // ToString. The two closed hierarchies are walked here, and the request
-    // bodies of the routes under ResponseNotCacheable in SecondFactorLoginTests.
+    // that hold a code, a challenge, a key, a password or a stamp hash resolve
+    // a ToString that returns only the constant "[redacted]", which
+    // RedactedToString reads from the IL. The two closed hierarchies are walked
+    // here, and the request bodies of the routes under ResponseNotCacheable in
+    // SecondFactorLoginTests.
     // The rest is a list, because nothing a type declares marks it as a
     // credential carrier: Key, Code, Value and Token also name non-secrets.
-    // Routes outside those prefixes are not covered. Excluded: TokenPair,
-    // AccessTokenResponse, StepUpResponse and StepUpGrant carry live tokens and
-    // print them; redacting them is outside #1277. This list has its own floor;
-    // the body walk has another.
+    // Routes outside those prefixes are not covered. Excluded, and left for a
+    // later issue: TokenPair, AccessTokenResponse, StepUpResponse and
+    // StepUpGrant carry live tokens and print them, and the user-admin commands
+    // that carry a step-up grant print it too: CreateUserCommand and
+    // SetUserPasswordCommand, which also carry a password, ChangeUserRole-,
+    // ChangeUserEmail-, DisableUser-, EnableUser-, AssignFlock- and
+    // UnassignFlockCommand. This list has its own floor; the body walk has
+    // another.
     [Fact]
     public void EveryCredentialCarryingType_PrintsOnlyRedacted()
     {
