@@ -211,6 +211,7 @@ public sealed partial class IdentityProvider
                     WITH fenced_tip AS (
                         UPDATE refresh_tokens
                         SET "RevokedAt" = @revokedAt,
+                            "RevocationReason" = 'Logout',
                             "ConcurrencyStamp" = @rotatedStamp,
                             "ReplacedByTokenHash" = NULL
                         WHERE "TokenHash" = @currentHash

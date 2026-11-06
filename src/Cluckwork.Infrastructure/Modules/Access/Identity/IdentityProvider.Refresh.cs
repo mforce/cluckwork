@@ -77,6 +77,12 @@ public sealed partial class IdentityProvider
         // Presenting an already-rotated/revoked token normally means it was replayed —
         // treat as a possible theft and revoke every active token for the user.
         var viaGrace = false;
+        // #1277 MC7 — a token logout retired fails quietly, expired or not: the
+        // user ended that session, and a browser that missed the logout's
+        // answer still holds the cookie. Classifying it as replay would end
+        // the user's other sessions.
+        if (stored.RevocationReason == RefreshRevocationReason.Logout)
+            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
         if (stored.RevokedAt is not null)
         {
             // #176 — idempotency grace: a token rotated within the last
@@ -118,7 +124,7 @@ public sealed partial class IdentityProvider
                 // revocation to credentials minted by a LATER epoch: a stale
                 // token could keep killing sessions created by a password reset
                 // that already superseded it.
-                await RevokeAllActiveForUserAsync(stored.UserId, stored.IssuedEpoch, now, ct);
+                await RevokeAllActiveForUserAsync(stored.UserId, stored.IssuedEpoch, now, RefreshRevocationReason.ReplayDetected, ct);
                 return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
             }
             stored = graced;
@@ -144,6 +150,7 @@ public sealed partial class IdentityProvider
         // leap-frogged down the chain.
         var (rawToken, newHash) = GenerateRefreshToken();
         stored.RevokedAt = now;
+        stored.RevocationReason = RefreshRevocationReason.Rotated;
         stored.ReplacedByTokenHash = newHash;
         stored.RevokedByGrace = viaGrace;
         stored.ConcurrencyStamp = Guid.NewGuid().ToString(); // rotate the CAS token (#176)

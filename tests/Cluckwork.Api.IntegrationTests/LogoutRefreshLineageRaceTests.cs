@@ -372,14 +372,20 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
         Assert.Equal(1, factory.LogoutTipUpdate.Hits);
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
         // Prove logout itself remained on the selected lineage before presenting
-        // the now-severed tip, whose later reuse intentionally takes #176's
-        // strict family-replay path.
-        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
-            sibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+        // the now-fenced tip.
+        var siblingRefresh = await client.PostRefreshAsync(
+            sibling.RefreshToken, expectedAccount: accountId.ToString());
+        Assert.Equal(HttpStatusCode.OK, siblingRefresh.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
             foreign.RefreshToken, expectedAccount: foreignAccountId.ToString())).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
             deliveredChild.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+        // #1277 MC7: logout retired that tip, so its reuse fails quietly
+        // instead of taking #176's family-replay path, and the sibling session
+        // still refreshes. Rotation replay stays strict (RefreshTokenFlowTests).
+        var rotatedSibling = await TestHarness.ReadTokensAsync(siblingRefresh);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
+            rotatedSibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
     [Fact]

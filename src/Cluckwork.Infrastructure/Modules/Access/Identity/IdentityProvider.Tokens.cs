@@ -33,7 +33,7 @@ public sealed partial class IdentityProvider
     private async Task RevokeAllActiveForUserAsync(
         Guid userId, DateTimeOffset now, CancellationToken ct)
     {
-        await RevokeAllActiveForUserAsync(userId, issuedEpoch: null, now, ct);
+        await RevokeAllActiveForUserAsync(userId, issuedEpoch: null, now, RefreshRevocationReason.CredentialsChanged, ct);
         var subject = userId.ToString();
         var concurrencyToken = Guid.NewGuid().ToString();
         await RunRevocationAsync(userId, async () =>
@@ -54,7 +54,7 @@ public sealed partial class IdentityProvider
     }
 
     private async Task RevokeAllActiveForUserAsync(
-        Guid userId, int? issuedEpoch, DateTimeOffset now, CancellationToken ct)
+        Guid userId, int? issuedEpoch, DateTimeOffset now, RefreshRevocationReason reason, CancellationToken ct)
     {
         // Bulk update rather than tracked read-modify-save: it never trips the
         // #176 xmin concurrency token (so it is safe to call from the rotation
@@ -70,7 +70,9 @@ public sealed partial class IdentityProvider
             () => db.RefreshTokens
                 .Where(t => t.UserId == userId && t.RevokedAt == null
                     && (!issuedEpoch.HasValue || t.IssuedEpoch == issuedEpoch.Value))
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct));
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.RevokedAt, now)
+                    .SetProperty(t => t.RevocationReason, reason), ct));
     }
 
     // #273 — hardening point for the BULK-UPDATE refresh-token revocations
