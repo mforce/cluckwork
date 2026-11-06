@@ -184,6 +184,27 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, other.RefreshToken)).StatusCode);
     }
 
+    // R1 clears only a legacy cookie logout retired. Another farm's legacy
+    // token fails the farm check, and its cookie stays: it is that farm's
+    // live session.
+    [Fact]
+    public async Task AnotherFarmsLegacyCookie_IsNotCleared()
+    {
+        var email = $"tf-legacy-a-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var foreignEmail = $"tf-legacy-b-{Guid.NewGuid():N}@test.local";
+        var foreignAccountId = await factory.SeedAccountWithUserAsync(foreignEmail);
+        var foreign = await factory.LoginAsync(foreignEmail);
+        var cookie = $"{AuthCookies.LegacyRefreshCookieName}={foreign.RefreshToken}";
+
+        using var refused = await factory.CreateClient(TestHarness.Cookieless(factory))
+            .PostRefreshRawAsync(cookie, expectedAccount: accountId.ToString());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, refused.StatusCode);
+        Assert.False(ClearsCookie(refused, AuthCookies.LegacyRefreshCookieName), "another farm's legacy cookie was cleared");
+        Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(foreignAccountId, foreign.RefreshToken)).StatusCode);
+    }
+
     // A Set-Cookie that deletes the cookie, not merely one with no value.
     private static bool ClearsCookie(HttpResponseMessage response, string name) =>
         response.Headers.TryGetValues("Set-Cookie", out var cookies)
