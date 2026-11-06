@@ -7,7 +7,9 @@ namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 // G3.29: the ToString a type resolves to must return the constant
 // "[redacted]" and nothing else. That is read from the method's IL, so no
 // state of any member can make it print a secret. It proves the constant only:
-// another print path, such as serializing the record, is not covered.
+// another print path, such as serializing the record, is not covered. A type
+// that formats itself is refused, because interpolation, string.Format and
+// the logger formatter call its format method instead of ToString.
 internal static class RedactedToString
 {
     private const string Redacted = "[redacted]";
@@ -29,6 +31,9 @@ internal static class RedactedToString
 
     public static void AssertConstant(Type type)
     {
+        Assert.False(typeof(IFormattable).IsAssignableFrom(type) || typeof(ISpanFormattable).IsAssignableFrom(type)
+            || typeof(IUtf8SpanFormattable).IsAssignableFrom(type),
+            $"{type} formats itself, so it can print its members past ToString");
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
         // Only for the message: the IL check below also fails an inherited object.ToString.
         Assert.True(toString.DeclaringType != typeof(object) && toString.DeclaringType != typeof(ValueType),

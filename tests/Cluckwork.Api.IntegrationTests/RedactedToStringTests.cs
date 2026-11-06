@@ -40,6 +40,12 @@ public sealed class RedactedToStringTests
         public override string ToString() => Password is null ? "[redacted]" : Password;
     }
 
+    private sealed record Formats(string Password) : IFormattable
+    {
+        public override string ToString() => "[redacted]";
+        public string ToString(string? format, IFormatProvider? formatProvider) => Password;
+    }
+
     private static (byte[] Il, Module Module) IlOf(Type type)
     {
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
@@ -73,6 +79,13 @@ public sealed class RedactedToStringTests
     public void AssertConstant_RefusesAToStringThatPrintsOnlyWhenSet()
     {
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => RedactedToString.AssertConstant(typeof(StateDependent)));
+    }
+
+    // Its ToString is the constant, but interpolation calls the format method.
+    [Fact]
+    public void AssertConstant_RefusesATypeThatFormatsItself()
+    {
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => RedactedToString.AssertConstant(typeof(Formats)));
     }
 
     // No C# body compiles to two ldstr with nothing between them, so this one
