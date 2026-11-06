@@ -8,6 +8,7 @@ import { SessionProvider } from "./session/SessionContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { AppLayout } from "./routes/AppLayout";
 import { Login } from "./routes/Login";
+import { RecoveryCodesProvider } from "./routes/account/recoveryCodes";
 
 // Under <BrowserRouter>, navigate() returns nothing; only a data router
 // (<RouterProvider>) returns a Promise. React Router types the union and
@@ -58,6 +59,9 @@ export function App() {
           applied from this device's cache before anyone signs in (#586). */}
       <FarmThemeProvider>
       <AuthProvider>
+        {/* #1277 — above every route, so no navigation drops recovery
+            codes that are not saved yet; it clears when the session ends. */}
+        <RecoveryCodesProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -99,6 +103,7 @@ export function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </RecoveryCodesProvider>
       </AuthProvider>
       </FarmThemeProvider>
       {/* Outside the router and the auth gate: an update is worth offering on

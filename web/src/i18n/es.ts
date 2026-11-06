@@ -221,6 +221,81 @@ export const es = {
     passwordMismatchError: "Las nuevas contraseñas no coinciden.",
     passwordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
     passwordChangedMessage: "Contraseña cambiada. Se cerró la sesión en los demás dispositivos.",
+
+    // #1277 — la sección Seguridad: la autenticación en dos pasos del usuario.
+    securityHeading: "Seguridad",
+    twoFactorHeading: "Autenticación en dos pasos",
+    twoFactorHint: "Agregue un código de su aplicación de autenticación al iniciar sesión.",
+    twoFactorOn: "Activada",
+    twoFactorOff: "Desactivada",
+    twoFactorOffHint: "Inicia sesión solo con su contraseña.",
+    setUpButton: "Configurar",
+    statusLoadFailed: "No se pudo cargar su autenticación en dos pasos.",
+    statusRetry: "Intentar de nuevo",
+    recoveryCodesHeading: "Códigos de recuperación",
+    recoveryCodesLeft_one: "Queda {{count}} código",
+    recoveryCodesLeft_other: "Quedan {{count}} códigos",
+    recoveryCodesCaption: "Cada código funciona una vez si no puede usar su aplicación de autenticación.",
+    recoveryCodesLow_one: "Le queda {{count}} código de recuperación. Guarde un nuevo juego antes de necesitarlo.",
+    recoveryCodesLow_other: "Le quedan {{count}} códigos de recuperación. Guarde un nuevo juego antes de necesitarlo.",
+    regenerateButton: "Regenerar",
+    replaceHint: "¿Teléfono nuevo? Pase Cluckwork a su aplicación de autenticación.",
+    replaceButton: "Reemplazar aplicación de autenticación",
+    turnOffHint: "Quite el código adicional al iniciar sesión.",
+    turnOffButton: "Desactivar",
+    setUpTitle: "Configurar la autenticación en dos pasos",
+    setUpBody: "Agregará Cluckwork a una aplicación de autenticación en su teléfono y luego confirmará un código de ella.",
+    replaceTitle: "¿Reemplazar su aplicación de autenticación?",
+    replaceBody: "Su aplicación de autenticación actual sigue funcionando hasta que confirme un código de la nueva.",
+    regenerateTitle: "¿Regenerar los códigos de recuperación?",
+    regenerateBody: "El nuevo juego reemplaza todos los códigos que guardó antes. Guarde los nuevos códigos después de este paso.",
+    turnOffTitle: "¿Desactivar la autenticación en dos pasos?",
+    turnOffBody: "Iniciará sesión solo con su contraseña. Sus otros dispositivos y aplicaciones conectadas tendrán que iniciar sesión de nuevo.",
+    proofHintPassword: "Ingrese su contraseña para confirmar este cambio.",
+    proofHint: "Ingrese su contraseña y un código de su aplicación de autenticación, o un código de recuperación, para confirmar este cambio.",
+    continueButton: "Continuar",
+    flowEyebrow: "Cuenta / Seguridad",
+    enrolHeading: "Configurar la autenticación en dos pasos",
+    replaceHeading: "Reemplazar su aplicación de autenticación",
+    scanHeading: "Agregar Cluckwork",
+    scanHint: "Abra su aplicación de autenticación y escanee este código QR.",
+    qrLabel: "Código QR para agregar Cluckwork a su aplicación de autenticación",
+    cannotScan: "¿No puede escanear el código QR?",
+    keyHint: "En su aplicación de autenticación, agregue una clave de configuración para Cluckwork.",
+    copyKeyButton: "Copiar clave",
+    keyCopied: "Clave copiada.",
+    openInAppLink: "Abrir en su aplicación de autenticación",
+    confirmHeading: "Confirmar un código",
+    confirmHint: "Ingrese el código de Cluckwork que muestra su aplicación de autenticación.",
+    codeLabel: "Código de autenticación",
+    signOutWarning: "Sus otros dispositivos y aplicaciones conectadas tendrán que iniciar sesión de nuevo.",
+    confirmButton: "Confirmar código",
+    codeIncorrect: "Ese código no funcionó. Pruebe el siguiente código de su aplicación.",
+    codeIncorrectAttempts_one: "Ese código no funcionó. Pruebe el siguiente código de su aplicación. Queda {{count}} intento.",
+    codeIncorrectAttempts_other: "Ese código no funcionó. Pruebe el siguiente código de su aplicación. Quedan {{count}} intentos.",
+    setUpExpired: "Esta configuración caducó. Empiece de nuevo para obtener un código QR nuevo.",
+    setUpSessionChanged: "Su inicio de sesión cambió, así que esta configuración terminó. Empiece de nuevo para obtener un código QR nuevo.",
+    setUpTooManyAttempts: "Demasiados códigos incorrectos. Empiece de nuevo para obtener un código QR nuevo.",
+    startAgainButton: "Empezar de nuevo",
+    codesHeading: "Guarde sus códigos de recuperación",
+    codesOn: "La autenticación en dos pasos está activada.",
+    codesReplaced: "Estos reemplazan sus códigos anteriores. Los códigos antiguos ya no funcionan.",
+    codesHint: "Use uno si no puede usar su aplicación de autenticación. Cada código funciona una vez. No podrá verlos de nuevo.",
+    codesListLabel: "Códigos de recuperación",
+    copyCodesButton: "Copiar todos los códigos",
+    codesCopied: "Códigos copiados. Guárdelos en un lugar seguro.",
+    copyFailed: "No se pudo copiar. Seleccione el texto y cópielo usted.",
+    downloadButton: "Descargar códigos",
+    codesDownloaded: "Descarga iniciada. Revise el archivo antes de salir.",
+    codesFileTitle: "Códigos de recuperación de Cluckwork para {{email}}",
+    codesLockedHint: "Guarde los códigos y luego marque la casilla para terminar.",
+    savedCheckbox: "Guardé mis códigos de recuperación en un lugar seguro.",
+    doneButton: "Listo",
+    replacedMessage: "Su nueva aplicación de autenticación está configurada. La anterior ya no funciona.",
+    turnedOffMessage: "La autenticación en dos pasos está desactivada.",
+    codesMissing: "Algo salió mal y no llegaron códigos de recuperación. Regenérelos para obtener un juego nuevo.",
+    regenerateNotEnabled: "La autenticación en dos pasos no está activada en su cuenta, así que no tiene códigos de recuperación que reemplazar.",
+    sessionChanged: "Su inicio de sesión cambió mientras se enviaba esto, así que no cambió nada. Inténtelo de nuevo.",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
@@ -2546,7 +2621,7 @@ export const es = {
       + "incorrectos.",
     // #308/#356/#360 (machine-drafted, pending native review)
     signingInStepUp:
-      "Nueve acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
+      "Algunas acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
       + "volver a habilitar un usuario, restablecer la autenticación en dos pasos de un usuario, asignar un "
@@ -2556,7 +2631,10 @@ export const es = {
       + "Cuando la autenticación en dos pasos está activada en su cuenta, estas acciones, <strong>Permitir</strong> "
       + "para una aplicación conectada y <strong>Cambiar contraseña</strong> piden también un <strong>Código de "
       + "autenticación o código de recuperación</strong>. Cada código funciona una vez, así que para una segunda "
-      + "acción justo después, espere el siguiente código.",
+      + "acción justo después, espere el siguiente código. "
+      + "En <strong>Cuenta</strong> › <strong>Seguridad</strong>, <strong>Configurar</strong> pide su contraseña, y "
+      + "<strong>Reemplazar aplicación de autenticación</strong>, <strong>Regenerar</strong> y "
+      + "<strong>Desactivar</strong> piden su contraseña y un código.",
     signingInAppAddress:
       "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, agrega "
       + "Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre Cluckwork en "
@@ -3300,6 +3378,15 @@ export const es = {
       + "anulando el valor predeterminado de la granja en Configuración. Elija una unidad de empaque como "
       + "Tray para contar por bandeja, o siga el predeterminado de la granja para que un cambio posterior "
       + "en toda la granja le aplique automáticamente.",
+    accountSecurity:
+      "<strong>Seguridad</strong> activa la autenticación en dos pasos con <strong>Configurar</strong>: escanee "
+      + "el código QR con su aplicación de autenticación, ingrese su código y guarde los diez códigos de "
+      + "recuperación que muestra una sola vez. "
+      + "Siguen en pantalla, aunque vaya a otra página, hasta que marque que los guardó. Una vez activada, <strong>Regenerar</strong> reemplaza sus "
+      + "códigos de recuperación, <strong>Reemplazar aplicación de autenticación</strong> pasa Cluckwork a un "
+      + "teléfono nuevo y <strong>Desactivar</strong> la quita. Configurar pide antes su contraseña, y los otros tres su contraseña y un código. "
+      + "Activarla, reemplazar la aplicación y desactivarla cierran la sesión en sus otros dispositivos y "
+      + "aplicaciones conectadas.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:
@@ -3529,7 +3616,9 @@ export const es = {
       + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
       + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
-      + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación.",
+      + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación. "
+      + "En Cuenta › Seguridad, Configurar pide su contraseña, y Reemplazar aplicación de autenticación, Regenerar y "
+      + "Desactivar piden su contraseña y un código.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "
@@ -3874,6 +3963,31 @@ export const es = {
       + "todo lo emitido antes de la deshabilitación deja de funcionar para siempre. El último "
       + "Administrador (propietario) activo de la cuenta no puede deshabilitarse, y nadie puede "
       + "deshabilitarse a sí mismo.",
+
+    // #1277
+    glossaryTwoFactorAuthTerm: "Autenticación en dos pasos",
+    glossaryTwoFactorAuthDef:
+      "Iniciar sesión con su contraseña y una segunda prueba de su teléfono: un código de su aplicación de "
+      + "autenticación, o un código de recuperación sin el teléfono. Actívela en Cuenta › Seguridad, con "
+      + "Configurar. Al activarla se cierra la sesión en sus otros dispositivos y aplicaciones conectadas.",
+    glossaryAuthenticatorAppTerm: "Aplicación de autenticación",
+    glossaryAuthenticatorAppDef:
+      "La aplicación de su teléfono que muestra un código nuevo de 6 dígitos cada 30 segundos. Cluckwork aparece "
+      + "en ella con el nombre de su granja y su correo.",
+    glossaryAuthenticatorCodeTerm: "Código de autenticación",
+    glossaryAuthenticatorCodeDef:
+      "El código de 6 dígitos que su aplicación de autenticación muestra para Cluckwork. Cada uno funciona una "
+      + "vez, así que después de un rechazo espere al siguiente.",
+    glossaryRecoveryCodeTerm: "Código de recuperación",
+    glossaryRecoveryCodeDef:
+      "Uno de diez códigos que recibe una vez, al activar la autenticación en dos pasos, para cuando no puede "
+      + "usar su teléfono. Cada uno funciona una vez. Cuenta › Seguridad muestra cuántos quedan, y Regenerar "
+      + "reemplaza el juego.",
+    glossaryTurnOffTwoFactorTerm: "Desactivar la autenticación en dos pasos",
+    glossaryTurnOffTwoFactorDef:
+      "Quitar su propio segundo factor, con Desactivar en Cuenta › Seguridad. Su aplicación de autenticación y "
+      + "sus códigos de recuperación dejan de funcionar, se cierra la sesión en sus otros dispositivos y "
+      + "aplicaciones conectadas, e inicia sesión solo con su contraseña.",
 
     glossaryResetTwoFactorTerm: "Restablecer la autenticación en dos pasos",
     glossaryResetTwoFactorDef:

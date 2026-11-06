@@ -394,11 +394,11 @@ describe("HelpPage", () => {
     expect(tl.help.glossaryFarmProvisioningDef).toContain("Settings");
   });
 
-  it("enumerates every step-up-gated category and the explicit ungated boundary (#356, #360, #1280)", () => {
+  it("enumerates every step-up-gated category and the explicit ungated boundary (#356, #360, #1280, #1277)", () => {
     // Pin the semantics, not merely the count: a stale Owner-only description
     // can still say "Six" while omitting one of the widened categories.
     render(<HelpPage />);
-    const paragraph = screen.getByText(/Nine actions on the/i).closest("li")!;
+    const paragraph = screen.getByText(/Some actions on the/i).closest("li")!;
     expect(paragraph).toHaveTextContent(/creating any user/i);
     expect(paragraph).toHaveTextContent(/resetting any user's password/i);
     expect(paragraph).toHaveTextContent(/changing any user's role/i);
@@ -408,6 +408,8 @@ describe("HelpPage", () => {
     expect(paragraph).toHaveTextContent(/assigning a worker to a flock/i);
     expect(paragraph).toHaveTextContent(/removing a worker's flock assignment/i);
     expect(paragraph).toHaveTextContent(/resetting a user's two-factor authentication/i);
+    // #1277 — the Account page's own step-up actions.
+    expect(paragraph).toHaveTextContent(/Under Account › Security, Set up asks for your password, and Replace authenticator app, Regenerate and Turn off ask for your password and a code/i);
     // #606 — flock-assignment changes are no longer ungated; only display
     // name is left as the explicit contrast.
     expect(paragraph).toHaveTextContent(/Display-name changes do not ask again/i);

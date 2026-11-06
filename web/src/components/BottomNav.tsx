@@ -28,19 +28,21 @@ const MORE_VALUE = "__more__";
 // sheet, not a route — carrying `aria-haspopup="dialog"`, `aria-expanded` and
 // `aria-current="page"` when the route is under More, none of which
 // `BottomNavigationAction` models on its own. More itself stays on the MUI
-// `Dialog` component #827 shipped, rendering `fullScreen` below 900px — the
-// one caller that asks for it, since form dialogs stay centred and sized to
-// their content (owner, 2026-09-17, #892) and a twenty-link menu is the case
-// full screen exists for — rather than the retired bottom sheet; the
-// `SwipeableDrawer` alternative §7 names is still open and unanswered here —
+// `Dialog` component #827 shipped, rendering `fullScreen` below 900px — form
+// dialogs stay centred and sized to their content (maintainer, 2026-09-17,
+// #892), and a twenty-link menu needs the height — rather than the retired
+// bottom sheet; the `SwipeableDrawer` alternative §7 names is still open and
+// unanswered here —
 // #829 decides it. `anyDialogOpen()` still reads true while More is open,
 // same as before #827: it is a real `Dialog` instance either way.
 export function BottomNav({
-  groups, tabs, onLogout,
+  groups, tabs, onLogout, signingOut,
 }: {
   groups: NavGroup[];
   tabs: NavEntry[];
   onLogout: () => void;
+  // A sign-out is in flight: Sign out waits for it.
+  signingOut: boolean;
 }) {
   const { t } = useTranslation("nav");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -143,7 +145,7 @@ export function BottomNav({
               <RefreshCw size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("updateAvailableAction")}</span>
             </button>
           )}
-          <button className="link" onClick={() => { setMoreOpen(false); onLogout(); }}>
+          <button className="link" disabled={signingOut} onClick={() => { setMoreOpen(false); onLogout(); }}>
             <LogOut size={ICON} strokeWidth={1.5} aria-hidden /><span>{t("signOut")}</span>
           </button>
         </div>

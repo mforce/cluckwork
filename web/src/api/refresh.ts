@@ -5,7 +5,7 @@ import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
 import { StaleSessionError, revokeSupersededCookie, onUnauthenticated, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS } from "./authCookieLock";
-import { sessionGeneration, settledLogin } from "./session";
+import { isSignedOut, sessionGeneration, settledLogin } from "./session";
 import { newId } from "../lib/ids";
 import { rawBlob } from "./request";
 import type { HeldAuthCookieLock } from "./authCookieLock";
@@ -38,6 +38,10 @@ class RefreshAdoptionRefusedError extends Error {
 }
 
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
+  // #1277 — checked where every refresh sends, so one queued behind the
+  // cross-tab lock, the bootstrap and a download refuse alike. Its callers
+  // treat this as a superseded session: no teardown.
+  if (isSignedOut()) throw new StaleSessionError();
   try {
     // #547/#532 — tell the server which per-farm cookie THIS tab expects.
     // Unbound tabs (the load-time bootstrap) omit it; the server accepts one
@@ -137,9 +141,7 @@ async function executeRefresh(generation: number, signal?: AbortSignal): Promise
     // closed instead.
     if (err instanceof ApiError && err.status === 401
         && (err.title === SESSION_CHANGED_TITLE || err.title === FARM_SELECTION_REQUIRED_TITLE)) {
-      clearAccessToken();
-      onUnauthenticated?.(err.title);
-      throw err;
+      endSession(err);
     }
     if (err instanceof RefreshAdoptionRefusedError) {
       // #547/#532 — do NOT revoke here. This refusal means the browser's
@@ -183,6 +185,8 @@ export async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<stri
   if (heldLock)
     return executeHeldRefresh(heldLock.generation, heldLock.signal);
 
+  // #1277 — the fast path: a signed-out tab queues nothing.
+  if (isSignedOut()) throw new StaleSessionError();
   if (refreshInFlight) return refreshInFlight;
 
   // #310 — captured once, at the START of this flight. Checked again at
@@ -299,31 +303,16 @@ export function apiDelete<T>(
 export async function apiGetBlob(
   path: string,
 ): Promise<{ blob: Blob; filename: string | null }> {
-  const token = await currentAccessToken();
-  try {
-    return await rawBlob(path, token);
-  } catch (err) {
-    if (!(err instanceof ApiError) || err.status !== 401) throw err;
-    try {
-      const refreshed = await refreshTokens();
-      return await rawBlob(path, refreshed);
-    } catch (refreshErr) {
-      // #310 review — same supersession handling as apiFetch.
-      if (refreshErr instanceof StaleSessionError) {
-        // #438 — as in apiFetch: await the queued login before concluding
-        // there is no session to download on.
-        await settledLogin();
-        const fresh = getAccessToken();
-        if (fresh) return await rawBlob(path, fresh);
-        throw err;
-      }
-      if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
-      clearAccessToken();
-      onUnauthenticated?.(err.title);
-      throw err;
-    }
-  }
+  return sendWithRefresh((token) => rawBlob(path, token), await currentAccessToken());
 }
+
+// #1277 — a two-factor write that answers 401 Auth.CredentialsSuperseded found
+// the session stale under the user-row lock, after it may have spent its
+// step-up grant. Resending it on a refreshed session would act on a security
+// state the user never confirmed, so the refusal goes back to the dialog.
+const isUnresendable = (path: string, init: RequestInit, err: ApiError) =>
+  path.startsWith("/auth/two-factor") && (init.method ?? "GET") !== "GET"
+  && err.title === "Auth.CredentialsSuperseded";
 
 export async function apiFetch<T>(
   path: string,
@@ -336,37 +325,65 @@ export async function apiFetch<T>(
   // stale form borrow the newer session's bearer for its first request.
   if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
     throw new StaleSessionError();
+  return sendWithRefresh((bearer) => raw<T>(path, init, bearer), token, {
+    held: heldAuthCookieLock,
+    unresendable: (err) => isUnresendable(path, init, err),
+  });
+}
+
+// Clears this tab's session, tells the app why, and rethrows the 401 that
+// showed it was over.
+function endSession(err: ApiError): never {
+  clearAccessToken();
+  onUnauthenticated?.(err.title);
+  throw err;
+}
+
+// One request with one transparent refresh-and-retry, for apiFetch and
+// apiGetBlob alike.
+async function sendWithRefresh<T>(
+  send: (token: string) => Promise<T>,
+  token: string,
+  { held, unresendable = () => false }: { held?: HeldAuthCookieLock; unresendable?: (err: ApiError) => boolean } = {},
+): Promise<T> {
+  // A held context identifies the non-replayable password form. Generic API
+  // requests may continue on a newer login after supersession; this one must
+  // not refresh that newer cookie or resend the old password body against it.
+  const superseded = () => held !== undefined && sessionGeneration !== held.generation;
   try {
-    return await raw<T>(path, init, token);
+    return await send(token);
   } catch (err) {
-    if (!(err instanceof ApiError) || err.status !== 401) throw err;
-    // A held context identifies the non-replayable password form. Generic API
-    // requests may continue on a newer login after supersession; this one must
-    // not refresh that newer cookie or resend the old password body against it.
-    if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
-      throw new StaleSessionError();
+    if (!(err instanceof ApiError) || err.status !== 401 || unresendable(err)) throw err;
+    if (superseded()) throw new StaleSessionError();
+    let refreshed: string;
     try {
-      const refreshed = await refreshTokens(heldAuthCookieLock);
-      if (heldAuthCookieLock && sessionGeneration !== heldAuthCookieLock.generation)
-        throw new StaleSessionError();
-      return await raw<T>(path, init, refreshed);
+      refreshed = await refreshTokens(held);
+      if (superseded()) throw new StaleSessionError();
     } catch (refreshErr) {
       // #310 review — superseded mid-retry: retry once on the newer login's
       // token, or surface the ORIGINAL 401 if a logout ended the session.
       // Never let the internal marker reach the caller.
       if (refreshErr instanceof StaleSessionError) {
-        if (heldAuthCookieLock) throw refreshErr;
+        if (held) throw refreshErr;
         // #438 — same wait as supersededToken: the login that superseded this
         // refresh can still be queued behind it.
         await settledLogin();
         const fresh = getAccessToken();
-        if (fresh) return await raw<T>(path, init, fresh);
+        if (fresh) return await send(fresh);
         throw err;
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
-      clearAccessToken();
-      onUnauthenticated?.(err.title);
-      throw err;
+      endSession(err);
+    }
+    // #1277 — the refresh worked, so the resend answers for the request
+    // itself: a 4xx, a 5xx or a network error is the caller's to show. Only a
+    // 401 to a fresh token means the session is dead, and then the original
+    // 401 surfaces.
+    try {
+      return await send(refreshed);
+    } catch (resendErr) {
+      if (!(resendErr instanceof ApiError) || resendErr.status !== 401) throw resendErr;
+      endSession(err);
     }
   }
 }

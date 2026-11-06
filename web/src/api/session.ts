@@ -8,7 +8,7 @@ import { clearAccessToken, getAccessToken, setAccessToken, bindAccount, clearBou
 import { accountIdFromToken } from "../auth/claims";
 import { newId } from "../lib/ids";
 import type { AccessTokenResponse, LoginRequest } from "./types";
-import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
+import { raw, CSRF_HEADER, ACCOUNT_HEADER, STEP_UP_HEADER } from "./request";
 import { ApiError } from "./errors";
 import { StaleSessionError, revokeSupersededCookie, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS, abortInFlightAuthCookieOperation } from "./authCookieLock";
@@ -27,6 +27,10 @@ import { apiFetch, apiPost, refreshInFlight } from "./refresh";
 // otherwise it is stale and must be discarded rather than resurrecting or
 // clobbering whatever the (newer) generation already did.
 export let sessionGeneration = 0;
+
+// #1277 — read through a call, so a module spread (a test's partial mock)
+// still sees the live value.
+export const currentSessionGeneration = () => sessionGeneration;
 
 // #438 — the settlement handle of the login currently in flight, or null. A
 // request parked on a refresh that came back superseded cannot simply peek at
@@ -211,6 +215,7 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
     await revokeSupersededCookie(res.accessToken);
     throw new StaleSessionError();
   }
+  signOutIntent = false;
   setAccessToken(res.accessToken);
   // #532 — a tab that logged in must be bound to its farm before its first
   // refresh, or that refresh is treated as a cold restore and could adopt a
@@ -259,35 +264,68 @@ const withCode = <T extends object>(body: T, code: string | undefined): T & { co
 export async function changePassword(
   { code, ...passwords }: { currentPassword: string; newPassword: string; code?: string },
 ): Promise<void> {
-  const body = withCode(passwords, code);
+  await noteCode(adoptingWrite<AccessTokenResponse>("/auth/change-password", {
+    method: "POST",
+    headers: { "Idempotency-Key": newId() },
+    body: JSON.stringify(withCode(passwords, code)),
+  }), code);
+}
+
+// #1277 — confirming an enrolment ends every other session and hands this one
+// a fresh pair, as change-password does. A first enrolment's answer also holds
+// the recovery codes, which the caller shows once and keeps nowhere else.
+// The server keeps no response for any two-factor route (ResponseNotCacheable),
+// so the key each write must carry is a fresh one, as change-password's is.
+export function confirmTwoFactor(code: string): Promise<{ recoveryCodes?: string[] }> {
+  return adoptingWrite<AccessTokenResponse & { recoveryCodes?: string[] }>("/auth/two-factor/confirm", {
+    method: "POST",
+    headers: { "Idempotency-Key": newId() },
+    body: JSON.stringify({ code }),
+  }).then((res) => ({ recoveryCodes: res.recoveryCodes }));
+}
+
+// #1280 — 200 with a fresh pair when two-factor was on, 204 when it was not.
+export async function turnOffTwoFactor(stepUpToken: string): Promise<void> {
+  await adoptingWrite<AccessTokenResponse>("/auth/two-factor", {
+    method: "DELETE",
+    headers: { "Idempotency-Key": newId(), [STEP_UP_HEADER]: stepUpToken },
+  }, { noContent: true });
+}
+
+// A write whose answer rotates this farm's refresh cookie and hands this tab a
+// fresh pair. Only turn-off may answer 204, which rotates nothing; from the
+// others a 204 is a broken answer and throws.
+function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit): Promise<T>;
+function adoptingWrite<T extends AccessTokenResponse>(path: string, init: RequestInit, options: { noContent: true }): Promise<T | undefined>;
+async function adoptingWrite<T extends AccessTokenResponse>(
+  path: string, init: RequestInit, { noContent = false }: { noContent?: boolean } = {},
+): Promise<T | undefined> {
   // #310 — this is a token-store writer like login/refresh, so it needs the
   // same generation guard: logout is reachable from every screen (AppLayout's
-  // persistent button), so a user who submits a password change and logs out
-  // before it lands would otherwise have the response write a fresh token back
-  // over the cleared session.
+  // persistent button), so a user who submits and logs out before the answer
+  // lands would otherwise have the response write a fresh token back over the
+  // cleared session.
   const generation = sessionGeneration;
-  // Refresh and password-change both replace this farm's HttpOnly cookie.
-  // Keep the password change inside the same cross-tab lock as refresh,
-  // or an already-started old-epoch refresh can answer last and overwrite the
-  // E+1 cookie this request just issued. Passing the held lock context lets
-  // apiFetch do its normal 401 refresh-and-retry inside this lock without
-  // trying to acquire the non-reentrant Web Lock a second time.
-  const res = await noteCode(withAuthCookieLock((signal) => {
+  // Refresh and these writes all replace this farm's HttpOnly cookie. Keep the
+  // write inside the same cross-tab lock as refresh, or an already-started
+  // old-epoch refresh can answer last and overwrite the E+1 cookie this request
+  // just issued. Passing the held lock context lets apiFetch do its normal 401
+  // refresh-and-retry inside this lock without trying to acquire the
+  // non-reentrant Web Lock a second time.
+  const res = await withAuthCookieLock((signal) => {
     // The operation may have waited behind another tab's refresh. Logout or a
     // newer login that happened while queued wins before this request sends a
-    // byte; never let the stale password form act on the superseding session.
+    // byte; never let the stale form act on the superseding session.
     if (sessionGeneration !== generation) throw new StaleSessionError();
-    return apiFetch<AccessTokenResponse>(
-      "/auth/change-password",
-      {
-        method: "POST",
-        headers: { "Idempotency-Key": newId() },
-        body: JSON.stringify(body),
-        signal,
-      },
-      { generation, signal },
-    );
-  }), code);
+    return apiFetch<T | undefined>(path, { ...init, signal }, { generation, signal });
+  });
+  if (res === undefined) {
+    if (!noContent) throw new Error(`${path} answered 204 instead of a fresh pair.`);
+    // No cookie to revoke, but a session that ended meanwhile is not told the
+    // write happened, as the 200 path below does not tell it either.
+    if (sessionGeneration !== generation) throw new StaleSessionError();
+    return undefined;
+  }
   // This response rotates the refresh cookie too, so a discarded one needs that
   // cookie revoked, not merely the in-memory token dropped.
   if (sessionGeneration !== generation) {
@@ -295,13 +333,14 @@ export async function changePassword(
     throw new StaleSessionError();
   }
   setAccessToken(res.accessToken);
-  // #532 — changePassword adopts a token (the server hands this device a fresh
+  // #532 — the write adopts a token (the server hands this device a fresh
   // pair after revoking every other session), so like login it must bind the
   // tab to its farm. Without this, the tab's next refresh would omit
   // X-Cluckwork-Account and fall into the bootstrap path instead of naming
   // the farm it just authenticated.
   bindAccount(accountIdFromToken(res.accessToken));
   onTokensChanged?.();
+  return res;
 }
 
 // #308/#360/#606 — re-confirms the CURRENT password to mint a short-lived
@@ -333,17 +372,31 @@ export async function stepUp(proof: StepUpProof): Promise<{ token: string; expir
   return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
+// #1277 — set by logout(), and cleared only where a login's own answer
+// commits its tokens. Until then this tab is signed out: no refresh sends, so
+// no new token is issued, and the recovery-codes slot starts no code-issuing
+// work. A request that already holds a bearer still sends with
+// it. A generation bump is not a sign-in: a login abandoned at its deadline,
+// or superseded, leaves the tab signed out, and so does a failed revoke.
+let signOutIntent = false;
+export const isSignedOut = () => signOutIntent;
+
+// A test that signs out must not leave the next test signed out: tests seed
+// tokens directly instead of signing in, which would end the refusal.
+export function resetSignOutForTests(): void {
+  signOutIntent = false;
+}
+
 export async function logout(): Promise<void> {
   // #310 — bump the generation and clear in-memory state SYNCHRONOUSLY, before
   // any await: local logout must win immediately, whatever a slower in-flight
   // login/refresh does later. Also cancel any refresh currently in flight —
   // note this only reaches a refresh that has already been GRANTED the
   // cross-tab lock (#169); one still queued behind another tab has no
-  // controller yet, so it will still fire its request and then be discarded on
-  // arrival by the generation check. Correctness rests on the generation, not
-  // on the abort; the abort is only an optimisation so it stops sooner
-  // instead of only being
-  // discarded on arrival by the generation check in refreshTokens().
+  // controller yet, and the sign-out intent refuses it before it sends.
+  // Correctness rests on the generation and the intent, not on the abort; the
+  // abort is only an optimisation so it stops sooner.
+  signOutIntent = true;
   sessionGeneration++;
   abortInFlightAuthCookieOperation?.();
   // #336/#532 — capture BEFORE clearing: the bearer identifies the actor and
@@ -356,28 +409,45 @@ export async function logout(): Promise<void> {
   // #532 — explicit logout is the user ending the session: the binding is
   // cleared with the token, and the next login rebinds.
   clearBoundAccount();
-  try {
-    // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
-    // header satisfies the check. Always fires — JS can't read the HttpOnly
-    // cookie to know whether a session exists, so we always ask the server to
-    // revoke + clear it.
-    //
-    // #336/#532 — the bearer records the actor when this tab still has one;
-    // the account header selects the same tab's per-farm cookie even after the
-    // access token expires. Both remain optional because the endpoint is
-    // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
-    const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
-    if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
-    await raw<void>(
-      "/auth/logout",
-      { method: "POST", headers },
-      bearer ?? undefined,
-    );
-  } catch (err) {
+  // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
+  // header satisfies the check. Always fires — JS can't read the HttpOnly
+  // cookie to know whether a session exists, so we always ask the server to
+  // revoke + clear it.
+  //
+  // #336/#532 — the bearer records the actor when this tab still has one;
+  // the account header selects the same tab's per-farm cookie even after the
+  // access token expires. Both remain optional because the endpoint is
+  // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
+  const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
+  if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
+  // #1277 — the wait ends at the refresh timeout, and so does the request. Its
+  // late answer would carry a Set-Cookie that deletes this farm's refresh
+  // cookie by name, by then a newer sign-in's; the browser drops an aborted
+  // request's answer. What the server does depends on whether the request got
+  // there, as the backend half of #1277 makes it:
+  // - Once the request reaches the handler, the server finishes the revoke:
+  //   Logout runs its writes with CancellationToken.None and skips the
+  //   flock-scope read. The browser keeps the revoked cookie, which is marked
+  //   as a logout revocation, so reusing it fails quietly instead of tripping
+  //   #176's replay rule.
+  // - A request that never arrives revokes nothing. The cookie stays live, and
+  //   a reload restores the session.
+  const giveUp = new AbortController();
+  const gaveUp = setTimeout(() => giveUp.abort(), REFRESH_TIMEOUT_MS);
+  await raw<void>("/auth/logout", { method: "POST", headers, signal: giveUp.signal }, bearer ?? undefined).catch((err: unknown) => {
+    // Only this tab's own abort is a give-up: fetch rejects with the signal's
+    // reason, so identity proves the abort caused this error. A 500 whose body
+    // was still arriving at the deadline is a failure, and so is an abort
+    // from elsewhere.
+    if (err === giveUp.signal.reason) {
+      console.warn("logout: stopped waiting for the server-side revoke");
+      return;
+    }
     // Best-effort revoke: the in-memory token is already cleared above and this
     // failure can never reverse that. Still surfaced (not silently swallowed,
     // #310) so an operator can see the server-side session may be un-revoked —
     // logged, never the (already-cleared) token itself.
     console.error("logout: server-side session revoke failed", err);
-  }
+  });
+  clearTimeout(gaveUp);
 }

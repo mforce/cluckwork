@@ -14,7 +14,7 @@ function renderBottomNav(route = "/", onLogout = vi.fn()) {
   const tabs = tabEntries(groups);
   render(
     <MemoryRouter initialEntries={[route]}>
-      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />
+      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} signingOut={false} />
     </MemoryRouter>,
   );
   return { groups, tabs, onLogout };

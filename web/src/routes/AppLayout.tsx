@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useEffect } from "react";
+import { Fragment, Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,7 @@ import { BottomNav } from "../components/BottomNav";
 import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
+import { MAIN_CONTENT_ID } from "../lib/mainContent";
 import { useFarm } from "../farm/useFarm";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
@@ -66,7 +67,11 @@ export function AppLayout() {
     document.title = active ? `${t(active.labelKey)}${t("titleSuffix")}` : "Cluckwork";
   }, [groups, location.pathname, t]);
 
+  // #1277 — one sign-out at a time: Sign out in the rail and the More menu
+  // stays disabled until it lands.
+  const [leaving, setLeaving] = useState(false);
   async function onLogout() {
+    setLeaving(true);
     await logout();
     navigate("/login", { replace: true });
   }
@@ -75,7 +80,13 @@ export function AppLayout() {
     <Box sx={{ display: "flex", minHeight: "100dvh" }}>
       {/* First focusable element: lets a keyboard/screen-reader user jump past
           the nav links straight to the screen content (#182, Task 7). */}
-      <a href="#main-content" className="skip-link">{t("skipToContent")}</a>
+      {/* #1277 — focused in place, not followed: a fragment navigation
+          writes a history entry with no state, which gives the location a new
+          key and remounts the screen, dropping whatever it held. */}
+      <a href={`#${MAIN_CONTENT_ID}`} className="skip-link" onClick={(e) => {
+        e.preventDefault();
+        document.getElementById(MAIN_CONTENT_ID)?.focus();
+      }}>{t("skipToContent")}</a>
 
       <Drawer
         variant="permanent"
@@ -128,7 +139,7 @@ export function AppLayout() {
               {t("updateAvailableAction")}
             </Button>
           )}
-          <Button variant="text" color="inherit" onClick={onLogout} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
+          <Button variant="text" color="inherit" onClick={onLogout} disabled={leaving} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
             sx={{ justifyContent: "flex-start", width: "100%" }}>
             {t("signOut")}
           </Button>
@@ -143,7 +154,7 @@ export function AppLayout() {
         </Box>
       </Drawer>
 
-      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
+      <Box component="main" className="content" id={MAIN_CONTENT_ID} tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
         {/* Carries the warning the banner below could not announce because a
             dialog had it inert (#485), and stays empty otherwise so the two
             never say the same thing twice.
@@ -189,7 +200,7 @@ export function AppLayout() {
         </ErrorBoundary>
       </Box>
 
-      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />
+      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} signingOut={leaving} />
     </Box>
   );
 }

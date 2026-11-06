@@ -290,6 +290,81 @@ export const en = {
     passwordMismatchError: "The new passwords don't match.",
     passwordTooShortError: "The new password must be at least {{min}} characters.",
     passwordChangedMessage: "Password changed. Any other devices have been signed out.",
+
+    // #1277 — the Security section: the user's own two-factor authentication.
+    securityHeading: "Security",
+    twoFactorHeading: "Two-factor authentication",
+    twoFactorHint: "Add a code from your authenticator app when you sign in.",
+    twoFactorOn: "On",
+    twoFactorOff: "Off",
+    twoFactorOffHint: "You sign in with your password only.",
+    setUpButton: "Set up",
+    statusLoadFailed: "Your two-factor authentication could not be loaded.",
+    statusRetry: "Try again",
+    recoveryCodesHeading: "Recovery codes",
+    recoveryCodesLeft_one: "{{count}} code left",
+    recoveryCodesLeft_other: "{{count}} codes left",
+    recoveryCodesCaption: "Each code works once if you cannot use your authenticator app.",
+    recoveryCodesLow_one: "You have {{count}} recovery code left. Save a new set before you need it.",
+    recoveryCodesLow_other: "You have {{count}} recovery codes left. Save a new set before you need it.",
+    regenerateButton: "Regenerate",
+    replaceHint: "New phone? Move Cluckwork to its authenticator app.",
+    replaceButton: "Replace authenticator app",
+    turnOffHint: "Remove the extra code at sign-in.",
+    turnOffButton: "Turn off",
+    setUpTitle: "Set up two-factor authentication",
+    setUpBody: "You add Cluckwork to an authenticator app on your phone, then confirm a code from it.",
+    replaceTitle: "Replace your authenticator app?",
+    replaceBody: "Your current authenticator app keeps working until you confirm a code from the new one.",
+    regenerateTitle: "Regenerate recovery codes?",
+    regenerateBody: "The new set replaces every code you saved before. Save the new codes after this step.",
+    turnOffTitle: "Turn off two-factor authentication?",
+    turnOffBody: "You will sign in with your password only. Your other devices and connected apps will need to sign in again.",
+    proofHintPassword: "Enter your password to confirm this change.",
+    proofHint: "Enter your password and a code from your authenticator app, or a recovery code, to confirm this change.",
+    continueButton: "Continue",
+    flowEyebrow: "Account / Security",
+    enrolHeading: "Set up two-factor authentication",
+    replaceHeading: "Replace your authenticator app",
+    scanHeading: "Add Cluckwork",
+    scanHint: "Open your authenticator app and scan this QR code.",
+    qrLabel: "QR code to add Cluckwork to your authenticator app",
+    cannotScan: "Cannot scan the QR code?",
+    keyHint: "In your authenticator app, add a set-up key for Cluckwork.",
+    copyKeyButton: "Copy key",
+    keyCopied: "Key copied.",
+    openInAppLink: "Open in your authenticator app",
+    confirmHeading: "Confirm a code",
+    confirmHint: "Enter the code for Cluckwork in your authenticator app.",
+    codeLabel: "Authenticator code",
+    signOutWarning: "Your other devices and connected apps will need to sign in again.",
+    confirmButton: "Confirm code",
+    codeIncorrect: "That code did not work. Try the next code in your app.",
+    codeIncorrectAttempts_one: "That code did not work. Try the next code in your app. {{count}} try left.",
+    codeIncorrectAttempts_other: "That code did not work. Try the next code in your app. {{count}} tries left.",
+    setUpExpired: "This set-up expired. Start again to get a new QR code.",
+    setUpSessionChanged: "Your sign-in changed, so this set-up ended. Start again to get a new QR code.",
+    setUpTooManyAttempts: "Too many wrong codes. Start again to get a new QR code.",
+    startAgainButton: "Start again",
+    codesHeading: "Save your recovery codes",
+    codesOn: "Two-factor authentication is on.",
+    codesReplaced: "These replace your previous codes. The old codes no longer work.",
+    codesHint: "Use one if you cannot use your authenticator app. Each code works once. You cannot view these again.",
+    codesListLabel: "Recovery codes",
+    copyCodesButton: "Copy all codes",
+    codesCopied: "Codes copied. Keep them somewhere safe.",
+    copyFailed: "Could not copy. Select the text and copy it yourself.",
+    downloadButton: "Download codes",
+    codesDownloaded: "Download started. Check the file before you leave.",
+    codesFileTitle: "Cluckwork recovery codes for {{email}}",
+    codesLockedHint: "Save the codes, then tick the box to finish.",
+    savedCheckbox: "I saved my recovery codes somewhere safe.",
+    doneButton: "Done",
+    replacedMessage: "Your new authenticator app is set up. The old one no longer works.",
+    turnedOffMessage: "Two-factor authentication is off.",
+    codesMissing: "Something went wrong, and no recovery codes arrived. Regenerate them to get a new set.",
+    regenerateNotEnabled: "Two-factor authentication is not on for your account, so it has no recovery codes to replace.",
+    sessionChanged: "Your sign-in changed while this was sent, so nothing changed. Try again.",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
@@ -3297,7 +3372,7 @@ export const en = {
     // #308/#356/#360 — deliberately does NOT mention "grant"/"token" —
     // that's internal mechanism, not user-facing language.
     signingInStepUp:
-      "Nine actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
+      "Some actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
       + "changing a login email, disabling a user, re-enabling a user, resetting a user's two-factor authentication, "
       + "assigning a worker to a flock, and "
@@ -3305,7 +3380,10 @@ export const en = {
       + "handing out access or cutting someone else's off. Display-name changes do not ask again. "
       + "When two-factor authentication is on for your account, these actions, <strong>Allow</strong> for a "
       + "connected app and <strong>Change password</strong> also ask for an <strong>Authenticator code or recovery "
-      + "code</strong>. Each code works once, so for a second action straight after, wait for the next code.",
+      + "code</strong>. Each code works once, so for a second action straight after, wait for the next code. "
+      + "Under <strong>Account</strong> › <strong>Security</strong>, <strong>Set up</strong> asks for your password, and "
+      + "<strong>Replace authenticator app</strong>, <strong>Regenerate</strong> and <strong>Turn off</strong> ask "
+      + "for your password and a code.",
     signingInAppAddress:
       "<strong>Connecting an AI app.</strong> To connect a compatible AI app, add Cluckwork in the app with "
       + "this address: <code>{{address}}</code>. The app opens Cluckwork in your browser; sign in if asked. "
@@ -4011,6 +4089,14 @@ export const en = {
       "<strong>Daily Entry counting unit</strong> — how much YOUR +/− taps count by, overriding the farm "
       + "default from Settings. Pick a pack unit like Tray to count by the tray, or follow the farm "
       + "default so a later farm-wide change follows you automatically.",
+    accountSecurity:
+      "<strong>Security</strong> turns on two-factor authentication with <strong>Set up</strong>: scan the QR "
+      + "code with your authenticator app, enter its code, then save the ten recovery codes it shows once. "
+      + "They stay on screen, even if you go to another page, until you tick that you saved them. "
+      + "Once it's on, <strong>Regenerate</strong> replaces your recovery codes, <strong>Replace authenticator "
+      + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
+      + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "
+      + "other devices and connected apps.",
 
     // Install on a phone
     installHeading: "Install on a phone",
@@ -4224,7 +4310,9 @@ export const en = {
       + "worker to a flock, or removing a worker's flock assignment, the Users "
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
       + "you before handing out — or taking away — access. Display-name changes do not ask again. "
-      + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code.",
+      + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code. "
+      + "Under Account › Security, Set up asks for your password, and Replace authenticator app, Regenerate and Turn off "
+      + "ask for your password and a code.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "
@@ -4534,6 +4622,30 @@ export const en = {
       + "every session they had open ends on its very next request. Re-enabling restores sign-in but not "
       + "those old sessions — anything issued before the disable never works again. The account's last "
       + "active Admin (owner) can't be disabled, and nobody can disable themselves.",
+
+    // #1277
+    glossaryTwoFactorAuthTerm: "Two-factor authentication",
+    glossaryTwoFactorAuthDef:
+      "Signing in with your password and a second proof from your phone: a code from your authenticator app, "
+      + "or a recovery code without the phone. Turn it on in Account › Security, with Set up. Turning it on signs "
+      + "out your other devices and connected apps.",
+    glossaryAuthenticatorAppTerm: "Authenticator app",
+    glossaryAuthenticatorAppDef:
+      "The app on your phone that shows a new 6-digit code every 30 seconds. Cluckwork appears in it with your "
+      + "farm's name and your email.",
+    glossaryAuthenticatorCodeTerm: "Authenticator code",
+    glossaryAuthenticatorCodeDef:
+      "The 6-digit code your authenticator app shows for Cluckwork. Each one works once, so after a refusal wait "
+      + "for the next one.",
+    glossaryRecoveryCodeTerm: "Recovery code",
+    glossaryRecoveryCodeDef:
+      "One of ten codes you get once, when you turn on two-factor authentication, for when you can't use your "
+      + "phone. Each works once. Account › Security shows how many are left, and Regenerate replaces the set.",
+    glossaryTurnOffTwoFactorTerm: "Turn off two-factor authentication",
+    glossaryTurnOffTwoFactorDef:
+      "Removing your own second factor, with Turn off in Account › Security. Your authenticator app and recovery "
+      + "codes stop working, your other devices and connected apps are signed out, and you sign in with your "
+      + "password only.",
 
     // #1280
     glossaryResetTwoFactorTerm: "Reset two-factor authentication",

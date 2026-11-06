@@ -116,8 +116,8 @@ interface DialogProps {
   /**
    * Whether this dialog takes the whole screen below 900px. Off by default:
    * form dialogs and confirmations alike stay a centred dialog sized to their
-   * content at every width. The phone More menu (`BottomNav.tsx`) is the one
-   * caller that turns it on, because a twenty-link menu needs the height.
+   * content at every width. A dialog that needs the whole height turns it on:
+   * the phone More menu (`BottomNav.tsx`), and the recovery codes (#1277).
    */
   fullScreenOnPhone?: boolean;
   /** Fixed footer, outside the scrolling body and its picker overlays. */
