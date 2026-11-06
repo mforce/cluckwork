@@ -588,6 +588,41 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("gh pr merge 1221 --squash", "linked", "allow"),
 ]
 
+CASES += [  # a script's arguments are its data: `python3 <script>` and `node <script>` only
+    *[(command, where, "allow") for where in ("shared", "linked") for command in (
+        "python3 /tools/logrow.py --log x.tsv --what \"gh pr merge 1396, then git push\"",
+        "python3 tools/logrow.py --what 'push it?'",
+        "python3 tools/logrow.py --what 'git log shows it' 2>&1",
+        "python3.12 tools/logrow.py --what 'git commit -m x'",
+        "node .github/scripts/docs-impact.mjs --body 'git push --force origin main'",
+        "cd ../linked && python3 tools/logrow.py --what 'git reset --hard'",
+    )],
+    *[(command, where, "block") for where in ("shared", "linked") for command in (
+        "python3 -c \"import os; os.system('git push --force origin HEAD:main')\"",
+        "python3 - 'git push --force'",
+        "python3 -I tools/run.py 'git push --force'",
+        "python3 tools/run.py git push --force",
+        "python3 tools/run.py /usr/bin/git push --force",
+        "python3 tools/run.py gh pr merge 1 --squash",
+        "python3 git push --force",
+        "python3 tools/run.py \"$GIT push --force\"",
+        "python3 tools/run.py 'git push --force' | sh",
+        "python3 tools/run.py 'git push'; git push --force",
+        "node -e \"require('child_process').execSync('git push --force')\"",
+        "node --eval \"require('child_process').execSync('git push --force')\"",
+        "nodemon tools/run.mjs 'git push --force'",
+        "bash -c 'git push --force'",
+        "bash tools/run.sh 'git push --force'",
+        "env git push --force",
+        "xargs git push --force",
+        "$GIT push --force",
+        "perl -e 'system(\"git push --force\")'",
+        "deno eval \"Deno.Command('git', {args: ['push', '--force']})\"",
+    )],
+    ("python3 tools/run.py git sparse-checkout set src", "shared", "block"),
+    ("bash tools/run.sh 'git sparse-checkout set src'", "shared", "block"),
+]
+
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
