@@ -318,6 +318,7 @@ export function Dialog({
   // this instance is still owed a decrement (see `entered` above).
   useEffect(() => () => {
     if (entered.current) {
+      // eslint-disable-next-line no-restricted-syntax -- the open-dialog count, not a mounted flag; candidate for useLayoutEffect, no race shown (#1395 lint)
       entered.current = false;
       bumpOpenCount(-1);
     }
