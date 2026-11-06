@@ -219,7 +219,7 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("1. while confirm is in flight", () => {
+describe("while confirm is in flight", () => {
   it.each(Object.keys(LEAVE) as (keyof typeof LEAVE)[])("%s leaves, and the codes still show when confirm settles", async (how) => {
     const answer = await confirmPending();
     const codes = freshCodes();
@@ -231,7 +231,7 @@ describe("1. while confirm is in flight", () => {
   });
 });
 
-describe("2. while the codes are unsaved", () => {
+describe("while the codes are unsaved", () => {
   const STAY = {
     "a nav click": async () => { await leave("a nav click"); },
     "Back": async () => { await leave("a single Back"); },
@@ -255,7 +255,7 @@ describe("2. while the codes are unsaved", () => {
   });
 });
 
-describe("3. while regenerate is in flight", () => {
+describe("while regenerate is in flight", () => {
   it.each(Object.keys(LEAVE) as (keyof typeof LEAVE)[])("%s leaves, and the new codes still show when it settles", async (how) => {
     const answer = await regeneratePending();
     const codes = freshCodes();
@@ -268,7 +268,7 @@ describe("3. while regenerate is in flight", () => {
   });
 });
 
-describe("4. when the session ends", () => {
+describe("when the session ends", () => {
   it("while confirm is in flight, because the resend's fresh token was refused, no codes appear", async () => {
     const answer = await confirmPending();
     const codes = freshCodes();
@@ -308,7 +308,7 @@ describe("4. when the session ends", () => {
   });
 });
 
-describe("5. a second set of codes in one mount", () => {
+describe("a second set of codes in one mount", () => {
   it("starts unticked, with Done disabled", async () => {
     const answer = await confirmPending();
     vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
@@ -330,7 +330,7 @@ describe("5. a second set of codes in one mount", () => {
   });
 });
 
-describe("6. closing the tab", () => {
+describe("closing the tab", () => {
   it("asks first while the codes are unsaved, and not once they are saved or done", async () => {
     const answer = await confirmPending();
     await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
@@ -344,7 +344,7 @@ describe("6. closing the tab", () => {
   });
 });
 
-describe("7. focus after Done", () => {
+describe("focus after Done", () => {
   async function done() {
     const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
     fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
@@ -371,7 +371,7 @@ describe("7. focus after Done", () => {
   });
 });
 
-describe("P1. closing the tab while a code-issuing request is in flight", () => {
+describe("closing the tab while a code-issuing request is in flight", () => {
   it("asks while confirm is pending, on Account and after leaving it", async () => {
     await confirmPending();
     expect(tabCloseAsks()).toBe(true);
@@ -409,7 +409,7 @@ describe("P1. closing the tab while a code-issuing request is in flight", () => 
   });
 });
 
-describe("P2. one code-issuing request at a time", () => {
+describe("one code-issuing request at a time", () => {
   it("disables Regenerate and Replace while regenerate is pending, also after leaving and coming back", async () => {
     await regeneratePending();
     await leave("a nav click");
@@ -439,7 +439,7 @@ describe("P2. one code-issuing request at a time", () => {
   });
 });
 
-describe("P3. what the slot still holds", () => {
+describe("what the slot holds after a request ends", () => {
   it("(a) after a session end with regenerate pending, and the next sign-in, the answer shows nothing", async () => {
     const answer = await regeneratePending();
     const codes = freshCodes();
@@ -516,7 +516,7 @@ async function saveAndDone() {
   await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
 }
 
-describe("T2. a Turn off that answers after the user came back", () => {
+describe("a Turn off that answers after the user came back", () => {
   it("shows two-factor off once the adopted session says so", async () => {
     // Turn off goes through the real client; its DELETE is held.
     let answer!: () => void;
@@ -546,39 +546,85 @@ describe("T2. a Turn off that answers after the user came back", () => {
   });
 });
 
-describe("T3. the status while it reloads after a request settles", () => {
-  it("keeps Set up disabled behind Done until the first enrolment's status arrives", async () => {
-    const answer = await confirmPending();
+describe("the status while it reloads after a request settles", () => {
+  it("loads once at mount and once when the request settles, not when it starts or at Done", async () => {
+    const answer = await regeneratePending();
+    expect(getTwoFactorStatus).toHaveBeenCalledTimes(1);
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    expect(getTwoFactorStatus).toHaveBeenCalledTimes(2);
+    await saveAndDone();
+
+    expect(getTwoFactorStatus).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(t("recoveryCodesLeft", { count: 10 }))).toBeInTheDocument();
+  });
+
+  // Each button stays disabled at Done until the settle reload lands. hidden:
+  // the closing dialogs may still mark the page aria-hidden.
+  it.each([
+    ["Set up", "setUpButton", "confirm"],
+    ["Regenerate", "regenerateButton", "regenerate"],
+    ["Replace authenticator app", "replaceButton", "regenerate"],
+    ["Turn off", "turnOffButton", "regenerate"],
+  ] as const)("keeps %s disabled until the reloaded status arrives", async (_, key, request) => {
+    const answer = request === "confirm" ? await confirmPending() : await regeneratePending();
     const status = deferred<TwoFactorStatus>();
     vi.mocked(getTwoFactorStatus).mockReturnValueOnce(status.promise);
+    const button = () => screen.getByRole("button", { name: t(key), hidden: true });
 
     await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
     await saveAndDone();
 
-    expect(screen.getByRole("button", { name: t("setUpButton") })).toBeDisabled();
-    await act(async () => { status.resolve({ enabled: true, recoveryCodesLeft: 10 }); });
-    expect(await screen.findByText(t("twoFactorOn"))).toBeInTheDocument();
+    expect(button()).toBeDisabled();
+    // The confirm case keeps two-factor off, so Set up is still the action.
+    await act(async () => { status.resolve(request === "confirm" ? { enabled: false, recoveryCodesLeft: 0 } : { enabled: true, recoveryCodesLeft: 10 }); });
+    await waitFor(() => expect(button()).toBeEnabled());
   });
 
-  it("keeps Regenerate disabled beside the old count until the new one arrives", async () => {
+  it.each([
+    ["a network error", () => new TypeError("offline")],
+    ["an aborted request", () => new DOMException("aborted by transport", "AbortError")],
+  ] as const)("says so after %s, and Try again loads it", async (_, failure) => {
     const answer = await regeneratePending();
     const status = deferred<TwoFactorStatus>();
     vi.mocked(getTwoFactorStatus).mockReturnValueOnce(status.promise);
-
     await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
     await saveAndDone();
 
-    // hidden: the closing dialogs may still mark the page aria-hidden.
-    const regenerate = () => screen.getByRole("button", { name: t("regenerateButton"), hidden: true });
-    expect(screen.getByText(t("recoveryCodesLeft", { count: 1 }))).toBeInTheDocument();
-    expect(regenerate()).toBeDisabled();
-    await act(async () => { status.resolve({ enabled: true, recoveryCodesLeft: 10 }); });
-    expect(await screen.findByText(t("recoveryCodesLeft", { count: 10 }))).toBeInTheDocument();
-    expect(regenerate()).toBeEnabled();
+    await act(async () => { status.reject(failure()); });
+
+    expect(await screen.findByText(t("statusLoadFailed"))).toBeInTheDocument();
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: t("statusRetry"), hidden: true })); });
+    await waitFor(() => expect(screen.getByRole("button", { name: t("regenerateButton"), hidden: true })).toBeEnabled());
   });
 });
 
-describe("T6. the status after a refused regenerate", () => {
+describe("a confirm answer with an empty set", () => {
+  it.each([
+    ["a first enrolment", false],
+    ["a replacement", true],
+  ] as const)("opens no codes dialog for %s", async (_, replacing) => {
+    const answer = deferred<{ recoveryCodes?: string[] }>();
+    vi.mocked(confirmTwoFactor).mockReturnValue(answer.promise);
+    vi.mocked(getTwoFactorStatus).mockResolvedValue(replacing ? { enabled: true, recoveryCodesLeft: 10 } : { enabled: false, recoveryCodesLeft: 0 });
+    renderApp("/account", replacing);
+    const start = await screen.findByRole("button", { name: t(replacing ? "replaceButton" : "setUpButton") }, { timeout: 3000 });
+    await act(async () => { fireEvent.click(start); });
+    await proveAndSubmit(t("continueButton"), replacing);
+    await screen.findByRole("img", { name: t("qrLabel") });
+    fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: t("confirmButton") })); });
+
+    await act(async () => { answer.resolve({ recoveryCodes: [] }); });
+
+    expect(codesDialog()).toBeNull();
+    if (!replacing) expect(await screen.findByRole("alert")).toHaveTextContent(t("codesMissing"));
+  });
+});
+
+describe("the status after a refused regenerate", () => {
   it("reloads after a late 409, when the earlier read still said On", async () => {
     const answer = await regeneratePending();
     expect(screen.getByText(t("twoFactorOn"))).toBeInTheDocument();
@@ -615,7 +661,7 @@ describe("T6. the status after a refused regenerate", () => {
   });
 });
 
-describe("S2. the status after coming back to Account", () => {
+describe("the status after coming back to Account", () => {
   it("shows the regenerated count once a regenerate settles after the user came back", async () => {
     const answer = await regeneratePending();
     await leave("a nav click");
@@ -641,7 +687,7 @@ describe("S2. the status after coming back to Account", () => {
   });
 });
 
-describe("S4a. regenerate's request ends on every path", () => {
+describe("regenerate's request ends on every path", () => {
   it("a refused proof ends it, and a retry goes out", async () => {
     vi.mocked(stepUp).mockRejectedValueOnce(new ApiError(400, "Users.CurrentPasswordIncorrect", "Wrong."));
     await regenerateOpen();
@@ -698,7 +744,7 @@ describe("S4a. regenerate's request ends on every path", () => {
   });
 });
 
-describe("S4b. a request from an ended session", () => {
+describe("a request from an ended session", () => {
   it("cannot end the next session's request, which still shows its codes", async () => {
     const first = await regeneratePending();
     await sessionEnds("Auth.SessionEnded");
@@ -726,7 +772,7 @@ describe("S4b. a request from an ended session", () => {
   });
 });
 
-describe("S5. a first enrolment's answer without codes", () => {
+describe("a first enrolment's answer without codes", () => {
   it("says so on the set-up step and holds nothing", async () => {
     const answer = await confirmPending();
 
@@ -738,8 +784,8 @@ describe("S5. a first enrolment's answer without codes", () => {
   });
 });
 
-describe("T1. Sign out while the set-up step is open", () => {
-  it("leaves Confirm code sending nothing until sign-out settles, and no codes appear", async () => {
+describe("Sign out while the set-up step is open", () => {
+  it("sends no confirm once Sign out has been pressed, and no codes appear", async () => {
     // The app's Sign out runs the real session sign-out, its request held.
     let finish!: () => void;
     vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith("/auth/logout")

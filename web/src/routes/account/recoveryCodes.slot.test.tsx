@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, renderHook, screen } from "@testing-library/react";
 import { RecoveryCodesProvider, useRecoveryCodesSlot } from "./recoveryCodes";
+import { logout } from "../../api/session";
 
 // #1277 review S4 (d) — the slot's own contract, below the UI that disables
 // its triggers: while a set is held, saved or not, no new request may start.
@@ -11,6 +12,21 @@ vi.mock("../../auth/useAuth", () => ({ useAuth: () => auth }));
 beforeEach(() => { auth.isAuthenticated = true; });
 
 describe("expect()", () => {
+  it("refuses a request once sign-out has started", () => {
+    vi.mocked(fetch).mockReturnValue(new Promise<Response>(() => undefined));
+    const { result } = renderHook(useRecoveryCodesSlot, { wrapper: RecoveryCodesProvider });
+    // The floor: before sign-out a request starts (and ends at once).
+    act(() => {
+      const before = result.current.expect();
+      expect(before).not.toBeNull();
+      before!.release();
+    });
+
+    void logout();
+
+    act(() => { expect(result.current.expect()).toBeNull(); });
+  });
+
   it("refuses a second request while the first is pending", () => {
     const { result } = renderHook(useRecoveryCodesSlot, { wrapper: RecoveryCodesProvider });
     act(() => {

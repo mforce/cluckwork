@@ -107,7 +107,7 @@ describe("the app's own provider tree", () => {
     // The Connect page itself, not only the route: the shell is gone and the
     // page is waiting on its consent request.
     await screen.findByText(i18n.t("connect:loading"), undefined, { timeout: 5000 });
-    expect(askConsent).toHaveBeenCalled();
+    await waitFor(() => expect(askConsent).toHaveBeenCalled());
     expect(screen.queryByRole("navigation", { name: i18n.t("nav:primaryNavAriaLabel"), hidden: true })).toBeNull();
     expect(shownCodes()).toEqual(codes);
     await act(async () => { window.history.back(); });

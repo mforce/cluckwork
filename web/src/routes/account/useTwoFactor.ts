@@ -53,7 +53,8 @@ export function useTwoFactor() {
   // #1277 review T2, T3 — reloaded each time a code-issuing request settles,
   // and whenever the session's two_factor claim changes (a Turn off that
   // answers after the user came back), so a page mounted since still shows
-  // what the server now holds.
+  // what the server now holds. Both triggers stay: a Turn off is not a slot
+  // request, and a regenerate changes no claim.
   const status = useLatestLoad([slot.settled, enrolled], getTwoFactorStatus);
   const email = useMe()?.email ?? "";
 
@@ -91,6 +92,8 @@ export function useTwoFactor() {
       setFlow({ step: "scan", enrolment, replacing });
     } else {
       await turnOffTwoFactor(token);
+      // A 204 (two-factor was already off) rotates nothing, so neither the
+      // claim nor a settle would reload the status; this does.
       status.retry();
       if (!current()) return;
       setMessage(i18n.t("account:turnedOffMessage"));
