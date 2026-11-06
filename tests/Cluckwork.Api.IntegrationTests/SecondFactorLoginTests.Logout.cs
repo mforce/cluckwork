@@ -138,20 +138,24 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // #1277 MC7: the aborted logout's browser keeps its cookie. Presenting it
-    // again is a session the user ended, not a theft: it fails quietly and
-    // leaves the user's other sessions alone, expired or not.
+    // again is a session the user ended, not a theft: it fails quietly, clears
+    // the cookie and leaves the user's other sessions alone, expired or not,
+    // for the selected farm's cookie and the legacy one (R1). MC9: it records
+    // Auth.RefreshTokenAfterLogout once, with the fields its policy row names.
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ACookieThatLogoutRetired_FailsQuietly_AndLeavesTheOtherSessionsAlone(bool expired)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task ACookieThatLogoutRetired_FailsQuietly_AndLeavesTheOtherSessionsAlone(bool expired, bool legacy)
     {
         var email = $"tf-logout-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var userId = await UserIdAsync(accountId, email);
         var retired = await factory.LoginAsync(email);
         var other = await factory.LoginAsync(email);
-        await AbortedLogoutAsync(accountId, userId,
-            $"{AuthCookies.RefreshCookieNameFor(accountId)}={retired.RefreshToken}", retired.AccessToken, remaining: 1);
+        var name = legacy ? AuthCookies.LegacyRefreshCookieName : AuthCookies.RefreshCookieNameFor(accountId);
+        await AbortedLogoutAsync(accountId, userId, $"{name}={retired.RefreshToken}", legacy ? null : retired.AccessToken, remaining: 1);
         if (expired)
         {
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(retired.RefreshTokenForDirectCall))).ToLowerInvariant();
@@ -160,12 +164,26 @@ public sealed partial class SecondFactorLoginTests
                 .Where(t => t.TokenHash == hash).ExecuteUpdateAsync(s => s.SetProperty(t => t.ExpiresAt, past))));
         }
         var replays = factory.EventsFor(SecurityEvents.RefreshTokenReplayDetected).Count;
+        var afterLogout = factory.EventsFor(SecurityEvents.RefreshTokenAfterLogout).Count;
 
-        var again = await RefreshAsync(accountId, retired.RefreshToken);
+        using var again = legacy
+            ? await factory.CreateClient(TestHarness.Cookieless(factory)).PostRefreshRawAsync($"{name}={retired.RefreshToken}")
+            : await RefreshAsync(accountId, retired.RefreshToken);
 
         Assert.Equal(HttpStatusCode.Unauthorized, again.StatusCode);
-        Assert.Equal(string.Empty, TestHarness.ExtractRefreshCookie(again, accountId));
+        Assert.Equal("Identity.InvalidRefreshToken", (await TitleOf(again)).Title);
+        Assert.True(ClearsCookie(again, name), $"the refusal did not clear {name}");
         Assert.Equal(replays, factory.EventsFor(SecurityEvents.RefreshTokenReplayDetected).Count);
+        var events = factory.EventsFor(SecurityEvents.RefreshTokenAfterLogout);
+        Assert.Equal(afterLogout + 1, events.Count);
+        Assert.StartsWith("`UserId`, `ClientIp`.", PolicyFieldsFor(SecurityEvents.RefreshTokenAfterLogout));
+        Assert.Equal(["ClientIp", "SecurityEvent", "UserId"], events[^1].Properties.Keys.Where(key => !HostMetadata.Contains(key)).Order());
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, other.RefreshToken)).StatusCode);
     }
+
+    // A Set-Cookie that deletes the cookie, not merely one with no value.
+    private static bool ClearsCookie(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues("Set-Cookie", out var cookies)
+        && cookies.Any(c => c.StartsWith(name + "=;", StringComparison.Ordinal)
+            && c.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase));
 }

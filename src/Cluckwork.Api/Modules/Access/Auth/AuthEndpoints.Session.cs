@@ -105,6 +105,12 @@ public static partial class AuthEndpoints
                 // A dead legacy cookie (rotated elsewhere / expired) is not
                 // this farm's to clear on the legacy name — it is not per-farm.
                 // Leave it; it is inert. Fall through to the no-cookie 401.
+                // The one exception is a token logout retired (#1277 MC7): the
+                // user ended that session, so its cookie goes. Another farm's
+                // token never gets here: RefreshAsync refuses it on the farm
+                // check first.
+                if (legacyResult.Error.Code == CredentialErrorCodes.RetiredByLogout)
+                    AuthCookies.ClearLegacyRefreshCookie(response, CookieSecure(env));
             }
 
             // A named farm with no matching cookie is a changed session. With
@@ -140,7 +146,9 @@ public static partial class AuthEndpoints
             // named (#532): P1-2's "cleared the other farm's cookie" is
             // unrepresentable here, not guarded.
             AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
-            return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+            // A token logout retired answers as any other invalid one (#1277 MC9).
+            var title = result.Error.Code == CredentialErrorCodes.RetiredByLogout ? "Identity.InvalidRefreshToken" : result.Error.Code;
+            return Results.Problem(result.Error.Description, statusCode: 401, title: title);
         }
 
         // #547 — RefreshAsync's expectedAccountId check above is

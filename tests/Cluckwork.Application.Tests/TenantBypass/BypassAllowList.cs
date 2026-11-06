@@ -63,7 +63,7 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.RefreshAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Refresh.cs",
-            Hash = "323ce316",
+            Hash = "5b4c24e0",
             Justification = "Refresh-token rotation reads the account to verify it is active; scoped to the token's account id, IgnoreQueryFilters because TenantContext may be unresolved during the auth handshake.",
         },
         new()

@@ -80,9 +80,14 @@ public sealed partial class IdentityProvider
         // #1277 MC7 — a token logout retired fails quietly, expired or not: the
         // user ended that session, and a browser that missed the logout's
         // answer still holds the cookie. Classifying it as replay would end
-        // the user's other sessions.
+        // the user's other sessions. MC9: it is still recorded, so an alert can
+        // see a logged-out cookie presented again.
         if (stored.RevocationReason == RefreshRevocationReason.Logout)
-            return Result.Failure<TokenPair>(Error.Validation("Identity.InvalidRefreshToken", "Refresh token is invalid."));
+        {
+            logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+                SecurityEvents.RefreshTokenAfterLogout, stored.UserId, ClientIp);
+            return Result.Failure<TokenPair>(Error.Validation(CredentialErrorCodes.RetiredByLogout, "Refresh token is invalid."));
+        }
         if (stored.RevokedAt is not null)
         {
             // #176 — idempotency grace: a token rotated within the last
