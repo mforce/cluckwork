@@ -1,4 +1,5 @@
 using Cluckwork.Api.Modules.Access.Auth;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Accounts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -323,4 +324,45 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
 
     private sealed record UserRow(Guid Id, string Email, string? DisplayName, string Role);
     private sealed record FlockRow(Guid Id, Guid FarmId, Guid HouseId, string Name, string Breed);
+
+    // A Worker's lookup: one assigned flock, counting its reads.
+    private sealed class CountingLookup : IAccessLookup
+    {
+        internal int Reads { get; private set; }
+        internal Guid Assigned { get; } = Guid.NewGuid();
+        public Task<EffectiveAccountRole?> GetEffectiveRoleAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Unexpected role read.");
+        public Task<IReadOnlySet<Guid>?> GetAssignedFlocksAsync(Guid userId, CancellationToken ct = default)
+        {
+            Reads++;
+            return Task.FromResult<IReadOnlySet<Guid>?>(new HashSet<Guid> { Assigned });
+        }
+    }
+
+    // #1277 N2: logout skips the flock read, and only logout: the exact path,
+    // with a trailing slash or in another case. A longer path reads it.
+    [Theory]
+    [InlineData("/api/v1/auth/logout", true)]
+    [InlineData("/api/v1/auth/logout/", true)]
+    [InlineData("/API/V1/AUTH/LOGOUT", true)]
+    [InlineData("/api/v1/auth/logoutX", false)]
+    [InlineData("/api/v1/auth/logout/anything", false)]
+    public async Task OnlyTheLogoutPath_SkipsTheFlockRead(string path, bool skip)
+    {
+        var user = new CurrentUserContext();
+        user.Resolve(Guid.NewGuid(), "worker@test.local", []);
+        var scope = new FlockScope();
+        var lookup = new CountingLookup();
+        var context = new DefaultHttpContext();
+        context.Request.Path = path;
+        var nextCalled = false;
+        var middleware = new FlockScopeResolutionMiddleware(_ => { nextCalled = true; return Task.CompletedTask; });
+
+        await middleware.InvokeAsync(context, scope, user, lookup);
+
+        Assert.True(nextCalled);
+        Assert.Equal(skip ? 0 : 1, lookup.Reads);
+        Assert.Equal(skip, scope.IsUnrestricted);
+        if (!skip) Assert.Contains(lookup.Assigned, scope.AssignedFlockIds);
+    }
 }
