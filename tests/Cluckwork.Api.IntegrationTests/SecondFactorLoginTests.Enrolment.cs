@@ -280,36 +280,40 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // The credentials a caller could send in the step-up header that are not
-    // the caller's own grant: none, a malformed one, the session's access and
-    // refresh tokens, and a valid grant of another user in the same farm and in
-    // another farm. Each is refused before any work.
-    public static TheoryData<string, string> WrongGrants()
+    // the caller's own grant. Each is refused before any work.
+    public enum WrongGrant { Missing, Malformed, AccessToken, RefreshToken, SameFarmGrant, OtherFarmGrant }
+
+    public static TheoryData<string, WrongGrant> WrongGrants()
     {
-        string[] paths = [StartPath, RecoveryCodesPath, TwoFactorPath];
-        string[] grants = ["missing", "malformed", "access token", "refresh token", "same-farm grant", "other-farm grant"];
-        var data = new TheoryData<string, string>();
-        foreach (var path in paths)
-            foreach (var grant in grants)
+        var data = new TheoryData<string, WrongGrant>();
+        foreach (var path in new[] { StartPath, RecoveryCodesPath, TwoFactorPath })
+            foreach (var grant in Enum.GetValues<WrongGrant>())
                 data.Add(path, grant);
         return data;
     }
 
     // A start, a regenerate and a turn-off spend a grant that proved the
     // caller's own password and code, so any other credential changes nothing.
+    // A refused donor grant must still work in its own farm, so the row proves
+    // the route refused a live grant, not a spent or broken one.
     [Theory]
     [MemberData(nameof(WrongGrants))]
-    public async Task AStartRegenerateOrTurnOff_WithAnythingButTheCallersGrant_Is403_AndChangesNothing(string path, string grant)
+    public async Task AStartRegenerateOrTurnOff_WithAnythingButTheCallersGrant_Is403_AndChangesNothing(string path, WrongGrant grant)
     {
         var (email, factor) = await SeedEnrolledAsync();
         var session = await factory.LoginAsync(email);
         var client = factory.CreateAuthedClient(session.AccessToken);
+        var donor = grant is WrongGrant.SameFarmGrant or WrongGrant.OtherFarmGrant
+            ? await DonorGrantAsync(factor.AccountId, sameFarm: grant == WrongGrant.SameFarmGrant)
+            : null;
         var header = grant switch
         {
-            "missing" => null,
-            "malformed" => Guid.NewGuid().ToString("N"),
-            "access token" => session.AccessToken,
-            "refresh token" => session.RefreshTokenForDirectCall,
-            _ => await DonorGrantAsync(factor.AccountId, sameFarm: grant == "same-farm grant"),
+            WrongGrant.Missing => null,
+            WrongGrant.Malformed => Guid.NewGuid().ToString("N"),
+            WrongGrant.AccessToken => session.AccessToken,
+            WrongGrant.RefreshToken => session.RefreshTokenForDirectCall,
+            WrongGrant.SameFarmGrant or WrongGrant.OtherFarmGrant => donor!.Grant,
+            _ => throw new ArgumentOutOfRangeException(nameof(grant), grant, "no credential for this row"),
         };
         var before = await TwoFactorRowsAsync(factor.AccountId, factor.UserId);
 
@@ -323,16 +327,24 @@ public sealed partial class SecondFactorLoginTests
         Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
         Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
         Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+        if (donor is not null)
+            Assert.True((await ValidateGrantAsync(donor.AccountId, donor.UserId, donor.Grant)).IsSuccess,
+                "the refused donor grant no longer works in its own farm");
     }
 
+    private sealed record Donor(Guid AccountId, Guid UserId, string Grant);
+
     // A valid, unspent grant of an unenrolled user in the given farm or a new one.
-    private async Task<string> DonorGrantAsync(Guid accountId, bool sameFarm)
+    private async Task<Donor> DonorGrantAsync(Guid accountId, bool sameFarm)
     {
         var email = $"tf-donor-{Guid.NewGuid():N}@test.local";
+        var donorAccountId = accountId;
         if (sameFarm) await factory.SeedUserAsync(accountId, email, asAdmin: false);
-        else await factory.SeedAccountWithUserAsync(email);
-        var donor = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
-        return (await GrantOf(await StepUpAsync(donor, TestHarness.Password)))!;
+        else donorAccountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
+        Assert.NotNull(grant);
+        return new Donor(donorAccountId, await UserIdAsync(donorAccountId, email), grant);
     }
 
     // A grant made with the password alone, before the user enrolled, died
