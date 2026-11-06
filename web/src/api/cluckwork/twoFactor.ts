@@ -23,5 +23,6 @@ export const getTwoFactorStatus = (signal?: AbortSignal) => apiGet<TwoFactorStat
 export const startTwoFactor = (stepUpToken: string) =>
   apiPost<EnrolmentStart>("/auth/two-factor/start", undefined, undefined, { [STEP_UP_HEADER]: stepUpToken });
 
+// Optional on the type as on the wire: the caller must check a 200 for it.
 export const regenerateRecoveryCodes = (stepUpToken: string) =>
-  apiPost<{ recoveryCodes: string[] }>("/auth/two-factor/recovery-codes", undefined, undefined, { [STEP_UP_HEADER]: stepUpToken });
+  apiPost<{ recoveryCodes?: string[] }>("/auth/two-factor/recovery-codes", undefined, undefined, { [STEP_UP_HEADER]: stepUpToken });

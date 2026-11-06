@@ -9,6 +9,7 @@ import { RecoveryCodesProvider } from "./recoveryCodes";
 import { farmState } from "../../test/fixtures";
 import { freshCode } from "../../test/codes";
 import { makeToken, setStoredToken } from "../../test/jwt";
+import { getAccessToken } from "../../auth/tokenStore";
 import { AuthProvider } from "../../auth/AuthContext";
 import { useAuth } from "../../auth/useAuth";
 import { FarmContext } from "../../farm/FarmContext";
@@ -191,6 +192,12 @@ function expectNoCodesAnywhere(codes: string[]) {
   for (const code of codes) expect(readable).not.toContain(code);
 }
 
+const tabCloseAsks = () => {
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+};
+
 beforeEach(() => {
   vi.resetAllMocks();
   // Only sign-in answers with a body: a fresh token for the same farm.
@@ -318,22 +325,16 @@ describe("5. a second set of codes in one mount", () => {
 });
 
 describe("6. closing the tab", () => {
-  const closing = () => {
-    const event = new Event("beforeunload", { cancelable: true });
-    window.dispatchEvent(event);
-    return event.defaultPrevented;
-  };
-
   it("asks first while the codes are unsaved, and not once they are saved or done", async () => {
     const answer = await confirmPending();
     await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
     const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
 
-    expect(closing()).toBe(true);
+    expect(tabCloseAsks()).toBe(true);
     fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
-    expect(closing()).toBe(false);
+    expect(tabCloseAsks()).toBe(false);
     await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
-    expect(closing()).toBe(false);
+    expect(tabCloseAsks()).toBe(false);
   });
 });
 
@@ -363,12 +364,6 @@ describe("7. focus after Done", () => {
     await waitFor(() => expect(document.activeElement?.id).toBe("main-content"));
   });
 });
-
-const tabCloseAsks = () => {
-  const event = new Event("beforeunload", { cancelable: true });
-  window.dispatchEvent(event);
-  return event.defaultPrevented;
-};
 
 describe("P1. closing the tab while a code-issuing request is in flight", () => {
   it("asks while confirm is pending, on Account and after leaving it", async () => {
@@ -419,6 +414,15 @@ describe("P2. one code-issuing request at a time", () => {
     expect(screen.getByRole("button", { name: t("replaceButton") })).toBeDisabled();
   });
 
+  it("disables Turn off while regenerate is pending, after leaving and coming back", async () => {
+    await regeneratePending();
+    await leave("a nav click");
+
+    await backToAccount();
+
+    expect(screen.getByRole("button", { name: t("turnOffButton") })).toBeDisabled();
+  });
+
   it("disables Set up while confirm is pending, after leaving and coming back", async () => {
     await confirmPending();
     await leave("a nav click");
@@ -441,6 +445,7 @@ describe("P3. what the slot still holds", () => {
     await act(async () => { answer.resolve({ recoveryCodes: codes }); });
     expect(codesDialog()).toBeNull();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign in again" })); });
+    await waitFor(() => expect(getAccessToken()).not.toBeNull());
 
     expect(codesDialog()).toBeNull();
     expectNoCodesAnywhere(codes);
@@ -455,7 +460,7 @@ describe("P3. what the slot still holds", () => {
     expect(codesDialog()).toBeNull();
   });
 
-  it("(c) the session is read before the step-up proof is awaited", async () => {
+  it("(c) a proof that lands after its session ended sends nothing", async () => {
     const proof = deferred<{ token: string; expiresAt: string }>();
     vi.mocked(stepUp).mockReturnValueOnce(proof.promise);
     vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
@@ -465,8 +470,9 @@ describe("P3. what the slot still holds", () => {
     await act(async () => { await endSessionHere(); });
     await act(async () => { proof.resolve({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" }); });
 
-    await waitFor(() => expect(regenerateRecoveryCodes).toHaveBeenCalledTimes(1));
+    expect(regenerateRecoveryCodes).not.toHaveBeenCalled();
     expect(codesDialog()).toBeNull();
+    expect(tabCloseAsks()).toBe(false);
   });
 
   it("(d) Done empties the slot, which frees Regenerate again", async () => {
@@ -487,12 +493,141 @@ describe("P3. what the slot still holds", () => {
 
 describe("a regenerate answer without codes", () => {
   it("shows an error in its dialog and holds nothing", async () => {
-    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({} as { recoveryCodes: string[] });
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({});
     await regenerateOpen();
 
     await proveAndSubmit(t("regenerateButton"), true);
 
     expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(t("codesMissing"));
+    expect(codesDialog()).toBeNull();
+    expect(tabCloseAsks()).toBe(false);
+  });
+});
+
+describe("S2. the status after coming back to Account", () => {
+  async function saveAndDone() {
+    const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
+  }
+
+  it("shows the regenerated count once a regenerate settles after the user came back", async () => {
+    const answer = await regeneratePending();
+    await leave("a nav click");
+    await backToAccount();
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await saveAndDone();
+
+    expect(await screen.findByText(t("recoveryCodesLeft", { count: 10 }))).toBeInTheDocument();
+  });
+
+  it("shows two-factor on once an enrolment settles after the user came back", async () => {
+    const answer = await confirmPending();
+    await leave("a nav click");
+    await backToAccount();
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await saveAndDone();
+
+    expect(await screen.findByText(t("twoFactorOn"))).toBeInTheDocument();
+  });
+});
+
+describe("S4a. regenerate's request ends on every path", () => {
+  it("a refused proof ends it, and a retry goes out", async () => {
+    vi.mocked(stepUp).mockRejectedValueOnce(new ApiError(400, "Users.CurrentPasswordIncorrect", "Wrong."));
+    await regenerateOpen();
+
+    await proveAndSubmit(t("regenerateButton"), true);
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toBeInTheDocument();
+    expect(tabCloseAsks()).toBe(false);
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValueOnce({ recoveryCodes: freshCodes() });
+    await proveAndSubmit(t("regenerateButton"), true);
+
+    expect(regenerateRecoveryCodes).toHaveBeenCalledTimes(1);
+    expect(codesDialog()).not.toBeNull();
+  });
+
+  it("a proof abandoned by Back ends it, and no write is sent", async () => {
+    const proof = deferred<{ token: string; expiresAt: string }>();
+    vi.mocked(stepUp).mockReturnValueOnce(proof.promise);
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+    expect(tabCloseAsks()).toBe(true);
+
+    await leave("a single Back");
+    await act(async () => { proof.resolve({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" }); });
+
+    expect(regenerateRecoveryCodes).not.toHaveBeenCalled();
+    expect(tabCloseAsks()).toBe(false);
+    await backToAccount();
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeEnabled();
+  });
+
+  it("a refusal after Account is gone ends it", async () => {
+    const answer = await regeneratePending();
+    await leave("a single Back");
+
+    await act(async () => { answer.reject(new ApiError(409, "Auth.TwoFactorNotEnabled", "Not enabled.")); });
+
+    expect(tabCloseAsks()).toBe(false);
+    await backToAccount();
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeEnabled();
+  });
+
+  it("a delivery after Account is gone ends it once the codes are Done", async () => {
+    const answer = await regeneratePending();
+    await leave("a single Back");
+
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    const dialog = screen.getByRole("dialog", { name: t("codesHeading") });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
+
+    expect(tabCloseAsks()).toBe(false);
+    await backToAccount();
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeEnabled();
+  });
+});
+
+describe("S4b. a request from an ended session", () => {
+  it("cannot end the next session's request, which still shows its codes", async () => {
+    const first = await regeneratePending();
+    await sessionEnds("Auth.SessionEnded");
+    await screen.findByText("Login page");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign in again" })); });
+    await waitFor(() => expect(getAccessToken()).not.toBeNull());
+    await act(async () => {
+      window.history.pushState({ key: crypto.randomUUID() }, "", "/account");
+      window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+    });
+    const regenerate = await screen.findByRole("button", { name: t("regenerateButton") }, { timeout: 3000 });
+    const second = deferred<{ recoveryCodes: string[] }>();
+    vi.mocked(regenerateRecoveryCodes).mockReturnValueOnce(second.promise);
+    await act(async () => { fireEvent.click(regenerate); });
+    await proveAndSubmit(t("regenerateButton"), false);
+    expect(regenerateRecoveryCodes).toHaveBeenCalledTimes(2);
+
+    await act(async () => { first.resolve({ recoveryCodes: freshCodes() }); });
+
+    expect(codesDialog()).toBeNull();
+    expect(tabCloseAsks()).toBe(true);
+    const codes = freshCodes();
+    await act(async () => { second.resolve({ recoveryCodes: codes }); });
+    await codesShown(codes);
+  });
+});
+
+describe("S5. a first enrolment's answer without codes", () => {
+  it("says so on the set-up step and holds nothing", async () => {
+    const answer = await confirmPending();
+
+    await act(async () => { answer.resolve({}); });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(t("codesMissing"));
     expect(codesDialog()).toBeNull();
     expect(tabCloseAsks()).toBe(false);
   });

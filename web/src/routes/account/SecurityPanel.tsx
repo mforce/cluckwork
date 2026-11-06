@@ -22,7 +22,8 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
   const { t } = useTranslation("account");
   const { status, message, openProof } = twoFactor;
   const state = status.data;
-  // One code-issuing request at a time, and none while codes wait to be saved.
+  // One code-issuing request at a time, and none while codes wait to be
+  // saved; Turn off waits too, so a late set never lands on a disabled factor.
   const { busy } = useRecoveryCodesSlot();
   const low = state?.enabled && state.recoveryCodesLeft <= LOW_RECOVERY_CODES;
 
@@ -62,7 +63,7 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
               <Row action={<Button variant="outlined" disabled={busy} onClick={() => openProof("start")}>{t("replaceButton")}</Button>}>
                 <Typography variant="body2" color="text.secondary">{t("replaceHint")}</Typography>
               </Row>
-              <Row action={<Button color="error" onClick={() => openProof("turn-off")}>{t("turnOffButton")}</Button>}>
+              <Row action={<Button color="error" disabled={busy} onClick={() => openProof("turn-off")}>{t("turnOffButton")}</Button>}>
                 <Typography variant="body2" color="text.secondary">{t("turnOffHint")}</Typography>
               </Row>
             </>

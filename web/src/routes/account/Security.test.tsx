@@ -297,7 +297,8 @@ describe("an enrolled user's step-up actions", () => {
     await press(t("regenerateButton"), dialog());
 
     expect(await within(dialog()).findByRole("alert")).toHaveTextContent(t("regenerateNotEnabled"));
-    expect(mockStatus).toHaveBeenCalledTimes(2);
+    // The section behind the dialog now reads the fresh status.
+    expect(await screen.findByText(t("twoFactorOff"))).toBeInTheDocument();
   });
 
   it("turns two-factor off and reports it", async () => {

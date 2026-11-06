@@ -30,6 +30,8 @@ interface HeldRecoveryCodes {
 // One code-issuing request. deliver shows its set unless the request's session
 // has ended since; release, from a finally, ends the request either way.
 export interface Delivery {
+  // Still the active request, in the session that started it.
+  live: () => boolean;
   deliver: (codes: readonly string[], set: { regenerated: boolean; email: string }) => void;
   release: () => void;
 }
@@ -68,7 +70,9 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   const putPending = (ticket: number | null) => { pendingRef.current = ticket; setPending(ticket); };
 
   // #308 — the set, and the request it waits on, end with this tab's session.
-  // A layout effect, so a late answer cannot land before it runs.
+  // The clear runs before paint and overwrites anything that arrived earlier.
+  // A layout effect is the safe side; no jsdom test can tell it from a
+  // passive one.
   useLayoutEffect(() => {
     if (isAuthenticated) return;
     put(null);
@@ -86,13 +90,18 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [asks]);
 
+  // No deps: put and putPending must stay ref-and-setter only, so this
+  // callback never closes over a render's state.
   const expect = useCallback((): Delivery | null => {
+    // Unreachable from the UI, which disables its triggers while busy; the
+    // slot-contract test pins it.
     if (pendingRef.current !== null || heldRef.current !== null) return null;
     const ticket = ++tickets.current;
     const generation = currentSessionGeneration();
     putPending(ticket);
     const current = () => pendingRef.current === ticket && generation === currentSessionGeneration();
     return {
+      live: current,
       deliver: (codes, { regenerated, email }) => {
         if (current()) put({ id: ticket, codes, regenerated, email, saved: false });
       },
