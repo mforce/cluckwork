@@ -26,7 +26,7 @@ namespace Cluckwork.Api.IntegrationTests;
 // So the invariant is enforced from the running application's own endpoint
 // table rather than trusted to a sweep: any handler that CAN reach the raw body
 // must either declare a typed body, carry the marker, or be named below with a
-// reason. A new endpoint taking HttpContext/HttpRequest/Stream/PipeReader fails
+// reason. A new endpoint taking HttpContext/HttpRequest/Stream/PipeReader or IHttpContextAccessor fails
 // this test until someone decides which it is.
 [Collection(IntegrationCollection.Name)]
 public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory factory)
@@ -35,7 +35,7 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
     // handler taking none of these cannot read it, so its binding failures are
     // genuinely about the declared parameters (query, route, headers).
     private static readonly Type[] BodyCapableParameters =
-        [typeof(HttpContext), typeof(HttpRequest), typeof(Stream), typeof(PipeReader)];
+        [typeof(HttpContext), typeof(HttpRequest), typeof(Stream), typeof(PipeReader), typeof(IHttpContextAccessor)];
 
     // Endpoints that take one of the types above but provably do NOT read the
     // body. Each needs a reason: the point is that leaving the marker off is a

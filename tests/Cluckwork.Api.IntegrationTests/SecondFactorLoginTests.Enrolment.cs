@@ -1,7 +1,6 @@
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
-using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.Auth;
@@ -541,18 +540,26 @@ public sealed partial class SecondFactorLoginTests
         Assert.Empty(await AuditRowsAsync(accountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
     }
 
-    // A route under ResponseNotCacheable that reads its body by hand has no
-    // bound type for the walk below to check, so it is named here, by its
-    // endpoint name, with the reason its body holds no secret.
+    // Every route under ResponseNotCacheable that binds no body type, named by
+    // its endpoint name with the reason it carries no secret in a body. Such a
+    // route could still read the body by hand (HttpRequest, the context
+    // accessor, HttpResponse.HttpContext, BindAsync or a filter), so the walk
+    // below cannot check it; it fails until someone names it here. Adding a
+    // row is the review: nothing checks that its reason is true.
     private static readonly Dictionary<string, string> HandReadBodies = new()
     {
         ["RefreshToken"] = "drains a body it never keeps; the refresh token rides in the cookie",
+        ["Logout"] = "reads the refresh cookie and the CSRF header, never the body",
+        ["TwoFactorStatus"] = "a GET with no body",
+        ["StartTwoFactorEnrolment"] = "no body; the grant rides in the step-up header",
+        ["RegenerateRecoveryCodes"] = "no body; the grant rides in the step-up header",
+        ["TurnOffTwoFactor"] = "no body; the grant rides in the step-up header",
     };
 
     // G3.29's walk of request bodies: every body a not-cacheable route binds
     // carries a password, a code or a challenge, so each prints only
-    // "[redacted]". A new route under those prefixes joins the walk, and one
-    // that reads its body by hand fails it until HandReadBodies names it.
+    // "[redacted]". A new route under those prefixes joins the walk, or fails
+    // it until HandReadBodies names it.
     [Fact]
     public void EveryRequestBody_OnANotCacheableRoute_PrintsOnlyRedacted()
     {
@@ -563,16 +570,15 @@ public sealed partial class SecondFactorLoginTests
                 && notCacheable.Any(entry => new PathString("/" + raw.TrimStart('/')).StartsWithSegments(entry, StringComparison.OrdinalIgnoreCase)))
             .ToList();
         var bodies = routes.Select(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType).OfType<Type>().ToHashSet();
-        var handRead = routes
-            .Where(e => e.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is not null
-                && e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is null)
+        var unbound = routes
+            .Where(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is null)
             .Select(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? e.DisplayName ?? "(unnamed)")
             .Order();
 
-        Assert.Equal(HandReadBodies.Keys.Order(), handRead);
-        Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
+        Assert.Equal(HandReadBodies.Keys.Order(), unbound);
         Assert.Contains(typeof(LoginRequest), bodies);
         Assert.Contains(typeof(StepUpRequest), bodies);
+        Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
         foreach (var type in bodies)
             CredentialSample.AssertRedacted(type);
     }
