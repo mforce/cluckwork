@@ -100,6 +100,78 @@ public sealed class RedactedToStringTests
         Assert.False(RedactedToString.ReturnsOnlyTheConstant([.. load, .. load, (byte)OpCodes.Ret.Value], module));
     }
 
+    // A RecordHit outside Coverlet's tracker namespace.
+    private static class OtherTracker
+    {
+        public static void RecordHit(int id) => _ = id;
+    }
+
+    // The accepted body with a coverage-counter pair in front of it: the given
+    // constant load, then a call to the given method.
+    private static byte[] WithCounter(byte[] load, MethodInfo tracker)
+    {
+        var (il, _) = IlOf(typeof(Accepted));
+        var ldstr = Array.IndexOf(il, (byte)OpCodes.Ldstr.Value);
+        return [.. load, (byte)OpCodes.Call.Value, .. BitConverter.GetBytes(tracker.MetadataToken),
+            .. il[ldstr..(ldstr + 5)], (byte)OpCodes.Ret.Value];
+    }
+
+    private static MethodInfo RecordHitOf(Type tracker) =>
+        tracker.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly).Single();
+
+    public static TheoryData<string> CounterLoads() => ["ldc.i4", "ldc.i4.s", "ldc.i4.0", "ldc.i4.6", "ldc.i4.8", "ldc.i4.m1"];
+
+    private static byte[] Load(string form) => form switch
+    {
+        "ldc.i4" => [(byte)OpCodes.Ldc_I4.Value, 7, 0, 0, 0],
+        "ldc.i4.s" => [(byte)OpCodes.Ldc_I4_S.Value, 7],
+        "ldc.i4.0" => [(byte)OpCodes.Ldc_I4_0.Value],
+        "ldc.i4.6" => [(byte)OpCodes.Ldc_I4_6.Value],
+        "ldc.i4.8" => [(byte)OpCodes.Ldc_I4_8.Value],
+        "ldc.i4.m1" => [(byte)OpCodes.Ldc_I4_M1.Value],
+        _ => throw new ArgumentOutOfRangeException(nameof(form)),
+    };
+
+    // Coverlet loads its counter id with whichever ldc.i4 form fits.
+    [Theory]
+    [MemberData(nameof(CounterLoads))]
+    public void TheScanner_AcceptsTheCoverageCounter_InEveryLoadForm(string form)
+    {
+        var il = WithCounter(Load(form), RecordHitOf(typeof(Coverlet.Core.Instrumentation.Tracker.CluckworkFixture.Counter)));
+
+        Assert.True(RedactedToString.ReturnsOnlyTheConstant(il, typeof(RedactedToStringTests).Module));
+    }
+
+    // Each condition of the counter allowance, failed alone.
+    public static TheoryData<string> CounterConditions() => ["name", "namespace", "static", "void", "one int"];
+
+    [Theory]
+    [MemberData(nameof(CounterConditions))]
+    public void TheScanner_RefusesACounterThatFailsOneCondition(string condition)
+    {
+        var tracker = condition switch
+        {
+            "name" => typeof(Coverlet.Core.Instrumentation.Tracker.CluckworkFixture.WrongName),
+            "namespace" => typeof(OtherTracker),
+            "static" => typeof(Coverlet.Core.Instrumentation.Tracker.CluckworkFixture.Instance),
+            "void" => typeof(Coverlet.Core.Instrumentation.Tracker.CluckworkFixture.ReturnsValue),
+            "one int" => typeof(Coverlet.Core.Instrumentation.Tracker.CluckworkFixture.TakesLong),
+            _ => throw new ArgumentOutOfRangeException(nameof(condition)),
+        };
+        var il = WithCounter(Load("ldc.i4.s"), RecordHitOf(tracker));
+
+        Assert.False(RedactedToString.ReturnsOnlyTheConstant(il, typeof(RedactedToStringTests).Module), $"a counter with the wrong {condition} passed");
+    }
+
+    // The tracker must belong to the assembly whose ToString is scanned.
+    [Fact]
+    public void TheScanner_RefusesACounterFromAnotherAssembly()
+    {
+        var il = WithCounter(Load("ldc.i4.s"), RecordHitOf(typeof(Coverlet.Core.Instrumentation.Tracker.CluckworkFixture.Counter)));
+
+        Assert.False(RedactedToString.ReturnsOnlyTheConstant(il, typeof(RedactedToStringTests).Module, owner: typeof(object).Assembly));
+    }
+
     private static void NotACounter(int id) => _ = id;
 
     // Coverlet's hit counter is ldc.i4 then a call to its tracker's RecordHit;

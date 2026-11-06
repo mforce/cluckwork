@@ -44,7 +44,12 @@ internal static class RedactedToString
         Assert.Equal(Redacted, RuntimeHelpers.GetUninitializedObject(type).ToString());
     }
 
-    internal static bool ReturnsOnlyTheConstant(byte[] il, Module module)
+    internal static bool ReturnsOnlyTheConstant(byte[] il, Module module) =>
+        ReturnsOnlyTheConstant(il, module, module.Assembly);
+
+    // owner is the assembly whose own tracker may count hits; a test passes
+    // another to pin that condition.
+    internal static bool ReturnsOnlyTheConstant(byte[] il, Module module, Assembly owner)
     {
         var strings = 0;
         for (var i = 0; i < il.Length;)
@@ -52,9 +57,9 @@ internal static class RedactedToString
             if (!OneByte.TryGetValue(il[i], out var op)) return false;
             var operand = OperandSize(op);
             if (operand < 0 || i + 1 + operand > il.Length) return false;
-            if (IsCoverageHit(il, i, module))
+            if (CoverageHitLength(il, i, module, owner) is > 0 and var hit)
             {
-                i += 10;
+                i += hit;
                 continue;
             }
             if (!Allowed.Contains(op.Value)) return false;
@@ -69,16 +74,24 @@ internal static class RedactedToString
     }
 
     // Coverlet's hit counter, which coverage runs inject into every method of
-    // an included assembly: ldc.i4 <id>, then a call to the static
-    // RecordHit(int) of the tracker type it adds to that same assembly.
-    private static bool IsCoverageHit(byte[] il, int i, Module module)
+    // an included assembly: a constant int load of the counter id, in
+    // whichever ldc.i4 form fits it, then a call to the static void
+    // RecordHit(int) of the tracker type it adds to that same assembly. The
+    // pair's length in bytes, or 0 when the instructions at i are not one.
+    private static int CoverageHitLength(byte[] il, int i, Module module, Assembly owner)
     {
-        if (il[i] != OpCodes.Ldc_I4.Value || i + 10 > il.Length || il[i + 5] != OpCodes.Call.Value) return false;
-        return module.ResolveMethod(BitConverter.ToInt32(il, i + 6)) is MethodInfo { IsStatic: true, Name: "RecordHit" } hit
+        var load = il[i] == OpCodes.Ldc_I4.Value ? 5
+            : il[i] == OpCodes.Ldc_I4_S.Value ? 2
+            : il[i] >= OpCodes.Ldc_I4_M1.Value && il[i] <= OpCodes.Ldc_I4_8.Value ? 1
+            : 0;
+        if (load == 0 || i + load + 5 > il.Length || il[i + load] != OpCodes.Call.Value) return 0;
+        return module.ResolveMethod(BitConverter.ToInt32(il, i + load + 1)) is MethodInfo { IsStatic: true, Name: "RecordHit" } hit
             && hit.ReturnType == typeof(void)
             && hit.GetParameters() is [{ ParameterType: var parameter }] && parameter == typeof(int)
             && hit.DeclaringType?.FullName?.StartsWith("Coverlet.Core.Instrumentation.Tracker.", StringComparison.Ordinal) == true
-            && hit.DeclaringType.Assembly == module.Assembly;
+            && hit.DeclaringType.Assembly == owner
+            ? load + 5
+            : 0;
     }
 
     private static int OperandSize(OpCode op) => op.OperandType switch
