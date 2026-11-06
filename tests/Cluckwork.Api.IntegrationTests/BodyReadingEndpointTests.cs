@@ -34,7 +34,7 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
     // handler taking none of these cannot read it, so its binding failures are
     // genuinely about the declared parameters (query, route, headers).
     private static readonly Type[] BodyCapableParameters =
-        [typeof(HttpContext), typeof(HttpRequest), typeof(Stream), typeof(PipeReader), typeof(IHttpContextAccessor)];
+        [typeof(HttpContext), typeof(HttpRequest), typeof(HttpResponse), typeof(Stream), typeof(PipeReader), typeof(IHttpContextAccessor)];
 
     // Endpoints that take one of the types above but provably do NOT read the
     // body. Each needs a reason: the point is that leaving the marker off is a
@@ -53,6 +53,22 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
         ["GET /api/v1/oauth/authorize"] =
             "Authorize (#796) takes HttpContext to read the signed-in principal's claims and the " +
             "OpenIddict request that UseAuthentication already parsed from the query; a GET carries no body.",
+        // #1277: HttpResponse reaches the request through HttpContext, so it is
+        // body-capable. These take it only to write the response.
+        ["POST /api/v1/auth/login"] =
+            "Login binds LoginRequest and takes HttpResponse to set the refresh cookie; it never reads the raw body.",
+        ["POST /api/v1/auth/login/second-factor"] =
+            "LoginSecondFactor binds SecondFactorLoginRequest and takes HttpResponse to set the refresh cookie and Retry-After.",
+        ["POST /api/v1/auth/change-password"] =
+            "ChangePassword binds ChangeOwnPasswordRequest and takes HttpResponse to rotate the refresh cookie and set Retry-After.",
+        ["POST /api/v1/auth/step-up"] =
+            "StepUp binds StepUpRequest and takes HttpResponse to set Retry-After.",
+        ["DELETE /api/v1/auth/two-factor"] =
+            "TurnOffTwoFactor has no body and takes HttpResponse to rotate the refresh cookie.",
+        ["POST /api/v1/auth/two-factor/confirm"] =
+            "ConfirmTwoFactorEnrolment binds ConfirmEnrolmentRequest and takes HttpResponse to set the refresh cookie.",
+        ["GET,HEAD /mcp"] =
+            "The /mcp GET and HEAD answer 405 and take HttpResponse only to set the Allow header; a GET or HEAD carries no body.",
         [" /error"] =
             "The exception-handler re-execution target. It takes HttpContext to read "
             + "IExceptionHandlerFeature and shape the response, never to read the body — and it "
