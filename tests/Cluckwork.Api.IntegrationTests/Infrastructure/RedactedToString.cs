@@ -8,8 +8,8 @@ namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 // "[redacted]" and nothing else. That is read from the method's IL, so no
 // state of any member can make it print a secret. It proves the constant only:
 // another print path, such as serializing the record, is not covered. A type
-// that formats itself is refused, because interpolation, string.Format and
-// the logger formatter call its format method instead of ToString.
+// that formats or converts itself is refused, because interpolation,
+// string.Format, Convert and the logger formatter can call that instead.
 internal static class RedactedToString
 {
     private const string Redacted = "[redacted]";
@@ -32,7 +32,7 @@ internal static class RedactedToString
     public static void AssertConstant(Type type)
     {
         Assert.False(typeof(IFormattable).IsAssignableFrom(type) || typeof(ISpanFormattable).IsAssignableFrom(type)
-            || typeof(IUtf8SpanFormattable).IsAssignableFrom(type),
+            || typeof(IUtf8SpanFormattable).IsAssignableFrom(type) || typeof(IConvertible).IsAssignableFrom(type),
             $"{type} formats itself, so it can print its members past ToString");
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
         // Only for the message: the IL check below also fails an inherited object.ToString.

@@ -46,6 +46,29 @@ public sealed class RedactedToStringTests
         public string ToString(string? format, IFormatProvider? formatProvider) => Password;
     }
 
+    // Convert.ToString and some formatters reach IConvertible.ToString(IFormatProvider).
+    private sealed record Converts(string Password) : IConvertible
+    {
+        public override string ToString() => "[redacted]";
+        public string ToString(IFormatProvider? provider) => Password;
+        public TypeCode GetTypeCode() => TypeCode.Object;
+        public bool ToBoolean(IFormatProvider? provider) => throw new NotSupportedException();
+        public byte ToByte(IFormatProvider? provider) => throw new NotSupportedException();
+        public char ToChar(IFormatProvider? provider) => throw new NotSupportedException();
+        public DateTime ToDateTime(IFormatProvider? provider) => throw new NotSupportedException();
+        public decimal ToDecimal(IFormatProvider? provider) => throw new NotSupportedException();
+        public double ToDouble(IFormatProvider? provider) => throw new NotSupportedException();
+        public short ToInt16(IFormatProvider? provider) => throw new NotSupportedException();
+        public int ToInt32(IFormatProvider? provider) => throw new NotSupportedException();
+        public long ToInt64(IFormatProvider? provider) => throw new NotSupportedException();
+        public sbyte ToSByte(IFormatProvider? provider) => throw new NotSupportedException();
+        public float ToSingle(IFormatProvider? provider) => throw new NotSupportedException();
+        public object ToType(Type conversionType, IFormatProvider? provider) => throw new NotSupportedException();
+        public ushort ToUInt16(IFormatProvider? provider) => throw new NotSupportedException();
+        public uint ToUInt32(IFormatProvider? provider) => throw new NotSupportedException();
+        public ulong ToUInt64(IFormatProvider? provider) => throw new NotSupportedException();
+    }
+
     private static (byte[] Il, Module Module) IlOf(Type type)
     {
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
@@ -86,6 +109,25 @@ public sealed class RedactedToStringTests
     public void AssertConstant_RefusesATypeThatFormatsItself()
     {
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => RedactedToString.AssertConstant(typeof(Formats)));
+    }
+
+    // Its ToString is the constant, but Convert.ToString calls the IConvertible one.
+    [Fact]
+    public void AssertConstant_RefusesATypeThatConvertsItself()
+    {
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => RedactedToString.AssertConstant(typeof(Converts)));
+    }
+
+    // A br.s whose operand is not 0: read as an op code, the operand byte is
+    // break, so the scanner accepts this only when it skips the operand.
+    [Fact]
+    public void TheScanner_SkipsABranchOperand()
+    {
+        var (il, module) = IlOf(typeof(Accepted));
+        var ldstr = Array.IndexOf(il, (byte)OpCodes.Ldstr.Value);
+        byte[] branch = [(byte)OpCodes.Br_S.Value, 1, (byte)OpCodes.Nop.Value];
+
+        Assert.True(RedactedToString.ReturnsOnlyTheConstant([.. il[ldstr..(ldstr + 5)], .. branch, (byte)OpCodes.Ret.Value], module));
     }
 
     // No C# body compiles to two ldstr with nothing between them, so this one
