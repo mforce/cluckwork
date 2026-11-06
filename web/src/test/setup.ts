@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { createFakeIndexedDb } from "./fakeIndexedDb";
 import { clearAccessToken } from "../auth/tokenStore";
+import { resetSignOutForTests } from "../api/session";
 import { ledgerCellStyles } from "./ledgerCellStyles";
 
 Element.prototype.scrollIntoView ??= vi.fn();
@@ -32,6 +33,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   clearAccessToken();
+  resetSignOutForTests();
   // A test that switches the UI language (e.g. via changeLanguage or the
   // LanguageSelector) must not leak that language into the next test file's
   // shared i18next singleton — reset to the default so every test starts en.

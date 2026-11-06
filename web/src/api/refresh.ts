@@ -5,7 +5,7 @@ import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
 import { StaleSessionError, revokeSupersededCookie, onUnauthenticated, onTokensChanged } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS } from "./authCookieLock";
-import { isSigningOut, sessionGeneration, settledLogin } from "./session";
+import { isSignedOut, sessionGeneration, settledLogin } from "./session";
 import { newId } from "../lib/ids";
 import { rawBlob } from "./request";
 import type { HeldAuthCookieLock } from "./authCookieLock";
@@ -38,6 +38,10 @@ class RefreshAdoptionRefusedError extends Error {
 }
 
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
+  // #1277 review T1, U1 — checked where every refresh sends, so one queued
+  // behind the cross-tab lock, the bootstrap and a download refuse alike. Its
+  // callers treat this as a superseded session: no teardown, no resend.
+  if (isSignedOut()) throw new StaleSessionError();
   try {
     // #547/#532 — tell the server which per-farm cookie THIS tab expects.
     // Unbound tabs (the load-time bootstrap) omit it; the server accepts one
@@ -173,9 +177,6 @@ async function executeHeldRefresh(
 }
 
 export async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<string> {
-  // #1277 review T1 — a session being signed out gets no new token. Its
-  // callers treat this as a superseded session: no teardown, no resend.
-  if (isSigningOut()) throw new StaleSessionError();
   // changePassword owns the cross-tab auth lock while apiFetch performs its
   // normal 401 refresh-and-retry. Web Locks are not reentrant, so execute that
   // nested refresh directly under the lock already held by the caller. Keep

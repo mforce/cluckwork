@@ -1,4 +1,4 @@
-import { Fragment, Suspense, useEffect } from "react";
+import { Fragment, Suspense, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -67,7 +67,11 @@ export function AppLayout() {
     document.title = active ? `${t(active.labelKey)}${t("titleSuffix")}` : "Cluckwork";
   }, [groups, location.pathname, t]);
 
+  // #1277 review U2 — one sign-out at a time: both Sign out buttons stay
+  // disabled until it lands.
+  const [leaving, setLeaving] = useState(false);
   async function onLogout() {
+    setLeaving(true);
     await logout();
     navigate("/login", { replace: true });
   }
@@ -135,7 +139,7 @@ export function AppLayout() {
               {t("updateAvailableAction")}
             </Button>
           )}
-          <Button variant="text" color="inherit" onClick={onLogout} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
+          <Button variant="text" color="inherit" onClick={onLogout} disabled={leaving} startIcon={<LogOut size={ICON} strokeWidth={1.5} aria-hidden />}
             sx={{ justifyContent: "flex-start", width: "100%" }}>
             {t("signOut")}
           </Button>
@@ -196,7 +200,7 @@ export function AppLayout() {
         </ErrorBoundary>
       </Box>
 
-      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} />
+      <BottomNav groups={groups} tabs={tabs} onLogout={onLogout} signingOut={leaving} />
     </Box>
   );
 }

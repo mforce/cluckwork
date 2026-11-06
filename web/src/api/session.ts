@@ -371,15 +371,22 @@ export async function stepUp(proof: StepUpProof): Promise<{ token: string; expir
   return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
-// #1277 review T1 — set from the first line of logout() until its request
-// settles, success or failure. The token is already gone, but the page stays
-// signed in until then: while this holds, refreshTokens refuses, so no request
-// authenticates, and the recovery-codes slot starts no code-issuing work.
-let signingOut = false;
-export const isSigningOut = () => signingOut;
+// #1277 review T1, U1 — the generation logout() bumped to. Until the next
+// sign-in bumps past it, this tab is signed out: no refresh sends, so no new
+// token is issued, and the recovery-codes slot starts no code-issuing work. A
+// request that already holds a bearer still sends with it. An explicit login,
+// and the settledLogin() retry that rides it, bump the generation and so are
+// not refused. A failed revoke leaves the tab signed out all the same.
+let signedOutAt: number | null = null;
+export const isSignedOut = () => signedOutAt === sessionGeneration;
+
+// A test that signs out must not leave the next test signed out: tests seed
+// tokens directly instead of signing in, which would end the refusal.
+export function resetSignOutForTests(): void {
+  signedOutAt = null;
+}
 
 export async function logout(): Promise<void> {
-  signingOut = true;
   // #310 — bump the generation and clear in-memory state SYNCHRONOUSLY, before
   // any await: local logout must win immediately, whatever a slower in-flight
   // login/refresh does later. Also cancel any refresh currently in flight —
@@ -391,6 +398,7 @@ export async function logout(): Promise<void> {
   // instead of only being
   // discarded on arrival by the generation check in refreshTokens().
   sessionGeneration++;
+  signedOutAt = sessionGeneration;
   abortInFlightAuthCookieOperation?.();
   // #336/#532 — capture BEFORE clearing: the bearer identifies the actor and
   // the farm binding selects this tab's refresh cookie. The clears below are
@@ -402,6 +410,10 @@ export async function logout(): Promise<void> {
   // #532 — explicit logout is the user ending the session: the binding is
   // cleared with the token, and the next login rebinds.
   clearBoundAccount();
+  // #1277 review U2 — a server that never answers must not keep this tab
+  // half signed out: the revoke gives up after the refresh timeout.
+  const giveUp = new AbortController();
+  const gaveUp = setTimeout(() => giveUp.abort(), REFRESH_TIMEOUT_MS);
   try {
     // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
     // header satisfies the check. Always fires — JS can't read the HttpOnly
@@ -416,7 +428,7 @@ export async function logout(): Promise<void> {
     if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
     await raw<void>(
       "/auth/logout",
-      { method: "POST", headers },
+      { method: "POST", headers, signal: giveUp.signal },
       bearer ?? undefined,
     );
   } catch (err) {
@@ -426,6 +438,6 @@ export async function logout(): Promise<void> {
     // logged, never the (already-cleared) token itself.
     console.error("logout: server-side session revoke failed", err);
   } finally {
-    signingOut = false;
+    clearTimeout(gaveUp);
   }
 }

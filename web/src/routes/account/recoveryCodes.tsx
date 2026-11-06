@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Typography } from "@mui/material";
-import { currentSessionGeneration, isSigningOut } from "../../api/client";
+import { currentSessionGeneration, isSignedOut } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { Dialog } from "../../components/Dialog";
 import { useCopy } from "../../components/useCopy";
@@ -97,7 +97,7 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   // callback never closes over a render's state.
   const expect = useCallback((): Delivery | null => {
     // #1277 review T1 — no code-issuing work starts once sign-out has begun.
-    if (isSigningOut()) return null;
+    if (isSignedOut()) return null;
     // Unreachable from the UI, which disables its triggers while busy; the
     // slot-contract test pins it.
     if (pendingRef.current !== null || heldRef.current !== null) return null;
