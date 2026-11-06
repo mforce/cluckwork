@@ -6,10 +6,10 @@ import tseslint from 'typescript-eslint';
 const inEffect = 'CallExpression:matches([callee.name="useEffect"], [callee.property.name="useEffect"])';
 const rawAsyncEffect = 'Load data with useLatestLoad or usePagedList (web/src/components/). '
   + 'A raw async effect lets a superseded response overwrite newer state (#467, #703, #918).';
-// The function an effect returns: `return () => …` in its body, or the body of `() => () => …`.
+// The function an effect returns: `return () => …` anywhere in its body, or the body of `() => () => …`.
 const clearsFlag = 'AssignmentExpression[left.property.name="current"][right.value=false]';
 const mountedFlagCleanup = [
-  `${inEffect} > :function > BlockStatement > ReturnStatement > :function ${clearsFlag}`,
+  `${inEffect} > :function > BlockStatement ReturnStatement > :function ${clearsFlag}`,
   `${inEffect} > ArrowFunctionExpression > :function ${clearsFlag}`,
 ].map((selector) => ({
   selector,
@@ -47,6 +47,7 @@ export default tseslint.config(
       'no-restricted-syntax': ['error',
         { selector: `${inEffect} AwaitExpression`, message: rawAsyncEffect },
         { selector: `${inEffect} CallExpression[callee.property.name="then"]`, message: rawAsyncEffect },
+        // Repeated: this block's no-restricted-syntax replaces the one above for these files.
         ...mountedFlagCleanup,
       ],
     },
