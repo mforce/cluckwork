@@ -362,6 +362,7 @@ export const en = {
     doneButton: "Done",
     replacedMessage: "Your new authenticator app is set up. The old one no longer works.",
     turnedOffMessage: "Two-factor authentication is off.",
+    codesMissing: "Something went wrong, and no recovery codes arrived. Regenerate them to get a new set.",
     regenerateNotEnabled: "Two-factor authentication is not on for your account, so it has no recovery codes to replace.",
     sessionChanged: "Your sign-in changed while this was sent, so nothing changed. Try again.",
   },

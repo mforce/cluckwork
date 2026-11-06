@@ -1,18 +1,24 @@
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Typography } from "@mui/material";
 import { currentSessionGeneration } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { Dialog } from "../../components/Dialog";
+import { useCopy } from "../../components/useCopy";
+import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { saveBlob } from "../../lib/saveBlob";
 
 // #1277 MC4 (maintainer, 2026-11-05: "Keep codes above pages"): recovery codes
-// that are shown once live here, above the routes, until the user saves them.
-// A confirm or regenerate that settles after its page is gone still lands
-// here, and no navigation drops the set: only Done, or the end of the session.
-// In memory only: never in storage, a URL or a log.
-export interface UnsavedRecoveryCodes {
+// that are shown once live here, above the routes, until the user saves them,
+// and so does the request that will hand them out. A confirm or regenerate
+// that settles after its page is gone still lands here, and no navigation drops
+// the set: only Done, or the end of this tab's session. Another tab's sign-out
+// does not reach it (MC5, a known limit, as on every other screen). In memory
+// only: never in storage, a URL or a log.
+interface HeldRecoveryCodes {
+  // Keys the dialog, so a new set never shows the last set's notes.
+  id: number;
   codes: readonly string[];
   regenerated: boolean;
   // Part of the value, so a new set starts unticked.
@@ -21,85 +27,105 @@ export interface UnsavedRecoveryCodes {
   email: string;
 }
 
-type Hold = (codes: readonly string[], set: { regenerated: boolean; email: string; generation: number }) => void;
+// One code-issuing request. deliver shows its set unless the request's session
+// has ended since; release, from a finally, ends the request either way.
+export interface Delivery {
+  deliver: (codes: readonly string[], set: { regenerated: boolean; email: string }) => void;
+  release: () => void;
+}
 
-const RecoveryCodesContext = createContext<Hold | null>(null);
+interface Slot {
+  // A request is out or a set is held: Set up, Replace and Regenerate wait.
+  busy: boolean;
+  // Null while busy, so only one request can issue codes at a time. Call it
+  // before the step-up proof: it reads the session generation then.
+  expect: () => Delivery | null;
+}
 
+const RecoveryCodesContext = createContext<Slot | null>(null);
+
+// Here rather than in SecurityPanel: this module is in the main bundle, and
+// importing it from the lazy Account chunk is the only direction that keeps
+// the two apart.
 export const SECURITY_SUMMARY_ID = "account-security";
-const MAIN_CONTENT_ID = "main-content";
 
-// Shows a set the server just handed out. `generation` is the session's when
-// the request was sent: a set that lands after that session ended is dropped.
-export function useHoldRecoveryCodes(): Hold {
-  const hold = useContext(RecoveryCodesContext);
-  if (!hold) throw new Error("useHoldRecoveryCodes needs a RecoveryCodesProvider above it.");
-  return hold;
+export function useRecoveryCodesSlot(): Slot {
+  const slot = useContext(RecoveryCodesContext);
+  if (!slot) throw new Error("useRecoveryCodesSlot needs a RecoveryCodesProvider above it.");
+  return slot;
 }
 
 export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
-  const [held, setHeld] = useState<UnsavedRecoveryCodes | null>(null);
-  const authenticated = useRef(isAuthenticated);
+  // State renders the slot; the refs answer expect and deliver, which run
+  // between renders.
+  const [held, setHeld] = useState<HeldRecoveryCodes | null>(null);
+  const [pending, setPending] = useState<number | null>(null);
+  const heldRef = useRef<HeldRecoveryCodes | null>(null);
+  const pendingRef = useRef<number | null>(null);
+  const tickets = useRef(0);
+  const put = (set: HeldRecoveryCodes | null) => { heldRef.current = set; setHeld(set); };
+  const putPending = (ticket: number | null) => { pendingRef.current = ticket; setPending(ticket); };
 
-  // #308 — the codes end with the session that received them.
-  useEffect(() => {
-    authenticated.current = isAuthenticated;
-    if (!isAuthenticated) setHeld(null);
+  // #308 — the set, and the request it waits on, end with this tab's session.
+  // A layout effect, so a late answer cannot land before it runs.
+  useLayoutEffect(() => {
+    if (isAuthenticated) return;
+    put(null);
+    putPending(null);
   }, [isAuthenticated]);
 
-  const unsaved = held !== null && !held.saved;
+  const asks = pending !== null || (held !== null && !held.saved);
   useEffect(() => {
-    if (!unsaved) return;
+    if (!asks) return;
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [unsaved]);
+  }, [asks]);
 
-  const hold = useCallback<Hold>((codes, { regenerated, email, generation }) => {
-    if (!authenticated.current || generation !== currentSessionGeneration()) return;
-    setHeld({ codes, regenerated, email, saved: false });
+  const expect = useCallback((): Delivery | null => {
+    if (pendingRef.current !== null || heldRef.current !== null) return null;
+    const ticket = ++tickets.current;
+    const generation = currentSessionGeneration();
+    putPending(ticket);
+    const current = () => pendingRef.current === ticket && generation === currentSessionGeneration();
+    return {
+      deliver: (codes, { regenerated, email }) => {
+        if (current()) put({ id: ticket, codes, regenerated, email, saved: false });
+      },
+      release: () => {
+        if (pendingRef.current === ticket) putPending(null);
+      },
+    };
   }, []);
 
   // The trigger that opened the dialog is gone by now, so focus goes to the
   // Security section if it is on screen, else to the page's content.
   const done = () => {
-    setHeld(null);
+    put(null);
     requestAnimationFrame(() => (document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
   };
 
+  const slot = useMemo(() => ({ busy: pending !== null || held !== null, expect }), [pending, held, expect]);
   return (
-    <RecoveryCodesContext.Provider value={hold}>
+    <RecoveryCodesContext.Provider value={slot}>
       {children}
       {held && (
-        <RecoveryCodesDialog held={held} onSaved={(saved) => setHeld((h) => h && { ...h, saved })} onDone={done} />
+        <RecoveryCodesDialog key={held.id} held={held}
+          onSaved={(saved) => put(heldRef.current && { ...heldRef.current, saved })} onDone={done} />
       )}
     </RecoveryCodesContext.Provider>
   );
-}
-
-// Copy and download feedback, announced in one live region.
-export function useCopy() {
-  const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
-  // Started inside the promise: a plain-http origin has no clipboard at all.
-  const copy = (text: string, done: string, failed: string) =>
-    Promise.resolve().then(() => navigator.clipboard.writeText(text))
-      .then(() => setNote({ text: done, ok: true }), () => setNote({ text: failed, ok: false }));
-  const notice: ReactNode = (
-    <Box role="status" sx={{ "&:empty": { display: "none" } }}>
-      {note && <Alert severity={note.ok ? "success" : "warning"} role="none">{note.text}</Alert>}
-    </Box>
-  );
-  return { copy, notice, setNote };
 }
 
 // #1275 "Recovery codes", shown once. The maintainer chose a locked dialog
 // (2026-11-05): until the codes are saved nothing dismisses it, and the modal
 // keeps the sidebar, the bottom nav and Help out of reach.
 function RecoveryCodesDialog({ held, onSaved, onDone }: {
-  held: UnsavedRecoveryCodes;
+  held: HeldRecoveryCodes;
   onSaved: (saved: boolean) => void;
   onDone: () => void;
 }) {

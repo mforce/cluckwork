@@ -8,8 +8,9 @@ import { ProtectedRoute } from "../ProtectedRoute";
 import { RecoveryCodesProvider } from "./recoveryCodes";
 import { farmState } from "../../test/fixtures";
 import { freshCode } from "../../test/codes";
-import { setStoredToken } from "../../test/jwt";
+import { makeToken, setStoredToken } from "../../test/jwt";
 import { AuthProvider } from "../../auth/AuthContext";
+import { useAuth } from "../../auth/useAuth";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
@@ -62,6 +63,17 @@ function FormScreen() {
   );
 }
 
+// The login route, with a way to sign in again through the real AuthProvider.
+function LoginPage() {
+  const { login } = useAuth();
+  return (
+    <>
+      <p>Login page</p>
+      <button type="button" onClick={() => void login("farm", EMAIL, crypto.randomUUID())}>Sign in again</button>
+    </>
+  );
+}
+
 // History before the test: /help, then /, then the starting path, so Back
 // lands on "/" and history.go(-2) on "/help".
 function renderApp(path: string, enrolled: boolean) {
@@ -76,7 +88,7 @@ function renderApp(path: string, enrolled: boolean) {
           <MeContext.Provider value={{ id: "u1", email: EMAIL, name: null, role: "Worker", language: null, preferredStepperUnit: null }}>
             <FarmContext.Provider value={farmState({ farm: null })}>
               <Routes>
-                <Route path="/login" element={<p>Login page</p>} />
+                <Route path="/login" element={<LoginPage />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<AppLayout />}>
                     <Route index element={<p>Elsewhere</p>} />
@@ -97,12 +109,12 @@ function renderApp(path: string, enrolled: boolean) {
 const rail = () => screen.getByRole("navigation", { name: i18n.t("nav:primaryNavAriaLabel"), hidden: true });
 const skipLink = () => screen.getByRole("link", { name: i18n.t("nav:skipToContent"), hidden: true });
 
-// Each way to leave the Account page, and the route it leaves for.
+// Each way to leave the Account page, and the route it leaves for. The skip
+// link stays on the page now, so its own test is at the end.
 const LEAVE = {
   "a nav click": { go: () => fireEvent.click(rail().querySelector('a[href="/"]')!), lands: "Elsewhere" },
   "a single Back": { go: () => window.history.back(), lands: "Elsewhere" },
   "history.go(-2)": { go: () => window.history.go(-2), lands: "Help page" },
-  "the skip link": { go: () => fireEvent.click(skipLink()), lands: null },
 } as const;
 
 async function proveAndSubmit(submit: string, enrolled: boolean) {
@@ -126,13 +138,18 @@ async function confirmPending() {
   return answer;
 }
 
-async function regeneratePending() {
-  const answer = deferred<{ recoveryCodes: string[] }>();
+// A regenerate whose step-up, or whose answer, the test settles by hand.
+async function regenerateOpen() {
   vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 1 });
-  vi.mocked(regenerateRecoveryCodes).mockReturnValue(answer.promise);
   renderApp("/account", true);
   const regenerate = await screen.findByRole("button", { name: t("regenerateButton") }, { timeout: 3000 });
   await act(async () => { fireEvent.click(regenerate); });
+}
+
+async function regeneratePending() {
+  const answer = deferred<{ recoveryCodes: string[] }>();
+  vi.mocked(regenerateRecoveryCodes).mockReturnValue(answer.promise);
+  await regenerateOpen();
   await proveAndSubmit(t("regenerateButton"), true);
   expect(regenerateRecoveryCodes).toHaveBeenCalledTimes(1);
   return answer;
@@ -141,8 +158,13 @@ async function regeneratePending() {
 async function leave(how: keyof typeof LEAVE) {
   const { go, lands } = LEAVE[how];
   await act(async () => { go(); });
-  if (lands) await screen.findByText(lands);
+  await screen.findByText(lands);
 }
+
+const backToAccount = async () => {
+  await act(async () => { fireEvent.click(rail().querySelector('a[href="/account"]')!); });
+  await screen.findByRole("heading", { name: t("twoFactorHeading") }, { timeout: 3000 });
+};
 
 async function codesShown(codes: string[]) {
   const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
@@ -157,17 +179,24 @@ const sessionEnds = async (title: string) => {
   await act(async () => { onUnauthenticated(title); });
 };
 
-// Every place the page could still hold a code: the DOM and web storage. The
-// floor is the login page itself, so the walk read a live document.
+// Every place the page could still hold a code: the DOM, web storage, the URL
+// and the history entry. The floor is the login page itself, so the walk read
+// a live document.
 function expectNoCodesAnywhere(codes: string[]) {
-  const readable = [document.body.innerHTML, JSON.stringify({ ...localStorage }), JSON.stringify({ ...sessionStorage })].join("\n");
+  const readable = [
+    document.body.innerHTML, JSON.stringify({ ...localStorage }), JSON.stringify({ ...sessionStorage }),
+    window.location.href, JSON.stringify(window.history.state),
+  ].join("\n");
   expect(readable).toContain("Login page");
   for (const code of codes) expect(readable).not.toContain(code);
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+  // Only sign-in answers with a body: a fresh token for the same farm.
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.endsWith("/auth/login")
+    ? new Response(JSON.stringify({ accessToken: makeToken({ sub: "u1", role: "Worker", account_id: "acct-1" }), accessTokenExpiry: "2099-01-01T00:00:00Z" }), { status: 200, headers: { "Content-Type": "application/json" } })
+    : new Response(null, { status: 204 }))));
   vi.mocked(listMyConnectedApps).mockResolvedValue([]);
   vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: false, recoveryCodesLeft: 0 });
   vi.mocked(stepUp).mockImplementation(async () => ({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" }));
@@ -332,6 +361,140 @@ describe("7. focus after Done", () => {
     await done();
 
     await waitFor(() => expect(document.activeElement?.id).toBe("main-content"));
+  });
+});
+
+const tabCloseAsks = () => {
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+};
+
+describe("P1. closing the tab while a code-issuing request is in flight", () => {
+  it("asks while confirm is pending, on Account and after leaving it", async () => {
+    await confirmPending();
+    expect(tabCloseAsks()).toBe(true);
+
+    await leave("a nav click");
+
+    expect(tabCloseAsks()).toBe(true);
+  });
+
+  it("asks while regenerate is pending", async () => {
+    await regeneratePending();
+
+    expect(tabCloseAsks()).toBe(true);
+  });
+
+  it("stops asking when confirm fails without codes", async () => {
+    const answer = await confirmPending();
+
+    await act(async () => { answer.reject(new ApiError(400, "Auth.EnrolmentCodeIncorrect", "Wrong.", { extensions: { attemptsLeft: 3 } })); });
+
+    await waitFor(() => expect(tabCloseAsks()).toBe(false));
+  });
+
+  it("stops asking when the session ends, and the late answer shows nothing", async () => {
+    const answer = await confirmPending();
+    const codes = freshCodes();
+
+    await sessionEnds("Auth.CredentialsSuperseded");
+    expect(tabCloseAsks()).toBe(false);
+    await act(async () => { answer.resolve({ recoveryCodes: codes }); });
+
+    await screen.findByText("Login page");
+    expect(tabCloseAsks()).toBe(false);
+    expectNoCodesAnywhere(codes);
+  });
+});
+
+describe("P2. one code-issuing request at a time", () => {
+  it("disables Regenerate and Replace while regenerate is pending, also after leaving and coming back", async () => {
+    await regeneratePending();
+    await leave("a nav click");
+
+    await backToAccount();
+
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("replaceButton") })).toBeDisabled();
+  });
+
+  it("disables Set up while confirm is pending, after leaving and coming back", async () => {
+    await confirmPending();
+    await leave("a nav click");
+
+    await backToAccount();
+
+    expect(screen.getByRole("button", { name: t("setUpButton") })).toBeDisabled();
+  });
+});
+
+describe("P3. what the slot still holds", () => {
+  it("(a) after a session end with regenerate pending, and the next sign-in, the answer shows nothing", async () => {
+    const answer = await regeneratePending();
+    const codes = freshCodes();
+    await sessionEnds("Auth.CredentialsSuperseded");
+    await screen.findByText("Login page");
+
+    // endSession leaves the generation alone, so only the session-end clear
+    // stands between this answer and the login page.
+    await act(async () => { answer.resolve({ recoveryCodes: codes }); });
+    expect(codesDialog()).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Sign in again" })); });
+
+    expect(codesDialog()).toBeNull();
+    expectNoCodesAnywhere(codes);
+  });
+
+  it("(b) a set whose session ended while regenerate was pending is dropped", async () => {
+    const answer = await regeneratePending();
+
+    await act(async () => { await endSessionHere(); });
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+
+    expect(codesDialog()).toBeNull();
+  });
+
+  it("(c) the session is read before the step-up proof is awaited", async () => {
+    const proof = deferred<{ token: string; expiresAt: string }>();
+    vi.mocked(stepUp).mockReturnValueOnce(proof.promise);
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+
+    await act(async () => { await endSessionHere(); });
+    await act(async () => { proof.resolve({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" }); });
+
+    await waitFor(() => expect(regenerateRecoveryCodes).toHaveBeenCalledTimes(1));
+    expect(codesDialog()).toBeNull();
+  });
+
+  it("(d) Done empties the slot, which frees Regenerate again", async () => {
+    const answer = await regeneratePending();
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
+    const regenerate = () => screen.getByRole("button", { name: t("regenerateButton"), hidden: true });
+    expect(regenerate()).toBeDisabled();
+
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
+
+    await waitFor(() => expect(codesDialog()).toBeNull());
+    expect(regenerate()).toBeEnabled();
+    expect(tabCloseAsks()).toBe(false);
+  });
+});
+
+describe("a regenerate answer without codes", () => {
+  it("shows an error in its dialog and holds nothing", async () => {
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({} as { recoveryCodes: string[] });
+    await regenerateOpen();
+
+    await proveAndSubmit(t("regenerateButton"), true);
+
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(t("codesMissing"));
+    expect(codesDialog()).toBeNull();
+    expect(tabCloseAsks()).toBe(false);
   });
 });
 

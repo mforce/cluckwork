@@ -11,6 +11,7 @@ import { BottomNav } from "../components/BottomNav";
 import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
+import { MAIN_CONTENT_ID } from "../lib/mainContent";
 import { useFarm } from "../farm/useFarm";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
@@ -78,9 +79,9 @@ export function AppLayout() {
       {/* #1277 review — focused in place, not followed: a fragment navigation
           writes a history entry with no state, which gives the location a new
           key and remounts the screen, dropping whatever it held. */}
-      <a href="#main-content" className="skip-link" onClick={(e) => {
+      <a href={`#${MAIN_CONTENT_ID}`} className="skip-link" onClick={(e) => {
         e.preventDefault();
-        document.getElementById("main-content")?.focus();
+        document.getElementById(MAIN_CONTENT_ID)?.focus();
       }}>{t("skipToContent")}</a>
 
       <Drawer
@@ -149,7 +150,7 @@ export function AppLayout() {
         </Box>
       </Drawer>
 
-      <Box component="main" className="content" id="main-content" tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
+      <Box component="main" className="content" id={MAIN_CONTENT_ID} tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
         {/* Carries the warning the banner below could not announce because a
             dialog had it inert (#485), and stays empty otherwise so the two
             never say the same thing twice.

@@ -302,6 +302,7 @@ export const tl = {
     doneButton: "Tapos na",
     replacedMessage: "Naka-set up na ang bago mong authenticator app. Hindi na gumagana ang luma.",
     turnedOffMessage: "Naka-off na ang two-factor authentication.",
+    codesMissing: "May nangyaring mali, at walang dumating na recovery code. Gumawa ulit para makakuha ng bagong set.",
     regenerateNotEnabled: "Hindi naka-on ang two-factor authentication sa iyong account, kaya wala itong recovery code na papalitan.",
     sessionChanged: "Nagbago ang iyong sign-in habang ipinapadala ito, kaya walang nagbago. Subukan ulit.",
   },

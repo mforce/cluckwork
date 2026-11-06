@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { EnrolmentStart } from "../../api/cluckwork";
-import { ApiError, confirmTwoFactor, currentSessionGeneration, NO_PROOF, stepUp, turnOffTwoFactor } from "../../api/client";
+import { ApiError, confirmTwoFactor, NO_PROOF, stepUp, turnOffTwoFactor } from "../../api/client";
 import type { StepUpProof } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
 import i18n from "../../i18n";
 import { useMe } from "../../session/SessionContext";
-import { useHoldRecoveryCodes } from "./recoveryCodes";
+import { useRecoveryCodesSlot } from "./recoveryCodes";
+import type { Delivery } from "./recoveryCodes";
 
 // #1277 — the Security section's two-factor authentication. Start,
 // Regenerate and Turn off each step up in a dialog first; confirm is the
@@ -49,7 +50,7 @@ export function useTwoFactor() {
   const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const holdCodes = useHoldRecoveryCodes();
+  const slot = useRecoveryCodesSlot();
   const email = useMe()?.email ?? "";
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
@@ -75,7 +76,7 @@ export function useTwoFactor() {
     if (action) dismissDialog(action);
   }
 
-  async function send(next: ProofAction, token: string, current: () => boolean, generation: number) {
+  async function send(next: ProofAction, token: string, current: () => boolean, delivery: Delivery | null) {
     if (next === "start") {
       // As the dialog does: replacing means the session proved two factors.
       const replacing = enrolled;
@@ -91,9 +92,14 @@ export function useTwoFactor() {
         status.retry();
         throw new Error(i18n.t("account:regenerateNotEnabled"));
       });
+      // The old set no longer works, so a broken answer is said, not shown.
+      if (!Array.isArray(recoveryCodes)) {
+        status.retry();
+        throw new Error(i18n.t("account:codesMissing"));
+      }
       // Before the current() check: the codes are shown even if the user has
       // left this page, because the old set no longer works.
-      holdCodes(recoveryCodes, { regenerated: true, email, generation });
+      delivery?.deliver(recoveryCodes, { regenerated: true, email });
       status.retry();
       if (!current()) return;
     } else {
@@ -112,12 +118,19 @@ export function useTwoFactor() {
     if (!next || busy) return;
     setMessage(null);
     await run(next, async (current) => {
-      const generation = currentSessionGeneration();
-      const entered = proof;
-      setProof(NO_PROOF);
-      const token = (await stepUp(entered)).token;
-      if (!current()) return;
-      await send(next, token, current, generation).catch((err: unknown) => { throw stale(err); });
+      // Taken before the step-up proof, so the slot reads the session then,
+      // and released however the request ends.
+      const delivery = next === "regenerate" ? slot.expect() : null;
+      if (next === "regenerate" && delivery === null) return;
+      try {
+        const entered = proof;
+        setProof(NO_PROOF);
+        const token = (await stepUp(entered)).token;
+        if (!current()) return;
+        await send(next, token, current, delivery).catch((err: unknown) => { throw stale(err); });
+      } finally {
+        delivery?.release();
+      }
     }, { dialog: next });
   }
 
@@ -126,32 +139,41 @@ export function useTwoFactor() {
     if (flow.step !== "scan" || busy) return;
     const { replacing } = flow;
     await run("confirm", async (current) => {
-      const generation = currentSessionGeneration();
-      const typed = code;
-      setCode("");
-      let recoveryCodes: string[] | undefined;
+      const delivery = slot.expect();
+      if (delivery === null) return;
       try {
-        ({ recoveryCodes } = await confirmTwoFactor(typed));
-      } catch (err) {
-        // The fifth wrong code ended the enrolment, and every later confirm
-        // answers 409. A stale session's enrolment is bound to the old epoch,
-        // so it can only answer 409 too. Each way the user starts again.
-        const attemptsLeft = err instanceof ApiError ? err.extensions.attemptsLeft : undefined;
-        const reason = isProblem(err, 409, "Auth.EnrolmentExpired") ? "expired"
-          : isProblem(err, 401, "Auth.CredentialsSuperseded") ? "session"
-          : isProblem(err, 400, "Auth.EnrolmentCodeIncorrect") && attemptsLeft === 0 ? "attempts" : null;
-        if (reason === null) throw incorrect(err, attemptsLeft);
-        if (current()) setFlow({ step: "restart", replacing, reason });
-        return;
+        await confirmWith(delivery, current, replacing);
+      } finally {
+        delivery.release();
       }
-      // Before the current() check, as regenerate does: the user is enrolled
-      // now, so the codes are shown wherever the user has gone.
-      if (recoveryCodes) holdCodes(recoveryCodes, { regenerated: false, email, generation });
-      status.retry();
-      if (!current()) return;
-      setFlow(SUMMARY);
-      if (!recoveryCodes) setMessage(i18n.t("account:replacedMessage"));
     });
+  }
+
+  async function confirmWith(delivery: Delivery, current: () => boolean, replacing: boolean) {
+    const typed = code;
+    setCode("");
+    let recoveryCodes: string[] | undefined;
+    try {
+      ({ recoveryCodes } = await confirmTwoFactor(typed));
+    } catch (err) {
+      // The fifth wrong code ended the enrolment, and every later confirm
+      // answers 409. A stale session's enrolment is bound to the old epoch,
+      // so it can only answer 409 too. Each way the user starts again.
+      const attemptsLeft = err instanceof ApiError ? err.extensions.attemptsLeft : undefined;
+      const reason = isProblem(err, 409, "Auth.EnrolmentExpired") ? "expired"
+        : isProblem(err, 401, "Auth.CredentialsSuperseded") ? "session"
+        : isProblem(err, 400, "Auth.EnrolmentCodeIncorrect") && attemptsLeft === 0 ? "attempts" : null;
+      if (reason === null) throw incorrect(err, attemptsLeft);
+      if (current()) setFlow({ step: "restart", replacing, reason });
+      return;
+    }
+    // Before the current() check, as regenerate does: the user is enrolled
+    // now, so the codes are shown wherever the user has gone.
+    if (recoveryCodes) delivery.deliver(recoveryCodes, { regenerated: false, email });
+    status.retry();
+    if (!current()) return;
+    setFlow(SUMMARY);
+    if (!recoveryCodes) setMessage(i18n.t("account:replacedMessage"));
   }
 
   function leaveFlow() {

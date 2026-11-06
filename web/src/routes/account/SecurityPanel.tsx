@@ -12,7 +12,7 @@ import { DialogError } from "../../components/DialogError";
 import { StepUpProofFields } from "../../components/StepUpProofFields";
 import { useMe } from "../../session/SessionContext";
 import { StatusDot } from "../dashboard/StatusDot";
-import { SECURITY_SUMMARY_ID } from "./recoveryCodes";
+import { SECURITY_SUMMARY_ID, useRecoveryCodesSlot } from "./recoveryCodes";
 import { LOW_RECOVERY_CODES } from "./useTwoFactor";
 import type { ProofAction, TwoFactor } from "./useTwoFactor";
 
@@ -22,6 +22,8 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
   const { t } = useTranslation("account");
   const { status, message, openProof } = twoFactor;
   const state = status.data;
+  // One code-issuing request at a time, and none while codes wait to be saved.
+  const { busy } = useRecoveryCodesSlot();
   const low = state?.enabled && state.recoveryCodesLeft <= LOW_RECOVERY_CODES;
 
   return (
@@ -40,7 +42,7 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
             </Alert>
           )}
           {state && (
-            <Row action={!state.enabled && <Button variant="contained" onClick={() => openProof("start")}>{t("setUpButton")}</Button>}>
+            <Row action={!state.enabled && <Button variant="contained" disabled={busy} onClick={() => openProof("start")}>{t("setUpButton")}</Button>}>
               <Typography variant="h3" component="h3">{t("twoFactorHeading")}</Typography>
               <Typography variant="body2" color="text.secondary">{t("twoFactorHint")}</Typography>
               {state.enabled
@@ -51,13 +53,13 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
           {state && !state.enabled && <Typography variant="body2" color="text.secondary">{t("twoFactorOffHint")}</Typography>}
           {state?.enabled && (
             <>
-              <Row action={<Button variant="outlined" onClick={() => openProof("regenerate")}>{t("regenerateButton")}</Button>}>
+              <Row action={<Button variant="outlined" disabled={busy} onClick={() => openProof("regenerate")}>{t("regenerateButton")}</Button>}>
                 <Typography variant="h3" component="h3">{t("recoveryCodesHeading")}</Typography>
                 <Typography>{t("recoveryCodesLeft", { count: state.recoveryCodesLeft })}</Typography>
                 <Typography variant="caption" color="text.secondary">{t("recoveryCodesCaption")}</Typography>
               </Row>
               {low && <Alert severity="warning" role="note">{t("recoveryCodesLow", { count: state.recoveryCodesLeft })}</Alert>}
-              <Row action={<Button variant="outlined" onClick={() => openProof("start")}>{t("replaceButton")}</Button>}>
+              <Row action={<Button variant="outlined" disabled={busy} onClick={() => openProof("start")}>{t("replaceButton")}</Button>}>
                 <Typography variant="body2" color="text.secondary">{t("replaceHint")}</Typography>
               </Row>
               <Row action={<Button color="error" onClick={() => openProof("turn-off")}>{t("turnOffButton")}</Button>}>

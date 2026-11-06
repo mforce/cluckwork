@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Link, Paper, Stack, TextField, Typography } from "@mui/material";
 import { BusyButton } from "../../components/BusyButton";
 import { DialogError } from "../../components/DialogError";
-import { useCopy } from "./recoveryCodes";
+import { useCopy } from "../../components/useCopy";
 import { TwoFactorQr } from "./TwoFactorQr";
 import type { Flow, TwoFactor } from "./useTwoFactor";
 
