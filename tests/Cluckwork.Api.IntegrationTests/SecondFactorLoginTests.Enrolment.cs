@@ -604,9 +604,12 @@ public sealed partial class SecondFactorLoginTests
             or IFromQueryMetadata or IFromRouteMetadata or IFromHeaderMetadata or IFromFormMetadata)
         && !BindsItself(parameter.ParameterType);
 
+    // ASP.NET looks for BindAsync up the hierarchy and on the interfaces, so
+    // the walk does too.
     private static bool BindsItself(Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Static).Any(m => m.Name == "BindAsync")
-        || type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IBindableFromHttpContext<>));
+        type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+            .Concat(type.GetInterfaces().SelectMany(i => i.GetMethods(BindingFlags.Public | BindingFlags.Static)))
+            .Any(m => m.Name == "BindAsync");
 
     private static string NameOf(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? endpoint.DisplayName ?? "(unnamed)";
