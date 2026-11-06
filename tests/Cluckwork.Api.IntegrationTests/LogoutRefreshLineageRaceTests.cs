@@ -1,12 +1,15 @@
 using System.Data.Common;
 using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
+using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -17,18 +20,25 @@ public sealed class LogoutRefreshLineageRaceFactory : CluckworkWebApplicationFac
     public LogoutZeroRowRereadBarrierInterceptor LogoutZeroRowReread { get; } = new();
     public LogoutAncestorSeverBarrierInterceptor LogoutAncestorSever { get; } = new();
     public GraceInspectionBarrierInterceptor GraceInspection { get; } = new();
+    public SecondFactorFactory.LogSink Sink { get; } = new();
+
+    public int ReplayEvents() => Sink.Events.Count(e => e.Properties.TryGetValue("SecurityEvent", out var value)
+        && value is ScalarValue { Value: SecurityEvents.RefreshTokenReplayDetected });
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
         builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<ILogEventSink>(Sink);
             services.AddDbContext<AppDbContext>((_, options) =>
                 options.AddInterceptors(
                     RefreshRotation,
                     LogoutTipUpdate,
                     LogoutZeroRowReread,
                     LogoutAncestorSever,
-                    GraceInspection)));
+                    GraceInspection));
+        });
     }
 }
 
@@ -372,14 +382,99 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
         Assert.Equal(1, factory.LogoutTipUpdate.Hits);
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
         // Prove logout itself remained on the selected lineage before presenting
-        // the now-severed tip, whose later reuse intentionally takes #176's
-        // strict family-replay path.
-        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
-            sibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+        // the now-fenced tip.
+        var siblingRefresh = await client.PostRefreshAsync(
+            sibling.RefreshToken, expectedAccount: accountId.ToString());
+        Assert.Equal(HttpStatusCode.OK, siblingRefresh.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
             foreign.RefreshToken, expectedAccount: foreignAccountId.ToString())).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
             deliveredChild.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+        // #1277: logout retired that tip, so its reuse fails quietly
+        // instead of taking #176's family-replay path, and the sibling session
+        // still refreshes. Rotation replay stays strict (RefreshTokenFlowTests).
+        var rotatedSibling = await TestHarness.ReadTokensAsync(siblingRefresh);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostRefreshAsync(
+            rotatedSibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+    }
+
+    // #1277, the maintainer's call: "Keep it strict (Recommended)". After
+    // the race above, the original parent is a rotated ancestor, not a token
+    // logout retired: presenting it again is #176 replay, and the family dies.
+    [Fact]
+    public async Task RefreshWins_TheOriginalParentPresentedLater_IsReplay()
+    {
+        var email = $"refresh-wins-parent-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var presented = await factory.LoginAsync(email);
+        var sibling = await factory.LoginAsync(email);
+        var client = factory.CreateClient(Cookieless);
+
+        factory.LogoutTipUpdate.Arm();
+        var logoutTask = client.PostLogoutAsync(presented.RefreshToken, accountId: accountId);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        HttpResponseMessage refresh;
+        try
+        {
+            await factory.LogoutTipUpdate.WaitUntilReachedAsync(timeout.Token);
+            refresh = await client.PostRefreshAsync(presented.RefreshToken, expectedAccount: accountId.ToString());
+        }
+        finally
+        {
+            factory.LogoutTipUpdate.Release();
+        }
+        Assert.Equal(HttpStatusCode.OK, refresh.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await logoutTask).StatusCode);
+        var replays = factory.ReplayEvents();
+
+        var again = await client.PostRefreshAsync(presented.RefreshToken, expectedAccount: accountId.ToString());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, again.StatusCode);
+        Assert.Equal(replays + 1, factory.ReplayEvents());
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
+            sibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
+    }
+
+    // #1277: #176's family revoke commits while a refresh of the live tip
+    // has loaded the tip but not saved it. The save must not land on the
+    // revoked row and mint a live child.
+    [Fact]
+    public async Task ReplayRevokeWins_ARefreshThatLoadedTheTipFirst_MintsNothing()
+    {
+        var email = $"replay-wins-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var client = factory.CreateClient(Cookieless);
+        var parent = await factory.LoginAsync(email);
+        var child = await RotateAsync(client, accountId, parent);
+        var tip = await RotateAsync(client, accountId, child);
+
+        factory.RefreshRotation.Arm();
+        var refreshTask = client.PostRefreshAsync(tip.RefreshToken, expectedAccount: accountId.ToString());
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        HttpResponseMessage replay;
+        try
+        {
+            await factory.RefreshRotation.WaitUntilReachedAsync(timeout.Token);
+            replay = await client.PostRefreshAsync(parent.RefreshToken, expectedAccount: accountId.ToString());
+        }
+        finally
+        {
+            factory.RefreshRotation.Release();
+        }
+
+        var refresh = await refreshTask;
+        var live = (await TokenCountsAsync(accountId)).Live;
+        Assert.Equal(1, factory.RefreshRotation.Hits);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        Assert.True(refresh.StatusCode == HttpStatusCode.Unauthorized && live == 0,
+            $"the racing refresh answered {(int)refresh.StatusCode} and left {live} live session(s)");
+    }
+
+    private static async Task<TokenPairDto> RotateAsync(HttpClient client, Guid accountId, TokenPairDto tokens)
+    {
+        using var response = await client.PostRefreshAsync(tokens.RefreshToken, expectedAccount: accountId.ToString());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await TestHarness.ReadTokensAsync(response);
     }
 
     [Fact]

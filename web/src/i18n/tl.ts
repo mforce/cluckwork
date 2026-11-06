@@ -2457,6 +2457,8 @@ export const tl = {
     "auditAction.User.RecoveryCodeUsed": "Ginamit ang recovery code",
     "auditAction.User.TwoFactorDisabled": "Na-off ang two-factor authentication",
     "auditAction.User.TwoFactorReset": "Na-reset ang two-factor authentication",
+    "auditAction.User.TwoFactorEnabled": "Na-on ang two-factor authentication",
+    "auditAction.User.RecoveryCodesRegenerated": "Ginawang muli ang mga recovery code",
     "auditAction.User.RoleChanged": "Binago ang tungkulin",
     "auditAction.User.EmailChanged": "Binago ang email sa pag-sign in",
     "auditAction.User.Disabled": "Na-disable ang user",

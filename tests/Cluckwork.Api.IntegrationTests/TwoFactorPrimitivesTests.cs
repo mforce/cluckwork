@@ -1,6 +1,6 @@
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Text;
+using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -72,8 +72,22 @@ public sealed class TwoFactorPrimitivesTests
         Assert.Equal(new TotpMatch(current + 1, Reused: false), next);
     }
 
-    // G3.29: a record prints its members, so every type that can hold a code, a
-    // challenge, a key or a stamp hash overrides ToString.
+    // G3.29: a record prints its members, so the two-factor and step-up records
+    // that hold a code, a challenge, a key, a password or a stamp hash resolve
+    // a ToString that returns only the constant "[redacted]", which
+    // RedactedToString reads from the IL. The two closed hierarchies are walked
+    // here, and the request bodies of the routes under ResponseNotCacheable in
+    // SecondFactorLoginTests.
+    // The rest is a list, because nothing a type declares marks it as a
+    // credential carrier: Key, Code, Value and Token also name non-secrets.
+    // Routes outside those prefixes are not covered. Excluded, and left for a
+    // later issue: TokenPair, AccessTokenResponse, StepUpResponse and
+    // StepUpGrant carry live tokens and print them, and the user-admin commands
+    // that carry a step-up grant print it too: CreateUserCommand and
+    // SetUserPasswordCommand, which also carry a password, ChangeUserRole-,
+    // ChangeUserEmail-, DisableUser-, EnableUser-, AssignFlock- and
+    // UnassignFlockCommand. This list has its own floor; the body walk has
+    // another.
     [Fact]
     public void EveryCredentialCarryingType_PrintsOnlyRedacted()
     {
@@ -82,16 +96,21 @@ public sealed class TwoFactorPrimitivesTests
             .SelectMany(root => root.Assembly.GetTypes().Where(t => t.IsSubclassOf(root) && !t.IsAbstract))
             .Append(typeof(ProofBinding))
             .Append(typeof(EnrolmentStart))
-            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.SecondFactorLoginRequest))
-            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.LoginRequest))
-            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.ChangeOwnPasswordRequest))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.StepUpRequest))
+            .Append(typeof(ChangeOwnPasswordCommand))
+            .Append(typeof(ResetUserTwoFactorCommand))
+            .Append(typeof(EnrolmentConfirmation))
+            .Append(typeof(ConfirmOutcome.Enrolled))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentStartResponse))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentConfirmedResponse))
+            .Append(typeof(Cluckwork.Api.Modules.Access.Auth.RecoveryCodesResponse))
             .Append(typeof(TwoFactorCredentials).GetNestedType("PendingPayload", System.Reflection.BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("TwoFactorCredentials.PendingPayload is gone; update this walk"))
             .ToList();
 
-        Assert.True(types.Count >= 10, $"the walk found {types.Count} types, below its floor of 10");
+        Assert.True(types.Count >= 15, $"the walk found {types.Count} types, below its floor of 15");
         foreach (var type in types)
-            Assert.True(RuntimeHelpers.GetUninitializedObject(type).ToString() == "[redacted]", $"{type} prints its members");
+            RedactedToString.AssertConstant(type);
     }
 
     // G3.32. Each case reads the URI back with a URI parser, as an app would.

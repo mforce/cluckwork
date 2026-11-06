@@ -16,6 +16,7 @@
 | ConcurrencyStamp | varchar(36) |  | false |  |  |  |
 | IssuedEpoch | integer | 0 | false |  |  |  |
 | SignedInAt | timestamp with time zone |  | true |  |  |  |
+| RevocationReason | varchar(32) |  | true |  |  |  |
 
 ## Viewpoints
 
@@ -66,6 +67,7 @@ erDiagram
   varchar_36_ ConcurrencyStamp
   integer IssuedEpoch
   timestamp_with_time_zone SignedInAt
+  varchar_32_ RevocationReason
 }
 ```
 

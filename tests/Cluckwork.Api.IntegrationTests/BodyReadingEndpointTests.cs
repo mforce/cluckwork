@@ -3,7 +3,6 @@ using System.Reflection;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,10 +11,12 @@ namespace Cluckwork.Api.IntegrationTests;
 // #398 review rounds 7-8 — BindingFailureResponse.ConcernsRequestBody decides
 // whether a 400 binding failure is reported under `body` or `query`, and it
 // reads the ENDPOINT's contract to do it. An endpoint that declares a typed body
-// parameter carries IAcceptsMetadata and is classified correctly for free. An
-// endpoint that reads the raw body ITSELF declares nothing, so it must be marked
-// with ReadsRequestBodyAttribute — otherwise a body failure on it is reported as
-// `errors.query`, on endpoints that have no query input at all.
+// parameter carries IAcceptsMetadata. An endpoint that reads the raw body
+// ITSELF declares nothing, so it must be marked with ReadsRequestBodyAttribute —
+// otherwise a body failure on it is reported as `errors.query`, on endpoints
+// that have no query input at all. From #1277 a typed body no longer excuses a
+// handler that also takes a body-capable parameter: it can read the raw body
+// beside the typed one, so it needs the marker or a reviewed row too.
 //
 // That marker is applied by hand, and being forgotten is the DEFAULT failure:
 // review caught two separate missing markers in consecutive rounds
@@ -26,7 +27,7 @@ namespace Cluckwork.Api.IntegrationTests;
 // So the invariant is enforced from the running application's own endpoint
 // table rather than trusted to a sweep: any handler that CAN reach the raw body
 // must either declare a typed body, carry the marker, or be named below with a
-// reason. A new endpoint taking HttpContext/HttpRequest/Stream/PipeReader fails
+// reason. A new endpoint taking HttpContext/HttpRequest/Stream/PipeReader or IHttpContextAccessor fails
 // this test until someone decides which it is.
 [Collection(IntegrationCollection.Name)]
 public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory factory)
@@ -35,7 +36,7 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
     // handler taking none of these cannot read it, so its binding failures are
     // genuinely about the declared parameters (query, route, headers).
     private static readonly Type[] BodyCapableParameters =
-        [typeof(HttpContext), typeof(HttpRequest), typeof(Stream), typeof(PipeReader)];
+        [typeof(HttpContext), typeof(HttpRequest), typeof(HttpResponse), typeof(Stream), typeof(PipeReader), typeof(IHttpContextAccessor)];
 
     // Endpoints that take one of the types above but provably do NOT read the
     // body. Each needs a reason: the point is that leaving the marker off is a
@@ -54,6 +55,22 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
         ["GET /api/v1/oauth/authorize"] =
             "Authorize (#796) takes HttpContext to read the signed-in principal's claims and the " +
             "OpenIddict request that UseAuthentication already parsed from the query; a GET carries no body.",
+        // #1277: HttpResponse reaches the request through HttpContext, so it is
+        // body-capable. These take it only to write the response.
+        ["POST /api/v1/auth/login"] =
+            "Login binds LoginRequest and takes HttpResponse to set the refresh cookie; it never reads the raw body.",
+        ["POST /api/v1/auth/login/second-factor"] =
+            "LoginSecondFactor binds SecondFactorLoginRequest and takes HttpResponse to set the refresh cookie and Retry-After.",
+        ["POST /api/v1/auth/change-password"] =
+            "ChangePassword binds ChangeOwnPasswordRequest and takes HttpResponse to rotate the refresh cookie and set Retry-After.",
+        ["POST /api/v1/auth/step-up"] =
+            "StepUp binds StepUpRequest and takes HttpResponse to set Retry-After.",
+        ["DELETE /api/v1/auth/two-factor"] =
+            "TurnOffTwoFactor has no body and takes HttpResponse to rotate the refresh cookie.",
+        ["POST /api/v1/auth/two-factor/confirm"] =
+            "ConfirmTwoFactorEnrolment binds ConfirmEnrolmentRequest and takes HttpResponse to set the refresh cookie.",
+        ["GET,HEAD /mcp"] =
+            "The /mcp GET and HEAD answer 405 and take HttpResponse only to set the Allow header; a GET or HEAD carries no body.",
         [" /error"] =
             "The exception-handler re-execution target. It takes HttpContext to read "
             + "IExceptionHandlerFeature and shape the response, never to read the body — and it "
@@ -101,8 +118,9 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
         Assert.NotEmpty(candidates);
 
         var unclassified = candidates
-            .Where(c => c.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is null
-                && c.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is null
+            // A declared body type does not excuse a raw body-capable parameter:
+            // the handler can still read the body by hand beside it.
+            .Where(c => c.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is null
                 && !ReviewedAsNotReadingTheBody.ContainsKey(c.Key))
             .Select(c => $"{c.Key} → {c.Handler.DeclaringType?.Name}.{c.Handler.Name}")
             .ToList();

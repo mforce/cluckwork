@@ -54,7 +54,7 @@ public sealed partial class SecondFactorLoginTests
         scope.ResolveTenantAndActor(session.AccountId, session.UserId, session.Email);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var user = await db.Users.SingleAsync(u => u.Id == session.UserId);
-        var credentials = new CancelAfterVerify(scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>(), cancel);
+        var credentials = new CancelAfterCheck(scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>(), cancel);
         var commitsBefore = factory.CommitFault.Commits;
 
         var result = await SecondFactorProof.ProveAsync(db, credentials, session.AccountId, user,
@@ -125,8 +125,9 @@ public sealed partial class SecondFactorLoginTests
         Assert.DoesNotContain(TestHarness.Password, logged, StringComparison.Ordinal);
     }
 
-    // Cancels the request right after the code check, before the commit.
-    private sealed class CancelAfterVerify(ITwoFactorCredentials inner, CancellationTokenSource cancel) : ITwoFactorCredentials
+    // Cancels the request right after the code check or the confirm, before
+    // the commit.
+    private sealed class CancelAfterCheck(ITwoFactorCredentials inner, CancellationTokenSource cancel) : ITwoFactorCredentials
     {
         public async Task<FactorOutcome> VerifyAsync(
             Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct)
@@ -139,9 +140,19 @@ public sealed partial class SecondFactorLoginTests
         public Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct) =>
             inner.StartEnrolmentAsync(accountId, userId, ct);
 
-        public Task<ConfirmOutcome> ConfirmEnrolmentAsync(
-            Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct) =>
-            inner.ConfirmEnrolmentAsync(accountId, userId, code, ct);
+        public async Task<ConfirmOutcome> ConfirmEnrolmentAsync(
+            Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct)
+        {
+            var outcome = await inner.ConfirmEnrolmentAsync(accountId, userId, code, ct);
+            await cancel.CancelAsync();
+            return outcome;
+        }
+
+        public Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+            inner.GetStatusAsync(accountId, userId, ct);
+
+        public Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+            inner.RegenerateRecoveryCodesAsync(accountId, userId, ct);
 
         public Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct) =>
             inner.ClearAsync(accountId, userId, ct);

@@ -11,24 +11,11 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // outcome is a factor change that ends sessions and connected apps.
 public sealed partial class IdentityProvider
 {
-    // The answer CredentialEpochMiddleware gives a superseded token.
-    private static readonly Error CredentialsSuperseded =
-        new("Auth.CredentialsSuperseded", "Your credentials have been superseded. Sign in again.");
-
     public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>
         AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
         {
-            // The grant was spent before this lock, so a password reset, an
-            // enrolment or a disable can land in between. Each bumps the
-            // epoch, so the session that asked is then stale: it must not
-            // clear the factor or mint a fresh pair.
-            await UserRowLock.TakeAsync(db, accountId, userId, token);
-            var epoch = await db.Users.AsNoTracking()
-                .Where(u => u.Id == userId && u.AccountId == accountId)
-                .Select(u => (int?)u.CredentialEpoch)
-                .SingleOrDefaultAsync(token);
-            if (epoch != credentialEpoch)
+            if (!await ActingSessionIsCurrentAsync(accountId, userId, credentialEpoch, token))
                 return Result.Failure<TokenPair?>(CredentialsSuperseded);
 
             var outcome = await twoFactor.ClearAsync(accountId, userId, token);
