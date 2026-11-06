@@ -596,10 +596,16 @@ public sealed partial class SecondFactorLoginTests
 
     // A parameter of the declared type proves a bound body only when nothing
     // sends it to another source: services, keyed services, [AsParameters],
-    // the query, the route, a header or a form.
+    // the query, the route, a header or a form, or a type that binds itself
+    // from the whole request through BindAsync or IBindableFromHttpContext.
     private static bool BindsFromBody(ParameterInfo parameter) =>
         !parameter.GetCustomAttributes(inherit: true).Any(a => a is IFromServiceMetadata or FromKeyedServicesAttribute or AsParametersAttribute
-            or IFromQueryMetadata or IFromRouteMetadata or IFromHeaderMetadata or IFromFormMetadata);
+            or IFromQueryMetadata or IFromRouteMetadata or IFromHeaderMetadata or IFromFormMetadata)
+        && !BindsItself(parameter.ParameterType);
+
+    private static bool BindsItself(Type type) =>
+        type.GetMethods(BindingFlags.Public | BindingFlags.Static).Any(m => m.Name == "BindAsync")
+        || type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IBindableFromHttpContext<>));
 
     private static string NameOf(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? endpoint.DisplayName ?? "(unnamed)";
