@@ -26,6 +26,7 @@ public sealed partial class SecondFactorLoginTests
     private async Task AbortedLogoutAsync(Guid accountId, Guid userId, string cookies, string? accessToken, int remaining)
     {
         var before = await LogoutStateAsync(accountId, userId);
+        Assert.True(before.LiveRows > remaining, $"the setup left {before.LiveRows} live session(s), so the logout has nothing to revoke");
         using var cancel = new CancellationTokenSource();
         var abortedAtStart = true;
         var abortSeen = false;
@@ -105,6 +106,7 @@ public sealed partial class SecondFactorLoginTests
         var userId = await UserIdAsync(accountId, email);
         var session = await factory.LoginAsync(email);
         var before = await LogoutStateAsync(accountId, userId);
+        Assert.Equal(1, before.LiveRows);
         using var cancel = new CancellationTokenSource();
         factory.BeforeCommand.Arm("\"UserRoleAssignments\"", async () =>
         {
@@ -126,6 +128,7 @@ public sealed partial class SecondFactorLoginTests
             // The hook gave up for the client; the server must carry on.
         }
 
+        Assert.False(factory.BeforeCommand.Fired, "logout read the Worker's flock assignments");
         factory.BeforeCommand.Disarm();
         var after = before;
         for (var wait = 0; wait < 50 && (after.Epoch == before.Epoch || after.LiveRows != 0); wait++)
