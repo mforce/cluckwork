@@ -42,7 +42,8 @@ Not covered: gh aliases defined earlier, git aliases already in config, `git con
 --remove-section`, other commands that move a local ref (branch -f, fetch -f) or
 create commits (merge, rebase, cherry-pick, pull), a verb spelled by brace or
 extglob expansion (`pu{s..s}h`, `p@(u)sh`), a configured push destination that
-the remote resolves as a symbolic ref to main (no remote lookups), and Codex
+the remote resolves as a symbolic ref to main (no remote lookups), a script that
+runs a quoted argument as a command (`node <runner>.js "git push -f"`), and Codex
 `exec_command` calls whose `workdir` differs from the session `cwd` (Codex does
 not send `workdir`).
 """
