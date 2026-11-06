@@ -40,7 +40,7 @@ class RefreshAdoptionRefusedError extends Error {
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
   // #1277 review T1, U1 — checked where every refresh sends, so one queued
   // behind the cross-tab lock, the bootstrap and a download refuse alike. Its
-  // callers treat this as a superseded session: no teardown, no resend.
+  // callers treat this as a superseded session: no teardown.
   if (isSignedOut()) throw new StaleSessionError();
   try {
     // #547/#532 — tell the server which per-farm cookie THIS tab expects.
@@ -185,6 +185,8 @@ export async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<stri
   if (heldLock)
     return executeHeldRefresh(heldLock.generation, heldLock.signal);
 
+  // #1277 review V1 — the fast path: a signed-out tab queues nothing.
+  if (isSignedOut()) throw new StaleSessionError();
   if (refreshInFlight) return refreshInFlight;
 
   // #310 — captured once, at the START of this flight. Checked again at

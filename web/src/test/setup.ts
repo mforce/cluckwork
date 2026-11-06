@@ -6,7 +6,6 @@ import { afterEach, beforeEach, expect, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { createFakeIndexedDb } from "./fakeIndexedDb";
 import { clearAccessToken } from "../auth/tokenStore";
-import { resetSignOutForTests } from "../api/session";
 import { ledgerCellStyles } from "./ledgerCellStyles";
 
 Element.prototype.scrollIntoView ??= vi.fn();
@@ -26,14 +25,16 @@ beforeEach(() => {
   vi.stubGlobal("indexedDB", createFakeIndexedDb());
 });
 
-afterEach(() => {
+afterEach(async () => {
   const { violations } = ledgerCellStyles(document);
   const scrollingActions = Array.from(document.querySelectorAll(".MuiDialogContent-root .MuiDialogActions-root"))
     .map(actions => actions.closest('[role="dialog"]')?.querySelector("h2")?.textContent ?? actions.textContent);
   cleanup();
   vi.unstubAllGlobals();
   clearAccessToken();
-  resetSignOutForTests();
+  // Imported here, not at the top, so a test file's vi.mock of the token path
+  // still takes effect.
+  (await import("../api/session")).resetSignOutForTests();
   // A test that switches the UI language (e.g. via changeLanguage or the
   // LanguageSelector) must not leak that language into the next test file's
   // shared i18next singleton — reset to the default so every test starts en.

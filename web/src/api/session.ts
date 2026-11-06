@@ -215,6 +215,7 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
     await revokeSupersededCookie(res.accessToken);
     throw new StaleSessionError();
   }
+  signOutIntent = false;
   setAccessToken(res.accessToken);
   // #532 — a tab that logged in must be bound to its farm before its first
   // refresh, or that refresh is treated as a cold restore and could adopt a
@@ -371,19 +372,19 @@ export async function stepUp(proof: StepUpProof): Promise<{ token: string; expir
   return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
-// #1277 review T1, U1 — the generation logout() bumped to. Until the next
-// sign-in bumps past it, this tab is signed out: no refresh sends, so no new
-// token is issued, and the recovery-codes slot starts no code-issuing work. A
-// request that already holds a bearer still sends with it. An explicit login,
-// and the settledLogin() retry that rides it, bump the generation and so are
-// not refused. A failed revoke leaves the tab signed out all the same.
-let signedOutAt: number | null = null;
-export const isSignedOut = () => signedOutAt === sessionGeneration;
+// #1277 review T1, U1, V1 — set by logout(), and cleared only where a login's
+// own answer commits its tokens. Until then this tab is signed out: no refresh
+// sends, so no new token is issued, and the recovery-codes slot starts no
+// code-issuing work. A request that already holds a bearer still sends with
+// it. A generation bump is not a sign-in: a login abandoned at its deadline,
+// or superseded, leaves the tab signed out, and so does a failed revoke.
+let signOutIntent = false;
+export const isSignedOut = () => signOutIntent;
 
 // A test that signs out must not leave the next test signed out: tests seed
 // tokens directly instead of signing in, which would end the refusal.
 export function resetSignOutForTests(): void {
-  signedOutAt = null;
+  signOutIntent = false;
 }
 
 export async function logout(): Promise<void> {
@@ -392,13 +393,11 @@ export async function logout(): Promise<void> {
   // login/refresh does later. Also cancel any refresh currently in flight —
   // note this only reaches a refresh that has already been GRANTED the
   // cross-tab lock (#169); one still queued behind another tab has no
-  // controller yet, so it will still fire its request and then be discarded on
-  // arrival by the generation check. Correctness rests on the generation, not
-  // on the abort; the abort is only an optimisation so it stops sooner
-  // instead of only being
-  // discarded on arrival by the generation check in refreshTokens().
+  // controller yet, and the sign-out intent refuses it before it sends.
+  // Correctness rests on the generation and the intent, not on the abort; the
+  // abort is only an optimisation so it stops sooner.
+  signOutIntent = true;
   sessionGeneration++;
-  signedOutAt = sessionGeneration;
   abortInFlightAuthCookieOperation?.();
   // #336/#532 — capture BEFORE clearing: the bearer identifies the actor and
   // the farm binding selects this tab's refresh cookie. The clears below are
@@ -410,34 +409,29 @@ export async function logout(): Promise<void> {
   // #532 — explicit logout is the user ending the session: the binding is
   // cleared with the token, and the next login rebinds.
   clearBoundAccount();
-  // #1277 review U2 — a server that never answers must not keep this tab
-  // half signed out: the revoke gives up after the refresh timeout.
-  const giveUp = new AbortController();
-  const gaveUp = setTimeout(() => giveUp.abort(), REFRESH_TIMEOUT_MS);
-  try {
-    // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
-    // header satisfies the check. Always fires — JS can't read the HttpOnly
-    // cookie to know whether a session exists, so we always ask the server to
-    // revoke + clear it.
-    //
-    // #336/#532 — the bearer records the actor when this tab still has one;
-    // the account header selects the same tab's per-farm cookie even after the
-    // access token expires. Both remain optional because the endpoint is
-    // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
-    const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
-    if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
-    await raw<void>(
-      "/auth/logout",
-      { method: "POST", headers, signal: giveUp.signal },
-      bearer ?? undefined,
-    );
-  } catch (err) {
+  // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
+  // header satisfies the check. Always fires — JS can't read the HttpOnly
+  // cookie to know whether a session exists, so we always ask the server to
+  // revoke + clear it.
+  //
+  // #336/#532 — the bearer records the actor when this tab still has one;
+  // the account header selects the same tab's per-farm cookie even after the
+  // access token expires. Both remain optional because the endpoint is
+  // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
+  const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
+  if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
+  const revoke = raw<void>("/auth/logout", { method: "POST", headers }, bearer ?? undefined).catch((err: unknown) => {
     // Best-effort revoke: the in-memory token is already cleared above and this
     // failure can never reverse that. Still surfaced (not silently swallowed,
     // #310) so an operator can see the server-side session may be un-revoked —
     // logged, never the (already-cleared) token itself.
     console.error("logout: server-side session revoke failed", err);
-  } finally {
-    clearTimeout(gaveUp);
-  }
+  });
+  // #1277 review U2, V2 — a server that never answers must not keep this tab
+  // half signed out, so the wait ends at the refresh timeout. The request is
+  // never aborted: the server revokes under the request's own cancellation
+  // token, so an abort could cancel the revoke itself.
+  let gaveUp: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([revoke, new Promise<void>((resolve) => { gaveUp = setTimeout(resolve, REFRESH_TIMEOUT_MS); })]);
+  clearTimeout(gaveUp);
 }
