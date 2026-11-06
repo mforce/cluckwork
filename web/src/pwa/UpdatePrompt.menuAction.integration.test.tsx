@@ -32,7 +32,7 @@ function Harness() {
   return (
     <MemoryRouter initialEntries={["/"]}>
       <UpdatePrompt />
-      <BottomNav groups={groups} tabs={tabs} onLogout={vi.fn()} />
+      <BottomNav groups={groups} tabs={tabs} onLogout={vi.fn()} signingOut={false} />
     </MemoryRouter>
   );
 }

@@ -488,6 +488,10 @@ describe("what the slot holds after a request ends", () => {
     await regenerateOpen();
     await proveAndSubmit(t("regenerateButton"), true);
 
+    expect(stepUp).toHaveBeenCalledOnce();
+
+    // The session module's sign-out, not the app's Sign out: the dialog stays
+    // current, so only the generation check stands in the way.
     await act(async () => {
       await endSessionHere();
       await signInHere({ farmCode: "farm", email: EMAIL, password: crypto.randomUUID() });
@@ -621,9 +625,9 @@ describe("the status while it reloads after a request settles", () => {
 
 describe("a confirm answer with an empty set", () => {
   it.each([
-    ["a first enrolment", false, "codesMissing"],
-    ["a replacement", true, "replacedMessage"],
-  ] as const)("opens no codes dialog for %s, and says what happened", async (_, replacing, said) => {
+    ["a first enrolment", false, "alert", "codesMissing"],
+    ["a replacement", true, "status", "replacedMessage"],
+  ] as const)("opens no codes dialog for %s, and says what happened", async (_, replacing, role, said) => {
     const answer = deferred<{ recoveryCodes?: string[] }>();
     vi.mocked(confirmTwoFactor).mockReturnValue(answer.promise);
     vi.mocked(getTwoFactorStatus).mockResolvedValue(replacing ? { enabled: true, recoveryCodesLeft: 10 } : { enabled: false, recoveryCodesLeft: 0 });
@@ -638,7 +642,7 @@ describe("a confirm answer with an empty set", () => {
     await act(async () => { answer.resolve({ recoveryCodes: [] }); });
 
     expect(codesDialog()).toBeNull();
-    expect(await screen.findByText(t(said))).toBeInTheDocument();
+    expect((await screen.findByText(t(said))).closest(`[role="${role}"]`)).not.toBeNull();
   });
 });
 

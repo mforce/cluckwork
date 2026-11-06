@@ -36,13 +36,13 @@ const MORE_VALUE = "__more__";
 // #829 decides it. `anyDialogOpen()` still reads true while More is open,
 // same as before #827: it is a real `Dialog` instance either way.
 export function BottomNav({
-  groups, tabs, onLogout, signingOut = false,
+  groups, tabs, onLogout, signingOut,
 }: {
   groups: NavGroup[];
   tabs: NavEntry[];
   onLogout: () => void;
   // A sign-out is in flight: Sign out waits for it.
-  signingOut?: boolean;
+  signingOut: boolean;
 }) {
   const { t } = useTranslation("nav");
   const [moreOpen, setMoreOpen] = useState(false);

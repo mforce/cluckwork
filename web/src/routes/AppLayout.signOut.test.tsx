@@ -33,7 +33,7 @@ describe("Sign out while a sign-out is in flight", () => {
   });
 
   it("keeps the More menu's Sign out disabled after the menu reopens", async () => {
-    let answer!: () => void;
+    let answer: (() => void) | undefined;
     vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith("/auth/logout")
       ? new Promise<Response>((resolve) => { answer = () => resolve(new Response(null, { status: 204 })); })
       : new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })));
@@ -58,7 +58,7 @@ describe("Sign out while a sign-out is in flight", () => {
 
       expect(vi.mocked(fetch).mock.calls.filter(([input]) => String(input).endsWith("/auth/logout"))).toHaveLength(1);
     } finally {
-      await act(async () => { answer(); });
+      await act(async () => { answer?.(); });
     }
     await waitFor(() => expect(screen.getByText("Login page")).toBeInTheDocument());
   });
