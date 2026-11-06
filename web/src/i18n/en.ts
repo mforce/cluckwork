@@ -3050,6 +3050,8 @@ export const en = {
     "auditAction.User.RecoveryCodeUsed": "Recovery code used",
     "auditAction.User.TwoFactorDisabled": "Two-factor authentication turned off",
     "auditAction.User.TwoFactorReset": "Two-factor authentication reset",
+    "auditAction.User.TwoFactorEnabled": "Two-factor authentication turned on",
+    "auditAction.User.RecoveryCodesRegenerated": "Recovery codes regenerated",
     "auditAction.User.RoleChanged": "Role changed",
     "auditAction.User.EmailChanged": "Login email changed",
     "auditAction.User.Disabled": "User disabled",

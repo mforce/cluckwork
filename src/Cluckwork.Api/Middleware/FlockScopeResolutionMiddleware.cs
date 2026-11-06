@@ -42,6 +42,15 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
             return;
         }
 
+        // #1277 — logout reads no flock data, and a client that gives up
+        // during this read would cancel the logout before its writes.
+        if (CredentialEpochMiddleware.IsLogoutPath(context.Request.Path))
+        {
+            scope.Resolve(true, []);
+            await next(context);
+            return;
+        }
+
         // #612 — only a plain Worker is ever flock-scoped. Owner, Manager,
         // Sales, ReadOnly and Denied all bypass assignment rows entirely —
         // their route permissions are a separate, untouched surface.

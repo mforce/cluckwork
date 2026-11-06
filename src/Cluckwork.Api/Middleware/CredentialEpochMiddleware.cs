@@ -66,7 +66,7 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                         (SecondFactorErrorCodes.FarmSuspended, "This farm is suspended. Contact your administrator."),
                     CredentialVerdict.ConnectedAppsOff =>
                         (OAuthEndpoints.ConnectedAppsOff, "This farm doesn't allow connected apps. Ask an Owner."),
-                    _ => ("Auth.CredentialsSuperseded", "Your credentials have been superseded. Sign in again."),
+                    _ => (CredentialErrorCodes.Superseded, "Your credentials have been superseded. Sign in again."),
                 };
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 // #806 — the token no longer grants access, so an MCP client must re-authorize.
@@ -88,6 +88,6 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
     // Endpoint routing accepts the conventional trailing-slash form too. Keep
     // both spellings reachable for a superseded bearer, without widening the
     // exemption to descendants such as /auth/logout/anything.
-    private static bool IsLogoutPath(PathString path) =>
+    internal static bool IsLogoutPath(PathString path) =>
         path == LogoutPath || path == $"{LogoutPath}/";
 }

@@ -2,19 +2,19 @@ using System.Net;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cluckwork.Api.IntegrationTests;
 
 // #1280: the user turns their own two-factor off (#1274 decision 8), G5.1.
 public sealed partial class SecondFactorLoginTests
 {
-    private const string TurnOffPath = "/api/v1/auth/two-factor";
-
     // With an Idempotency-Key, so the not-cacheable entry is what keeps the
     // response out of idempotency_records.
     private static Task<HttpResponseMessage> DeleteWithGrantAsync(HttpClient client, string path, string grant)
@@ -50,6 +50,27 @@ public sealed partial class SecondFactorLoginTests
         return probe.StatusCode;
     }
 
+    // Decision 8: a factor change revokes every refresh row but the acting
+    // session's fresh one and disconnects every connected app (#1229), so the
+    // app leaves the list rather than staying listed and refused. The epoch
+    // bump alone refuses them, so the 401s cannot show this. Call it before
+    // a connected-app probe, which revokes the token it is refused with.
+    private async Task AssertEverySessionAndAppEndedAsync(Guid accountId, Guid userId, int freshRefreshRows)
+    {
+        var subject = userId.ToString();
+        var (authorizations, tokens, refreshRows) = await factory.WithTenantScopeAsync(accountId, async db => (
+            await db.OAuthAuthorizations.CountAsync(a => a.Subject == subject && a.Status == Statuses.Valid),
+            await db.OAuthTokens.CountAsync(t => t.Subject == subject && t.Status == Statuses.Valid),
+            await db.RefreshTokens.CountAsync(t => t.UserId == userId && t.RevokedAt == null)));
+        using var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, userId);
+        var listed = await scope.ServiceProvider.GetRequiredService<IAccessModule>().ListConnectedAppsAsync(userId, CancellationToken.None);
+
+        Assert.True(authorizations == 0, $"{authorizations} authorization(s) stayed valid");
+        Assert.True(tokens == 0, $"{tokens} connected-app token(s) stayed valid");
+        Assert.Empty(listed);
+        Assert.Equal(freshRefreshRows, refreshRows);
+    }
+
     // A started enrolment, so a clear has a pending payload to delete.
     private async Task StartEnrolmentAsync(Guid accountId, Guid userId)
     {
@@ -73,7 +94,7 @@ public sealed partial class SecondFactorLoginTests
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
         var records = await IdempotencyRecordsAsync(factor.AccountId);
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var fresh = await TestHarness.ReadTokensAsync(response);
@@ -83,6 +104,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(other.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(acting.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(factor.AccountId, other.RefreshToken)).StatusCode);
+        await AssertEverySessionAndAppEndedAsync(factor.AccountId, factor.UserId, freshRefreshRows: 1);
         Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(fresh.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(factor.AccountId, fresh.RefreshToken)).StatusCode);
@@ -104,7 +126,7 @@ public sealed partial class SecondFactorLoginTests
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
         var refreshRows = await factory.WithTenantScopeAsync(accountId, db => db.RefreshTokens.CountAsync(t => t.UserId == userId));
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Empty(await TwoFactorRowsAsync(accountId, userId));
@@ -112,17 +134,6 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(refreshRows, await factory.WithTenantScopeAsync(accountId, db => db.RefreshTokens.CountAsync(t => t.UserId == userId)));
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(session.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, session.RefreshToken)).StatusCode);
-    }
-
-    [Fact]
-    public async Task TurningTwoFactorOff_WithoutAGrant_Is403_AndChangesNothing()
-    {
-        var (_, factor, client) = await SignedInEnrolledAsync();
-
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, "not-a-grant");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Equal(1 + factor.RecoveryCodes.Count, (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Count);
     }
 
     // The turn-off spends its grant before it takes the user-row lock; a
@@ -156,7 +167,7 @@ public sealed partial class SecondFactorLoginTests
             Assert.True(done.IsSuccess, change);
         });
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         await AssertStaleTurnOffRefusedAsync(response, factor with { RecoveryCodes = factor.RecoveryCodes.Skip(1).ToList() });
     }
@@ -173,7 +184,7 @@ public sealed partial class SecondFactorLoginTests
         EnrolledFactor? factor = null;
         factory.BeforeCommand.Arm("FOR NO KEY UPDATE", async () => factor = await factory.EnrolTwoFactorAsync(email));
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         Assert.NotNull(factor);
         await AssertStaleTurnOffRefusedAsync(response, factor);

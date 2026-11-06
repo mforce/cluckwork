@@ -54,6 +54,17 @@ internal sealed class TwoFactorCredentials(
     private const int MaxWrongConfirms = 5;
     private static readonly TimeSpan PendingLifetime = TimeSpan.FromMinutes(10);
 
+    // The one read: untracked and unlocked, so the status route never waits
+    // on a sign-in. Never a code, only the number left.
+    public async Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct)
+    {
+        var enabled = await db.Users.AsNoTracking()
+            .Where(u => u.Id == userId && u.AccountId == accountId)
+            .Select(u => u.TwoFactorEnabled)
+            .SingleOrDefaultAsync(ct);
+        return new TwoFactorStatus(enabled, enabled ? await RecoveryCodesLeftAsync(accountId, userId, ct) : 0);
+    }
+
     // #1274 "Verifying a code", steps 1 to 6.
     public async Task<FactorOutcome> VerifyAsync(
         Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct)
@@ -256,6 +267,21 @@ internal sealed class TwoFactorCredentials(
             throw new InvalidOperationException("The locked user's save failed: " + string.Join(" ", saved.Errors.Select(e => e.Code)));
 
         return recoveryCodes is not null ? new ConfirmOutcome.Enrolled(recoveryCodes) : new ConfirmOutcome.Replaced();
+    }
+
+    // Decision 9: regenerating deletes the rows and inserts ten new ones. The
+    // key, the flag and the epoch stay, so no session ends.
+    public async Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct)
+    {
+        RequireTenant(accountId);
+        var user = await LockAsync(accountId, userId, ct);
+        if (user is null || !user.TwoFactorEnabled) return null;
+
+        await Rows(accountId, userId).Where(t => t.Name.StartsWith(RecoveryCodePrefix)).ExecuteDeleteAsync(ct);
+        var codes = NewRecoveryCodes();
+        StageRecoveryCodes(userId, codes);
+        await db.SaveChangesAsync(ct);
+        return codes;
     }
 
     // #1274 "Enrolling and replacing a key": deletes every row without reading

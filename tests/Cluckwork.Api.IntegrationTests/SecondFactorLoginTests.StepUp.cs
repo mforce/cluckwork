@@ -426,6 +426,18 @@ public sealed partial class SecondFactorLoginTests
             _ => identity.ChangeOwnPasswordAsync(factor.AccountId, factor.UserId, TestHarness.Password, NewPassword, WrongCode(factor))));
     }
 
+    [Fact]
+    public async Task AnEnrolmentConfirm_RefusesToRunInACallersTransaction()
+    {
+        var (_, factor) = await SeedEnrolledAsync();
+        using var scope = factory.Services.CreateScope().ResolveTenantAndActor(factor.AccountId, factor.UserId);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => TestHarness.InTransactionAsync(db,
+            _ => identity.ConfirmTwoFactorEnrolmentAsync(factor.AccountId, factor.UserId, WrongCode(factor))));
+    }
+
     // The SPA sends an empty field as no code.
     [Theory]
     [InlineData("")]

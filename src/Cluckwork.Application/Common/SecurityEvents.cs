@@ -43,6 +43,12 @@ public static class SecurityEvents
     // retry — i.e. a genuine reuse of a dead token, treated as possible theft.
     public const string RefreshTokenReplayDetected = "Auth.RefreshTokenReplayDetected";
 
+    // Fires when a presented refresh token is one logout retired (#1277).
+    // That fails quietly, revoking nothing: a browser that missed the
+    // logout's answer still holds the cookie. An alert can still see a
+    // logged-out cookie being presented again.
+    public const string RefreshTokenAfterLogout = "Auth.RefreshTokenAfterLogout";
+
     // Fires when the app's own attempt to revoke a refresh token (or a whole
     // token family, following a replay) THROWS instead of completing — the
     // safety action meant to lock a suspected attacker out failed to run.
@@ -101,6 +107,13 @@ public static class SecurityEvents
     // The wrong code that spent a user's daily budget of 20 (decision 6).
     // Fires once per window. UserId and ClientIp: it follows a correct password.
     public const string SecondFactorBudgetSpent = "Auth.SecondFactorBudgetSpent";
+
+    // A user started an enrolment, or confirmed one (#1277). UserId and
+    // ClientIp: each follows a step-up or a session, and they make a
+    // first-enrolment takeover visible (#1274 decision 20). Never the key,
+    // the URI or a code.
+    public const string TwoFactorEnrolmentStarted = "Auth.TwoFactorEnrolmentStarted";
+    public const string TwoFactorEnrolled = "Auth.TwoFactorEnrolled";
 
     // Operational, no fields: a stored authenticator key or pending payload no
     // longer decrypts (a certificate change or a ring deletion, #794).

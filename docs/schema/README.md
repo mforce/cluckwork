@@ -46,7 +46,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.idempotency_records](public.idempotency_records.md) | 13 |  | BASE TABLE |
 | [public.InventoryItems](public.InventoryItems.md) | 13 |  | BASE TABLE |
 | [public.Products](public.Products.md) | 14 |  | BASE TABLE |
-| [public.refresh_tokens](public.refresh_tokens.md) | 12 |  | BASE TABLE |
+| [public.refresh_tokens](public.refresh_tokens.md) | 13 |  | BASE TABLE |
 | [public.simulation_seed_state](public.simulation_seed_state.md) | 3 |  | BASE TABLE |
 | [public.UserRoleAssignments](public.UserRoleAssignments.md) | 7 |  | BASE TABLE |
 | [public.AspNetRoleClaims](public.AspNetRoleClaims.md) | 4 |  | BASE TABLE |
@@ -388,6 +388,7 @@ erDiagram
   varchar_36_ ConcurrencyStamp
   integer IssuedEpoch
   timestamp_with_time_zone SignedInAt
+  varchar_32_ RevocationReason
 }
 "public.simulation_seed_state" {
   uuid AccountId
