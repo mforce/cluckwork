@@ -3,7 +3,6 @@ using System.Reflection;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -101,8 +100,9 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
         Assert.NotEmpty(candidates);
 
         var unclassified = candidates
-            .Where(c => c.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is null
-                && c.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is null
+            // A declared body type does not excuse a raw body-capable parameter:
+            // the handler can still read the body by hand beside it.
+            .Where(c => c.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is null
                 && !ReviewedAsNotReadingTheBody.ContainsKey(c.Key))
             .Select(c => $"{c.Key} → {c.Handler.DeclaringType?.Name}.{c.Handler.Name}")
             .ToList();

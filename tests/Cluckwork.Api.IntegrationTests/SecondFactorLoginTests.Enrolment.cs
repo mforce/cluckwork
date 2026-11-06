@@ -571,10 +571,11 @@ public sealed partial class SecondFactorLoginTests
     // request type; declared metadata alone proves nothing. The walk below
     // cannot check an unbound route, so it fails until someone names it here,
     // and adding a row is the review: nothing checks that its reason is true.
-    // Manual review boundaries, not guarded: a listed route that already takes
-    // HttpRequest (Logout, for its cookies) starting to read the body, a
-    // body-reading filter added to a listed route, and the other ways onto the
-    // request, response.HttpContext.Request and BindAsync.
+    // Manual review boundaries, not guarded: a listed route that already holds
+    // the request (Logout takes HttpRequest for its cookies, TurnOffTwoFactor
+    // takes HttpResponse) starting to read the body, a body-reading filter
+    // added to a listed route, and the other ways onto the request,
+    // response.HttpContext.Request and BindAsync.
     private static readonly Dictionary<string, string> HandReadBodies = new()
     {
         ["RefreshToken"] = "drains a body it never keeps; the refresh token rides in the cookie",
@@ -585,14 +586,21 @@ public sealed partial class SecondFactorLoginTests
         ["TurnOffTwoFactor"] = "no body; the grant rides in the step-up header",
     };
 
-    // Of those, the only one marked as reading its body by hand.
+    // The only route under the prefixes marked as reading its body by hand.
     private static readonly string[] MarkedHandReaders = ["RefreshToken"];
 
     private static Type? BoundBody(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is { } type
-            && endpoint.Metadata.GetMetadata<MethodInfo>()?.GetParameters().Any(p => p.ParameterType == type) == true
+            && endpoint.Metadata.GetMetadata<MethodInfo>()?.GetParameters().Any(p => p.ParameterType == type && BindsFromBody(p)) == true
             ? type
             : null;
+
+    // A parameter of the declared type proves a bound body only when nothing
+    // sends it to another source: services, keyed services, [AsParameters],
+    // the query, the route, a header or a form.
+    private static bool BindsFromBody(ParameterInfo parameter) =>
+        !parameter.GetCustomAttributes(inherit: true).Any(a => a is IFromServiceMetadata or FromKeyedServicesAttribute or AsParametersAttribute
+            or IFromQueryMetadata or IFromRouteMetadata or IFromHeaderMetadata or IFromFormMetadata);
 
     private static string NameOf(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? endpoint.DisplayName ?? "(unnamed)";
@@ -614,8 +622,10 @@ public sealed partial class SecondFactorLoginTests
         var unbound = routes.Where(e => BoundBody(e) is null).ToList();
 
         Assert.Equal(HandReadBodies.Keys.Order(), unbound.Select(NameOf).Order());
+        // Bound or not: a typed body that is also read by hand needs the marker,
+        // so it shows up here and needs a row.
         Assert.Equal(MarkedHandReaders.Order(),
-            unbound.Where(e => e.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is not null).Select(NameOf).Order());
+            routes.Where(e => e.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is not null).Select(NameOf).Order());
         Assert.Contains(typeof(LoginRequest), bodies);
         Assert.Contains(typeof(StepUpRequest), bodies);
         Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
