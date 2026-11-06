@@ -731,8 +731,20 @@ describe("regenerate's request ends on every path", () => {
     await proveAndSubmit(t("regenerateButton"), true);
     expect(tabCloseAsks()).toBe(true);
 
+    // The proof lands in the first microtask after Back puts the next page in
+    // the DOM: before a deferred passive cleanup of the page that asked, when
+    // React defers it to a later task.
+    const landed = new Promise<void>((resolve) => {
+      const arrival = new MutationObserver(() => {
+        if (!document.body.textContent?.includes("Elsewhere")) return;
+        arrival.disconnect();
+        proof.resolve({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
+        resolve();
+      });
+      arrival.observe(document.body, { childList: true, subtree: true, characterData: true });
+    });
     await leave("a single Back");
-    await act(async () => { proof.resolve({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" }); });
+    await act(async () => { await landed; });
 
     expect(regenerateRecoveryCodes).not.toHaveBeenCalled();
     expect(tabCloseAsks()).toBe(false);

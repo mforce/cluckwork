@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 export interface DialogSession {
   /**
@@ -55,9 +55,11 @@ export function useDialogSession(): DialogSession {
   const sessions = useRef<Map<string, number>>(new Map());
   // #1280 review — leaving the screen ends every session on it, so a step-up
   // grant that arrives after the user navigated away does not send its write.
-  // Set again on mount for StrictMode's remount.
+  // Set again on mount for StrictMode's remount. A layout effect, so the reset
+  // runs in the commit that removes the screen: a passive cleanup can run a
+  // task later, and a grant landing in between would still send (#1277).
   const mounted = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
