@@ -24,7 +24,9 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
   const state = status.data;
   // One code-issuing request at a time, and none while codes wait to be
   // saved; Turn off waits too, so a late set never lands on a disabled factor.
-  const { busy } = useRecoveryCodesSlot();
+  // Nor while the status reloads: what is on screen may be out of date.
+  const { busy: slotBusy } = useRecoveryCodesSlot();
+  const busy = slotBusy || status.loading;
   const low = state?.enabled && state.recoveryCodesLeft <= LOW_RECOVERY_CODES;
 
   return (

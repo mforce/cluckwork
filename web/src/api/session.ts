@@ -371,7 +371,15 @@ export async function stepUp(proof: StepUpProof): Promise<{ token: string; expir
   return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
+// #1277 review T1 — set from the first line of logout() until its request
+// settles, success or failure. The token is already gone, but the page stays
+// signed in until then: while this holds, refreshTokens refuses, so no request
+// authenticates, and the recovery-codes slot starts no code-issuing work.
+let signingOut = false;
+export const isSigningOut = () => signingOut;
+
 export async function logout(): Promise<void> {
+  signingOut = true;
   // #310 — bump the generation and clear in-memory state SYNCHRONOUSLY, before
   // any await: local logout must win immediately, whatever a slower in-flight
   // login/refresh does later. Also cancel any refresh currently in flight —
@@ -417,5 +425,7 @@ export async function logout(): Promise<void> {
     // #310) so an operator can see the server-side session may be un-revoked —
     // logged, never the (already-cleared) token itself.
     console.error("logout: server-side session revoke failed", err);
+  } finally {
+    signingOut = false;
   }
 }

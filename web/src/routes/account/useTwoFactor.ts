@@ -50,9 +50,11 @@ export function useTwoFactor() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const slot = useRecoveryCodesSlot();
-  // #1277 review S2 — reloaded whenever the slot starts or ends a request or
-  // a set, so a request that settled while this page was gone still shows.
-  const status = useLatestLoad([slot.busy], getTwoFactorStatus);
+  // #1277 review T2, T3 — reloaded each time a code-issuing request settles,
+  // and whenever the session's two_factor claim changes (a Turn off that
+  // answers after the user came back), so a page mounted since still shows
+  // what the server now holds.
+  const status = useLatestLoad([slot.settled, enrolled], getTwoFactorStatus);
   const email = useMe()?.email ?? "";
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
@@ -78,7 +80,7 @@ export function useTwoFactor() {
     if (action) dismissDialog(action);
   }
 
-  async function send(next: ProofAction, token: string, current: () => boolean) {
+  async function send(next: "start" | "turn-off", token: string, current: () => boolean) {
     if (next === "start") {
       // As the dialog does: replacing means the session proved two factors.
       const replacing = enrolled;
@@ -97,22 +99,31 @@ export function useTwoFactor() {
     dismissDialog(next);
   }
 
-  async function regenerate(token: string, current: () => boolean, delivery: Delivery) {
+  // dialogCurrent is the Regenerate dialog's session; delivery.live() is the
+  // slot's request in this tab's session. Either can end without the other.
+  async function regenerate(token: string, dialogCurrent: () => boolean, delivery: Delivery) {
     // Either refusal reloads the status through the slot: release ends the
-    // request, busy changes, and the status reads again.
+    // request and the status reads again.
     const { recoveryCodes } = await regenerateRecoveryCodes(token).catch((err: unknown) => {
       // The status was stale (#1277 contract item 8).
       if (!isProblem(err, 409, "Auth.TwoFactorNotEnabled")) throw err;
       throw new Error(i18n.t("account:regenerateNotEnabled"));
     });
     // The old set no longer works, so a broken answer is said, not shown.
-    if (!Array.isArray(recoveryCodes)) throw new Error(i18n.t("account:codesMissing"));
-    // Before the current() check: the codes are shown even if the user has
-    // left this page, because the old set no longer works.
+    if (!isCodeSet(recoveryCodes)) throw new Error(i18n.t("account:codesMissing"));
+    // Before the dialogCurrent() check: the codes are shown even if the user
+    // has left this page, because the old set no longer works.
     delivery.deliver(recoveryCodes, { regenerated: true, email });
-    if (!current()) return;
+    if (!dialogCurrent()) return;
     setAction(null);
     dismissDialog("regenerate");
+  }
+
+  // The step-up proof every Security dialog sends first.
+  async function prove() {
+    const entered = proof;
+    setProof(NO_PROOF);
+    return (await stepUp(entered)).token;
   }
 
   async function onProof(e: FormEvent) {
@@ -121,22 +132,25 @@ export function useTwoFactor() {
     if (!next || busy) return;
     setMessage(null);
     await run(next, async (current) => {
+      if (next !== "regenerate") {
+        const token = await prove();
+        if (!current()) return;
+        await send(next, token, current).catch((err: unknown) => { throw stale(err); });
+        return;
+      }
       // Taken before the step-up proof, so the slot reads the session then,
       // and released however the request ends.
-      const delivery = next === "regenerate" ? slot.expect() : null;
-      if (next === "regenerate" && delivery === null) return;
+      const delivery = slot.expect();
+      if (delivery === null) return;
       try {
-        const entered = proof;
-        setProof(NO_PROOF);
-        const token = (await stepUp(entered)).token;
+        const token = await prove();
         // #1277 review S1 — a session that ended during the proof sends
         // nothing: the server would replace the set, and deliver would drop
         // the only copy.
-        if (!current() || (delivery !== null && !delivery.live())) return;
-        await (delivery !== null ? regenerate(token, current, delivery) : send(next, token, current))
-          .catch((err: unknown) => { throw stale(err); });
+        if (!current() || !delivery.live()) return;
+        await regenerate(token, current, delivery).catch((err: unknown) => { throw stale(err); });
       } finally {
-        delivery?.release();
+        delivery.release();
       }
     }, { dialog: next });
   }
@@ -176,10 +190,10 @@ export function useTwoFactor() {
     }
     // A first enrolment's answer carries the codes; without them the user is
     // enrolled with none to save, and Regenerate is the way out.
-    if (!replacing && !Array.isArray(recoveryCodes)) throw new Error(i18n.t("account:codesMissing"));
+    if (!replacing && !isCodeSet(recoveryCodes)) throw new Error(i18n.t("account:codesMissing"));
     // Before the current() check, as regenerate does: the user is enrolled
     // now, so the codes are shown wherever the user has gone.
-    if (recoveryCodes) delivery.deliver(recoveryCodes, { regenerated: false, email });
+    if (isCodeSet(recoveryCodes)) delivery.deliver(recoveryCodes, { regenerated: false, email });
     if (!current()) return;
     setFlow(SUMMARY);
     if (!recoveryCodes) setMessage(i18n.t("account:replacedMessage"));
@@ -196,6 +210,9 @@ export function useTwoFactor() {
     openProof, closeProof, onProof, onConfirm, leaveFlow,
   };
 }
+
+// An answer's codes, if it has any: a missing or empty list is no set.
+const isCodeSet = (codes: string[] | undefined): codes is string[] => Array.isArray(codes) && codes.length > 0;
 
 // A malformed code answers without a count (#1277 contract item 7).
 function incorrect(err: unknown, attemptsLeft: unknown): unknown {

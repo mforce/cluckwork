@@ -15,7 +15,8 @@ import { useAuth } from "../../auth/useAuth";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
-import { ApiError, confirmTwoFactor, setOnUnauthenticated, stepUp } from "../../api/client";
+import type { TwoFactorStatus } from "../../api/cluckwork";
+import { ApiError, confirmTwoFactor, logout, setOnTokensChanged, setOnUnauthenticated, stepUp } from "../../api/client";
 import { logout as endSessionHere } from "../../api/session";
 import i18n from "../../i18n";
 
@@ -125,15 +126,20 @@ async function proveAndSubmit(submit: string, enrolled: boolean) {
   await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: submit })); });
 }
 
-async function confirmPending() {
-  const answer = deferred<{ recoveryCodes?: string[] }>();
-  vi.mocked(confirmTwoFactor).mockReturnValue(answer.promise);
+// On the set-up step, with a code typed and Confirm code not yet pressed.
+async function toScan() {
   renderApp("/account", false);
   const setUp = await screen.findByRole("button", { name: t("setUpButton") }, { timeout: 3000 });
   await act(async () => { fireEvent.click(setUp); });
   await proveAndSubmit(t("continueButton"), false);
   await screen.findByRole("img", { name: t("qrLabel") });
   fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });
+}
+
+async function confirmPending() {
+  const answer = deferred<{ recoveryCodes?: string[] }>();
+  vi.mocked(confirmTwoFactor).mockReturnValue(answer.promise);
+  await toScan();
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: t("confirmButton") })); });
   expect(confirmTwoFactor).toHaveBeenCalledTimes(1);
   return answer;
@@ -504,13 +510,112 @@ describe("a regenerate answer without codes", () => {
   });
 });
 
-describe("S2. the status after coming back to Account", () => {
-  async function saveAndDone() {
-    const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
-    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
-  }
+async function saveAndDone() {
+  const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
+  fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
+  await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
+}
 
+describe("T2. a Turn off that answers after the user came back", () => {
+  it("shows two-factor off once the adopted session says so", async () => {
+    // Turn off goes through the real client; its DELETE is held.
+    let answer!: () => void;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => (
+      String(input).endsWith("/auth/two-factor") && init?.method === "DELETE"
+        ? new Promise<Response>((resolve) => {
+          answer = () => resolve(new Response(JSON.stringify({ accessToken: makeToken({ sub: "u1", role: "Worker", account_id: "acct-1" }), accessTokenExpiry: "2099-01-01T00:00:00Z" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+        })
+        : new Response(null, { status: 204 })));
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+    renderApp("/account", true);
+    const turnOff = await screen.findByRole("button", { name: t("turnOffButton") }, { timeout: 3000 });
+    await act(async () => { fireEvent.click(turnOff); });
+    await proveAndSubmit(t("turnOffButton"), true);
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(true));
+    await leave("a single Back");
+    await backToAccount();
+    expect(screen.getByText(t("twoFactorOn"))).toBeInTheDocument();
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: false, recoveryCodesLeft: 0 });
+
+    await act(async () => { answer(); });
+    // The adopted pair carries no two_factor claim; the app hears of it as
+    // AuthProvider does from the client.
+    await act(async () => { vi.mocked(setOnTokensChanged).mock.calls.at(-1)![0]!(); });
+
+    expect(await screen.findByText(t("twoFactorOff"))).toBeInTheDocument();
+  });
+});
+
+describe("T3. the status while it reloads after a request settles", () => {
+  it("keeps Set up disabled behind Done until the first enrolment's status arrives", async () => {
+    const answer = await confirmPending();
+    const status = deferred<TwoFactorStatus>();
+    vi.mocked(getTwoFactorStatus).mockReturnValueOnce(status.promise);
+
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await saveAndDone();
+
+    expect(screen.getByRole("button", { name: t("setUpButton") })).toBeDisabled();
+    await act(async () => { status.resolve({ enabled: true, recoveryCodesLeft: 10 }); });
+    expect(await screen.findByText(t("twoFactorOn"))).toBeInTheDocument();
+  });
+
+  it("keeps Regenerate disabled beside the old count until the new one arrives", async () => {
+    const answer = await regeneratePending();
+    const status = deferred<TwoFactorStatus>();
+    vi.mocked(getTwoFactorStatus).mockReturnValueOnce(status.promise);
+
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await saveAndDone();
+
+    // hidden: the closing dialogs may still mark the page aria-hidden.
+    const regenerate = () => screen.getByRole("button", { name: t("regenerateButton"), hidden: true });
+    expect(screen.getByText(t("recoveryCodesLeft", { count: 1 }))).toBeInTheDocument();
+    expect(regenerate()).toBeDisabled();
+    await act(async () => { status.resolve({ enabled: true, recoveryCodesLeft: 10 }); });
+    expect(await screen.findByText(t("recoveryCodesLeft", { count: 10 }))).toBeInTheDocument();
+    expect(regenerate()).toBeEnabled();
+  });
+});
+
+describe("T6. the status after a refused regenerate", () => {
+  it("reloads after a late 409, when the earlier read still said On", async () => {
+    const answer = await regeneratePending();
+    expect(screen.getByText(t("twoFactorOn"))).toBeInTheDocument();
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: false, recoveryCodesLeft: 0 });
+
+    await act(async () => { answer.reject(new ApiError(409, "Auth.TwoFactorNotEnabled", "Not enabled.")); });
+
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(t("regenerateNotEnabled"));
+    expect(await screen.findByText(t("twoFactorOff"))).toBeInTheDocument();
+  });
+
+  it("reloads after a late answer without codes, when the earlier count was old", async () => {
+    const answer = deferred<{ recoveryCodes?: string[] }>();
+    vi.mocked(regenerateRecoveryCodes).mockReturnValue(answer.promise);
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+    expect(screen.getByText(t("recoveryCodesLeft", { count: 1 }))).toBeInTheDocument();
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+
+    await act(async () => { answer.resolve({}); });
+
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(t("codesMissing"));
+    expect(await screen.findByText(t("recoveryCodesLeft", { count: 10 }))).toBeInTheDocument();
+  });
+
+  it("treats an empty set as missing", async () => {
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: [] });
+    await regenerateOpen();
+
+    await proveAndSubmit(t("regenerateButton"), true);
+
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(t("codesMissing"));
+    expect(codesDialog()).toBeNull();
+  });
+});
+
+describe("S2. the status after coming back to Account", () => {
   it("shows the regenerated count once a regenerate settles after the user came back", async () => {
     const answer = await regeneratePending();
     await leave("a nav click");
@@ -630,6 +735,28 @@ describe("S5. a first enrolment's answer without codes", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(t("codesMissing"));
     expect(codesDialog()).toBeNull();
     expect(tabCloseAsks()).toBe(false);
+  });
+});
+
+describe("T1. Sign out while the set-up step is open", () => {
+  it("leaves Confirm code sending nothing until sign-out settles, and no codes appear", async () => {
+    // The app's Sign out runs the real session sign-out, its request held.
+    let finish!: () => void;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith("/auth/logout")
+      ? new Promise<Response>((resolve) => { finish = () => resolve(new Response(null, { status: 204 })); })
+      : new Response(null, { status: 204 })));
+    vi.mocked(logout).mockImplementation(() => endSessionHere());
+    vi.mocked(confirmTwoFactor).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await toScan();
+
+    await act(async () => { fireEvent.click(within(rail().closest("aside")!).getByRole("button", { name: i18n.t("nav:signOut"), hidden: true })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: t("confirmButton") })); });
+
+    expect(confirmTwoFactor).not.toHaveBeenCalled();
+    expect(tabCloseAsks()).toBe(false);
+    await act(async () => { finish(); });
+    await screen.findByText("Login page");
+    expect(codesDialog()).toBeNull();
   });
 });
 

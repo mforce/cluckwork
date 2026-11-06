@@ -191,3 +191,51 @@ describe("an expired token's plain 401", () => {
     expect(to("/auth/two-factor/recovery-codes")).toHaveLength(2);
   });
 });
+
+// #1277 review T1 — from the moment sign-out starts until its request settles,
+// the token path refreshes nothing, so no request can authenticate.
+describe("while sign-out is in flight", () => {
+  async function signOutHeld() {
+    let finish!: (res: Response | Error) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve, reject) => {
+      finish = (res) => (res instanceof Error ? reject(res) : resolve(res));
+    }));
+    const done = logout();
+    await vi.waitFor(() => expect(to("/auth/logout")).toHaveLength(1));
+    // A refresh would succeed, so only the refusal keeps it from happening.
+    fetchMock.mockResolvedValue(pair(token("acct-S")));
+    return async (res: Response | Error = new Response(null, { status: 204 })) => { finish(res); await done; };
+  }
+
+  it.each([
+    ["the status read", "GET", () => getTwoFactorStatus()],
+    ["confirm", "POST", () => confirmTwoFactor(freshCode())],
+    ["start", "POST", () => startTwoFactor(crypto.randomUUID())],
+    ["turn-off", "DELETE", () => turnOffTwoFactor(crypto.randomUUID())],
+  ] as const)("%s sends nothing and refreshes nothing", async (_, method, call) => {
+    const settle = await signOutHeld();
+
+    await expect(call()).rejects.toMatchObject({ status: 401 });
+
+    expect(to("/auth/refresh")).toHaveLength(0);
+    expect(calls().filter(([url, init]) => url.includes("/auth/two-factor") && (init.method ?? "GET") === method)).toHaveLength(0);
+    expect(onUnauth).not.toHaveBeenCalled();
+    await settle();
+  });
+
+  it.each([
+    ["answers", new Response(null, { status: 204 })],
+    ["fails", new TypeError("offline")],
+  ] as const)("ends when the sign-out request %s, and the next read refreshes again", async (_, answer) => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const settle = await signOutHeld();
+    await settle(answer);
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(pair(token("acct-S"))).mockResolvedValueOnce(json({ enabled: false, recoveryCodesLeft: 0 }));
+
+    await expect(getTwoFactorStatus()).resolves.toEqual({ enabled: false, recoveryCodesLeft: 0 });
+
+    expect(to("/auth/refresh")).toHaveLength(1);
+    quiet.mockRestore();
+  });
+});

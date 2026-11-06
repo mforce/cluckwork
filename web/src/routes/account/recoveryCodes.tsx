@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffe
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Typography } from "@mui/material";
-import { currentSessionGeneration } from "../../api/client";
+import { currentSessionGeneration, isSigningOut } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { Dialog } from "../../components/Dialog";
 import { useCopy } from "../../components/useCopy";
@@ -39,6 +39,8 @@ export interface Delivery {
 interface Slot {
   // A request is out or a set is held: Set up, Replace and Regenerate wait.
   busy: boolean;
+  // Counts the requests that have ended, so the status can reload on each.
+  settled: number;
   // Null while busy, so only one request can issue codes at a time. Call it
   // before the step-up proof: it reads the session generation then.
   expect: () => Delivery | null;
@@ -63,6 +65,7 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   // between renders.
   const [held, setHeld] = useState<HeldRecoveryCodes | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+  const [settled, setSettled] = useState(0);
   const heldRef = useRef<HeldRecoveryCodes | null>(null);
   const pendingRef = useRef<number | null>(null);
   const tickets = useRef(0);
@@ -93,6 +96,8 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   // No deps: put and putPending must stay ref-and-setter only, so this
   // callback never closes over a render's state.
   const expect = useCallback((): Delivery | null => {
+    // #1277 review T1 — no code-issuing work starts once sign-out has begun.
+    if (isSigningOut()) return null;
     // Unreachable from the UI, which disables its triggers while busy; the
     // slot-contract test pins it.
     if (pendingRef.current !== null || heldRef.current !== null) return null;
@@ -106,7 +111,9 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
         if (current()) put({ id: ticket, codes, regenerated, email, saved: false });
       },
       release: () => {
-        if (pendingRef.current === ticket) putPending(null);
+        if (pendingRef.current !== ticket) return;
+        putPending(null);
+        setSettled((n) => n + 1);
       },
     };
   }, []);
@@ -118,7 +125,7 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
     requestAnimationFrame(() => (document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
   };
 
-  const slot = useMemo(() => ({ busy: pending !== null || held !== null, expect }), [pending, held, expect]);
+  const slot = useMemo(() => ({ busy: pending !== null || held !== null, settled, expect }), [pending, held, settled, expect]);
   return (
     <RecoveryCodesContext.Provider value={slot}>
       {children}
