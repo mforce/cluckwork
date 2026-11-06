@@ -79,8 +79,9 @@ public sealed class TwoFactorPrimitivesTests
     // The rest is a list, because nothing a type declares marks it as a
     // credential carrier: Key, Code, Value and Token also name non-secrets.
     // Routes outside those prefixes are not covered. Excluded: TokenPair,
-    // AccessTokenResponse and StepUpResponse carry live tokens and print them;
-    // redacting them is outside #1277.
+    // AccessTokenResponse, StepUpResponse and StepUpGrant carry live tokens and
+    // print them; redacting them is outside #1277. This list has its own floor;
+    // the body walk has another.
     [Fact]
     public void EveryCredentialCarryingType_PrintsOnlyRedacted()
     {
@@ -91,6 +92,7 @@ public sealed class TwoFactorPrimitivesTests
             .Append(typeof(EnrolmentStart))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.StepUpRequest))
             .Append(typeof(ChangeOwnPasswordCommand))
+            .Append(typeof(ResetUserTwoFactorCommand))
             .Append(typeof(EnrolmentConfirmation))
             .Append(typeof(ConfirmOutcome.Enrolled))
             .Append(typeof(Cluckwork.Api.Modules.Access.Auth.EnrolmentStartResponse))
@@ -100,7 +102,7 @@ public sealed class TwoFactorPrimitivesTests
                 ?? throw new InvalidOperationException("TwoFactorCredentials.PendingPayload is gone; update this walk"))
             .ToList();
 
-        Assert.True(types.Count >= 14, $"the walk found {types.Count} types, below its floor of 14");
+        Assert.True(types.Count >= 15, $"the walk found {types.Count} types, below its floor of 15");
         foreach (var type in types)
             CredentialSample.AssertRedacted(type);
     }
