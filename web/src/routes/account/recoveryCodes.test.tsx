@@ -17,7 +17,7 @@ import { MeContext } from "../../session/SessionContext";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, logout, setOnTokensChanged, setOnUnauthenticated, stepUp } from "../../api/client";
-import { logout as endSessionHere } from "../../api/session";
+import { isSignedOut, login as signInHere, logout as endSessionHere } from "../../api/session";
 import i18n from "../../i18n";
 
 // #1277 MC4 (maintainer, 2026-11-05: "Keep codes above pages"): unsaved
@@ -481,6 +481,24 @@ describe("what the slot holds after a request ends", () => {
     expect(tabCloseAsks()).toBe(false);
   });
 
+  it("(e) a proof from before a sign-out sends nothing after a newer sign-in", async () => {
+    const proof = deferred<{ token: string; expiresAt: string }>();
+    vi.mocked(stepUp).mockReturnValueOnce(proof.promise);
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+
+    await act(async () => {
+      await endSessionHere();
+      await signInHere({ farmCode: "farm", email: EMAIL, password: crypto.randomUUID() });
+    });
+    expect(isSignedOut()).toBe(false);
+    await act(async () => { proof.resolve({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" }); });
+
+    expect(regenerateRecoveryCodes).not.toHaveBeenCalled();
+    expect(codesDialog()).toBeNull();
+  });
+
   it("(d) Done empties the slot, which frees Regenerate again", async () => {
     const answer = await regeneratePending();
     await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
@@ -603,9 +621,9 @@ describe("the status while it reloads after a request settles", () => {
 
 describe("a confirm answer with an empty set", () => {
   it.each([
-    ["a first enrolment", false],
-    ["a replacement", true],
-  ] as const)("opens no codes dialog for %s", async (_, replacing) => {
+    ["a first enrolment", false, "codesMissing"],
+    ["a replacement", true, "replacedMessage"],
+  ] as const)("opens no codes dialog for %s, and says what happened", async (_, replacing, said) => {
     const answer = deferred<{ recoveryCodes?: string[] }>();
     vi.mocked(confirmTwoFactor).mockReturnValue(answer.promise);
     vi.mocked(getTwoFactorStatus).mockResolvedValue(replacing ? { enabled: true, recoveryCodesLeft: 10 } : { enabled: false, recoveryCodesLeft: 0 });
@@ -620,7 +638,7 @@ describe("a confirm answer with an empty set", () => {
     await act(async () => { answer.resolve({ recoveryCodes: [] }); });
 
     expect(codesDialog()).toBeNull();
-    if (!replacing) expect(await screen.findByRole("alert")).toHaveTextContent(t("codesMissing"));
+    expect(await screen.findByText(t(said))).toBeInTheDocument();
   });
 });
 

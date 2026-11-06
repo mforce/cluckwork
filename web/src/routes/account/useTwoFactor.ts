@@ -199,7 +199,7 @@ export function useTwoFactor() {
     if (isCodeSet(recoveryCodes)) delivery.deliver(recoveryCodes, { regenerated: false, email });
     if (!current()) return;
     setFlow(SUMMARY);
-    if (!recoveryCodes) setMessage(i18n.t("account:replacedMessage"));
+    if (!isCodeSet(recoveryCodes)) setMessage(i18n.t("account:replacedMessage"));
   }
 
   function leaveFlow() {
