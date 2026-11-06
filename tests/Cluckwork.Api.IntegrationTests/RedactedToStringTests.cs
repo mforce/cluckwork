@@ -69,6 +69,14 @@ public sealed class RedactedToStringTests
         public ulong ToUInt64(IFormatProvider? provider) => throw new NotSupportedException();
     }
 
+    // Logger and interpolation paths that write UTF-8 call TryFormat.
+    private sealed record FormatsUtf8(string Password) : IUtf8SpanFormattable
+    {
+        public override string ToString() => "[redacted]";
+        public bool TryFormat(Span<byte> utf8Destination, out int bytesWritten, ReadOnlySpan<char> format, IFormatProvider? provider) =>
+            System.Text.Encoding.UTF8.TryGetBytes(Password, utf8Destination, out bytesWritten);
+    }
+
     private static (byte[] Il, Module Module) IlOf(Type type)
     {
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
@@ -109,6 +117,13 @@ public sealed class RedactedToStringTests
     public void AssertConstant_RefusesATypeThatFormatsItself()
     {
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => RedactedToString.AssertConstant(typeof(Formats)));
+    }
+
+    // Its ToString is the constant, but a UTF-8 writer calls TryFormat.
+    [Fact]
+    public void AssertConstant_RefusesATypeThatFormatsItselfAsUtf8()
+    {
+        Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => RedactedToString.AssertConstant(typeof(FormatsUtf8)));
     }
 
     // Its ToString is the constant, but Convert.ToString calls the IConvertible one.

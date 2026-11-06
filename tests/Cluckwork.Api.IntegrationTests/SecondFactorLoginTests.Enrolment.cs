@@ -611,6 +611,31 @@ public sealed partial class SecondFactorLoginTests
             .Concat(type.GetInterfaces().SelectMany(i => i.GetMethods(BindingFlags.Public | BindingFlags.Static)))
             .Any(m => m.Name == "BindAsync");
 
+    private sealed record PlainBody(string Password);
+    private sealed record DeclaresBind(string Password)
+    {
+        public static ValueTask<DeclaresBind?> BindAsync(HttpContext context) => ValueTask.FromResult<DeclaresBind?>(null);
+    }
+    private abstract record BindsInBase
+    {
+        public static ValueTask<InheritsBind?> BindAsync(HttpContext context) => ValueTask.FromResult<InheritsBind?>(null);
+    }
+    private sealed record InheritsBind(string Password) : BindsInBase;
+    private sealed record ImplementsBindable(string Password) : IBindableFromHttpContext<ImplementsBindable>
+    {
+        static ValueTask<ImplementsBindable?> IBindableFromHttpContext<ImplementsBindable>.BindAsync(HttpContext context, ParameterInfo parameter) =>
+            ValueTask.FromResult<ImplementsBindable?>(null);
+    }
+
+    // Each way ASP.NET finds a BindAsync, and a body type with none.
+    [Theory]
+    [InlineData(typeof(DeclaresBind), true)]
+    [InlineData(typeof(InheritsBind), true)]
+    [InlineData(typeof(ImplementsBindable), true)]
+    [InlineData(typeof(PlainBody), false)]
+    public void BindsItself_FindsEveryBindAsync(Type type, bool binds) =>
+        Assert.Equal(binds, BindsItself(type));
+
     private static string NameOf(RouteEndpoint endpoint) =>
         endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? endpoint.DisplayName ?? "(unnamed)";
 
