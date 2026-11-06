@@ -146,7 +146,7 @@ internal static class FilterFreeSetSites
             "db.OAuthTokens", "9895b22e",
             "scoped-by-user-id: OAuth tokens carry no AccountId (#795); the subject is the user whose credential epoch the same transaction bumps, already loaded within the caller's account (#1229)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.RevokeAllActiveForUserAsync(Guid userId, int? issuedEpoch, DateTimeOffset now, RefreshRevocationReason reason, CancellationToken ct)",
-            "db.RefreshTokens", "d3f5e26f",
+            "db.RefreshTokens", "e6f5fdf8",
             "by-user: revokes all active tokens for a user by user id (account-unique)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.RevokeRefreshTokenAsync(string refreshToken, CancellationToken ct, Guid? expectedAccountId)",
             "db.RefreshTokens", "1a753d3f",
