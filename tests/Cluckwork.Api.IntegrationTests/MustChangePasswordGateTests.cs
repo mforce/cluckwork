@@ -266,6 +266,21 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>
         inner.TurnOffTwoFactorAsync(accountId, userId, credentialEpoch, ct);
 
+    public Task<TwoFactorStatus> GetTwoFactorStatusAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+        inner.GetTwoFactorStatusAsync(accountId, userId, ct);
+
+    public Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>
+        inner.StartTwoFactorEnrolmentAsync(accountId, userId, credentialEpoch, ct);
+
+    public Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, string? code, CancellationToken ct = default) =>
+        inner.ConfirmTwoFactorEnrolmentAsync(accountId, userId, code, ct);
+
+    public Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
+        Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>
+        inner.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct);
+
     public Task<Result> ResetUserTwoFactorAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
         inner.ResetUserTwoFactorAsync(accountId, userId, actingUserId, ct);

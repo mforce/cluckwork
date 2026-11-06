@@ -33,7 +33,7 @@ public sealed partial class IdentityProvider
     private async Task RevokeAllActiveForUserAsync(
         Guid userId, DateTimeOffset now, CancellationToken ct)
     {
-        await RevokeAllActiveForUserAsync(userId, issuedEpoch: null, now, ct);
+        await RevokeAllActiveForUserAsync(userId, issuedEpoch: null, now, RefreshRevocationReason.CredentialsChanged, ct);
         var subject = userId.ToString();
         var concurrencyToken = Guid.NewGuid().ToString();
         await RunRevocationAsync(userId, async () =>
@@ -54,23 +54,29 @@ public sealed partial class IdentityProvider
     }
 
     private async Task RevokeAllActiveForUserAsync(
-        Guid userId, int? issuedEpoch, DateTimeOffset now, CancellationToken ct)
+        Guid userId, int? issuedEpoch, DateTimeOffset now, RefreshRevocationReason reason, CancellationToken ct)
     {
         // Bulk update rather than tracked read-modify-save: it never trips the
-        // #176 xmin concurrency token (so it is safe to call from the rotation
-        // fail path) and revokes the whole family in one statement.
+        // #176 ConcurrencyStamp check (so it is safe to call from the rotation
+        // fail path) and revokes the whole family in one statement. It rotates
+        // the stamp itself, so a refresh that loaded one of these rows before
+        // this commit fails its save instead of minting a live child (#1277).
         // Merge note: #273's RunRevocationAsync wrapper and #364's epoch scoping
         // are independent and BOTH apply. The wrapper only adds an alertable
         // event when the update throws; the filter decides which rows it
         // touches. Losing either half is silent — without the wrapper a failed
         // lock-out goes unreported, and without the filter a revoke reaches a
         // newer epoch's sessions.
+        var rotatedStamp = Guid.NewGuid().ToString();
         await RunRevocationAsync(
             userId,
             () => db.RefreshTokens
                 .Where(t => t.UserId == userId && t.RevokedAt == null
                     && (!issuedEpoch.HasValue || t.IssuedEpoch == issuedEpoch.Value))
-                .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAt, now), ct));
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(t => t.RevokedAt, now)
+                    .SetProperty(t => t.RevocationReason, reason)
+                    .SetProperty(t => t.ConcurrencyStamp, rotatedStamp), ct));
     }
 
     // #273 — hardening point for the BULK-UPDATE refresh-token revocations

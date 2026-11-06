@@ -165,7 +165,8 @@ A clear message is written to **stderr**, e.g.:
   WHERE "Id" = '<owner-id-from-step-1>';
 
   UPDATE refresh_tokens
-  SET "RevokedAt" = now()
+  SET "RevokedAt" = now(),
+      "RevocationReason" = 'CredentialsChanged'
   WHERE "UserId" = '<owner-id-from-step-1>' AND "RevokedAt" IS NULL;
 
   COMMIT;
