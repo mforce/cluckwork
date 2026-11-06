@@ -219,7 +219,7 @@ public static partial class AuthEndpoints
     // preserve every session (RefreshAccountBindingTests, #569/#570).
     private static async Task<IResult> Logout(
         HttpRequest request, HttpResponse response, IAccessModule access,
-        ICurrentUser currentUser, IWebHostEnvironment env, CancellationToken ct)
+        ICurrentUser currentUser, IWebHostEnvironment env)
     {
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");

@@ -5,7 +5,9 @@ using System.Text;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -19,47 +21,75 @@ public sealed partial class SecondFactorLoginTests
             await db.RefreshTokens.CountAsync(t => t.UserId == userId && t.RevokedAt == null)));
 
     // A logout whose client gives up once the handler has started its first
-    // write; returns after the server has finished both writes.
-    private async Task AbortedLogoutAsync(Guid accountId, Guid userId, TokenPairDto session)
+    // write; returns after the server has finished every write, leaving
+    // `remaining` live sessions. Without a bearer only the cookie is sent.
+    private async Task AbortedLogoutAsync(Guid accountId, Guid userId, string cookies, string? accessToken, int remaining)
     {
         var before = await LogoutStateAsync(accountId, userId);
         using var cancel = new CancellationTokenSource();
+        var abortedAtStart = true;
+        var abortSeen = false;
         factory.BeforeCommand.Arm("\"StepUpLogoutEpoch\" + 1", async () =>
         {
+            var aborted = factory.Services.GetRequiredService<IHttpContextAccessor>().HttpContext!.RequestAborted;
+            abortedAtStart = aborted.IsCancellationRequested;
             await cancel.CancelAsync();
-            await Task.Delay(TimeSpan.FromMilliseconds(200));
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), aborted);
+            }
+            catch (OperationCanceledException)
+            {
+                abortSeen = true;
+            }
         });
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
         request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
-        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieNameFor(accountId)}={session.RefreshToken}");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
-        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountId.ToString());
+        request.Headers.Add("Cookie", cookies);
+        if (accessToken is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountId.ToString());
+        }
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => factory.CreateClient(TestHarness.Cookieless(factory)).SendAsync(request, cancel.Token));
 
         Assert.True(factory.BeforeCommand.Fired, "the logout never reached its first write");
+        Assert.False(abortedAtStart, "the client gave up before the handler started");
+        Assert.True(abortSeen, "the server never saw the client give up");
         var after = before;
-        for (var wait = 0; wait < 50 && (after.Epoch == before.Epoch || after.LiveRows == before.LiveRows); wait++)
+        for (var wait = 0; wait < 50 && (after.Epoch == before.Epoch || after.LiveRows != remaining); wait++)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(200));
             after = await LogoutStateAsync(accountId, userId);
         }
         Assert.True(after.Epoch > before.Epoch, "the logout was not recorded");
-        Assert.Equal(before.LiveRows - 1, after.LiveRows);
+        Assert.Equal(remaining, after.LiveRows);
     }
 
-    [Fact]
-    public async Task ALogout_WhoseClientGivesUp_StillRevokesAndRecords()
+    // Each revoke the handler can make: the selected farm's cookie, a legacy
+    // cookie presented alone, and a legacy cookie beside the selected one.
+    [Theory]
+    [InlineData("selected")]
+    [InlineData("legacy alone")]
+    [InlineData("legacy beside selected")]
+    public async Task ALogout_WhoseClientGivesUp_StillRevokesAndRecords(string cookies)
     {
         var email = $"tf-logout-{Guid.NewGuid():N}@test.local";
         var accountId = await factory.SeedAccountWithUserAsync(email);
         var userId = await UserIdAsync(accountId, email);
         var session = await factory.LoginAsync(email);
+        var selected = $"{AuthCookies.RefreshCookieNameFor(accountId)}={session.RefreshToken}";
+        var (cookie, bearer) = cookies switch
+        {
+            "selected" => (selected, session.AccessToken),
+            "legacy alone" => ($"{AuthCookies.LegacyRefreshCookieName}={session.RefreshToken}", null),
+            "legacy beside selected" => ($"{selected}; {AuthCookies.LegacyRefreshCookieName}={(await factory.LoginAsync(email)).RefreshToken}", session.AccessToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(cookies)),
+        };
 
-        await AbortedLogoutAsync(accountId, userId, session);
-
-        Assert.Equal(0, (await LogoutStateAsync(accountId, userId)).LiveRows);
+        await AbortedLogoutAsync(accountId, userId, cookie, bearer, remaining: 0);
     }
 
     // #1277 N2: a Worker's request reads its flock assignments before the
@@ -120,7 +150,8 @@ public sealed partial class SecondFactorLoginTests
         var userId = await UserIdAsync(accountId, email);
         var retired = await factory.LoginAsync(email);
         var other = await factory.LoginAsync(email);
-        await AbortedLogoutAsync(accountId, userId, retired);
+        await AbortedLogoutAsync(accountId, userId,
+            $"{AuthCookies.RefreshCookieNameFor(accountId)}={retired.RefreshToken}", retired.AccessToken, remaining: 1);
         if (expired)
         {
             var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(retired.RefreshTokenForDirectCall))).ToLowerInvariant();
