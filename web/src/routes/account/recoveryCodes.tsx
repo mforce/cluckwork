@@ -9,12 +9,12 @@ import { useCopy } from "../../components/useCopy";
 import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { saveBlob } from "../../lib/saveBlob";
 
-// #1277 MC4 (maintainer, 2026-11-05: "Keep codes above pages"): recovery codes
+// #1277 (maintainer, 2026-11-05: "Keep codes above pages"): recovery codes
 // that are shown once live here, above the routes, until the user saves them,
 // and so does the request that will hand them out. A confirm or regenerate
 // that settles after its page is gone still lands here, and no navigation drops
 // the set: only Done, or the end of this tab's session. Another tab's sign-out
-// does not reach it (MC5, a known limit, as on every other screen). In memory
+// does not reach it (a known limit, as on every other screen). In memory
 // only: never in storage, a URL or a log.
 interface HeldRecoveryCodes {
   // Keys the dialog, so a new set never shows the last set's notes.
@@ -96,7 +96,7 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   // No deps: put and putPending must stay ref-and-setter only, so this
   // callback never closes over a render's state.
   const expect = useCallback((): Delivery | null => {
-    // #1277 review T1 — no code-issuing work starts once sign-out has begun.
+    // #1277 — no code-issuing work starts once sign-out has begun.
     if (isSignedOut()) return null;
     // Unreachable from the UI, which disables its triggers while busy; the
     // slot-contract test pins it.

@@ -59,7 +59,7 @@ export function App() {
           applied from this device's cache before anyone signs in (#586). */}
       <FarmThemeProvider>
       <AuthProvider>
-        {/* #1277 MC4 — above every route, so no navigation drops recovery
+        {/* #1277 — above every route, so no navigation drops recovery
             codes that are not saved yet; it clears when the session ends. */}
         <RecoveryCodesProvider>
         <BrowserRouter>

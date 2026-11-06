@@ -50,7 +50,7 @@ export function useTwoFactor() {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const slot = useRecoveryCodesSlot();
-  // #1277 review T2, T3 — reloaded each time a code-issuing request settles,
+  // #1277 — reloaded each time a code-issuing request settles,
   // and whenever the session's two_factor claim changes (a Turn off that
   // answers after the user came back), so a page mounted since still shows
   // what the server now holds. Both triggers stay: a Turn off is not a slot
@@ -147,7 +147,7 @@ export function useTwoFactor() {
       if (delivery === null) return;
       try {
         const token = await prove();
-        // #1277 review S1 — a session that ended during the proof sends
+        // #1277 — a session that ended during the proof sends
         // nothing: the server would replace the set, and deliver would drop
         // the only copy.
         if (!current() || !delivery.live()) return;

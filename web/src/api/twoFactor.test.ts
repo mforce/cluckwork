@@ -418,17 +418,23 @@ describe("the sign-out intent at each sign-in outcome", () => {
       : url.endsWith("/auth/login") ? challenge()
       : url.endsWith("/auth/logout") ? new Response(null, { status: 204 })
       : pair(token("acct-I"))));
+  // Signs in with a password, and fails unless the server asks for the code.
+  const codeStep = async () => {
+    const outcome = await login(credentials());
+    if (outcome.kind !== "secondFactor") throw new Error("expected the code step");
+    return outcome.challenge;
+  };
   const refusedSignIns = [
     ["the password", "/auth/login", () => login(credentials())],
-    ["the code step", "/auth/login/second-factor", async () => {
-      const outcome = await login(credentials());
-      if (outcome.kind !== "secondFactor") throw new Error("expected the code step");
-      return completeSecondFactor(outcome.challenge, freshCode());
-    }],
+    ["the code step", "/auth/login/second-factor", async () => completeSecondFactor(await codeStep(), freshCode())],
   ] as const;
+  // One answer of each kind the client tells apart: validation, credentials,
+  // a titled refusal, forbidden, rate limit, server and transport.
   const failures = [
     ["400", () => json({ title: "Validation failed" }, 400)],
     ["401", () => json({ title: "Unauthorized" }, 401)],
+    ["a suspended farm's 401", () => json({ title: "Auth.FarmSuspended" }, 401)],
+    ["403", () => json({ title: "Forbidden" }, 403)],
     ["429", () => json({ title: "Too many requests" }, 429)],
     ["500", () => json({ title: "Server error" }, 500)],
     ["a network error", () => Promise.reject(new TypeError("Failed to fetch"))],
@@ -442,6 +448,7 @@ describe("the sign-out intent at each sign-in outcome", () => {
 
       await expect(signIn()).rejects.toBeDefined();
 
+      expect(to(path)).toHaveLength(1);
       expect(isSignedOut()).toBe(true);
       await expect(refreshTokens()).rejects.toBeInstanceOf(StaleSessionError);
       expect(to("/auth/refresh")).toHaveLength(0);
@@ -464,10 +471,8 @@ describe("the sign-out intent at each sign-in outcome", () => {
   it("the code step's commit ends it, and refresh sends again", async () => {
     answering(challenge);
     await logout();
-    const outcome = await login(credentials());
-    if (outcome.kind !== "secondFactor") throw new Error("expected the code step");
 
-    await completeSecondFactor(outcome.challenge, freshCode());
+    await completeSecondFactor(await codeStep(), freshCode());
 
     expect(isSignedOut()).toBe(false);
     await expect(refreshTokens()).resolves.toEqual(expect.any(String));
@@ -498,9 +503,10 @@ describe("a sign-out the server never answers", () => {
     vi.useFakeTimers();
     const failed = vi.spyOn(console, "error");
     const stopped = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    // As fetch does: the request rejects when its signal aborts, and not before.
+    // As fetch does: the request rejects with the signal's reason when it
+    // aborts, and not before.
     fetchMock.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_, reject) => {
-      init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+      init.signal?.addEventListener("abort", () => reject(init.signal!.reason));
     }));
     try {
       let ended = false;
@@ -540,16 +546,31 @@ describe("a sign-out the server never answers", () => {
     }
   });
 
-  it("still logs a revoke that failed", async () => {
+  // A failure that is not this tab's own abort is logged as one, whether it
+  // lands before the deadline or after it.
+  it.each([
+    ["a network error", async () => { throw new TypeError("Failed to fetch"); }],
+    ["a 500", async () => json({ title: "Server error" }, 500)],
+    ["an abort this tab did not make", async () => { throw new DOMException("cancelled elsewhere", "AbortError"); }],
+    ["a 500 whose body stalls past the deadline", async (_url: string, init: RequestInit) =>
+      new Response(new ReadableStream<Uint8Array>({ start(body) { init.signal?.addEventListener("abort", () => body.error(init.signal!.reason)); } }),
+        { status: 500, headers: { "Content-Type": "application/problem+json" } })],
+  ] as const)("logs %s as a failed revoke, not a give-up", async (_, answer) => {
+    vi.useFakeTimers();
     const failed = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stopped = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
-      fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+      fetchMock.mockImplementation(answer);
 
-      await logout();
+      const done = logout();
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS);
+      await done;
 
-      expect(failed).toHaveBeenCalledWith("logout: server-side session revoke failed", expect.any(TypeError));
+      expect(failed).toHaveBeenCalledOnce();
+      expect(stopped).not.toHaveBeenCalled();
     } finally {
       failed.mockRestore();
+      stopped.mockRestore();
     }
   });
 });

@@ -38,7 +38,7 @@ class RefreshAdoptionRefusedError extends Error {
 }
 
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
-  // #1277 review T1, U1 — checked where every refresh sends, so one queued
+  // #1277 — checked where every refresh sends, so one queued
   // behind the cross-tab lock, the bootstrap and a download refuse alike. Its
   // callers treat this as a superseded session: no teardown.
   if (isSignedOut()) throw new StaleSessionError();
@@ -185,7 +185,7 @@ export async function refreshTokens(heldLock?: HeldAuthCookieLock): Promise<stri
   if (heldLock)
     return executeHeldRefresh(heldLock.generation, heldLock.signal);
 
-  // #1277 review V1 — the fast path: a signed-out tab queues nothing.
+  // #1277 — the fast path: a signed-out tab queues nothing.
   if (isSignedOut()) throw new StaleSessionError();
   if (refreshInFlight) return refreshInFlight;
 
@@ -375,7 +375,7 @@ async function sendWithRefresh<T>(
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
       endSession(err);
     }
-    // #1277 review — the refresh worked, so the resend answers for the request
+    // #1277 — the refresh worked, so the resend answers for the request
     // itself: a 4xx, a 5xx or a network error is the caller's to show. Only a
     // 401 to a fresh token means the session is dead, and then the original
     // 401 surfaces.

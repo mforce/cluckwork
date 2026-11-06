@@ -67,7 +67,7 @@ export function AppLayout() {
     document.title = active ? `${t(active.labelKey)}${t("titleSuffix")}` : "Cluckwork";
   }, [groups, location.pathname, t]);
 
-  // #1277 review U2 — one sign-out at a time: Sign out in the rail and the
+  // #1277 — one sign-out at a time: Sign out in the rail and the
   // More menu stays disabled until it lands.
   const [leaving, setLeaving] = useState(false);
   async function onLogout() {
@@ -80,7 +80,7 @@ export function AppLayout() {
     <Box sx={{ display: "flex", minHeight: "100dvh" }}>
       {/* First focusable element: lets a keyboard/screen-reader user jump past
           the nav links straight to the screen content (#182, Task 7). */}
-      {/* #1277 review — focused in place, not followed: a fragment navigation
+      {/* #1277 — focused in place, not followed: a fragment navigation
           writes a history entry with no state, which gives the location a new
           key and remounts the screen, dropping whatever it held. */}
       <a href={`#${MAIN_CONTENT_ID}`} className="skip-link" onClick={(e) => {

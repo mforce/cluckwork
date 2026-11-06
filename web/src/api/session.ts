@@ -372,7 +372,7 @@ export async function stepUp(proof: StepUpProof): Promise<{ token: string; expir
   return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
-// #1277 review T1, U1, V1 — set by logout(), and cleared only where a login's
+// #1277 — set by logout(), and cleared only where a login's
 // own answer commits its tokens. Until then this tab is signed out: no refresh
 // sends, so no new token is issued, and the recovery-codes slot starts no
 // code-issuing work. A request that already holds a bearer still sends with
@@ -420,22 +420,26 @@ export async function logout(): Promise<void> {
   // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
   const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
   if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
-  // #1277 review W1, X1 — the wait ends at the refresh timeout, and so does
-  // the request. Its late answer would carry a Set-Cookie that deletes this
-  // farm's refresh cookie by name, by then a newer sign-in's; the browser drops
-  // an aborted request's answer. Once the request reaches the handler, the
-  // server finishes the revoke anyway: the backend half of #1277 runs Logout's
-  // writes with CancellationToken.None (MC6) and resolves the flock scope
-  // without the request's token (N2). A request that never arrives revokes
-  // nothing. The browser then keeps the revoked cookie, and the backend marks
-  // logout revocations so reusing it fails quietly instead of tripping #176's
-  // replay rule (MC7). This reverses V2, which kept the request open because
-  // the server used to cancel with it.
+  // #1277 — the wait ends at the refresh timeout, and so does the request. Its
+  // late answer would carry a Set-Cookie that deletes this farm's refresh
+  // cookie by name, by then a newer sign-in's; the browser drops an aborted
+  // request's answer. What the server does depends on whether the request got
+  // there, as the backend half of #1277 makes it:
+  // - Once the request reaches the handler, the server finishes the revoke:
+  //   Logout runs its writes with CancellationToken.None and skips the
+  //   flock-scope read. The browser keeps the revoked cookie, which is marked
+  //   as a logout revocation, so reusing it fails quietly instead of tripping
+  //   #176's replay rule.
+  // - A request that never arrives revokes nothing. The cookie stays live, and
+  //   a reload restores the session.
   const giveUp = new AbortController();
   const gaveUp = setTimeout(() => giveUp.abort(), REFRESH_TIMEOUT_MS);
   await raw<void>("/auth/logout", { method: "POST", headers, signal: giveUp.signal }, bearer ?? undefined).catch((err: unknown) => {
-    // X4 — the abort above is ours, not a failure.
-    if (giveUp.signal.aborted) {
+    // Only this tab's own abort is a give-up: fetch rejects with the signal's
+    // reason, so identity proves the abort caused this error. A 500 whose body
+    // was still arriving at the deadline is a failure, and so is an abort
+    // from elsewhere.
+    if (err === giveUp.signal.reason) {
       console.warn("logout: stopped waiting for the server-side revoke");
       return;
     }
