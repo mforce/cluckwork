@@ -20,6 +20,10 @@ public sealed class RefreshToken
     public DateTimeOffset? RevokedAt { get; set; }
     public string? ReplacedByTokenHash { get; set; }
 
+    // #1277 — why RevokedAt was set. Null on a live row, and on a row
+    // revoked before the column existed, which refresh treats as replay.
+    public RefreshRevocationReason? RevocationReason { get; set; }
+
     // #364 — stamped explicitly by every known mint site. The database default
     // of zero makes an INSERT from a pre-epoch binary permanently unusable.
     public int IssuedEpoch { get; set; }
@@ -43,6 +47,29 @@ public sealed class RefreshToken
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && ExpiresAt > now;
 }
 
+// #1277 — every path that sets RefreshToken.RevokedAt names its reason.
+// Presenting a revoked token again is classified as replay (#176: family
+// revocation and Auth.RefreshTokenReplayDetected) for every reason except
+// Logout, which fails quietly: the user ended that session, and a browser that
+// missed the logout's cookie-clearing answer still holds it. A row with no
+// reason is replay too. CredentialsChanged and FarmSuspended also bump the
+// credential epoch, so their tokens fail refresh's epoch check before
+// classification.
+public enum RefreshRevocationReason
+{
+    // Refresh rotated it to a child (IdentityProvider.Refresh).
+    Rotated,
+    // Logout's lineage fence retired the live tip (IdentityProvider.Logout).
+    Logout,
+    // A password, role, email, disable or factor change revoked every session
+    // (RevokeAllActiveForUserAsync).
+    CredentialsChanged,
+    // Refresh saw a replay and burned the family down (#176).
+    ReplayDetected,
+    // The farm was suspended (AccountSuspensionService).
+    FarmSuspended,
+}
+
 public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 {
     public void Configure(EntityTypeBuilder<RefreshToken> builder)
@@ -53,6 +80,7 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(e => e.AccountId).IsRequired();
         builder.Property(e => e.TokenHash).HasMaxLength(64).IsRequired();
         builder.Property(e => e.ReplacedByTokenHash).HasMaxLength(64);
+        builder.Property(e => e.RevocationReason).HasConversion<string>().HasMaxLength(32);
         builder.Property(e => e.RevokedByGrace).HasDefaultValue(false);
         builder.Property(e => e.IssuedEpoch).HasDefaultValue(0);
         builder.HasIndex(e => e.TokenHash).IsUnique();

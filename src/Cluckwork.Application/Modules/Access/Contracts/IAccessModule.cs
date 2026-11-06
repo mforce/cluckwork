@@ -3,7 +3,9 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // #857 — Access's surface for HTTP adapters: user administration, the
 // caller's own profile, flock assignments, and sessions. Each member forwards
 // to the existing handler or identity service, so step-up checks, locks, audit
-// rows, tokens and errors are theirs, unchanged. Peers use IAccessLookup instead.
+// rows, tokens and errors are theirs, unchanged. The exception is the caller's
+// own two-factor turn-off, start and regenerate, whose step-up grant
+// AccessModule checks itself (#1277). Peers use IAccessLookup instead.
 public interface IAccessModule
 {
     Task<Result<Guid>> CreateUserAsync(
@@ -74,6 +76,22 @@ public interface IAccessModule
     // Null when the user was not enrolled, so no session changed.
     // credentialEpoch is the acting token's claim.
     Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
+
+    // #1277 — the caller's own enrolment. Start and regenerate spend a
+    // step-up grant: a password-only grant can only come from an unenrolled
+    // user, because an enrolled user's step-up needs a code, and a grant dies
+    // with the stamp an enrolment rotates. credentialEpoch is the acting
+    // token's claim.
+    Task<TwoFactorStatus> GetTwoFactorStatusAsync(Guid accountId, Guid userId, CancellationToken ct);
+
+    Task<Result<EnrolmentStart>> StartTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
+
+    Task<Result<EnrolmentConfirmation>> ConfirmTwoFactorEnrolmentAsync(
+        Guid accountId, Guid userId, string? code, CancellationToken ct);
+
+    Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
 
     // An enrolled user also proves code; anyone else's code is ignored.

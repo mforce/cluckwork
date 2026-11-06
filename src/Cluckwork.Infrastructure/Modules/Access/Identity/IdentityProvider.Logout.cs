@@ -211,6 +211,7 @@ public sealed partial class IdentityProvider
                     WITH fenced_tip AS (
                         UPDATE refresh_tokens
                         SET "RevokedAt" = @revokedAt,
+                            "RevocationReason" = @logoutReason,
                             "ConcurrencyStamp" = @rotatedStamp,
                             "ReplacedByTokenHash" = NULL
                         WHERE "TokenHash" = @currentHash
@@ -239,6 +240,7 @@ public sealed partial class IdentityProvider
             [
                 new NpgsqlParameter("revokedAt", now),
                 new NpgsqlParameter("rotatedStamp", rotatedStamp),
+                new NpgsqlParameter("logoutReason", nameof(RefreshRevocationReason.Logout)),
                 new NpgsqlParameter("currentHash", currentHash),
                 new NpgsqlParameter("rootUserId", rootUserId),
                 new NpgsqlParameter("rootAccountId", rootAccountId),
