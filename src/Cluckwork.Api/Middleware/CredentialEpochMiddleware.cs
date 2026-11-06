@@ -88,6 +88,6 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
     // Endpoint routing accepts the conventional trailing-slash form too. Keep
     // both spellings reachable for a superseded bearer, without widening the
     // exemption to descendants such as /auth/logout/anything.
-    private static bool IsLogoutPath(PathString path) =>
+    internal static bool IsLogoutPath(PathString path) =>
         path == LogoutPath || path == $"{LogoutPath}/";
 }

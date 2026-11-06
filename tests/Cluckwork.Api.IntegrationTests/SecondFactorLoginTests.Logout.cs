@@ -62,6 +62,51 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(0, (await LogoutStateAsync(accountId, userId)).LiveRows);
     }
 
+    // #1277 N2: a Worker's request reads its flock assignments before the
+    // handler. Logout reads no flock data, so that read must not run: a client
+    // that gave up during it would cancel the logout before either write.
+    [Fact]
+    public async Task AWorkersLogout_WhoseClientGivesUpDuringTheFlockRead_StillRevokesAndRecords()
+    {
+        var ownerEmail = $"tf-logout-owner-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(ownerEmail);
+        var email = $"tf-logout-worker-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, role: null);
+        var userId = await UserIdAsync(accountId, email);
+        var session = await factory.LoginAsync(email);
+        var before = await LogoutStateAsync(accountId, userId);
+        using var cancel = new CancellationTokenSource();
+        factory.BeforeCommand.Arm("\"UserRoleAssignments\"", async () =>
+        {
+            await cancel.CancelAsync();
+            await Task.Delay(TimeSpan.FromMilliseconds(200));
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/logout");
+        request.Headers.Add(AuthCookies.CsrfHeaderName, "1");
+        request.Headers.Add("Cookie", $"{AuthCookies.RefreshCookieNameFor(accountId)}={session.RefreshToken}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        request.Headers.Add(AuthCookies.ExpectedAccountHeaderName, accountId.ToString());
+
+        try
+        {
+            using var response = await factory.CreateClient(TestHarness.Cookieless(factory)).SendAsync(request, cancel.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // The hook gave up for the client; the server must carry on.
+        }
+
+        factory.BeforeCommand.Disarm();
+        var after = before;
+        for (var wait = 0; wait < 50 && (after.Epoch == before.Epoch || after.LiveRows != 0); wait++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(200));
+            after = await LogoutStateAsync(accountId, userId);
+        }
+        Assert.True(after.Epoch > before.Epoch, "the Worker's logout was not recorded");
+        Assert.Equal(0, after.LiveRows);
+    }
+
     // #1277 MC7: the aborted logout's browser keeps its cookie. Presenting it
     // again is a session the user ended, not a theft: it fails quietly and
     // leaves the user's other sessions alone, expired or not.
