@@ -15,8 +15,6 @@ namespace Cluckwork.Api.IntegrationTests;
 // #1280: the user turns their own two-factor off (#1274 decision 8), G5.1.
 public sealed partial class SecondFactorLoginTests
 {
-    private const string TurnOffPath = "/api/v1/auth/two-factor";
-
     // With an Idempotency-Key, so the not-cacheable entry is what keeps the
     // response out of idempotency_records.
     private static Task<HttpResponseMessage> DeleteWithGrantAsync(HttpClient client, string path, string grant)
@@ -96,7 +94,7 @@ public sealed partial class SecondFactorLoginTests
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
         var records = await IdempotencyRecordsAsync(factor.AccountId);
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var fresh = await TestHarness.ReadTokensAsync(response);
@@ -128,7 +126,7 @@ public sealed partial class SecondFactorLoginTests
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
         var refreshRows = await factory.WithTenantScopeAsync(accountId, db => db.RefreshTokens.CountAsync(t => t.UserId == userId));
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Empty(await TwoFactorRowsAsync(accountId, userId));
@@ -169,7 +167,7 @@ public sealed partial class SecondFactorLoginTests
             Assert.True(done.IsSuccess, change);
         });
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         await AssertStaleTurnOffRefusedAsync(response, factor with { RecoveryCodes = factor.RecoveryCodes.Skip(1).ToList() });
     }
@@ -186,7 +184,7 @@ public sealed partial class SecondFactorLoginTests
         EnrolledFactor? factor = null;
         factory.BeforeCommand.Arm("FOR NO KEY UPDATE", async () => factor = await factory.EnrolTwoFactorAsync(email));
 
-        var response = await DeleteWithGrantAsync(client, TurnOffPath, grant!);
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
 
         Assert.NotNull(factor);
         await AssertStaleTurnOffRefusedAsync(response, factor);
