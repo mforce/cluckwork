@@ -420,18 +420,20 @@ export async function logout(): Promise<void> {
   // AllowAnonymous, and it is exempt from the Idempotency-Key requirement.
   const headers: Record<string, string> = { [CSRF_HEADER]: "1" };
   if (accountId !== null) headers[ACCOUNT_HEADER] = accountId;
-  const revoke = raw<void>("/auth/logout", { method: "POST", headers }, bearer ?? undefined).catch((err: unknown) => {
+  // #1277 review W1 — the wait ends at the refresh timeout, and so does the
+  // request. Its late answer would carry a Set-Cookie that deletes this farm's
+  // refresh cookie by name, by then a newer sign-in's; the browser drops an
+  // aborted request's answer. The server finishes the revoke even so: Logout
+  // ignores the client's abort for these writes (MC6). This reverses V2,
+  // which kept the request open because the server used to cancel with it.
+  const giveUp = new AbortController();
+  const gaveUp = setTimeout(() => giveUp.abort(), REFRESH_TIMEOUT_MS);
+  await raw<void>("/auth/logout", { method: "POST", headers, signal: giveUp.signal }, bearer ?? undefined).catch((err: unknown) => {
     // Best-effort revoke: the in-memory token is already cleared above and this
     // failure can never reverse that. Still surfaced (not silently swallowed,
     // #310) so an operator can see the server-side session may be un-revoked —
     // logged, never the (already-cleared) token itself.
     console.error("logout: server-side session revoke failed", err);
   });
-  // #1277 review U2, V2 — a server that never answers must not keep this tab
-  // half signed out, so the wait ends at the refresh timeout. The request is
-  // never aborted: the server revokes under the request's own cancellation
-  // token, so an abort could cancel the revoke itself.
-  let gaveUp: ReturnType<typeof setTimeout> | undefined;
-  await Promise.race([revoke, new Promise<void>((resolve) => { gaveUp = setTimeout(resolve, REFRESH_TIMEOUT_MS); })]);
   clearTimeout(gaveUp);
 }
