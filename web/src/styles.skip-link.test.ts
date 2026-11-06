@@ -4,7 +4,7 @@ import type { Rule } from "postcss";
 import { createTheme } from "@mui/material/styles";
 import { readStylesheet } from "./test/stylesheet";
 
-// #1277 review — the focused skip link opens over the docked rail. Chromium
+// #1277 — the focused skip link opens over the docked rail. Chromium
 // showed the rail (the MUI drawer layer) painting over it; it must still sit
 // under a modal dialog, which covers the whole page.
 const root = postcss.parse(readStylesheet());

@@ -199,10 +199,9 @@ describe("apiFetch — no in-memory token", () => {
   });
 });
 
-// #1277 review — after a 401 and a successful refresh, the resend answers for
-// the request itself: its refusal, a 5xx or a network error is the caller's to
-// show. Only a 401 to the fresh token ends the session. Adapted from the
-// round-2 runner's matrix.
+// #1277 — after a 401 and a successful refresh, the resend answers for the
+// request itself: its refusal, a 5xx or a network error is the caller's to
+// show. Only a 401 to the fresh token ends the session.
 describe.each(["json", "blob"] as const)("the %s resend after a successful refresh", (kind) => {
   const send = () => kind === "json" ? apiPost("/thing", { value: 42 }) : apiGetBlob("/thing");
   const afterRefresh = (resend: Response | Error) => {

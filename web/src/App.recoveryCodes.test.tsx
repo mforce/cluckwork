@@ -10,9 +10,9 @@ import { setStoredToken } from "./test/jwt";
 import { freshCode } from "./test/codes";
 import i18n from "./i18n";
 
-// #1277 review P3 (e), S4 (c) — App.tsx places the slot above the router and
-// the shell: codes held there survive route changes inside the shell and a
-// route outside it (/connect). SessionProvider is stubbed, so this proves the
+// #1277 — App.tsx places the slot above the router and the shell: codes held
+// there survive route changes inside the shell and a route outside it
+// (/connect). SessionProvider is stubbed, so this proves the
 // slot's place in App's tree, not the session bootstrap.
 vi.mock("./session/SessionContext", async (importOriginal) => ({
   ...await importOriginal<typeof import("./session/SessionContext")>(),

@@ -3,9 +3,8 @@ import { act, fireEvent, renderHook, screen } from "@testing-library/react";
 import { RecoveryCodesProvider, useRecoveryCodesSlot } from "./recoveryCodes";
 import { logout } from "../../api/session";
 
-// #1277 review S4 (d) — the slot's own contract, below the UI that disables
-// its triggers: while a set is held, saved or not, no new request may start.
-// Adapted from the round-5 runner's slot probe.
+// #1277 — the slot's own contract, below the UI that disables its triggers:
+// while a set is held, saved or not, no new request may start.
 const auth = vi.hoisted(() => ({ isAuthenticated: true }));
 vi.mock("../../auth/useAuth", () => ({ useAuth: () => auth }));
 

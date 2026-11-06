@@ -20,7 +20,7 @@ import { ApiError, confirmTwoFactor, logout, setOnTokensChanged, setOnUnauthenti
 import { isSignedOut, login as signInHere, logout as endSessionHere } from "../../api/session";
 import i18n from "../../i18n";
 
-// #1277 MC4 (maintainer, 2026-11-05: "Keep codes above pages"): unsaved
+// #1277 (maintainer, 2026-11-05: "Keep codes above pages"): unsaved
 // recovery codes, and the answer of a confirm or regenerate still in flight,
 // live in a slot above the routes. No navigation drops them; only the end of
 // the session does. Driven through a real BrowserRouter over jsdom's history,

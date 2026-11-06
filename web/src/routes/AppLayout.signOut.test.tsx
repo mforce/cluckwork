@@ -5,9 +5,8 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import i18n from "../i18n";
 import { AppLayout } from "./AppLayout";
 
-// #1277 review U2, V3 — one sign-out at a time: while its request is out, Sign
-// out is disabled in the rail and the More menu, and a second press sends
-// nothing.
+// #1277 — one sign-out at a time: while its request is out, Sign out is
+// disabled in the rail and the More menu, and a second press sends nothing.
 describe("Sign out while a sign-out is in flight", () => {
   it("is disabled, sends one revoke, and the app reaches the login page when it answers", async () => {
     let answer!: () => void;

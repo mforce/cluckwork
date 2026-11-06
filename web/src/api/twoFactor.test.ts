@@ -195,8 +195,8 @@ describe("an expired token's plain 401", () => {
   });
 });
 
-// #1277 review T1, U1 — from the moment sign-out starts until the next sign-in,
-// no refresh sends, so no request can get a new token.
+// #1277 — from the moment sign-out starts until the next sign-in, no refresh
+// sends, so no request can get a new token.
 describe("after sign-out starts", () => {
   let held: ((res?: Response | Error) => Promise<void>) | null = null;
   afterEach(async () => { await held?.(); held = null; });
@@ -408,8 +408,8 @@ describe("after sign-out starts", () => {
   });
 });
 
-// #1277 review W2 — only a sign-in whose answer commits its tokens ends a
-// sign-out; a refused, challenged or superseded one leaves the tab refused.
+// #1277 — only a sign-in whose answer commits its tokens ends a sign-out; a
+// refused, challenged or superseded one leaves the tab refused.
 describe("the sign-out intent at each sign-in outcome", () => {
   const challenge = () => json({ title: "Auth.SecondFactorRequired", challenge: crypto.randomUUID(), challengeExpiresAt: "2099-01-01T00:00:00Z" }, 401);
   // Every other route, the code step's commit included, gets a fresh pair.
@@ -495,7 +495,7 @@ describe("the sign-out intent at each sign-in outcome", () => {
   });
 });
 
-// #1277 review U2 — a sign-out the server never answers still ends locally.
+// #1277 — a sign-out the server never answers still ends locally.
 describe("a sign-out the server never answers", () => {
   afterEach(() => { vi.useRealTimers(); });
 
@@ -529,7 +529,7 @@ describe("a sign-out the server never answers", () => {
     }
   });
 
-  // X3 — a revoke that answers in time is never aborted later.
+  // A revoke that answers in time is never aborted later.
   it.each([204, 500])("never aborts a revoke that answered %s in time", async (status) => {
     vi.useFakeTimers();
     const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);

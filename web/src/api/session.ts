@@ -372,10 +372,10 @@ export async function stepUp(proof: StepUpProof): Promise<{ token: string; expir
   return noteCode(apiPost<{ token: string; expiresAt: string }>("/auth/step-up", body), proof.code);
 }
 
-// #1277 — set by logout(), and cleared only where a login's
-// own answer commits its tokens. Until then this tab is signed out: no refresh
-// sends, so no new token is issued, and the recovery-codes slot starts no
-// code-issuing work. A request that already holds a bearer still sends with
+// #1277 — set by logout(), and cleared only where a login's own answer
+// commits its tokens. Until then this tab is signed out: no refresh sends, so
+// no new token is issued, and the recovery-codes slot starts no code-issuing
+// work. A request that already holds a bearer still sends with
 // it. A generation bump is not a sign-in: a login abandoned at its deadline,
 // or superseded, leaves the tab signed out, and so does a failed revoke.
 let signOutIntent = false;

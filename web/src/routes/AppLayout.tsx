@@ -67,8 +67,8 @@ export function AppLayout() {
     document.title = active ? `${t(active.labelKey)}${t("titleSuffix")}` : "Cluckwork";
   }, [groups, location.pathname, t]);
 
-  // #1277 — one sign-out at a time: Sign out in the rail and the
-  // More menu stays disabled until it lands.
+  // #1277 — one sign-out at a time: Sign out in the rail and the More menu
+  // stays disabled until it lands.
   const [leaving, setLeaving] = useState(false);
   async function onLogout() {
     setLeaving(true);

@@ -6,8 +6,8 @@ import { RecoveryCodesProvider } from "./recoveryCodes";
 import { getTwoFactorStatus, regenerateRecoveryCodes } from "../../api/cluckwork";
 import { stepUp } from "../../api/client";
 
-// #1277 W3, then MC4 — the hook hands new recovery codes to the slot above
-// the routes and never keeps them itself. JSON.stringify sees only the
+// #1277 — the hook hands new recovery codes to the slot above the routes and
+// never keeps them itself. JSON.stringify sees only the
 // serializable part of the hook's result (its state, not its closures), which
 // is where a kept set would sit.
 const auth = vi.hoisted(() => ({ isAuthenticated: true }));

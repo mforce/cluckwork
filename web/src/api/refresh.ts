@@ -38,9 +38,9 @@ class RefreshAdoptionRefusedError extends Error {
 }
 
 async function executeRefresh(generation: number, signal?: AbortSignal): Promise<string> {
-  // #1277 — checked where every refresh sends, so one queued
-  // behind the cross-tab lock, the bootstrap and a download refuse alike. Its
-  // callers treat this as a superseded session: no teardown.
+  // #1277 — checked where every refresh sends, so one queued behind the
+  // cross-tab lock, the bootstrap and a download refuse alike. Its callers
+  // treat this as a superseded session: no teardown.
   if (isSignedOut()) throw new StaleSessionError();
   try {
     // #547/#532 — tell the server which per-farm cookie THIS tab expects.
