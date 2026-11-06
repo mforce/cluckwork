@@ -224,8 +224,12 @@ public static partial class AuthEndpoints
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
+        // #1277 M4: the writes run to the end even when the client stops
+        // waiting. The SPA abandons a slow logout and signs in again; if a
+        // cancelled revoke left the old session alive, or the SPA waited for a
+        // late answer, that answer's cookie clear would end the new sign-in.
         if (currentUser.IsResolved)
-            await access.RecordLogoutAsync(currentUser.UserId, ct);
+            await access.RecordLogoutAsync(currentUser.UserId, CancellationToken.None);
 
         // The header is checked first, and it wins: it is the tab declaring
         // which farm it is ending. The per-farm rename made that declaration
@@ -268,17 +272,17 @@ public static partial class AuthEndpoints
         if (selectedRefreshToken is not null)
         {
             var selectedOutcome = await access.RevokeRefreshTokenAsync(
-                selectedRefreshToken, accountId, ct);
+                selectedRefreshToken, accountId, CancellationToken.None);
             if (legacyMatchesSelected)
                 clearLegacyCookie = selectedOutcome == RefreshTokenRevocationOutcome.InScope;
         }
         if (legacyRefreshToken is not null && !legacyMatchesSelected)
         {
             if (legacyIsOnlyPresentedSession)
-                await access.RevokeRefreshTokenAsync(legacyRefreshToken, null, ct);
+                await access.RevokeRefreshTokenAsync(legacyRefreshToken, null, CancellationToken.None);
             else if (accountId is not null)
             {
-                var legacyOutcome = await access.RevokeRefreshTokenAsync(legacyRefreshToken, accountId, ct);
+                var legacyOutcome = await access.RevokeRefreshTokenAsync(legacyRefreshToken, accountId, CancellationToken.None);
                 clearLegacyCookie = legacyOutcome == RefreshTokenRevocationOutcome.InScope;
             }
         }
