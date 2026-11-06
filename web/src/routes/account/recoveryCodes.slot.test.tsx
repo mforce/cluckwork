@@ -11,6 +11,16 @@ vi.mock("../../auth/useAuth", () => ({ useAuth: () => auth }));
 beforeEach(() => { auth.isAuthenticated = true; });
 
 describe("expect()", () => {
+  it("refuses a second request while the first is pending", () => {
+    const { result } = renderHook(useRecoveryCodesSlot, { wrapper: RecoveryCodesProvider });
+    act(() => {
+      const first = result.current.expect();
+      expect(first).not.toBeNull();
+      expect(result.current.expect()).toBeNull();
+      first!.release();
+    });
+  });
+
   it("refuses a new request while a set is held, unsaved and saved", () => {
     const { result } = renderHook(useRecoveryCodesSlot, { wrapper: RecoveryCodesProvider });
     act(() => {

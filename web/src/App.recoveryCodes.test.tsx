@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { App } from "./App";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes } from "./api/cluckwork";
 import { stepUp } from "./api/client";
+import { askConsent } from "./api/oauth";
 import { clearAccessToken } from "./auth/tokenStore";
 import { setStoredToken } from "./test/jwt";
 import { freshCode } from "./test/codes";
@@ -18,6 +19,12 @@ vi.mock("./session/SessionContext", async (importOriginal) => ({
   SessionProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("./pwa/UpdatePrompt", () => ({ UpdatePrompt: () => null }));
+// The Connect page asks the server about a consent; here it waits forever, so
+// the page is on screen, loading, whenever its lazy chunk has arrived.
+vi.mock("./api/oauth", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./api/oauth")>(),
+  askConsent: vi.fn(() => new Promise(() => undefined)),
+}));
 vi.mock("./api/cluckwork", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api/cluckwork")>(),
   getTwoFactorStatus: vi.fn(),
@@ -97,7 +104,11 @@ describe("the app's own provider tree", () => {
       window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
     });
     await waitFor(() => expect(window.location.pathname).toBe("/connect"));
-    await waitFor(() => expect(screen.queryByRole("navigation", { name: i18n.t("nav:primaryNavAriaLabel"), hidden: true })).toBeNull());
+    // The Connect page itself, not only the route: the shell is gone and the
+    // page is waiting on its consent request.
+    await screen.findByText(i18n.t("connect:loading"), undefined, { timeout: 5000 });
+    expect(askConsent).toHaveBeenCalled();
+    expect(screen.queryByRole("navigation", { name: i18n.t("nav:primaryNavAriaLabel"), hidden: true })).toBeNull();
     expect(shownCodes()).toEqual(codes);
     await act(async () => { window.history.back(); });
     await waitFor(() => expect(window.location.pathname).toBe("/account"));
