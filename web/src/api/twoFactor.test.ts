@@ -17,6 +17,7 @@ const token = (accountId: string) =>
 const pair = (accessToken: string, extra: object = {}) =>
   json({ accessToken, accessTokenExpiry: "2099-01-01T00:00:00Z", ...extra });
 const superseded = () => json({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }, 401);
+const credentials = () => ({ farmCode: "farm", email: "a@example.test", password: crypto.randomUUID() });
 
 type Call = [string, RequestInit];
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -329,7 +330,7 @@ describe("after sign-out starts", () => {
       fetchMock.mockImplementation(async (url: string) => (url.endsWith("/auth/logout") ? new Response(null, { status: 204 }) : pair(token("acct-A"))));
       await logout();
       const turns = lockHeldElsewhere();
-      const signIn = login({ farmCode: "farm", email: "a@example.test", password: crypto.randomUUID() }).then(() => "signed in", () => "abandoned");
+      const signIn = login(credentials()).then(() => "signed in", () => "abandoned");
       await vi.advanceTimersByTimeAsync(0);
       const parked = refreshTokens().then(() => "adopted", () => "refused");
 
@@ -349,7 +350,8 @@ describe("after sign-out starts", () => {
       await logout();
       const signedOut = currentSessionGeneration();
       const turns = lockHeldElsewhere();
-      const signIn = login({ farmCode: "farm", email: "a@example.test", password: crypto.randomUUID() }).catch(() => undefined);
+      const signIn = login(credentials()).catch(() => undefined);
+      const whileQueued = currentSessionGeneration();
       await vi.advanceTimersByTimeAsync(0);
       const parked = refreshTokens().catch(() => undefined);
 
@@ -359,7 +361,9 @@ describe("after sign-out starts", () => {
       await drain(turns);
       await parked;
 
+      expect(whileQueued).toBe(signedOut + 1);
       expect(afterDeadline).toBe(signedOut);
+      expect(to("/auth/refresh")).toHaveLength(0);
     });
 
     it("refuses the refresh an older write's 401 would supply, and does not resend the write", async () => {
@@ -373,7 +377,7 @@ describe("after sign-out starts", () => {
       await vi.advanceTimersByTimeAsync(0);
       await logout();
       const turns = lockHeldElsewhere();
-      const signIn = login({ farmCode: "farm", email: "a@example.test", password: crypto.randomUUID() }).catch(() => undefined);
+      const signIn = login(credentials()).catch(() => undefined);
       await vi.advanceTimersByTimeAsync(0);
 
       answer!(json({ title: "Unauthorized" }, 401));
@@ -397,7 +401,7 @@ describe("after sign-out starts", () => {
       .mockResolvedValueOnce(pair(token("acct-L")))
       .mockResolvedValueOnce(json({ enabled: false, recoveryCodesLeft: 0 }));
 
-    await login({ farmCode: "farm", email: "a@example.test", password: crypto.randomUUID() });
+    await login(credentials());
 
     expect(isSignedOut()).toBe(false);
     await expect(getTwoFactorStatus()).resolves.toEqual({ enabled: false, recoveryCodesLeft: 0 });
@@ -407,22 +411,43 @@ describe("after sign-out starts", () => {
 // #1277 review W2 — only a sign-in whose answer commits its tokens ends a
 // sign-out; a refused, challenged or superseded one leaves the tab refused.
 describe("the sign-out intent at each sign-in outcome", () => {
-  const credentials = () => ({ farmCode: "farm", email: "a@example.test", password: crypto.randomUUID() });
   const challenge = () => json({ title: "Auth.SecondFactorRequired", challenge: crypto.randomUUID(), challengeExpiresAt: "2099-01-01T00:00:00Z" }, 401);
-  const answering = (login: () => Response | Promise<Response>) => fetchMock.mockImplementation(async (url: string) =>
-    (url.endsWith("/auth/login") ? login() : url.endsWith("/auth/logout") ? new Response(null, { status: 204 }) : pair(token("acct-I"))));
+  // Every other route, the code step's commit included, gets a fresh pair.
+  const answering = (signInAnswer: () => Response | Promise<Response>, path = "/auth/login") =>
+    fetchMock.mockImplementation(async (url: string) => (url.endsWith(path) ? signInAnswer()
+      : url.endsWith("/auth/login") ? challenge()
+      : url.endsWith("/auth/logout") ? new Response(null, { status: 204 })
+      : pair(token("acct-I"))));
+  const refusedSignIns = [
+    ["the password", "/auth/login", () => login(credentials())],
+    ["the code step", "/auth/login/second-factor", async () => {
+      const outcome = await login(credentials());
+      if (outcome.kind !== "secondFactor") throw new Error("expected the code step");
+      return completeSecondFactor(outcome.challenge, freshCode());
+    }],
+  ] as const;
+  const failures = [
+    ["400", () => json({ title: "Validation failed" }, 400)],
+    ["401", () => json({ title: "Unauthorized" }, 401)],
+    ["429", () => json({ title: "Too many requests" }, 429)],
+    ["500", () => json({ title: "Server error" }, 500)],
+    ["a network error", () => Promise.reject(new TypeError("Failed to fetch"))],
+  ] as const;
 
-  it("a refused password leaves refresh refused", async () => {
-    answering(() => json({ title: "Unauthorized" }, 401));
-    await logout();
+  it.each(refusedSignIns.flatMap(([entry, path, signIn]) => failures.map(([outcome, answer]) => [entry, outcome, path, signIn, answer] as const)))(
+    "%s answering %s leaves refresh refused, with no token",
+    async (_entry, _outcome, path, signIn, answer) => {
+      answering(answer, path);
+      await logout();
 
-    await expect(login(credentials())).rejects.toMatchObject({ status: 401 });
+      await expect(signIn()).rejects.toBeDefined();
 
-    expect(isSignedOut()).toBe(true);
-    await expect(refreshTokens()).rejects.toBeInstanceOf(StaleSessionError);
-    expect(to("/auth/refresh")).toHaveLength(0);
-    expect(getAccessToken()).toBeNull();
-  });
+      expect(isSignedOut()).toBe(true);
+      await expect(refreshTokens()).rejects.toBeInstanceOf(StaleSessionError);
+      expect(to("/auth/refresh")).toHaveLength(0);
+      expect(getAccessToken()).toBeNull();
+    },
+  );
 
   it("the second-factor challenge leaves refresh refused", async () => {
     answering(challenge);
@@ -471,7 +496,8 @@ describe("a sign-out the server never answers", () => {
 
   it("stops waiting at the refresh timeout, and aborts the revoke so its late answer cannot land", async () => {
     vi.useFakeTimers();
-    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failed = vi.spyOn(console, "error");
+    const stopped = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     // As fetch does: the request rejects when its signal aborts, and not before.
     fetchMock.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_, reject) => {
       init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
@@ -489,8 +515,41 @@ describe("a sign-out the server never answers", () => {
       // cookie on the same farm; the browser drops an aborted request's answer.
       const [, init] = to("/auth/logout")[0]!;
       expect(init.signal?.aborted).toBe(true);
+      expect(failed).not.toHaveBeenCalled();
+      expect(stopped).toHaveBeenCalledOnce();
+    } finally {
+      failed.mockRestore();
+      stopped.mockRestore();
+    }
+  });
+
+  // X3 — a revoke that answers in time is never aborted later.
+  it.each([204, 500])("never aborts a revoke that answered %s in time", async (status) => {
+    vi.useFakeTimers();
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      fetchMock.mockImplementation(async () => (status === 204 ? new Response(null, { status }) : json({ title: "Server error" }, status)));
+
+      await logout();
+      await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS + 1);
+
+      const [, init] = to("/auth/logout")[0]!;
+      expect(init.signal?.aborted).toBe(false);
     } finally {
       quiet.mockRestore();
+    }
+  });
+
+  it("still logs a revoke that failed", async () => {
+    const failed = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+      await logout();
+
+      expect(failed).toHaveBeenCalledWith("logout: server-side session revoke failed", expect.any(TypeError));
+    } finally {
+      failed.mockRestore();
     }
   });
 });
