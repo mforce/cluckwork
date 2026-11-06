@@ -104,7 +104,7 @@ public sealed class TwoFactorPrimitivesTests
 
         Assert.True(types.Count >= 15, $"the walk found {types.Count} types, below its floor of 15");
         foreach (var type in types)
-            CredentialSample.AssertRedacted(type);
+            RedactedToString.AssertConstant(type);
     }
 
     // G3.32. Each case reads the URI back with a URI parser, as an app would.

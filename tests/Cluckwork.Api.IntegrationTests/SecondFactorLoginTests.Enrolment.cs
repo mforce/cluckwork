@@ -620,7 +620,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Contains(typeof(StepUpRequest), bodies);
         Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
         foreach (var type in bodies)
-            CredentialSample.AssertRedacted(type);
+            RedactedToString.AssertConstant(type);
     }
 
     // G2.5: every route under the prefix, plus the code step and step-up,
