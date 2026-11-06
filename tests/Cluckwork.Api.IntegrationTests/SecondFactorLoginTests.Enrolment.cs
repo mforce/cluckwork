@@ -323,14 +323,26 @@ public sealed partial class SecondFactorLoginTests
         if (header is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, header);
         var response = await client.SendAsync(request);
 
-        Assert.Equal((HttpStatusCode.Forbidden, StepUpErrorCodes.Required), await TitleOf(response));
+        Assert.Equal((HttpStatusCode.Forbidden, (string?)StepUpErrorCodes.Required), (response.StatusCode, await TitleIfAnyAsync(response)));
         Assert.Equal(before.Order(), (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Order());
         Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
         Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
         Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
         if (donor is not null)
-            Assert.True((await ValidateGrantAsync(donor.AccountId, donor.UserId, donor.Grant)).IsSuccess,
+            Assert.True((await ValidateGrantAsync(donor.AccountId, donor.UserId, header!)).IsSuccess,
                 "the refused donor grant no longer works in its own farm");
+    }
+
+    // The problem title, or null when the body is not a problem, as when the
+    // route ran, so a wrong answer shows its status instead of a parse error.
+    private static async Task<string?> TitleIfAnyAsync(HttpResponseMessage response)
+    {
+        var text = await response.Content.ReadAsStringAsync();
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        using var body = JsonDocument.Parse(text);
+        return body.RootElement.ValueKind == JsonValueKind.Object && body.RootElement.TryGetProperty("title", out var title)
+            ? title.GetString()
+            : null;
     }
 
     private sealed record Donor(Guid AccountId, Guid UserId, string Grant);
