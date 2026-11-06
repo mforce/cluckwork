@@ -72,7 +72,8 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // The status and the problem title, read tolerantly, so a wrong answer
-    // shows its status rather than a parse error.
+    // with an empty body or a JSON body that is not a problem shows its
+    // status; a body that is not JSON at all still throws.
     private static async Task<(HttpStatusCode Status, string? Title)> TitleOf(HttpResponseMessage response) =>
         (response.StatusCode, await TitleIfAnyAsync(response));
 
@@ -332,8 +333,8 @@ public sealed partial class SecondFactorLoginTests
                 "the refused donor grant no longer works in its own farm");
     }
 
-    // The problem title, or null when the body is not a problem, as when the
-    // route ran, so a wrong answer shows its status instead of a parse error.
+    // The problem title, or null when the body is empty or is JSON that is
+    // not a problem, as when the route ran. A body that is not JSON throws.
     private static async Task<string?> TitleIfAnyAsync(HttpResponseMessage response)
     {
         var text = await response.Content.ReadAsStringAsync();

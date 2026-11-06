@@ -11,10 +11,12 @@ namespace Cluckwork.Api.IntegrationTests;
 // #398 review rounds 7-8 — BindingFailureResponse.ConcernsRequestBody decides
 // whether a 400 binding failure is reported under `body` or `query`, and it
 // reads the ENDPOINT's contract to do it. An endpoint that declares a typed body
-// parameter carries IAcceptsMetadata and is classified correctly for free. An
-// endpoint that reads the raw body ITSELF declares nothing, so it must be marked
-// with ReadsRequestBodyAttribute — otherwise a body failure on it is reported as
-// `errors.query`, on endpoints that have no query input at all.
+// parameter carries IAcceptsMetadata. An endpoint that reads the raw body
+// ITSELF declares nothing, so it must be marked with ReadsRequestBodyAttribute —
+// otherwise a body failure on it is reported as `errors.query`, on endpoints
+// that have no query input at all. From #1277 a typed body no longer excuses a
+// handler that also takes a body-capable parameter: it can read the raw body
+// beside the typed one, so it needs the marker or a reviewed row too.
 //
 // That marker is applied by hand, and being forgotten is the DEFAULT failure:
 // review caught two separate missing markers in consecutive rounds
