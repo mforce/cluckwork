@@ -71,11 +71,10 @@ public sealed partial class SecondFactorLoginTests
         return (body.GetProperty("enabled").GetBoolean(), body.GetProperty("recoveryCodesLeft").GetInt32());
     }
 
-    private static async Task<(HttpStatusCode Status, string? Title)> TitleOf(HttpResponseMessage response)
-    {
-        var (status, title, _) = await ProblemOf(response);
-        return (status, title);
-    }
+    // The status and the problem title, read tolerantly, so a wrong answer
+    // shows its status rather than a parse error.
+    private static async Task<(HttpStatusCode Status, string? Title)> TitleOf(HttpResponseMessage response) =>
+        (response.StatusCode, await TitleIfAnyAsync(response));
 
     private static string[] RecoveryCodesOf(JsonElement body) =>
         [.. body.GetProperty("recoveryCodes").EnumerateArray().Select(code => code.GetString()!)];
@@ -323,7 +322,7 @@ public sealed partial class SecondFactorLoginTests
         if (header is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, header);
         var response = await client.SendAsync(request);
 
-        Assert.Equal((HttpStatusCode.Forbidden, (string?)StepUpErrorCodes.Required), (response.StatusCode, await TitleIfAnyAsync(response)));
+        Assert.Equal((HttpStatusCode.Forbidden, (string?)StepUpErrorCodes.Required), await TitleOf(response));
         Assert.Equal(before.Order(), (await TwoFactorRowsAsync(factor.AccountId, factor.UserId)).Order());
         Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
         Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
