@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using System.Text.Json;
+using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.Auth;
@@ -552,12 +553,16 @@ public sealed partial class SecondFactorLoginTests
         Assert.Empty(await AuditRowsAsync(accountId, factor.UserId, AuditActions.UserRecoveryCodesRegenerated));
     }
 
-    // Every route under ResponseNotCacheable that binds no body type, named by
-    // its endpoint name with the reason it carries no secret in a body. Such a
-    // route could still read the body by hand (HttpRequest, the context
-    // accessor, HttpResponse.HttpContext, BindAsync or a filter), so the walk
-    // below cannot check it; it fails until someone names it here. Adding a
-    // row is the review: nothing checks that its reason is true.
+    // Every route under ResponseNotCacheable that binds no body, named by its
+    // endpoint name with the reason it carries no secret in a body. A route
+    // binds a body only when its handler has a parameter of its declared
+    // request type; declared metadata alone proves nothing. The walk below
+    // cannot check an unbound route, so it fails until someone names it here,
+    // and adding a row is the review: nothing checks that its reason is true.
+    // Manual review boundaries, not guarded: a listed route that already takes
+    // HttpRequest (Logout, for its cookies) starting to read the body, a
+    // body-reading filter added to a listed route, and the other ways onto the
+    // request, response.HttpContext.Request and BindAsync.
     private static readonly Dictionary<string, string> HandReadBodies = new()
     {
         ["RefreshToken"] = "drains a body it never keeps; the refresh token rides in the cookie",
@@ -567,6 +572,18 @@ public sealed partial class SecondFactorLoginTests
         ["RegenerateRecoveryCodes"] = "no body; the grant rides in the step-up header",
         ["TurnOffTwoFactor"] = "no body; the grant rides in the step-up header",
     };
+
+    // Of those, the only one marked as reading its body by hand.
+    private static readonly string[] MarkedHandReaders = ["RefreshToken"];
+
+    private static Type? BoundBody(RouteEndpoint endpoint) =>
+        endpoint.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is { } type
+            && endpoint.Metadata.GetMetadata<MethodInfo>()?.GetParameters().Any(p => p.ParameterType == type) == true
+            ? type
+            : null;
+
+    private static string NameOf(RouteEndpoint endpoint) =>
+        endpoint.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? endpoint.DisplayName ?? "(unnamed)";
 
     // G3.29's walk of request bodies: every body a not-cacheable route binds
     // carries a password, a code or a challenge, so each prints only
@@ -581,13 +598,12 @@ public sealed partial class SecondFactorLoginTests
             .Where(e => e.RoutePattern.RawText is { } raw
                 && notCacheable.Any(entry => new PathString("/" + raw.TrimStart('/')).StartsWithSegments(entry, StringComparison.OrdinalIgnoreCase)))
             .ToList();
-        var bodies = routes.Select(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType).OfType<Type>().ToHashSet();
-        var unbound = routes
-            .Where(e => e.Metadata.GetMetadata<IAcceptsMetadata>()?.RequestType is null)
-            .Select(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName ?? e.DisplayName ?? "(unnamed)")
-            .Order();
+        var bodies = routes.Select(BoundBody).OfType<Type>().ToHashSet();
+        var unbound = routes.Where(e => BoundBody(e) is null).ToList();
 
-        Assert.Equal(HandReadBodies.Keys.Order(), unbound);
+        Assert.Equal(HandReadBodies.Keys.Order(), unbound.Select(NameOf).Order());
+        Assert.Equal(MarkedHandReaders.Order(),
+            unbound.Where(e => e.Metadata.GetMetadata<ReadsRequestBodyAttribute>() is not null).Select(NameOf).Order());
         Assert.Contains(typeof(LoginRequest), bodies);
         Assert.Contains(typeof(StepUpRequest), bodies);
         Assert.True(bodies.Count >= 5, $"the walk found {bodies.Count} request bodies, below its floor of 5");
