@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #1277 MC7: every path that revokes a refresh token names why, and only
+// #1277: every path that revokes a refresh token names why, and only
 // Logout fails quietly. A row with no reason, revoked before the column
 // existed, stays strict replay.
 public sealed partial class SecondFactorLoginTests

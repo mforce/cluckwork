@@ -339,7 +339,7 @@ public sealed class FlockScopeMiddlewareTests(CluckworkWebApplicationFactory fac
         }
     }
 
-    // #1277 N2: logout skips the flock read, and only logout: the exact path,
+    // #1277: logout skips the flock read, and only logout: the exact path,
     // with a trailing slash or in another case. A longer path reads it.
     [Theory]
     [InlineData("/api/v1/auth/logout", true)]

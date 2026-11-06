@@ -105,7 +105,7 @@ public static partial class AuthEndpoints
                 // A dead legacy cookie (rotated elsewhere / expired) is not
                 // this farm's to clear on the legacy name — it is not per-farm.
                 // Leave it; it is inert. Fall through to the no-cookie 401.
-                // The one exception is a token logout retired (#1277 MC7): the
+                // The one exception is a token logout retired (#1277): the
                 // user ended that session, so its cookie goes. Another farm's
                 // token never gets here: RefreshAsync refuses it on the farm
                 // check first.
@@ -146,7 +146,7 @@ public static partial class AuthEndpoints
             // named (#532): P1-2's "cleared the other farm's cookie" is
             // unrepresentable here, not guarded.
             AuthCookies.ClearRefreshCookie(response, selectedAccountId, CookieSecure(env));
-            // A token logout retired answers as any other invalid one (#1277 MC9).
+            // A token logout retired answers as any other invalid one (#1277).
             var title = result.Error.Code == CredentialErrorCodes.RetiredByLogout ? "Identity.InvalidRefreshToken" : result.Error.Code;
             return Results.Problem(result.Error.Description, statusCode: 401, title: title);
         }
@@ -232,7 +232,7 @@ public static partial class AuthEndpoints
         if (!AuthCookies.HasCsrfHeader(request))
             return Results.Problem("Missing required header.", statusCode: 403, title: "Auth.CsrfHeaderRequired");
 
-        // #1277 M4: the writes run to the end even when the client stops
+        // #1277: the writes run to the end even when the client stops
         // waiting. The SPA abandons a slow logout and signs in again; if a
         // cancelled revoke left the old session alive, or the SPA waited for a
         // late answer, that answer's cookie clear would end the new sign-in.

@@ -42,7 +42,7 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
             return;
         }
 
-        // #1277 N2 — logout reads no flock data, and a client that gives up
+        // #1277 — logout reads no flock data, and a client that gives up
         // during this read would cancel the logout before its writes.
         if (CredentialEpochMiddleware.IsLogoutPath(context.Request.Path))
         {

@@ -43,7 +43,7 @@ public static class SecurityEvents
     // retry — i.e. a genuine reuse of a dead token, treated as possible theft.
     public const string RefreshTokenReplayDetected = "Auth.RefreshTokenReplayDetected";
 
-    // Fires when a presented refresh token is one logout retired (#1277 MC9).
+    // Fires when a presented refresh token is one logout retired (#1277).
     // That fails quietly, revoking nothing: a browser that missed the
     // logout's answer still holds the cookie. An alert can still see a
     // logged-out cookie being presented again.

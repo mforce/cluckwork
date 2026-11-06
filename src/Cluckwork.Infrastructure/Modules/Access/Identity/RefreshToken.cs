@@ -20,7 +20,7 @@ public sealed class RefreshToken
     public DateTimeOffset? RevokedAt { get; set; }
     public string? ReplacedByTokenHash { get; set; }
 
-    // #1277 MC7 — why RevokedAt was set. Null on a live row, and on a row
+    // #1277 — why RevokedAt was set. Null on a live row, and on a row
     // revoked before the column existed, which refresh treats as replay.
     public RefreshRevocationReason? RevocationReason { get; set; }
 
@@ -47,7 +47,7 @@ public sealed class RefreshToken
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && ExpiresAt > now;
 }
 
-// #1277 MC7 — every path that sets RefreshToken.RevokedAt names its reason.
+// #1277 — every path that sets RefreshToken.RevokedAt names its reason.
 // Presenting a revoked token again is classified as replay (#176: family
 // revocation and Auth.RefreshTokenReplayDetected) for every reason except
 // Logout, which fails quietly: the user ended that session, and a browser that

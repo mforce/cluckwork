@@ -77,10 +77,10 @@ public sealed partial class IdentityProvider
         // Presenting an already-rotated/revoked token normally means it was replayed —
         // treat as a possible theft and revoke every active token for the user.
         var viaGrace = false;
-        // #1277 MC7 — a token logout retired fails quietly, expired or not: the
+        // #1277 — a token logout retired fails quietly, expired or not: the
         // user ended that session, and a browser that missed the logout's
         // answer still holds the cookie. Classifying it as replay would end
-        // the user's other sessions. MC9: it is still recorded, so an alert can
+        // the user's other sessions. It is still recorded, so an alert can
         // see a logged-out cookie presented again.
         if (stored.RevocationReason == RefreshRevocationReason.Logout)
         {

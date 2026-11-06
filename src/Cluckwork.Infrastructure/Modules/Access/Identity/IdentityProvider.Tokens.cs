@@ -60,7 +60,7 @@ public sealed partial class IdentityProvider
         // #176 ConcurrencyStamp check (so it is safe to call from the rotation
         // fail path) and revokes the whole family in one statement. It rotates
         // the stamp itself, so a refresh that loaded one of these rows before
-        // this commit fails its save instead of minting a live child (#1277 MC10).
+        // this commit fails its save instead of minting a live child (#1277).
         // Merge note: #273's RunRevocationAsync wrapper and #364's epoch scoping
         // are independent and BOTH apply. The wrapper only adds an alertable
         // event when the update throws; the filter decides which rows it

@@ -1,4 +1,4 @@
-// #1277 N3: stand-ins for Coverlet's injected tracker, so RedactedToStringTests
+// #1277: stand-ins for Coverlet's injected tracker, so RedactedToStringTests
 // can pin each condition of the scanner's coverage-counter allowance without a
 // coverage run. Coverlet names its tracker
 // Coverlet.Core.Instrumentation.Tracker.<assembly>_<guid>; CW1003 keeps product

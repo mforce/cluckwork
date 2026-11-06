@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #1277 M4: a logout finishes its writes even when the client stops waiting,
+// #1277: a logout finishes its writes even when the client stops waiting,
 // so a late answer never has to be awaited to end the session.
 public sealed partial class SecondFactorLoginTests
 {
@@ -93,7 +93,7 @@ public sealed partial class SecondFactorLoginTests
         await AbortedLogoutAsync(accountId, userId, cookie, bearer, remaining: 0);
     }
 
-    // #1277 N2: a Worker's request reads its flock assignments before the
+    // #1277: a Worker's request reads its flock assignments before the
     // handler. Logout reads no flock data, so that read must not run: a client
     // that gave up during it would cancel the logout before either write.
     [Fact]
@@ -140,10 +140,10 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(0, after.LiveRows);
     }
 
-    // #1277 MC7: the aborted logout's browser keeps its cookie. Presenting it
+    // #1277: the aborted logout's browser keeps its cookie. Presenting it
     // again is a session the user ended, not a theft: it fails quietly, clears
     // the cookie and leaves the user's other sessions alone, expired or not,
-    // for the selected farm's cookie and the legacy one (R1). MC9: it records
+    // for the selected farm's cookie and the legacy one. It records
     // Auth.RefreshTokenAfterLogout once, with the fields its policy row names.
     [Theory]
     [InlineData(false, false)]
@@ -184,7 +184,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, other.RefreshToken)).StatusCode);
     }
 
-    // R1 clears only a legacy cookie logout retired. Another farm's legacy
+    // Refresh clears only a legacy cookie logout retired. Another farm's legacy
     // token fails the farm check, and its cookie stays: it is that farm's
     // live session.
     [Fact]

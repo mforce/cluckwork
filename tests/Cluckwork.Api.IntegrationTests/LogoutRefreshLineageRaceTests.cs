@@ -390,7 +390,7 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
             foreign.RefreshToken, expectedAccount: foreignAccountId.ToString())).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostRefreshAsync(
             deliveredChild.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
-        // #1277 MC7: logout retired that tip, so its reuse fails quietly
+        // #1277: logout retired that tip, so its reuse fails quietly
         // instead of taking #176's family-replay path, and the sibling session
         // still refreshes. Rotation replay stays strict (RefreshTokenFlowTests).
         var rotatedSibling = await TestHarness.ReadTokensAsync(siblingRefresh);
@@ -398,7 +398,7 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
             rotatedSibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
-    // #1277 MC8, the maintainer's call: "Keep it strict (Recommended)". After
+    // #1277, the maintainer's call: "Keep it strict (Recommended)". After
     // the race above, the original parent is a rotated ancestor, not a token
     // logout retired: presenting it again is #176 replay, and the family dies.
     [Fact]
@@ -435,7 +435,7 @@ public sealed class LogoutRefreshLineageRaceTests(LogoutRefreshLineageRaceFactor
             sibling.RefreshToken, expectedAccount: accountId.ToString())).StatusCode);
     }
 
-    // #1277 MC10: #176's family revoke commits while a refresh of the live tip
+    // #1277: #176's family revoke commits while a refresh of the live tip
     // has loaded the tip but not saved it. The save must not land on the
     // revoked row and mint a live child.
     [Fact]
