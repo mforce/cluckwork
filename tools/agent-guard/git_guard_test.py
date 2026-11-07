@@ -588,70 +588,6 @@ CASES += [  # #1221: gh api writes to main's history or protection, and the push
     ("gh pr merge 1221 --squash", "linked", "allow"),
 ]
 
-CASES += [  # a script whose first lines carry the data-only marker: tools/logrow.py and tools/log.mjs in the fixtures
-    *[(command, where, "allow") for where in ("shared", "linked") for command in (
-        "python3 tools/logrow.py --log x.tsv --what \"gh pr merge 1396, then git push\"",
-        "python3 ./tools/logrow.py --what 'push it?'",
-        "python3 tools/logrow.py --what 'git log shows it' 2>&1",
-        "python3.12 tools/logrow.py --what 'git commit -m x'",
-        "python3 tools/logrow.py -- 'git push --force'",
-        "node tools/log.mjs --body 'git push --force origin main'",
-        "cd ../linked && python3 tools/logrow.py --what 'git reset --hard'",
-    )],
-    *[(command, where, "block") for where in ("shared", "linked") for command in (
-        # an unmarked, missing or late-marked script, or a directory; command runners among them
-        "python3 tools/run.py --what \"gh pr merge 1396, then git push\"",
-        "node tools/run.mjs --body 'git push --force origin main'",
-        "python3 tools/late.py --what 'git push --force'",
-        "python3 tools/missing.py --what 'git push --force'",
-        "python3 tools --what 'git push --force'",
-        "node tools/npm-cli.js exec --call \"git push --force origin main\"",
-        "node tools/npm-cli.js exec -c \"gh api repos/mforce/cluckwork/pulls/1/merge -X PUT\"",
-        "node /usr/share/nodejs/npm/bin/npm-cli.js exec --call \"git push --force origin main\"",
-        "python3 tools/pdb.py -c \"import os; os.system('git push --force origin main')\" x.py",
-        # a marked script still blocks with inline code, an option before it, a bare git or gh argument, an
-        # expansion or a chain, and under an interpreter outside SCRIPT_INTERPRETERS
-        "python3 -c \"import os; os.system('git push --force origin HEAD:main')\"",
-        "python3 - 'git push --force'",
-        "python3 -I tools/logrow.py 'git push --force'",
-        "python3 tools/logrow.py git push --force",
-        "python3 tools/logrow.py /usr/bin/git push --force",
-        "python3 tools/logrow.py gh pr merge 1 --squash",
-        "python3 git push --force",
-        "python3 tools/logrow.py \"$GIT push --force\"",
-        "python3 tools/logrow.py 'git push --force' | sh",
-        "python3 tools/logrow.py 'git push'; git push --force",
-        "node -e \"require('child_process').execSync('git push --force')\"",
-        "node --eval \"require('child_process').execSync('git push --force')\"",
-        "nodemon tools/log.mjs 'git push --force'",
-        "bash -c 'git push --force'",
-        "bash tools/log.sh 'git push --force'",
-        "env git push --force",
-        "xargs git push --force",
-        "$GIT push --force",
-        "perl -e 'system(\"git push --force\")'",
-        "deno eval \"Deno.Command('git', {args: ['push', '--force']})\"",
-    )],
-    ("python3 fifo.graphql --what 'git push --force'", "linked", "block"),  # never opened: it would hang
-    ("python3 tools/run.py --what 'git log shows it'", "shared", "block"),
-    ("node tools/npm-cli.js exec -c \"git sparse-checkout set src\"", "shared", "block"),
-    ("python3 tools/logrow.py git sparse-checkout set src", "shared", "block"),
-    # Python's open follows `slot` before `..` and reads the marked trusted/log.mjs; Node drops `slot/..` first and
-    # runs aliases/log.mjs, a link to the unmarked runner. Any `..` or symlink in the script path blocks.
-    *[(command, where, "block") for where in ("shared", "linked") for command in (
-        "node aliases/slot/../log.mjs exec --call \"git push --force origin main\"",
-        "node aliases/slot/../log.mjs exec -c \"gh api repos/mforce/cluckwork/pulls/1/merge -X PUT\"",
-        "node aliases/log.mjs exec --call \"git push --force origin main\"",
-        "node tools/link.mjs --body 'git push --force'",
-        "python3 tools/../tools/logrow.py --what 'git push --force'",
-        "cd aliases/slot && node ../log.mjs exec --call \"git push --force origin main\"",
-    )],
-    ("node aliases/slot/../log.mjs exec -c \"git sparse-checkout set src\"", "shared", "block"),
-    ("python3 tools/../tools/logrow.py --what 'git log shows it'", "shared", "block"),
-    ("node tools/link.mjs --what 'git log shows it'", "shared", "block"),
-    ("bash tools/log.sh 'git sparse-checkout set src'", "shared", "block"),
-]
-
 # Known limits, documented in the PR body as contrived: brace and extglob expansion can spell a verb.
 CASES += [
     ("git pu{s..s}h origin HEAD:main", "feature", "allow"),
@@ -749,25 +685,6 @@ class GitGuardTest(unittest.TestCase):
                 f.write(text)
             with open(os.path.join(cls.dirs["linked"], name.replace(".graphql", ".json")), "w") as f:
                 json.dump({"query": text}, f)
-        marker = "git-guard: data-only-args"
-        scripts = {"logrow.py": f"#!/usr/bin/env python3\n# {marker}\n", "log.mjs": f"// {marker}\n",
-                   "log.sh": f"# {marker}\n", "run.py": "\n", "run.mjs": "\n", "npm-cli.js": "\n", "pdb.py": "\n",
-                   "late.py": "\n" * 5 + f"# {marker}\n"}
-        for where in ("shared", "linked"):
-            os.mkdir(os.path.join(cls.dirs[where], "tools"))
-            for name, text in scripts.items():
-                with open(os.path.join(cls.dirs[where], "tools", name), "w") as f:
-                    f.write(text)
-            for option in ("-c", "-e"):  # marked files named like options: `python3 -c` must still read as inline code
-                with open(os.path.join(cls.dirs[where], option), "w") as f:
-                    f.write(f"# {marker}\n")
-            os.makedirs(os.path.join(cls.dirs[where], "trusted", "nested"))
-            with open(os.path.join(cls.dirs[where], "trusted", "log.mjs"), "w") as f:
-                f.write(f"// {marker}\n")
-            os.mkdir(os.path.join(cls.dirs[where], "aliases"))
-            os.symlink("../trusted/nested", os.path.join(cls.dirs[where], "aliases", "slot"))
-            os.symlink("../tools/npm-cli.js", os.path.join(cls.dirs[where], "aliases", "log.mjs"))
-            os.symlink("log.mjs", os.path.join(cls.dirs[where], "tools", "link.mjs"))  # a link to a marked script
         linked = cls.dirs["linked"]
         os.mkfifo(os.path.join(linked, "fifo.graphql"))
         os.symlink("read.graphql", os.path.join(linked, "link-read.graphql"))
@@ -964,21 +881,6 @@ class GitGuardTest(unittest.TestCase):
             hook = self.hermes_hook(terminal)
             self.assertIn(reason, self.assert_hook(hook, {"command": "git commit -m x"}, "block")["message"])
             self.assert_hook(hook, {"command": "ls -la"}, "allow")
-
-    def test_data_only_script_by_absolute_path(self):
-        for where in ("shared", "linked"):
-            root = self.dirs[where]
-            for script, args, expected in (
-                    (f"{root}/tools/logrow.py", "--what 'git push --force'", 0),
-                    (f"{root}/aliases/slot/../log.mjs", "exec --call 'git push --force origin main'", 2),
-                    (f"{root}/tools/link.mjs", "--what 'git push --force'", 2),
-                    # not a write, so only the shared checkout refuses it
-                    (f"{root}/aliases/slot/../log.mjs", "exec -c 'git sparse-checkout set src'", 2 if where == "shared" else 0)):
-                command = f"{'python3' if script.endswith('.py') else 'node'} {script} {args}"
-                for harness in HARNESSES:
-                    code, stderr = run_guard(json.dumps(payload(harness, command, root)))
-                    with self.subTest(harness=harness, command=command):
-                        self.assertEqual(code, expected, stderr)
 
     def test_cdpath_makes_a_bare_cd_operand_ambiguous(self):
         env = {**os.environ, "CDPATH": self.tmp.name}

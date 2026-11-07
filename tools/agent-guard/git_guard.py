@@ -18,9 +18,7 @@ changes a checkout, a shallow fetch) or a PR merge must be one simple command,
 optionally after `cd <dir> &&`. Anything else is refused rather than parsed, so
 the agent re-runs the write on its own. The one exception is a chain whose every
 step is a `gh api` GET or a READ_FILTERS program, since a read of a write route is
-still a read. A simple `python3 <script> …` or `node <script> …` runs too when the
-script declares DATA_ONLY_MARKER in its first lines: it never runs its arguments,
-so git words in them are text (runs_data_only_script).
+still a read.
 
 The shared checkout is a main worktree that has linked worktrees: agents work in
 the linked ones, and all of them share its `.git` (#1205). There, only the
@@ -43,8 +41,7 @@ Not covered: gh aliases defined earlier, git aliases already in config, `git con
 --remove-section`, other commands that move a local ref (branch -f, fetch -f) or
 create commits (merge, rebase, cherry-pick, pull), a verb spelled by brace or
 extglob expansion (`pu{s..s}h`, `p@(u)sh`), a configured push destination that
-the remote resolves as a symbolic ref to main (no remote lookups), a script that
-carries DATA_ONLY_MARKER yet runs an argument as a command, and Codex
+the remote resolves as a symbolic ref to main (no remote lookups), and Codex
 `exec_command` calls whose `workdir` differs from the session `cwd` (Codex does
 not send `workdir`).
 """
@@ -97,11 +94,6 @@ EXPANSIONS = re.compile(r"[$`*?\[]")  # can spell a program or verb the text che
 BRACED_WORD = re.compile(r"\{[\w-]+\}")
 ALLOWED_SUFFIX = re.compile(r"[ \t]+(2>&1|2>/dev/null)$")
 INERT_PROGRAMS = {"cat", "echo", "egrep", "fgrep", "grep", "head", "ls", "printf", "tail", "wc"}
-# Interpreters whose `<interpreter> <script> …` form may pass, when the script declares DATA_ONLY_MARKER. Keyed by
-# the script's own declaration, because a runner nobody listed (npm exec -c, pdb -c) would pass a list of runners.
-SCRIPT_INTERPRETERS = re.compile(r"python3?(?:\.\d+)?|node")
-DATA_ONLY_MARKER = "git-guard: data-only-args"
-MARKER_LINES = 5
 # Programs whose arguments are only data: a `git` among them is text, not a command. Any other program whose
 # arguments name git may run it (xargs, env, sh -c, python -c, make, ...), so its target is unresolved.
 DATA_PROGRAMS = INERT_PROGRAMS | {"column", "comm", "cut", "diff", "fold", "jq", "nl", "rg", "sort", "tee", "tr", "uniq"}
@@ -309,35 +301,9 @@ def shell_steps(command, cwd):
     return found
 
 
-def runs_data_only_script(argv, cwd):
-    """True for `python3 <script> …` or `node <script> …` whose script, a regular file, has DATA_ONLY_MARKER in
-    its first MARKER_LINES lines: git or a write verb in its arguments is text. Inline code (-c, -e, `-`), an
-    interpreter option before the script, a bare git or gh argument, and a missing, unreadable or unmarked
-    script do not count. Neither does a path with a `..` or a symlink in it: Node drops `link/..` before the
-    kernel follows `link`, so the guard and the interpreter could read two different files."""
-    if not (len(argv) > 1 and SCRIPT_INTERPRETERS.fullmatch(os.path.basename(argv[0]))
-            and not argv[1].startswith("-")
-            and not any(os.path.basename(arg) in ("git", "gh") for arg in argv[1:])):
-        return False
-    if cwd is None and not os.path.isabs(argv[1]):
-        return False  # process input: the running shell's directory is unknown
-    path = os.path.join(cwd or "/", argv[1])
-    if ".." in path.split("/") or os.path.realpath(path) != os.path.normpath(os.path.abspath(path)):
-        return False
-    try:
-        if not stat.S_ISREG(os.stat(path).st_mode):  # stat first: opening a FIFO would hang
-            return False
-        with open(path, errors="replace") as f:
-            head = f.read(4096).splitlines()[:MARKER_LINES]
-    except OSError:
-        return False
-    return any(DATA_ONLY_MARKER in line for line in head)
-
-
 def git_steps(command, cwd):
     """The git and gh steps of shell_steps. None when a step's target cannot be resolved: a variable assignment,
-    or a program outside DATA_PROGRAMS whose arguments name git (it may run git itself), unless
-    runs_data_only_script."""
+    or a program outside DATA_PROGRAMS whose arguments name git (it may run git itself)."""
     steps = shell_steps(command, cwd)
     found = []
     for program, argv, step_cwd in steps or []:
@@ -345,7 +311,7 @@ def git_steps(command, cwd):
             found.append((program, argv, step_cwd))
         elif ASSIGNMENT.match(argv[0]) or (
                 (program not in DATA_PROGRAMS or any(arg.startswith(DATA_PROGRAM_RUNNERS) for arg in argv[1:]))
-                and not runs_data_only_script(argv, step_cwd) and any(GIT_WORD.search(arg) for arg in argv[1:])):
+                and any(GIT_WORD.search(arg) for arg in argv[1:])):
             return None
     return None if steps is None else found
 
@@ -831,7 +797,7 @@ def check(command, cwd, unchecked=None):
         check_git(argv[1:], cwd, shown)
     elif program == "gh":
         check_gh(argv[1:], shown, cwd)
-    elif program not in INERT_PROGRAMS and not runs_data_only_script(argv, cwd):
+    elif program not in INERT_PROGRAMS:
         block("simple", shown)
 
 
