@@ -205,6 +205,31 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((signedIn.Watermark, signedIn.SignIns), (after.Watermark, after.SignIns));
     }
 
+    // G3.19 (#1281): a stale write that read an Owner before the grace start
+    // cannot clear it, because the start rotates ConcurrencyStamp.
+    [Fact]
+    public async Task AStaleFullEntityWrite_CannotClearTheGraceStart()
+    {
+        var email = $"tf-grace-{Guid.NewGuid():N}@test.local";
+        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var userId = await UserIdAsync(accountId, email);
+        var token = await factory.LoginForAccessTokenAsync(email);
+        await factory.WithTenantScopeAsync(accountId, db => db.Users.Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.SecondFactorRequiredSince, (DateTimeOffset?)null)));
+        using var staleScope = factory.Services.CreateScope();
+        var staleUsers = staleScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var stale = (await staleUsers.FindByIdAsync(userId.ToString()))!;
+        Assert.Null(stale.SecondFactorRequiredSince);
+
+        Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(token)).StatusCode);
+        stale.DisplayName = "Stale write";
+        var write = await staleUsers.UpdateAsync(stale);
+
+        Assert.False(write.Succeeded, "the stale write was not fenced");
+        Assert.NotNull(await factory.WithTenantScopeAsync(accountId, db => db.Users.AsNoTracking()
+            .Where(u => u.Id == userId).Select(u => u.SecondFactorRequiredSince).SingleAsync()));
+    }
+
     // Issue criterion "MustChangePassword (#283)", decision 7: the code step
     // comes first, and the forced change then gates the session it minted.
     [Fact]

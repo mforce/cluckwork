@@ -2,9 +2,11 @@ using System.Net;
 using Cluckwork.Api.Configuration;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.IntegrationTests.Mcp;
+using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Api.Modules.Access.OAuth;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
@@ -115,6 +117,7 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
 
     [Theory]
     [InlineData(Roles.Manager)]
+    [InlineData(Roles.ReadOnly)]
     [InlineData(null)]
     public async Task ANonOwnersRequest_WritesNoStart(string? role)
     {
@@ -203,6 +206,73 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
                 Path: "/" + string.Join('/', e.RoutePattern.RawText!.Trim('/').Split('/').Select(segment =>
                     segment.StartsWith('{') ? Guid.NewGuid().ToString() : segment)))))];
 
+    private async Task ChangeRoleAsync(Seeded user, string? role)
+    {
+        var ownerId = await factory.WithTenantScopeAsync(user.AccountId, db =>
+            db.Users.Where(u => u.AccountId == user.AccountId && u.Email!.StartsWith("gate-owner-")).Select(u => u.Id).SingleAsync());
+        using var scope = factory.Services.CreateScope().ResolveTenantAndActor(user.AccountId, ownerId);
+        var changed = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
+            .ChangeUserRoleAsync(user.AccountId, user.UserId, role, ownerId);
+        Assert.True(changed.IsSuccess, changed.IsFailure ? changed.Error.Code : null);
+    }
+
+    // G6.3: a promotion starts the grace at the promoted user's first request,
+    // a demotion lifts the gate and keeps the start, and a re-promoted former
+    // Owner whose start is older than the grace is gated at once.
+    [Fact]
+    public async Task APromotion_StartsTheGraceAtTheFirstRequest_ADemotionKeepsIt_AndAReturnIsGatedAtOnce()
+    {
+        var user = await SeedAsync(Roles.Manager);
+        await NullStartAsync(user);
+        await ChangeRoleAsync(user, Roles.Owner);
+        Assert.Null(await StartAsync(user));
+
+        using var promoted = await GetAsync(await factory.LoginForAccessTokenAsync(user.Email));
+        var started = await StartAsync(user);
+        await SetStartAsync(user, factory.Clock.GetUtcNow() - PastTheDeadline);
+        var expired = await StartAsync(user);
+        await ChangeRoleAsync(user, Roles.Manager);
+        var demotedToken = await factory.LoginForAccessTokenAsync(user.Email);
+        using var demoted = await GetAsync(demotedToken, "/api/v1/flocks");
+        await ChangeRoleAsync(user, Roles.Owner);
+        using var returned = await GetAsync(await factory.LoginForAccessTokenAsync(user.Email));
+
+        Assert.Equal(HttpStatusCode.OK, promoted.StatusCode);
+        Assert.NotNull(started);
+        Assert.Equal(HttpStatusCode.OK, demoted.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, returned.StatusCode);
+        Assert.Equal(EnrolmentErrorCodes.EnrolmentRequired, await TitleAsync(returned));
+        Assert.Equal(expired, await StartAsync(user));
+    }
+
+    // G6.7: an Owner reset of another Owner's two-factor keeps the start, so
+    // a reset Owner past the deadline enrols again at the next request.
+    [Fact]
+    public async Task AResetOfAnOwnersTwoFactor_KeepsTheStart()
+    {
+        var owner = await SeedAsync();
+        var other = new Seeded($"gate-second-{Guid.NewGuid():N}@test.local", owner.AccountId, Guid.Empty);
+        await factory.SeedUserAsync(owner.AccountId, other.Email, Roles.Owner);
+        other = other with { UserId = await factory.WithTenantScopeAsync(owner.AccountId, db =>
+            db.Users.Where(u => u.Email == other.Email).Select(u => u.Id).SingleAsync()) };
+        await factory.EnrolTwoFactorAsync(other.Email);
+        // A whole second, so the value reads back equal from timestamptz.
+        var start = DateTimeOffset.FromUnixTimeSeconds((factory.Clock.GetUtcNow() - PastTheDeadline).ToUnixTimeSeconds());
+        await SetStartAsync(other, start);
+
+        using (var scope = factory.Services.CreateScope().ResolveTenantAndActor(owner.AccountId, owner.UserId))
+        {
+            var reset = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
+                .ResetUserTwoFactorAsync(owner.AccountId, other.UserId, owner.UserId);
+            Assert.True(reset.IsSuccess);
+        }
+        factory.EnrolledFactors.TryRemove(other.Email, out _);
+        using var refused = await GetAsync(await factory.LoginForAccessTokenAsync(other.Email));
+
+        Assert.Equal(start, await StartAsync(other));
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+    }
+
     // G6.2: a connected-app token minted before the start was set starts the
     // grace, is accepted on /mcp before the deadline and refused past it with
     // no challenge; an enrolled Owner's token is not refused.
@@ -237,6 +307,36 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
         using var response = await McpConnection.PostAsync(factory, app, McpConnection.Initialize);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // G6.6: past the deadline, an enrolled Owner who signs in and steps up
+    // through the shared helpers reaches a read, a write, an Owner-only
+    // step-up action, consent and /mcp. LoginAsync's helper asserts the
+    // password step's pending 401 before it completes the code.
+    [Fact]
+    public async Task AnEnrolledOwner_ThroughTheSharedHelpers_ReachesTheOwnerEndpoints()
+    {
+        var owner = await SeedAsync();
+        var factor = await factory.EnrolTwoFactorAsync(owner.Email);
+        await SetStartAsync(owner, factory.Clock.GetUtcNow() - PastTheDeadline);
+        var jwt = await factory.LoginForAccessTokenAsync(owner.Email);
+        var client = factory.CreateAuthedClient(jwt);
+
+        using var read = await client.GetAsync("/api/v1/users");
+        using var write = await client.PutWithKeyAsync("/api/v1/me/language", Guid.NewGuid().ToString(), new { language = "es" });
+        using var createUser = new HttpRequestMessage(HttpMethod.Post, "/api/v1/users")
+        {
+            Content = JsonContent.Create(new { email = $"gate-new-{Guid.NewGuid():N}@test.local", password = $"Aa1!{Guid.NewGuid():N}", role = Roles.ReadOnly }),
+        };
+        createUser.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        createUser.Headers.Add(AuthEndpoints.StepUpHeaderName, await OAuthServerTests.StepUpAsync(factory, jwt, factor.RecoveryCodes[0]));
+        using var created = await client.SendAsync(createUser);
+        var app = await ConnectedAppToken.IssueAsync(factory, jwt, factor.RecoveryCodes[1]);
+        using var mcp = await McpConnection.PostAsync(factory, app, McpConnection.Initialize);
+
+        Assert.Equal("true", new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(jwt)
+            .Claims.Single(c => c.Type == "two_factor").Value);
+        Assert.All([read, write, created, mcp], r => Assert.True(r.IsSuccessStatusCode, $"{r.RequestMessage!.RequestUri} answered {(int)r.StatusCode}"));
     }
 
     // Decision 18: a failed start lets each request through with one warning
