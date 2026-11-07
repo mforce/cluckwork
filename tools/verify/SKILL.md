@@ -113,10 +113,12 @@ Proof standards, in order of how often they are skipped:
    sticky bars, from a stack rebuilt at the head under review. Before frames come from
    `origin/main` rebuilt the same way.
 5. **Post one frame per distinct state**, at 1280x800 light. Add the 390x844 or dark frame of
-   a state only where its layout or theme visibly differs from the 1280 light frame. Skip a
-   frame that differs from one already posted only in text, such as a second step-up dialog
-   with another title. Aim for about 12 frames or fewer per PR; the maintainer reads every
-   one (#1395 posted 28).
+   a state only where its layout or theme visibly differs from the 1280 light frame. Within
+   the before frames, and separately within the after frames, skip a frame that differs from
+   one already posted only in text, such as a second step-up dialog with another title. A
+   changed existing screen always keeps its before and after pair, even when only its text
+   changed. Aim for about 12 frames or fewer per PR; the maintainer reads every one (#1395
+   posted 28).
 6. **Where it goes**: `/tmp/<slug>/{before,after}-<width>-<theme>.png`. Attach to the PR with
    `gh pr comment <N> -R mforce/cluckwork --attach './after-1280-light.png#After, 1280 light'`;
    never commit images to a branch (a branch is deletable and takes the evidence with it).
