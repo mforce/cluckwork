@@ -636,6 +636,19 @@ CASES += [  # a script whose first lines carry the data-only marker: tools/logro
     ("python3 tools/run.py --what 'git log shows it'", "shared", "block"),
     ("node tools/npm-cli.js exec -c \"git sparse-checkout set src\"", "shared", "block"),
     ("python3 tools/logrow.py git sparse-checkout set src", "shared", "block"),
+    # Python's open follows `slot` before `..` and reads the marked trusted/log.mjs; Node drops `slot/..` first and
+    # runs aliases/log.mjs, a link to the unmarked runner. Any `..` or symlink in the script path blocks.
+    *[(command, where, "block") for where in ("shared", "linked") for command in (
+        "node aliases/slot/../log.mjs exec --call \"git push --force origin main\"",
+        "node aliases/slot/../log.mjs exec -c \"gh api repos/mforce/cluckwork/pulls/1/merge -X PUT\"",
+        "node aliases/log.mjs exec --call \"git push --force origin main\"",
+        "node tools/link.mjs --body 'git push --force'",
+        "python3 tools/../tools/logrow.py --what 'git push --force'",
+        "cd aliases/slot && node ../log.mjs exec --call \"git push --force origin main\"",
+    )],
+    ("node aliases/slot/../log.mjs exec -c \"git sparse-checkout set src\"", "shared", "block"),
+    ("python3 tools/../tools/logrow.py --what 'git log shows it'", "shared", "block"),
+    ("node tools/link.mjs --what 'git log shows it'", "shared", "block"),
     ("bash tools/log.sh 'git sparse-checkout set src'", "shared", "block"),
 ]
 
@@ -748,6 +761,13 @@ class GitGuardTest(unittest.TestCase):
             for option in ("-c", "-e"):  # marked files named like options: `python3 -c` must still read as inline code
                 with open(os.path.join(cls.dirs[where], option), "w") as f:
                     f.write(f"# {marker}\n")
+            os.makedirs(os.path.join(cls.dirs[where], "trusted", "nested"))
+            with open(os.path.join(cls.dirs[where], "trusted", "log.mjs"), "w") as f:
+                f.write(f"// {marker}\n")
+            os.mkdir(os.path.join(cls.dirs[where], "aliases"))
+            os.symlink("../trusted/nested", os.path.join(cls.dirs[where], "aliases", "slot"))
+            os.symlink("../tools/npm-cli.js", os.path.join(cls.dirs[where], "aliases", "log.mjs"))
+            os.symlink("log.mjs", os.path.join(cls.dirs[where], "tools", "link.mjs"))  # a link to a marked script
         linked = cls.dirs["linked"]
         os.mkfifo(os.path.join(linked, "fifo.graphql"))
         os.symlink("read.graphql", os.path.join(linked, "link-read.graphql"))
@@ -944,6 +964,21 @@ class GitGuardTest(unittest.TestCase):
             hook = self.hermes_hook(terminal)
             self.assertIn(reason, self.assert_hook(hook, {"command": "git commit -m x"}, "block")["message"])
             self.assert_hook(hook, {"command": "ls -la"}, "allow")
+
+    def test_data_only_script_by_absolute_path(self):
+        for where in ("shared", "linked"):
+            root = self.dirs[where]
+            for script, args, expected in (
+                    (f"{root}/tools/logrow.py", "--what 'git push --force'", 0),
+                    (f"{root}/aliases/slot/../log.mjs", "exec --call 'git push --force origin main'", 2),
+                    (f"{root}/tools/link.mjs", "--what 'git push --force'", 2),
+                    # not a write, so only the shared checkout refuses it
+                    (f"{root}/aliases/slot/../log.mjs", "exec -c 'git sparse-checkout set src'", 2 if where == "shared" else 0)):
+                command = f"{'python3' if script.endswith('.py') else 'node'} {script} {args}"
+                for harness in HARNESSES:
+                    code, stderr = run_guard(json.dumps(payload(harness, command, root)))
+                    with self.subTest(harness=harness, command=command):
+                        self.assertEqual(code, expected, stderr)
 
     def test_cdpath_makes_a_bare_cd_operand_ambiguous(self):
         env = {**os.environ, "CDPATH": self.tmp.name}

@@ -313,7 +313,8 @@ def runs_data_only_script(argv, cwd):
     """True for `python3 <script> …` or `node <script> …` whose script, a regular file, has DATA_ONLY_MARKER in
     its first MARKER_LINES lines: git or a write verb in its arguments is text. Inline code (-c, -e, `-`), an
     interpreter option before the script, a bare git or gh argument, and a missing, unreadable or unmarked
-    script do not count."""
+    script do not count. Neither does a path with a `..` or a symlink in it: Node drops `link/..` before the
+    kernel follows `link`, so the guard and the interpreter could read two different files."""
     if not (len(argv) > 1 and SCRIPT_INTERPRETERS.fullmatch(os.path.basename(argv[0]))
             and not argv[1].startswith("-")
             and not any(os.path.basename(arg) in ("git", "gh") for arg in argv[1:])):
@@ -321,6 +322,8 @@ def runs_data_only_script(argv, cwd):
     if cwd is None and not os.path.isabs(argv[1]):
         return False  # process input: the running shell's directory is unknown
     path = os.path.join(cwd or "/", argv[1])
+    if ".." in path.split("/") or os.path.realpath(path) != os.path.normpath(os.path.abspath(path)):
+        return False
     try:
         if not stat.S_ISREG(os.stat(path).st_mode):  # stat first: opening a FIFO would hang
             return False
