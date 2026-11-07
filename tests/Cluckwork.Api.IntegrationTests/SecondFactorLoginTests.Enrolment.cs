@@ -82,10 +82,10 @@ public sealed partial class SecondFactorLoginTests
 
     // An unenrolled user, signed in, with the HTTP enrolment's key and codes
     // registered so the harness signs them in with a code from then on.
-    private async Task<(string Email, Guid AccountId, Guid UserId, HttpClient Client, TokenPairDto Session)> SignedInPlainAsync()
+    private async Task<(string Email, Guid AccountId, Guid UserId, HttpClient Client, TokenPairDto Session)> SignedInPlainAsync(bool asOwner = true)
     {
         var email = $"tf-enrol-{Guid.NewGuid():N}@test.local";
-        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email, asAdmin: asOwner);
         var session = await factory.LoginAsync(email);
         return (email, accountId, await UserIdAsync(accountId, email), factory.CreateAuthedClient(session.AccessToken), session);
     }
@@ -301,7 +301,7 @@ public sealed partial class SecondFactorLoginTests
     [MemberData(nameof(WrongGrants))]
     public async Task AStartRegenerateOrTurnOff_WithAnythingButTheCallersGrant_Is403_AndChangesNothing(string path, WrongGrant grant)
     {
-        var (email, factor) = await SeedEnrolledAsync();
+        var (email, factor) = await SeedEnrolledAsync(asOwner: false);
         var session = await factory.LoginAsync(email);
         var client = factory.CreateAuthedClient(session.AccessToken);
         var donor = grant is WrongGrant.SameFarmGrant or WrongGrant.OtherFarmGrant
@@ -681,7 +681,7 @@ public sealed partial class SecondFactorLoginTests
             .ToHashSet();
         Assert.True(walked.Count >= 7, $"the walk found {walked.Count} routes, below its floor of 7");
 
-        var (email, accountId, userId, client, _) = await SignedInPlainAsync();
+        var (email, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         var records = await IdempotencyRecordsAsync(accountId);
         var sent = new Dictionary<string, HttpStatusCode>();
         async Task<HttpResponseMessage> Send(string route, Task<HttpResponseMessage> request)

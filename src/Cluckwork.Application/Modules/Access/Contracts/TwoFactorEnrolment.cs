@@ -22,6 +22,8 @@ public static class EnrolmentErrorCodes
     public const string NotEnabled = "Auth.TwoFactorNotEnabled";
     // #1281 — an unenrolled Owner past the grace deadline; 403, never 401.
     public const string EnrolmentRequired = "Auth.TwoFactorEnrolmentRequired";
+    // #1281 — an Owner replaces a lost authenticator instead.
+    public const string OwnerCannotTurnOff = "Auth.OwnerCannotTurnOffTwoFactor";
 }
 
 // AttemptsLeft is null for a malformed code, which counts nothing.

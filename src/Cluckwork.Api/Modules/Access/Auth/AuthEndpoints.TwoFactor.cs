@@ -23,6 +23,12 @@ public static partial class AuthEndpoints
     {
         if (!currentUser.IsResolved || !tenant.IsResolved || ActingEpoch(user) is not { } epoch)
             return Results.Unauthorized();
+        // #1281 — every Owner must use two-factor, so the refusal comes before
+        // the grant is spent. The role claim is current: a role change bumps
+        // the epoch, which turn-off compares under the row lock.
+        if (IsOwner(user))
+            return Results.Problem("An Owner cannot turn off two-factor authentication. Replace your authenticator instead.",
+                statusCode: StatusCodes.Status403Forbidden, title: EnrolmentErrorCodes.OwnerCannotTurnOff);
 
         var result = await access.TurnOffTwoFactorAsync(tenant.AccountId, currentUser.UserId, epoch, stepUpToken, ct);
         if (!result.IsSuccess) return StepUpRouteProblem(result.Error);
@@ -42,11 +48,11 @@ public static partial class AuthEndpoints
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
         var status = await access.GetTwoFactorStatusAsync(tenant.AccountId, currentUser.UserId, ct);
-        var requiredBy = user.FindAll("role").Any(role => role.Value == Roles.Owner)
-            ? status.RequiredSince?.AddDays(ownerGrace.Value.OwnerGraceDays)
-            : null;
+        var requiredBy = IsOwner(user) ? status.RequiredSince?.AddDays(ownerGrace.Value.OwnerGraceDays) : null;
         return Results.Ok(new TwoFactorStatusResponse(status.Enabled, status.RecoveryCodesLeft, requiredBy));
     }
+
+    private static bool IsOwner(ClaimsPrincipal user) => user.FindAll("role").Any(role => role.Value == Roles.Owner);
 
     // #1277 — a new key for a first enrolment or a replacement. The live key
     // keeps working until confirm.
