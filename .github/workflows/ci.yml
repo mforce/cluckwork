@@ -450,6 +450,7 @@ jobs:
         run: |
           npm ci --prefix lint
           npm run lint
+          node --test lint/cleanup-selector.test.mjs
 
       # Suppressions may only shrink (web/AGENTS.md). On push and dispatch there
       # is no PR base, and only the path check runs: main takes changes only
