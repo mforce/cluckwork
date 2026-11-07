@@ -8,6 +8,7 @@ using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.OAuth;
@@ -181,6 +182,14 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // guard below: a one-shot verb never reads the section (#331).
         services.AddOptions<EnrolledSessionOptions>().Bind(configuration.GetSection(EnrolledSessionOptions.SectionName));
         if (role is ProcessRole.Serving) EnsureEnrolledSessionCap(configuration);
+        // #1281 — the Owner two-factor gate's days, checked at start (a bad value
+        // fails the serving boot); a one-shot verb never starts the host.
+        services.AddOptions<OwnerGraceOptions>()
+            .Bind(configuration.GetSection(OwnerGraceOptions.SectionName))
+            .Validate(o => o.OwnerGraceDays is >= OwnerGraceOptions.MinDays and <= OwnerGraceOptions.MaxDays,
+                $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.OwnerGraceDays)} must be a whole number from "
+                + $"{OwnerGraceOptions.MinDays} to {OwnerGraceOptions.MaxDays}.")
+            .ValidateOnStart();
 
         AddUserFeatures(services);
 

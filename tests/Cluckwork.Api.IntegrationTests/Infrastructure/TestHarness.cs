@@ -1,3 +1,4 @@
+using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Domain.Modules.Commerce.Sales;
 using Cluckwork.Domain.Modules.EggOperations.Contracts;
@@ -92,6 +93,8 @@ internal static partial class TestHarness
                 throw new InvalidOperationException(
                     "Seed role assignment failed: " + string.Join("; ", added.Errors.Select(e => e.Description)));
         }
+
+        await StartOwnerGraceAsync(scope.ServiceProvider, accountId, user.Id, role);
     }
 
     // #283 — seed a user with MustChangePassword=true, exactly the shape
@@ -129,8 +132,19 @@ internal static partial class TestHarness
                     "Seed role assignment failed: " + string.Join("; ", added.Errors.Select(e => e.Description)));
         }
 
+        await StartOwnerGraceAsync(scope.ServiceProvider, accountId, user.Id, role);
         return user.Id;
     }
+
+    // #1281 (#1274 decision 22): a seeded Owner's grace starts at seeding, from
+    // the host's clock, after the last UserManager save. The start rotates
+    // ConcurrencyStamp, so a test's first request then writes nothing and a
+    // test that holds the stamp across it keeps its stamp.
+    private static Task StartOwnerGraceAsync(IServiceProvider services, Guid accountId, Guid userId, string? role) =>
+        role == Roles.Owner
+            ? services.GetRequiredService<IOwnerGraceStart>().StartAsync(
+                accountId, userId, services.GetRequiredService<TimeProvider>().GetUtcNow(), CancellationToken.None)
+            : Task.CompletedTask;
 
     // #104 — pile a second role onto an existing user (multi-role principals
     // are reachable via Identity even though the API assigns one; the policy

@@ -1,11 +1,14 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Cluckwork.Api.Modules.Access.Auth;
 
@@ -30,14 +33,19 @@ public static partial class AuthEndpoints
     }
 
     // #1277 — whether two-factor is on and how many recovery codes are left.
-    // Never a code.
+    // Never a code. #1281 — an Owner also gets the grace deadline; nobody else
+    // must enrol, so nobody else gets one.
     private static async Task<IResult> TwoFactorStatus(
-        IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
+        IAccessModule access, ICurrentUser currentUser, TenantContext tenant, ClaimsPrincipal user,
+        IOptions<OwnerGraceOptions> ownerGrace, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
         var status = await access.GetTwoFactorStatusAsync(tenant.AccountId, currentUser.UserId, ct);
-        return Results.Ok(new TwoFactorStatusResponse(status.Enabled, status.RecoveryCodesLeft));
+        var requiredBy = user.FindAll("role").Any(role => role.Value == Roles.Owner)
+            ? status.RequiredSince?.AddDays(ownerGrace.Value.OwnerGraceDays)
+            : null;
+        return Results.Ok(new TwoFactorStatusResponse(status.Enabled, status.RecoveryCodesLeft, requiredBy));
     }
 
     // #1277 — a new key for a first enrolment or a replacement. The live key
@@ -110,7 +118,9 @@ public static partial class AuthEndpoints
         });
 }
 
-public sealed record TwoFactorStatusResponse(bool Enabled, int RecoveryCodesLeft);
+public sealed record TwoFactorStatusResponse(
+    bool Enabled, int RecoveryCodesLeft,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? RequiredBy);
 
 // The key and the URI are credentials, so the record never prints them.
 public sealed record EnrolmentStartResponse(string Key, string OtpauthUri)

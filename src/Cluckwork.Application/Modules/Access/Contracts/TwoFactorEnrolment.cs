@@ -1,8 +1,8 @@
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // #1277: what the /api/v1/auth/two-factor routes hand back (#1274 "Types").
-// RequiredSince joins the status in #1281.
-public readonly record struct TwoFactorStatus(bool Enabled, int RecoveryCodesLeft);
+// RequiredSince is the Owner grace start (#1281), null until the first request sets it.
+public readonly record struct TwoFactorStatus(bool Enabled, int RecoveryCodesLeft, DateTimeOffset? RequiredSince);
 
 public sealed record EnrolmentStart(string Key, string OtpauthUri)
 {
@@ -20,6 +20,8 @@ public static class EnrolmentErrorCodes
     public const string CodeIncorrect = "Auth.EnrolmentCodeIncorrect";
     public const string Expired = "Auth.EnrolmentExpired";
     public const string NotEnabled = "Auth.TwoFactorNotEnabled";
+    // #1281 — an unenrolled Owner past the grace deadline; 403, never 401.
+    public const string EnrolmentRequired = "Auth.TwoFactorEnrolmentRequired";
 }
 
 // AttemptsLeft is null for a malformed code, which counts nothing.

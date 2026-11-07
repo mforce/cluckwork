@@ -1,4 +1,5 @@
 using Cluckwork.Api.Cli;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Endpoints;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.Hosting.Modules;
@@ -126,6 +127,9 @@ if (processRole is ProcessRole.OneShot)
         + "the serving host was about to start instead. A verb was added to the role registry "
         + "without a matching CliDispatcher command, or healthcheck's early return above was "
         + "moved or made conditional.");
+
+// #1281 — after the CLI dispatch, because one-shot verbs never read the setting.
+OwnerGraceOptions.WarnIfExtended(app.Services, app.Logger);
 
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
@@ -344,6 +348,9 @@ app.UseOAuthApiInFlightRelease();
 // AuthPolicies tier an endpoint carries, and before idempotency so a blocked
 // write never consumes a key.
 app.UseMiddleware<MustChangePasswordMiddleware>();
+// #1281 — every Owner must use two-factor once their grace ends; after the
+// password gate, which lets change-password through, for the same reasons.
+app.UseMiddleware<OwnerTwoFactorGateMiddleware>();
 // Authorization must run BEFORE idempotency: the replay path returns cached
 // responses without invoking the endpoint, so a role-denied caller replaying
 // an admin's key must hit the 403 first (codex review of PR #78).

@@ -88,7 +88,9 @@ public static class TwoFactorCredentialsServiceCollectionExtensions
     // Scoped, like the AppDbContext and UserManager it writes through.
     public static IServiceCollection AddTwoFactorCredentials(this IServiceCollection services)
     {
-        services.AddScoped<ITwoFactorCredentials, TwoFactorCredentials>();
+        services.AddScoped<TwoFactorCredentials>();
+        services.AddScoped<ITwoFactorCredentials>(sp => sp.GetRequiredService<TwoFactorCredentials>());
+        services.AddScoped<IOwnerGraceStart>(sp => sp.GetRequiredService<TwoFactorCredentials>());
         return services;
     }
 }

@@ -44,7 +44,7 @@ public sealed class FlockScopeResolutionMiddleware(RequestDelegate next)
 
         // #1277 — logout reads no flock data, and a client that gives up
         // during this read would cancel the logout before its writes.
-        if (CredentialEpochMiddleware.IsLogoutPath(context.Request.Path))
+        if (LogoutPath.Matches(context.Request.Path))
         {
             scope.Resolve(true, []);
             await next(context);

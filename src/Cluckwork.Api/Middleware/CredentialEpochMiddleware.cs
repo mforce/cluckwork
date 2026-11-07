@@ -19,13 +19,11 @@ namespace Cluckwork.Api.Middleware;
 // and the responses.
 public sealed class CredentialEpochMiddleware(RequestDelegate next)
 {
-    private const string LogoutPath = "/api/v1/auth/logout";
-
     public async Task InvokeAsync(HttpContext context, ICredentialEpochVerifier verifier)
     {
         if (context.User.Identity?.IsAuthenticated == true
             && context.Features.Get<IExceptionHandlerFeature>() is null
-            && !IsLogoutPath(context.Request.Path))
+            && !LogoutPath.Matches(context.Request.Path))
         {
             var userIdClaim = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             var accountIdClaim = context.User.FindFirst("account_id")?.Value;
@@ -36,13 +34,14 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 : 0;
 
             // An unparseable user or account claim never reaches the database.
-            var verdict = Guid.TryParse(userIdClaim, out var userId)
+            var check = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
                 ? await verifier.VerifyAsync(userId, accountId, tokenEpoch,
                     // #800 — only an OAuth access token carries client_id.
                     context.User.HasClaim(claim => claim.Type == OpenIddictConstants.Claims.ClientId),
                     context.RequestAborted)
-                : CredentialVerdict.UnknownUser;
+                : new CredentialCheck(CredentialVerdict.UnknownUser, false, null);
+            var verdict = check.Verdict;
 
             // #1229 — an OAuth token names its authorization and itself. Only a Current
             // one counts as use, and a Superseded one can never pass again, so it is revoked.
@@ -80,14 +79,11 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 });
                 return;
             }
+
+            // #1281 — the Owner two-factor gate reads the row through this check.
+            context.Features.Set<CredentialCheck?>(check);
         }
 
         await next(context);
     }
-
-    // Endpoint routing accepts the conventional trailing-slash form too. Keep
-    // both spellings reachable for a superseded bearer, without widening the
-    // exemption to descendants such as /auth/logout/anything.
-    internal static bool IsLogoutPath(PathString path) =>
-        path == LogoutPath || path == $"{LogoutPath}/";
 }

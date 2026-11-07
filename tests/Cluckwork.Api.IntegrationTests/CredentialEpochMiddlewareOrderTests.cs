@@ -31,6 +31,9 @@ public sealed class CredentialEpochMiddlewareOrderTests
             // UseAuthentication, once every credential gate above has decided.
             "app.UseOAuthApiInFlightRelease();",
             "app.UseMiddleware<MustChangePasswordMiddleware>();",
+            // #1281 — after the password gate, which lets change-password
+            // through, so the password step is never gated for enrolment.
+            "app.UseMiddleware<OwnerTwoFactorGateMiddleware>();",
             "app.UseAuthorization();",
             "app.UseMiddleware<IdempotencyMiddleware>();",
         ];

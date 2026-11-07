@@ -439,7 +439,7 @@ public sealed partial class SecondFactorLoginTests
         var regenerated = await identity.RegenerateRecoveryCodesAsync(otherAccount, victim.UserId, epoch);
         var confirmed = await identity.ConfirmTwoFactorEnrolmentAsync(otherAccount, victim.UserId, CodeAt(victim, 0));
 
-        Assert.Equal(new TwoFactorStatus(false, 0), status);
+        Assert.Equal(new TwoFactorStatus(false, 0, null), status);
         Assert.Equal(CredentialErrorCodes.Superseded, started.Error.Code);
         Assert.Equal(CredentialErrorCodes.Superseded, regenerated.Error.Code);
         Assert.Equal(EnrolmentErrorCodes.Expired, confirmed.Error.Code);
