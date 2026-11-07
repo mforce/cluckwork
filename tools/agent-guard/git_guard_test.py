@@ -745,6 +745,9 @@ class GitGuardTest(unittest.TestCase):
             for name, text in scripts.items():
                 with open(os.path.join(cls.dirs[where], "tools", name), "w") as f:
                     f.write(text)
+            for option in ("-c", "-e"):  # marked files named like options: `python3 -c` must still read as inline code
+                with open(os.path.join(cls.dirs[where], option), "w") as f:
+                    f.write(f"# {marker}\n")
         linked = cls.dirs["linked"]
         os.mkfifo(os.path.join(linked, "fifo.graphql"))
         os.symlink("read.graphql", os.path.join(linked, "link-read.graphql"))
