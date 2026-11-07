@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.3...v1.2.0) (2026-11-07)
+
+
+### Features
+
+* **auth:** ask an enrolled user for a code at step-up and change-password ([#1384](https://github.com/mforce/cluckwork/issues/1384)) ([a1a46fc](https://github.com/mforce/cluckwork/commit/a1a46fce1835efe1651bdfb385eea40ec165644a))
+* **auth:** ask an enrolled user for an authenticator code at login ([#1380](https://github.com/mforce/cluckwork/issues/1380)) ([da362b9](https://github.com/mforce/cluckwork/commit/da362b9b2764ada88859ba06463d8e36a6f53110))
+* **auth:** give AspNetUserTokens a tenant guard and store two-factor secrets protected ([#1345](https://github.com/mforce/cluckwork/issues/1345)) ([34d00f6](https://github.com/mforce/cluckwork/commit/34d00f6365254f0bf3e17bac0f47f47666e72477))
+* **auth:** TOTP enrolment endpoints and logout hardening ([#1396](https://github.com/mforce/cluckwork/issues/1396)) ([58aabee](https://github.com/mforce/cluckwork/commit/58aabee21b3e8a51e3c208635badde30f9d07f23))
+* **auth:** turn off and reset two-factor, and clear it in recover-admin ([#1388](https://github.com/mforce/cluckwork/issues/1388)) ([abfeb42](https://github.com/mforce/cluckwork/commit/abfeb42d3cf23f07900a4b92ba69a4c60542170f))
+* **web:** ask an enrolled user for a code at step-up, consent and change-password ([#1385](https://github.com/mforce/cluckwork/issues/1385)) ([9073073](https://github.com/mforce/cluckwork/commit/9073073eaa8e789e613f488219d9b1e6d8c7744f))
+* **web:** let an Owner reset another user's two-factor authentication ([#1389](https://github.com/mforce/cluckwork/issues/1389)) ([fe2033b](https://github.com/mforce/cluckwork/commit/fe2033b2178fe6cdbbf443d0d76fccaf933fc109))
+* **web:** turn on TOTP two-factor from Account › Security ([#1395](https://github.com/mforce/cluckwork/issues/1395)) ([1aa3f51](https://github.com/mforce/cluckwork/commit/1aa3f519f1a9fec570e69f5fbec5fc63b1be8d89))
+
+
+### Dependencies
+
+* Bump the nuget-minor-patch group with 1 update ([#1382](https://github.com/mforce/cluckwork/issues/1382)) ([a22c08f](https://github.com/mforce/cluckwork/commit/a22c08fc8bdc250f8dace57aa8993f29fc80c278))
+* Bump the nuget-minor-patch group with 7 updates ([#1394](https://github.com/mforce/cluckwork/issues/1394)) ([0248492](https://github.com/mforce/cluckwork/commit/02484928cb46d69d960b5bac0b555811b928209c))
+* **docker:** bump the docker-base-images group in /src/Cluckwork.Api with 2 updates ([#1390](https://github.com/mforce/cluckwork/issues/1390)) ([a26e24b](https://github.com/mforce/cluckwork/commit/a26e24bbdff63eec705669219b9065b60ebdb046))
+* **web:** bump the production-minor-patch group in /web with 2 updates ([#1381](https://github.com/mforce/cluckwork/issues/1381)) ([a26f634](https://github.com/mforce/cluckwork/commit/a26f634b2bb7e39c303c1e687df714abf869b3d4))
+* **web:** bump the production-minor-patch group in /web with 4 updates ([#1392](https://github.com/mforce/cluckwork/issues/1392)) ([8489ad7](https://github.com/mforce/cluckwork/commit/8489ad7e935f89a5ba470ee9e2cbc150a5a68fd3))
+
 ## [1.1.3](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.1.3) (2026-10-27)
 
 
