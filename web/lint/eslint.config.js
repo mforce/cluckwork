@@ -6,6 +6,18 @@ import tseslint from 'typescript-eslint';
 const inEffect = 'CallExpression:matches([callee.name="useEffect"], [callee.property.name="useEffect"])';
 const rawAsyncEffect = 'Load data with useLatestLoad or usePagedList (web/src/components/). '
   + 'A raw async effect lets a superseded response overwrite newer state (#467, #703, #918).';
+// The function an effect returns: `return () => …` in its body but not in a function nested there, or the body of
+// `() => () => …`.
+const clearsFlag = 'AssignmentExpression[left.property.name="current"][right.value=false]';
+const ownReturn = `ReturnStatement:not(${inEffect} > :function :function ReturnStatement)`;
+const mountedFlagCleanup = [
+  `${inEffect} > :function > BlockStatement ${ownReturn} > :function ${clearsFlag}`,
+  `${inEffect} > ArrowFunctionExpression > :function ${clearsFlag}`,
+].map((selector) => ({
+  selector,
+  message: 'Clear a flag that async continuations read in a useLayoutEffect cleanup. A useEffect cleanup can '
+    + 'run a task after the commit that removes the screen, so a continuation in between still acts (#1395).',
+}));
 
 export default tseslint.config(
   { ignores: ['dist/', 'dev-dist/', 'coverage/', 'lint/'] },
@@ -27,6 +39,7 @@ export default tseslint.config(
       // Style, not correctness.
       'prefer-const': 'off',
       'preserve-caught-error': 'off',
+      'no-restricted-syntax': ['error', ...mountedFlagCleanup],
     },
   },
   {
@@ -36,6 +49,8 @@ export default tseslint.config(
       'no-restricted-syntax': ['error',
         { selector: `${inEffect} AwaitExpression`, message: rawAsyncEffect },
         { selector: `${inEffect} CallExpression[callee.property.name="then"]`, message: rawAsyncEffect },
+        // Repeated: this block's no-restricted-syntax replaces the one above for these files.
+        ...mountedFlagCleanup,
       ],
     },
   },

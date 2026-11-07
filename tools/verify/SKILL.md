@@ -110,15 +110,23 @@ Proof standards, in order of how often they are skipped:
    `GET /api/v1/...` with the persona's token, or the next screen that reads it (History for
    an adjusted entry, Stock for an allocated order).
 4. **Screenshots are 1:1**: viewport only, device scale factor 1, no full-page smears of
-   sticky bars, 1280x800 and 390x844, light and dark, from a stack rebuilt at the head under
-   review. Before frames come from `origin/main` rebuilt the same way.
-5. **Where it goes**: `/tmp/<slug>/{before,after}-<width>-<theme>.png`. Attach to the PR with
+   sticky bars, from a stack rebuilt at the head under review. Before frames come from
+   `origin/main` rebuilt the same way.
+5. **Post one frame per distinct state**, at 1280x800 light. Add the 390x844 or dark frame of
+   a state only where its layout or theme visibly differs from the 1280 light frame. Within
+   the before frames, and separately within the after frames, skip a frame that differs from
+   one already posted only in text, such as a second step-up dialog with another title. A
+   changed existing screen always keeps its before and after pair, even when only its text
+   changed. Aim for about 12 frames or fewer per PR; the maintainer reads every one (#1395
+   posted 28).
+6. **Where it goes**: `/tmp/<slug>/{before,after}-<width>-<theme>.png`. Attach to the PR with
    `gh pr comment <N> -R mforce/cluckwork --attach './after-1280-light.png#After, 1280 light'`;
    never commit images to a branch (a branch is deletable and takes the evidence with it).
    Also record console errors (`page.on("pageerror")`, CSP refusals) in the PR comment when
    they appear; `csp-nonce.spec.ts` shows the assertion.
 
-`capture.sh` does 4 and writes the files for 5:
+`capture.sh` does 4 and writes the files for 6. It captures all four viewport and theme
+frames so you can compare them; post only the ones rule 5 keeps:
 
 ```sh
 tools/verify/capture.sh <slug> [route] [farm] [prefix]
