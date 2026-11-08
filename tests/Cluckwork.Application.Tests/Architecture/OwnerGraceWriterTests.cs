@@ -15,6 +15,12 @@ public sealed class OwnerGraceWriterTests
     // 87 tracked files under tools/simulation/ on 2026-11-08.
     private const int SimulationFileFloor = 70;
 
+    // The two settings that relax the requirement for every Owner.
+    private static readonly string[] Settings = ["OwnerGraceDays", "RequireForOwners"];
+
+    private static bool NamesASetting(string text) =>
+        Settings.Any(setting => text.Contains(setting, StringComparison.OrdinalIgnoreCase));
+
     [Fact]
     public void NoToolOrDeployFile_NamesTheGraceColumn()
     {
@@ -30,14 +36,14 @@ public sealed class OwnerGraceWriterTests
     }
 
     // G6.8: the simulation app service reads only its own environment block,
-    // which sets no grace, so the stack runs the shipped 14 days and no env file
-    // can raise them. Comments go first, at any indent, so neither a comment
+    // which sets neither setting, so the stack runs the shipped 14 days with the
+    // requirement on, and no env file can change either. Comments go first, at any indent, so neither a comment
     // that names env_file nor one that would end the block early misleads the
     // scan; keys match quoted or not, as Compose reads them. Known limits: a
     // text scan cannot follow a YAML merge key (<<: *anchor) or extends:, so
     // either could bring an env_file or a grace in from elsewhere unseen.
     [Fact]
-    public void TheSimulationAppService_ReadsNoEnvFile_AndSetsNoGrace()
+    public void TheSimulationAppService_ReadsNoEnvFile_AndSetsNeitherSetting()
     {
         var lines = File.ReadAllLines(Path.Combine(TenancyDocsFreshnessTests.RepoRoot(), "tools", "simulation", "docker-compose.sim.yml"))
             .Select(line => Regex.Replace(line, @"(^|\s)#.*$", "").TrimEnd())
@@ -49,19 +55,18 @@ public sealed class OwnerGraceWriterTests
 
         Assert.Contains(service, line => Regex.IsMatch(line, @"^    [""']?environment[""']?\s*:$"));
         Assert.DoesNotContain(service, line => Regex.IsMatch(line, @"^\s+[""']?env_file[""']?\s*:"));
-        Assert.DoesNotContain(service, line => line.Contains("OwnerGraceDays", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(service, NamesASetting);
     }
 
     [Fact]
-    public void NoSimulationFile_SetsTheGrace()
+    public void NoSimulationFile_SetsEitherSetting()
     {
         var root = TenancyDocsFreshnessTests.RepoRoot();
         var files = TenancyDocsFreshnessTests.TrackedFiles(root)
             .Where(path => path.StartsWith("tools/simulation/", StringComparison.Ordinal)).ToList();
 
         Assert.True(files.Count >= SimulationFileFloor, $"the walk visited {files.Count} files under tools/simulation/, below its floor of {SimulationFileFloor}");
-        var naming = files.Where(path => File.ReadAllText(Path.Combine(root, path))
-            .Contains("OwnerGraceDays", StringComparison.OrdinalIgnoreCase)).ToList();
-        Assert.True(naming.Count == 0, "these files set or name OwnerGraceDays:\n  " + string.Join("\n  ", naming));
+        var naming = files.Where(path => NamesASetting(File.ReadAllText(Path.Combine(root, path)))).ToList();
+        Assert.True(naming.Count == 0, "these files set or name OwnerGraceDays or RequireForOwners:\n  " + string.Join("\n  ", naming));
     }
 }
