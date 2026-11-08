@@ -85,11 +85,17 @@ in [`tools/verify/mcp/`](../mcp/README.md).
 Run every block from `tools/verify/mcp/` in one shell. Tokens go to files outside the repo;
 credentials come from `.sim-cast.json` and are never printed. `jq` reads the replies.
 
+The Owner has two-factor on (#1281): `reset.sh` enrols them and keeps the key in
+`.sim-cast.json`. `code` prints the authenticator code for now, and `login` sends it when its
+second argument names `code`. The server takes each 30-second step once, so wait for the next
+step before the Owner signs in again. The challenge stays in a variable and is never printed.
+
 ```sh
 S=~/.tmp/mcp-verify; C="--cacert $S/cert.pem"; MCP=https://localhost:8495; APP=http://127.0.0.1:8081
 CAST=../../simulation/.sim-cast.json; T=$S/owner-read.token; W=$S/worker-read.token; WO=$S/owner-write.token
-login() { jq "$1" $CAST | curl -s $APP/api/v1/auth/login -H 'content-type: application/json' -d @- | jq -r '.accessToken // ("sign-in failed: \(.status) \(.title)\n" | halt_error)'; }
-JWT=$(login '{farmCode:"default-farm",email:.owner.email,password:.owner.password}')
+code() { python3 ../../simulation/totp.py "$(jq -r .owner.totpKey $CAST)"; }
+login() { R=$(jq "$1" $CAST | curl -s $APP/api/v1/auth/login -H 'content-type: application/json' -d @-); if [ -n "$2" ] && [ "$(jq -r .title <<<"$R")" = Auth.SecondFactorRequired ]; then R=$(jq -c --arg code "$($2)" '{challenge,code:$code}' <<<"$R" | curl -s $APP/api/v1/auth/login/second-factor -H 'content-type: application/json' -d @-); fi; jq -r '.accessToken // ("sign-in failed: \(.status) \(.title)\n" | halt_error)' <<<"$R"; }
+JWT=$(login '{farmCode:"default-farm",email:.owner.email,password:.owner.password}' code)
 WJWT=$(login '{farmCode:"default-farm"} + ([.cast[]|select(.role=="Worker")][0]|{email,password})')
 rpc() { curl -si $C -X POST $MCP/mcp -H "Authorization: Bearer $1" -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | grep -i '^HTTP\|^www-auth\|^{'; }

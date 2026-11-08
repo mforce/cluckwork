@@ -92,9 +92,14 @@ read_env_value() {
 # README-capture farm's provision-account Owner. They differ only by farm code,
 # and a second copy of a credential-rotation block is exactly the duplication
 # that drifts on the half nobody re-reads.
+#
+# #1281 — with a fifth argument, the cast file, the Owner then turns on
+# two-factor through the real step-up, start and confirm routes, and the key
+# goes into the cast file's `owner.totpKey`. Every Owner must enrol, so the
+# simulation Owner does it as a person would, with no exemption.
 rotate_owner_password() {
-  FARM_CODE="$1" OWNER_EMAIL="$2" TEMP_PASSWORD="$3" FINAL_PASSWORD="$4" \
-    APP_PORT="$APP_PORT" python3 - <<'PY'
+  FARM_CODE="$1" OWNER_EMAIL="$2" TEMP_PASSWORD="$3" FINAL_PASSWORD="$4" CAST_FILE="${5:-}" \
+    APP_PORT="$APP_PORT" SIM_DIR="$SCRIPT_DIR" python3 - <<'PY'
 import json
 import os
 import sys
@@ -108,7 +113,7 @@ temp_password = os.environ["TEMP_PASSWORD"]
 final_password = os.environ["FINAL_PASSWORD"]
 
 
-def post(path, body, token=None, idempotency_key=None):
+def post(path, body, token=None, idempotency_key=None, step_up=None):
     req = urllib.request.Request(
         f"{base}{path}",
         data=json.dumps(body).encode(),
@@ -119,6 +124,8 @@ def post(path, body, token=None, idempotency_key=None):
         req.add_header("Authorization", f"Bearer {token}")
     if idempotency_key:
         req.add_header("Idempotency-Key", idempotency_key)
+    if step_up:
+        req.add_header("X-Cluckwork-Step-Up", step_up)
     try:
         with urllib.request.urlopen(req) as resp:
             return json.loads(resp.read())
@@ -135,13 +142,30 @@ def post(path, body, token=None, idempotency_key=None):
 
 
 login = post("/login", {"farmCode": farm_code, "email": email, "password": temp_password})
-post(
+changed = post(
     "/change-password",
     {"currentPassword": temp_password, "newPassword": final_password},
     token=login["accessToken"],
     idempotency_key=str(uuid.uuid4()),
 )
 print(f"Owner {email} ({farm_code}) rotated onto the stable .sim-cast.json password.")
+
+cast_file = os.environ["CAST_FILE"]
+if cast_file:
+    sys.path.insert(0, os.environ["SIM_DIR"])
+    import totp
+
+    token = changed["accessToken"]
+    grant = post("/step-up", {"password": final_password}, token=token, idempotency_key=str(uuid.uuid4()))["token"]
+    key = post("/two-factor/start", {}, token=token, idempotency_key=str(uuid.uuid4()), step_up=grant)["key"]
+    post("/two-factor/confirm", {"code": totp.code(key)}, token=token, idempotency_key=str(uuid.uuid4()))
+    with open(cast_file) as f:
+        cast = json.load(f)
+    cast["owner"]["totpKey"] = key
+    with open(cast_file, "w") as f:
+        json.dump(cast, f, indent=2)
+        f.write("\n")
+    print(f"Owner {email} ({farm_code}) turned on two-factor; the key is in {os.path.basename(cast_file)}.")
 PY
 }
 
@@ -325,7 +349,8 @@ if [[ -z "$TEMP_PASSWORD" ]]; then
 fi
 echo "bootstrap-admin -> Owner created; rotating off the printed temporary password."
 
-rotate_owner_password "default-farm" "$SEED_ADMIN_EMAIL" "$TEMP_PASSWORD" "$SEED_ADMIN_PASSWORD"
+rotate_owner_password "default-farm" "$SEED_ADMIN_EMAIL" "$TEMP_PASSWORD" "$SEED_ADMIN_PASSWORD" \
+  "$SCRIPT_DIR/.sim-cast.json"
 
 # --- Simulation seed: explicit one-shot command (#279) ---------------------
 # The serving `app` container (started above) never boot-seeds simulation

@@ -292,6 +292,10 @@ RateLimiting__Refresh__PermitLimit=1000000
 RateLimiting__Refresh__WindowSeconds=900
 RateLimiting__ClientErrors__PermitLimit=1000000
 RateLimiting__ClientErrors__WindowSeconds=300
+# #1281 — the enrolled Owner's code step has its own per-address bucket, and
+# the Playwright suite signs that Owner in dozens of times from one host.
+RateLimiting__SecondFactor__PermitLimit=1000000
+RateLimiting__SecondFactor__WindowSeconds=900
 
 # --- Host/proxy interpolation vars (parity with deploy/.env.example) ---
 #

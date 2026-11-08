@@ -28,6 +28,7 @@ import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprot
 import { chromium, type Page } from "playwright";
 import { en } from "../../../web/src/i18n/en.ts";
 import { es } from "../../../web/src/i18n/es.ts";
+import { codes } from "../../simulation/ui/src/totp.ts";
 import { resolveBrowser } from "../../simulation/ui/src/browser.ts";
 import { scopeEntry } from "../../../web/src/auth/oauthScopes.ts";
 
@@ -39,9 +40,11 @@ const MCP = new URL("/mcp", BASE);
 const APP = "Cluckwork live verifier";
 // MCP_LANG=es reads the consent screen in Spanish, for a person whose language is Spanish.
 const CONSENT = process.env.MCP_LANG === "es" ? es.connect : en.connect;
+const CONSENT_AUTH = process.env.MCP_LANG === "es" ? es.auth : en.auth;
 const CAST = new URL("../../simulation/.sim-cast.json", import.meta.url);
 
-type Member = { farmCode: string; email: string; password: string };
+// totpKey: the Owner enrolled by reset.sh (#1281).
+type Member = { farmCode: string; email: string; password: string; totpKey?: string };
 
 function persona(name: string): Member {
   const cast = JSON.parse(readFileSync(CAST, "utf8"));
@@ -87,6 +90,21 @@ async function signIn(page: Page, member: Member) {
   await page.getByLabel(en.auth.email).fill(member.email);
   await page.getByLabel(en.auth.password).fill(member.password);
   await page.getByRole("button", { name: en.auth.signIn }).click();
+  if (member.totpKey) await withCode(page, member, "/api/v1/auth/login/second-factor", en.auth.secondFactorSubmit, en.auth.secondFactorCode);
+}
+
+// #1281 — types a code from totp.ts and submits, until the route answers. A step
+// another sign-in spent is refused with 400, uncharged, so the next code follows.
+async function withCode(page: Page, member: Member, route: string, submit: string, field: string) {
+  let attempts = 0;
+  for await (const code of codes(member.totpKey!)) {
+    await page.getByLabel(field).fill(code);
+    const answered = page.waitForResponse((r) => r.url().endsWith(route) && r.request().method() === "POST");
+    await page.getByRole("button", { name: submit }).click();
+    const status = (await answered).status();
+    if (status < 400) return;
+    if (status !== 400 || ++attempts >= 6) throw new Error(`${route} answered ${status} after ${attempts} code(s)`);
+  }
 }
 
 const scopeBox = (page: Page, scope: string) => {
@@ -152,7 +170,9 @@ function consent(url: URL, redirect: string, member: Member, shots?: string, del
     await page.waitForTimeout(500);
     console.log(`form validation: Allow with no password stays on consent: ${!code && (await password.isVisible())}`);
     await password.fill(member.password);
-    await page.getByRole("button", { name: CONSENT.allow }).click();
+    // An enrolled member steps up with the password and a code (#1279).
+    if (member.totpKey) await withCode(page, member, "/api/v1/auth/step-up", CONSENT.allow, CONSENT_AUTH.secondFactorCode);
+    else await page.getByRole("button", { name: CONSENT.allow }).click();
     for (let i = 0; i < 100 && !code; i++) await page.waitForTimeout(100);
     if (!code) throw new Error("no authorization code reached the redirect URI");
     return code;

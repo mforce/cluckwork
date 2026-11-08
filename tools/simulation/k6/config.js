@@ -28,6 +28,7 @@ export const REFRESH_COOKIE_NAME_PREFIX = 'cluckwork_rt';
 
 export const AUTH_PATHS = {
   LOGIN: '/api/v1/auth/login',
+  SECOND_FACTOR: '/api/v1/auth/login/second-factor',
   REFRESH: '/api/v1/auth/refresh',
 };
 

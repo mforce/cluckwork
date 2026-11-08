@@ -51,12 +51,19 @@ export interface CastMember {
    * `default-farm` — see src/fixtures.ts.
    */
   farmCode?: string;
+  /**
+   * The authenticator key, for a member with two-factor on (#1281). reset.sh
+   * enrols the Owner and writes it here; the sign-in fixtures compute codes
+   * from it with totp.ts.
+   */
+  totpKey?: string;
 }
 
 interface RawCastMember {
   email: string;
   password: string;
   role: CastRole;
+  totpKey?: string;
 }
 
 interface RawCastFile {

@@ -108,26 +108,39 @@ async function driveK6(sentinel) {
       throw new Error(message);
     },
     BASE_URL: "http://127.0.0.1:1",
-    AUTH_PATHS: { LOGIN: "/api/v1/auth/login", REFRESH: "/api/v1/auth/refresh" },
+    AUTH_PATHS: { LOGIN: "/api/v1/auth/login", SECOND_FACTOR: "/api/v1/auth/login/second-factor", REFRESH: "/api/v1/auth/refresh" },
     CSRF_HEADER_NAME: "X-Cluckwork-Auth",
     CSRF_HEADER_VALUE: "1",
     REFRESH_COOKIE_NAME_PREFIX: "cluckwork_rt_",
+    // totp.js stands in as one code, so a member with a key reaches the code step.
+    nextCode: () => "000000",
   });
-  vm.runInContext(asScript(read("tools/simulation/k6/auth.js"), ["k6/http", "k6", "./config.js"]), context);
-  let error;
-  try {
-    context.login({ email: "probe@example.invalid", password: randomUUID() });
-  } catch (e) {
-    error = e;
-  }
+  vm.runInContext(asScript(read("tools/simulation/k6/auth.js"), ["k6/http", "k6", "./config.js", "./totp.js"]), context);
   const unmet = [];
-  if (posted !== 1) unmet.push(`login() posted ${posted} times, not once`);
-  // Its own error: a plain Error naming the status, not a TypeError or a
-  // ReferenceError from a sandbox that no longer fits the file.
-  if (error?.constructor?.name !== "Error" || !/status=401/.test(String(error.message)))
-    unmet.push(`login() did not throw its own failure naming status=401: ${String(error)}`);
-  const shape = errorShape(error);
-  return { unmet: [...unmet, ...shape.problems], text: [...output, ...shape.strings].join("\n") };
+  const strings = [];
+  // Without a key login() stops at the password step; with one, the code step
+  // answers the same 401 and login() stops there.
+  for (const [user, posts] of [
+    [{ email: "probe@example.invalid", password: randomUUID() }, 1],
+    [{ email: "probe@example.invalid", password: randomUUID(), totpKey: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" }, 2],
+  ]) {
+    posted = 0;
+    let error;
+    try {
+      context.login(user);
+    } catch (e) {
+      error = e;
+    }
+    if (posted !== posts) unmet.push(`login() posted ${posted} times, not ${posts}`);
+    // Its own error: a plain Error naming the status, not a TypeError or a
+    // ReferenceError from a sandbox that no longer fits the file.
+    if (error?.constructor?.name !== "Error" || !/status=401/.test(String(error.message)))
+      unmet.push(`login() did not throw its own failure naming status=401: ${String(error)}`);
+    const shape = errorShape(error);
+    unmet.push(...shape.problems);
+    strings.push(...shape.strings);
+  }
+  return { unmet, text: [...output, ...strings].join("\n") };
 }
 
 // signInForToken names the pending answer and every other refusal on two
@@ -146,15 +159,20 @@ async function driveProbeApi(sentinel) {
     },
     Response, Headers,
     API_PREFIX: "/api/v1", BASE_URL: "http://127.0.0.1:1",
+    // totp.ts stands in as one code, so a member with a key reaches the code step once.
+    codes: async function* () { yield "000000"; },
   });
   const source = stripTypeScriptTypes(read("tools/simulation/ui/src/api.ts"));
-  vm.runInContext(asScript(source, ["./env"]), context);
+  vm.runInContext(asScript(source, ["./env", "./totp"]), context);
   const member = { email: "probe@example.invalid", password: randomUUID(), farmCode: "default-farm" };
+  const keyed = { ...member, totpKey: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" };
   const unmet = [];
   const strings = [];
   for (const [answer, name, call] of [
     ["Auth.SecondFactorRequired", "signInForToken", () => context.signInForToken(member)],
     ["Identity.InvalidCredentials", "signInForToken", () => context.signInForToken(member)],
+    // The code step answers the same 401, so its failure path is driven too.
+    ["Auth.SecondFactorRequired", "signInForToken with a key", () => context.signInForToken(keyed)],
     ["Identity.InvalidCredentials", "apiGet", () => context.apiGet("token", "/flocks")],
   ]) {
     title = answer;
@@ -170,7 +188,7 @@ async function driveProbeApi(sentinel) {
     unmet.push(...shape.problems.map((issue) => `${name} with ${answer}: ${issue}`));
     strings.push(...shape.strings);
   }
-  if (fetched !== 3) unmet.push(`fetch was called ${fetched} times, not 3`);
+  if (fetched !== 5) unmet.push(`fetch was called ${fetched} times, not 5`);
   return { unmet, text: [...output, ...strings].join("\n") };
 }
 
@@ -254,7 +272,8 @@ const DRIVERS = {
 // each with what it does with a login response.
 const UNDRIVABLE = {
   "tools/simulation/k6/config.js": "defines the route constant and sends nothing",
-  "tools/simulation/ui/src/fixtures.ts": "signs in through the SPA's form in a live browser; it never reads a login response",
+  "tools/simulation/ui/src/fixtures.ts": "signs in through the SPA's form in a live browser; it reads only the code step's status, never a body",
+  "tools/verify/mcp/client.ts": "signs in through the SPA's form in a live browser; it reads only the code step's and step-up's status, never a body",
   "tools/simulation/ui/src/mutants.ts": "rewrites a successful login response's role inside a live Playwright browser; it prints no body",
   "tools/simulation/ui/specs/session-refresh.spec.ts": "reads only a successful (r.ok()) login response's token, against the live stack",
   "tools/simulation/ui/specs/session-races.spec.ts": "records that a login request was sent, against the live stack; it reads no body",
