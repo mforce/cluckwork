@@ -43,13 +43,14 @@ const CONSENT = process.env.MCP_LANG === "es" ? es.connect : en.connect;
 const CONSENT_AUTH = process.env.MCP_LANG === "es" ? es.auth : en.auth;
 const CAST = new URL("../../simulation/.sim-cast.json", import.meta.url);
 
-// totpKey: the Owner enrolled by reset.sh (#1281).
+// totpKey: the Owner reset.sh adds with two-factor on (#1281).
 type Member = { farmCode: string; email: string; password: string; totpKey?: string };
 
 function persona(name: string): Member {
   const cast = JSON.parse(readFileSync(CAST, "utf8"));
   switch (name) {
-    case "owner": return { farmCode: "default-farm", ...cast.owner };
+    // #1281 — the second Owner, with two-factor on, so connect and consent take codes.
+    case "owner": return { farmCode: "default-farm", ...cast.twoFactorOwner };
     // The seeder assigns the first Worker one flock (cast.ts restrictedWorker()).
     case "restricted-worker": return { farmCode: "default-farm", ...cast.cast.find((m: { role: string }) => m.role === "Worker") };
     case "readme-owner": return cast.readmeFarm;

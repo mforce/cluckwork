@@ -52,9 +52,9 @@ export interface CastMember {
    */
   farmCode?: string;
   /**
-   * The authenticator key, for a member with two-factor on (#1281). reset.sh
-   * enrols the Owner and writes it here; the sign-in fixtures compute codes
-   * from it with totp.ts.
+   * The authenticator key, for a member with two-factor on (#1281). Only
+   * `twoFactorOwner()` has one; the sign-in fixtures compute codes from it
+   * with totp.ts.
    */
   totpKey?: string;
 }
@@ -73,6 +73,8 @@ interface RawCastFile {
   cast: RawCastMember[];
   /** The README-capture farm's Owner — a different farm, hence its own code. */
   readmeFarm?: RawCastMember & { farmCode: string };
+  /** A second default-farm Owner with two-factor on, added by reset.sh (#1281). */
+  twoFactorOwner?: RawCastMember;
 }
 
 const CAST_PATH = fileURLToPath(new URL("../../.sim-cast.json", import.meta.url));
@@ -157,6 +159,22 @@ export function castMember(role: CastRole): CastMember {
 /** The Owner. `.sim-cast.json` puts them outside the `cast` array; loadCast() puts them first. */
 export function owner(): CastMember {
   return castMember("Owner");
+}
+
+/**
+ * A second Owner of the default farm, with two-factor on (#1281). reset.sh adds
+ * them and their key. Outside loadCast(), so every persona spec keeps signing
+ * in as the unenrolled `owner()`, which the gate lets through while its grace
+ * lasts; each reset starts that grace afresh.
+ */
+export function twoFactorOwner(): CastMember {
+  const raw = loadFile().twoFactorOwner;
+  if (!raw?.totpKey) {
+    throw new Error(
+      `.sim-cast.json has no twoFactorOwner with a key. Re-run \`bash tools/simulation/reset.sh\`, which adds them.`,
+    );
+  }
+  return decorate(raw);
 }
 
 /**
