@@ -1,9 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using Cluckwork.Api.Configuration;
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
-using Microsoft.AspNetCore.Diagnostics;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -23,8 +22,7 @@ namespace Cluckwork.Api.Middleware;
 public sealed class OwnerTwoFactorGateMiddleware(
     RequestDelegate next,
     IOptions<OwnerGraceOptions> options,
-    TimeProvider clock,
-    ILogger<OwnerTwoFactorGateMiddleware> logger)
+    TimeProvider clock)
 {
     // A start the clock has not reached yet is skew up to this much; beyond it
     // a future-dated value counts as past the deadline.
@@ -40,14 +38,9 @@ public sealed class OwnerTwoFactorGateMiddleware(
         (HttpMethods.Post, "/api/v1/auth/two-factor/confirm"),
     ];
 
-    public async Task InvokeAsync(HttpContext context, IOwnerGraceStart graceStart)
+    public async Task InvokeAsync(HttpContext context)
     {
-        // The credential check skips exactly these three, so every other
-        // Owner request carries its CredentialCheck.
-        if (context.User.Identity?.IsAuthenticated != true
-            || context.Features.Get<IExceptionHandlerFeature>() is not null
-            || LogoutPath.Matches(context.Request.Path)
-            || !context.User.FindAll("role").Any(role => role.Value == Roles.Owner))
+        if (!CredentialEpochMiddleware.ChecksRequest(context) || !context.User.IsInRole(Roles.Owner))
         {
             await next(context);
             return;
@@ -58,7 +51,7 @@ public sealed class OwnerTwoFactorGateMiddleware(
                 "An Owner request reached the two-factor gate without a credential check; "
                 + "CredentialEpochMiddleware must run first.");
         var now = clock.GetUtcNow();
-        var start = check.SecondFactorRequiredSince ?? await StartGraceAsync(context, graceStart, now);
+        var start = check.SecondFactorRequiredSince ?? await StartGraceAsync(context, now);
 
         if (check.TwoFactorEnabled
             || (start <= now + ClockSkew && now < start.AddDays(options.Value.OwnerGraceDays))
@@ -81,12 +74,13 @@ public sealed class OwnerTwoFactorGateMiddleware(
     // The start is now, for this request, whether or not the write lands. A
     // failed write lets the request through and the next request tries again
     // (the maintainer, 2026-10-21: "Log an alert event").
-    private async Task<DateTimeOffset> StartGraceAsync(HttpContext context, IOwnerGraceStart graceStart, DateTimeOffset now)
+    // Resolved here, not per request: the write happens once per Owner.
+    private static async Task<DateTimeOffset> StartGraceAsync(HttpContext context, DateTimeOffset now)
     {
         try
         {
             // The credential check parsed both claims before it read the row.
-            await graceStart.StartAsync(
+            await context.RequestServices.GetRequiredService<IOwnerGraceStart>().StartAsync(
                 Guid.Parse(context.User.FindFirst("account_id")!.Value),
                 Guid.Parse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value),
                 now, context.RequestAborted);
@@ -98,8 +92,7 @@ public sealed class OwnerTwoFactorGateMiddleware(
         catch (Exception)
         {
             // No exception: a database error can quote the row, and the event carries no user id.
-            logger.LogWarning("{SecurityEvent} client={ClientIp}",
-                SecurityEvents.OwnerGraceStartFailed, context.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+            context.RequestServices.GetRequiredService<AuthSecurityEventLogger>().OwnerGraceStartFailed();
         }
 
         return now;

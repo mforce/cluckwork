@@ -8,6 +8,7 @@ using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
@@ -31,6 +32,7 @@ public sealed class OwnerTwoFactorGateUnitTests
     private readonly SettableClock clock = new();
     private readonly RecordingGraceStart graceStart = new();
     private readonly RecordingLogger logger = new();
+    private readonly List<Type> resolved = [];
 
     public OwnerTwoFactorGateUnitTests() => clock.Freeze();
 
@@ -137,11 +139,14 @@ public sealed class OwnerTwoFactorGateUnitTests
         Assert.Equal(Now, Assert.Single(graceStart.Calls));
     }
 
+    // The write happens once per Owner, so a request that needs no start
+    // builds no grace-start port.
     [Fact]
-    public async Task ASetStart_IsNotWrittenAgain()
+    public async Task ASetStart_IsNotWrittenAgain_AndBuildsNoGraceStart()
     {
         await RunAsync(Owner(), Check(enrolled: false, Deadline(TimeSpan.FromDays(1))));
         Assert.Empty(graceStart.Calls);
+        Assert.DoesNotContain(typeof(IOwnerGraceStart), resolved);
     }
 
     [Fact]
@@ -166,9 +171,10 @@ public sealed class OwnerTwoFactorGateUnitTests
 
     // The gate cannot read a second setting or a per-user exemption: its
     // constructor and InvokeAsync take no configuration, no environment and no
-    // options but the one type, which holds the days and nothing else.
+    // options but the one type, which holds the days and nothing else. What it
+    // resolves per request, the strict provider below limits.
     [Fact]
-    public void TheGatesInputs_AreTheDaysTheClockAndTheGraceStart()
+    public void TheGatesInputs_AreTheDaysAndTheClock()
     {
         var gate = typeof(OwnerTwoFactorGateMiddleware);
         var parameters = gate.GetConstructors().SelectMany(c => c.GetParameters())
@@ -176,8 +182,7 @@ public sealed class OwnerTwoFactorGateUnitTests
             .Select(p => p.ParameterType).ToList();
 
         Assert.Equal(
-            [typeof(RequestDelegate), typeof(IOptions<OwnerGraceOptions>), typeof(TimeProvider),
-                typeof(ILogger<OwnerTwoFactorGateMiddleware>), typeof(HttpContext), typeof(IOwnerGraceStart)],
+            [typeof(RequestDelegate), typeof(IOptions<OwnerGraceOptions>), typeof(TimeProvider), typeof(HttpContext)],
             parameters);
         Assert.DoesNotContain(parameters, t => typeof(IConfiguration).IsAssignableFrom(t) || typeof(IHostEnvironment).IsAssignableFrom(t));
         Assert.Equal([nameof(OwnerGraceOptions.OwnerGraceDays)],
@@ -196,14 +201,15 @@ public sealed class OwnerTwoFactorGateUnitTests
         var passed = false;
         var gate = new OwnerTwoFactorGateMiddleware(
             _ => { passed = true; return Task.CompletedTask; },
-            Options.Create(new OwnerGraceOptions { OwnerGraceDays = Days }), clock, logger);
-        await gate.InvokeAsync(context, graceStart);
+            Options.Create(new OwnerGraceOptions { OwnerGraceDays = Days }), clock);
+        await gate.InvokeAsync(context);
         return passed;
     }
 
-    private static DefaultHttpContext Request(ClaimsPrincipal user, CredentialCheck? check, string method = "GET", string path = GatedPath)
+    private DefaultHttpContext Request(ClaimsPrincipal user, CredentialCheck? check, string method = "GET", string path = GatedPath)
     {
-        var context = new DefaultHttpContext { User = user, RequestServices = new OnlyJsonOptions() };
+        var context = new DefaultHttpContext { User = user };
+        context.RequestServices = new StrictServices(this, context);
         context.Request.Method = method;
         context.Request.Path = path;
         context.Response.Body = new MemoryStream();
@@ -233,11 +239,19 @@ public sealed class OwnerTwoFactorGateUnitTests
         return (await JsonSerializer.DeserializeAsync<ProblemDetails>(context.Response.Body, JsonSerializerOptions.Web))!;
     }
 
-    private sealed class OnlyJsonOptions : IServiceProvider
+    // WriteAsJsonAsync's options, the grace start and the event logger; any
+    // other lookup throws.
+    private sealed class StrictServices(OwnerTwoFactorGateUnitTests test, HttpContext context) : IServiceProvider
     {
-        public object GetService(Type serviceType) => serviceType == typeof(IOptions<HttpJsonOptions>)
-            ? Options.Create(new HttpJsonOptions())
-            : throw new InvalidOperationException($"the gate asked for {serviceType}");
+        public object GetService(Type serviceType)
+        {
+            test.resolved.Add(serviceType);
+            if (serviceType == typeof(IOptions<HttpJsonOptions>)) return Options.Create(new HttpJsonOptions());
+            if (serviceType == typeof(IOwnerGraceStart)) return test.graceStart;
+            if (serviceType == typeof(AuthSecurityEventLogger))
+                return new AuthSecurityEventLogger(new HttpContextAccessor { HttpContext = context }, test.logger);
+            throw new InvalidOperationException($"the gate asked for {serviceType}");
+        }
     }
 
     private sealed class RecordingGraceStart : IOwnerGraceStart
@@ -254,7 +268,7 @@ public sealed class OwnerTwoFactorGateUnitTests
         }
     }
 
-    private sealed class RecordingLogger : ILogger<OwnerTwoFactorGateMiddleware>
+    private sealed class RecordingLogger : ILogger<AuthSecurityEventLogger>
     {
         public List<(LogLevel Level, string Message)> Entries { get; } = [];
 

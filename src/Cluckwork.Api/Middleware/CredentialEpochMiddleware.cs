@@ -21,9 +21,7 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
 {
     public async Task InvokeAsync(HttpContext context, ICredentialEpochVerifier verifier)
     {
-        if (context.User.Identity?.IsAuthenticated == true
-            && context.Features.Get<IExceptionHandlerFeature>() is null
-            && !LogoutPath.Matches(context.Request.Path))
+        if (ChecksRequest(context))
         {
             var userIdClaim = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             var accountIdClaim = context.User.FindFirst("account_id")?.Value;
@@ -86,4 +84,12 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
 
         await next(context);
     }
+
+    // The requests this check reads the row for: authenticated, not the
+    // exception handler's re-execution and not logout. The Owner two-factor
+    // gate skips exactly the others, so it can require the check on these.
+    internal static bool ChecksRequest(HttpContext context) =>
+        context.User.Identity?.IsAuthenticated == true
+        && context.Features.Get<IExceptionHandlerFeature>() is null
+        && !LogoutPath.Matches(context.Request.Path);
 }
