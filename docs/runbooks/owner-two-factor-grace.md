@@ -42,7 +42,7 @@ When the fault is fixed and the Owners have enrolled, remove the variable or set
 
 ## If it fails
 
-- **The API does not start** and the log names `TwoFactor:OwnerGraceDays must be a whole number from 1 to 365`. Fix the value. A value of 0 or a negative value never means "no grace".
+- **The API does not start** and the log says `TwoFactor:OwnerGraceDays must be a whole number from 1 to 365, and '<value>' is not.` A number out of range, a fraction and a word all fail this way. Fix the value. A value of 0 or a negative value never means "no grace".
 - **`Auth.OwnerGraceStartFailed` warnings** in the log. Setting an Owner's grace start failed, so the request passed and the next one tries again. While it keeps failing, that Owner's grace does not end. A steady rate points at the database; see the [log redaction policy](../security/log-redaction-policy.md) for the event.
 
 ## Drill

@@ -437,7 +437,13 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
     public void AnOutOfRangeOrFractionalGrace_FailsTheBoot(string days)
     {
         using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:OwnerGraceDays", days));
-        Assert.ThrowsAny<Exception>(() => host.CreateClient());
+        var thrown = Assert.ThrowsAny<Exception>(() => host.CreateClient());
+
+        // The guard's own refusal, not an unrelated failure further on.
+        var chain = new List<Exception>();
+        for (Exception? e = thrown; e is not null; e = e.InnerException) chain.Add(e);
+        Assert.Contains(chain, e => e is InvalidOperationException && e.Message.Contains(
+            $"TwoFactor:OwnerGraceDays must be a whole number from 1 to 365, and '{days}' is not.", StringComparison.Ordinal));
     }
 
     [Fact]
