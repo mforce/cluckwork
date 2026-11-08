@@ -16,6 +16,12 @@ const STEP_SECONDS = 30;
 const OLDEST = 1;
 const NEWEST = 2;
 export const MAX_CODE_ATTEMPTS = 3;
+
+// Why every code was refused, and what to do. Kept beside ui/src/totp.ts's copy.
+export const CODE_STEP_HINT =
+  "One of three causes. Another sign-in used this Owner's codes in the last minute: wait one minute, then run once more. " +
+  "The cast file's twoFactorOwner.totpKey or this host's clock is wrong: re-run `bash tools/simulation/reset.sh`, or fix the clock. " +
+  "Or the account is locked. Wrong codes count across runs, so a second failing run locks the Owner for 15 minutes.";
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 let lastStep = 0;

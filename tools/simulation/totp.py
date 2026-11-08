@@ -30,4 +30,6 @@ def code(key, step=None):
 
 
 if __name__ == "__main__":
+    if sys.stdin.isatty():
+        sys.exit("usage: jq -r .twoFactorOwner.totpKey tools/simulation/.sim-cast.json | python3 tools/simulation/totp.py")
     print(code(sys.stdin.read().strip()))

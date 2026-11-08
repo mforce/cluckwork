@@ -34,7 +34,7 @@ function load(seconds) {
         createHmac(algorithm, Buffer.from(secret)).update(Buffer.from(data)).digest(encoding),
     },
   });
-  vm.runInContext(`${SOURCE}\nglobalThis.MAX = MAX_CODE_ATTEMPTS;`, context);
+  vm.runInContext(`${SOURCE}\nglobalThis.MAX = MAX_CODE_ATTEMPTS;\nglobalThis.HINT = CODE_STEP_HINT;`, context);
   return { context, sleeps };
 }
 
@@ -64,6 +64,13 @@ test("a wrong key stops before the lockout", () => {
   assert.equal(answer.status, 400);
   assert.equal(submitted, context.MAX);
   assert.ok(context.MAX < 5);
+});
+
+// login() adds this hint when the code step fails; wrong codes count across runs.
+test("the failure hint names every cause and the lockout", () => {
+  const { context } = load(0);
+  for (const cause of [/another sign-in/i, /totpKey/, /clock/, /locked/, /second failing run.*15 minutes/s])
+    assert.match(context.HINT, cause);
 });
 
 test("an accepted code ends the sign-in", () => {

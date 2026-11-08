@@ -35,7 +35,7 @@ import {
   CSRF_HEADER_VALUE,
   REFRESH_COOKIE_NAME_PREFIX,
 } from './config.js';
-import { withCodes } from './totp.js';
+import { CODE_STEP_HINT, withCodes } from './totp.js';
 
 // How close to `accessTokenExpiry` (in seconds) before maybeRefresh() will
 // proactively refresh. Access tokens live 15 minutes; 60s of slack is ample
@@ -121,7 +121,8 @@ export function login(user) {
   // The status and title only: a failed login's body can carry a sign-in challenge (#1274).
   if (!ok) {
     throw new Error(
-      `login failed for ${user.email}: status=${res.status} title=${body && body.title}`
+      `login failed for ${user.email}: status=${res.status} title=${body && body.title}` +
+        (user.totpKey ? ` ${CODE_STEP_HINT}` : '')
     );
   }
 

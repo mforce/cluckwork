@@ -20,6 +20,12 @@ export const STEP_SECONDS = 30;
 const OLDEST = 1;
 const NEWEST = 2;
 export const MAX_CODE_ATTEMPTS = 3;
+
+// Why every code was refused, and what to do. Kept beside k6/totp.js's copy.
+export const CODE_STEP_HINT =
+  "One of three causes. Another sign-in used this Owner's codes in the last minute: wait one minute, then run once more. " +
+  "The cast file's twoFactorOwner.totpKey or this host's clock is wrong: re-run `bash tools/simulation/reset.sh`, or fix the clock. " +
+  "Or the account is locked. Wrong codes count across runs, so a second failing run locks the Owner for 15 minutes.";
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 export interface Clock {
@@ -85,11 +91,6 @@ export async function withCodes(key: string, submit: (code: string) => Promise<n
     attempts++;
     if (status < 400) return;
     if (status !== 400 || attempts >= MAX_CODE_ATTEMPTS)
-      throw new Error(
-        `the code step answered ${status} to ${attempts} code(s). Another sign-in may have used this Owner's codes `
-          + `in the last minute: wait a minute and try again. If it still fails, check that the cast file's `
-          + `twoFactorOwner.totpKey belongs to this stack (re-run \`bash tools/simulation/reset.sh\`) and that this `
-          + `host's clock is right.`,
-      );
+      throw new Error(`the code step answered ${status} to ${attempts} code(s). ${CODE_STEP_HINT}`);
   }
 }

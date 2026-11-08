@@ -51,12 +51,16 @@ test("a code taken just before a step boundary is still in the window when it ar
 });
 
 // AccessFailedCount locks the account at 5, so a wrong key must stop first.
-test("a wrong key stops before the lockout, naming the key and the clock", async () => {
+// The message names every cause, and that a second failing run locks the
+// Owner: wrong codes count across runs.
+test("a wrong key stops before the lockout, naming every cause and the lockout", async () => {
   const { clock } = pinned(3_000_000 * STEP_SECONDS);
   let submitted = 0;
-  await assert.rejects(withCodes(RFC_KEY, async () => { submitted++; return 400; }, clock), /totpKey.*clock/s);
+  const error = await withCodes(RFC_KEY, async () => { submitted++; return 400; }, clock).then(() => null, (e) => e);
   assert.equal(submitted, MAX_CODE_ATTEMPTS);
   assert.ok(MAX_CODE_ATTEMPTS < 5);
+  for (const cause of [/another sign-in/i, /totpKey/, /clock/, /locked/, /second failing run.*15 minutes/s])
+    assert.match(String(error?.message), cause);
 });
 
 test("a refused code is followed by the next step's code, and an accepted one ends the sign-in", async () => {

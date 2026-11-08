@@ -33,7 +33,9 @@ public sealed class OwnerGraceWriterTests
     // which sets no grace, so the stack runs the shipped 14 days and no env file
     // can raise them. Comments go first, at any indent, so neither a comment
     // that names env_file nor one that would end the block early misleads the
-    // scan; keys match quoted or not, as Compose reads them.
+    // scan; keys match quoted or not, as Compose reads them. Known limits: a
+    // text scan cannot follow a YAML merge key (<<: *anchor) or extends:, so
+    // either could bring an env_file or a grace in from elsewhere unseen.
     [Fact]
     public void TheSimulationAppService_ReadsNoEnvFile_AndSetsNoGrace()
     {

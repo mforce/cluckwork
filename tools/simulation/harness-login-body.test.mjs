@@ -114,6 +114,7 @@ async function driveK6(sentinel) {
     REFRESH_COOKIE_NAME_PREFIX: "cluckwork_rt_",
     // totp.js stands in as one code, so a member with a key reaches the code step once.
     withCodes: (key, submit) => submit("000000"),
+    CODE_STEP_HINT: "the code step hint",
   });
   vm.runInContext(asScript(read("tools/simulation/k6/auth.js"), ["k6/http", "k6", "./config.js", "./totp.js"]), context);
   const unmet = [];
