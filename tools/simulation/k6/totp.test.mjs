@@ -73,3 +73,12 @@ test("an accepted code ends the sign-in", () => {
   assert.equal(answer.status, 200);
   assert.equal(submitted, 2);
 });
+
+// Only a 400 is a refused code; an expired challenge or a limit is final.
+test("any failure but a refused code stops at once", () => {
+  const { context } = load(4_000 * 30);
+  let submitted = 0;
+  const answer = context.withCodes(RFC_KEY, () => { submitted++; return { status: 401 }; });
+  assert.equal(answer.status, 401);
+  assert.equal(submitted, 1);
+});

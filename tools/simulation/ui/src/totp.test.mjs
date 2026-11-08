@@ -73,7 +73,7 @@ const SIM_DIR = fileURLToPath(new URL("../..", import.meta.url));
 // later sign-in uses this one, so the two must agree.
 test("reset.sh's Python helper computes the same codes", () => {
   const steps = [1, 37037036, 66666666];
-  const run = spawnSync("python3", ["-I", "-c",
+  const run = spawnSync("python3", ["-I", "-B", "-c",
     `import sys; sys.path.insert(0, sys.argv[1]); import totp; print(" ".join(totp.code(sys.argv[2], int(s)) for s in sys.argv[3:]))`,
     SIM_DIR, RFC_KEY, ...steps.map(String)], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
@@ -82,9 +82,17 @@ test("reset.sh's Python helper computes the same codes", () => {
 
 // The Python helper's own clock: RFC 6238's T = 59 s is step 1.
 test("reset.sh's Python helper reads 30-second steps from the clock", () => {
-  const run = spawnSync("python3", ["-I", "-c",
+  const run = spawnSync("python3", ["-I", "-B", "-c",
     `import sys, time; sys.path.insert(0, sys.argv[1]); import totp; time.time = lambda: 59; print(totp.code(sys.argv[2]))`,
     SIM_DIR, RFC_KEY], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout.trim(), "287082");
+});
+
+// Only a 400 is a refused code; an expired challenge or a limit is final.
+test("any failure but a refused code stops at once", async () => {
+  const { clock } = pinned(5_000_000 * STEP_SECONDS);
+  let submitted = 0;
+  await assert.rejects(withCodes(RFC_KEY, async () => { submitted++; return 401; }, clock), /answered 401/);
+  assert.equal(submitted, 1);
 });
