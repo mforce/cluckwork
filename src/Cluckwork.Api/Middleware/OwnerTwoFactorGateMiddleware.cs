@@ -73,17 +73,19 @@ public sealed class OwnerTwoFactorGateMiddleware(
 
     // The start is now, for this request, whether or not the write lands. A
     // failed write lets the request through and the next request tries again
-    // (the maintainer, 2026-10-21: "Log an alert event"). The port is resolved
-    // here, not per request, because the write happens once per Owner.
+    // (the maintainer, 2026-10-21: "Log an alert event"). Only the write fails
+    // open, so the services are resolved and the claims parsed before it; the
+    // services are resolved only for a request that finds no start.
     private static async Task<DateTimeOffset> StartGraceAsync(HttpContext context, DateTimeOffset now)
     {
+        var graceStart = context.RequestServices.GetRequiredService<IOwnerGraceStart>();
+        var events = context.RequestServices.GetRequiredService<AuthSecurityEventLogger>();
+        // The credential check parsed both claims before it read the row.
+        var accountId = Guid.Parse(context.User.FindFirst("account_id")!.Value);
+        var userId = Guid.Parse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
         try
         {
-            // The credential check parsed both claims before it read the row.
-            await context.RequestServices.GetRequiredService<IOwnerGraceStart>().StartAsync(
-                Guid.Parse(context.User.FindFirst("account_id")!.Value),
-                Guid.Parse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value),
-                now, context.RequestAborted);
+            await graceStart.StartAsync(accountId, userId, now, context.RequestAborted);
         }
         catch (OperationCanceledException)
         {
@@ -92,7 +94,7 @@ public sealed class OwnerTwoFactorGateMiddleware(
         catch (Exception)
         {
             // No exception: a database error can quote the row, and the event carries no user id.
-            context.RequestServices.GetRequiredService<AuthSecurityEventLogger>().OwnerGraceStartFailed();
+            events.OwnerGraceStartFailed();
         }
 
         return now;

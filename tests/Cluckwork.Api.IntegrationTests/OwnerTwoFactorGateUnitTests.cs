@@ -33,6 +33,7 @@ public sealed class OwnerTwoFactorGateUnitTests
     private readonly RecordingGraceStart graceStart = new();
     private readonly RecordingLogger logger = new();
     private readonly List<Type> resolved = [];
+    private bool graceStartRegistered = true;
 
     public OwnerTwoFactorGateUnitTests() => clock.Freeze();
 
@@ -162,6 +163,16 @@ public sealed class OwnerTwoFactorGateUnitTests
         Assert.Contains(SecurityEvents.OwnerGraceStartFailed, message, StringComparison.Ordinal);
     }
 
+    // Only the start's own write fails open. A missing registration is a
+    // wiring bug and must not pass as a failed write.
+    [Fact]
+    public async Task AMissingGraceStartRegistration_Throws()
+    {
+        graceStartRegistered = false;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => RunAsync(Owner(), Check(enrolled: false, start: null)));
+        Assert.Empty(logger.Entries);
+    }
+
     [Fact]
     public async Task ACancelledStart_IsRethrown()
     {
@@ -247,7 +258,7 @@ public sealed class OwnerTwoFactorGateUnitTests
         {
             test.resolved.Add(serviceType);
             if (serviceType == typeof(IOptions<HttpJsonOptions>)) return Options.Create(new HttpJsonOptions());
-            if (serviceType == typeof(IOwnerGraceStart)) return test.graceStart;
+            if (serviceType == typeof(IOwnerGraceStart)) return test.graceStartRegistered ? test.graceStart : null!;
             if (serviceType == typeof(AuthSecurityEventLogger))
                 return new AuthSecurityEventLogger(new HttpContextAccessor { HttpContext = context }, test.logger);
             throw new InvalidOperationException($"the gate asked for {serviceType}");
