@@ -292,8 +292,9 @@ RateLimiting__Refresh__PermitLimit=1000000
 RateLimiting__Refresh__WindowSeconds=900
 RateLimiting__ClientErrors__PermitLimit=1000000
 RateLimiting__ClientErrors__WindowSeconds=300
-# #1281 — the enrolled Owner's code step has its own per-address bucket, and
-# the Playwright suite signs that Owner in dozens of times from one host.
+# #1281 — the code step has its own per-address bucket. Like Login above:
+# reset.sh, the suite, k6 and the verify client each sign the two-factor Owner
+# in once per run, from one host, and runs go back to back.
 RateLimiting__SecondFactor__PermitLimit=1000000
 RateLimiting__SecondFactor__WindowSeconds=900
 

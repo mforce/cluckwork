@@ -50,7 +50,8 @@ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install   # on NixOS — see "Browsers"
 #                              npm install && npx playwright install chromium   # elsewhere
 
 # 3. Run.
-npm test                    # the smoke suite (~6 min, one worker)
+npm test                    # the smoke suite (6.2 min on one worker, measured 2026-11-08;
+                            # CI's e2e job splits it across three shards)
 npm run report              # open the HTML report
 npm run mutation            # prove the suite can actually fail (~3 min)
 bash run-canary.sh          # Core Web Vitals on a quiet system

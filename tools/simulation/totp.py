@@ -1,13 +1,15 @@
-"""Authenticator codes for the simulation Owner (#1281), as the server's
+"""Authenticator codes for the cast's twoFactorOwner (#1281), as the server's
 TotpMatcher computes them: RFC 6238, SHA-1, 30-second steps, 6 digits.
 
-reset.sh imports code() to confirm the Owner's enrolment. From a shell, print
-the code for the current step:
+reset.sh imports code() to confirm that Owner's enrolment. From a shell, print
+the code for the current step. The key goes in on stdin, so no process list
+shows it:
 
-    python3 tools/simulation/totp.py "$(jq -r .owner.totpKey tools/simulation/.sim-cast.json)"
+    jq -r .twoFactorOwner.totpKey tools/simulation/.sim-cast.json | python3 tools/simulation/totp.py
 
-The server takes each step once. Wait for the next 30-second step before you
-use a code for the same Owner again.
+The server takes each step once. After a harness signed this Owner in, wait up
+to two minutes before you use a code for them, because a harness may have used
+steps up to a minute ahead.
 """
 import base64
 import hashlib
@@ -28,4 +30,4 @@ def code(key, step=None):
 
 
 if __name__ == "__main__":
-    print(code(sys.argv[1]))
+    print(code(sys.stdin.read().strip()))

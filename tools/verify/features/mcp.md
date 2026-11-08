@@ -87,14 +87,16 @@ credentials come from `.sim-cast.json` and are never printed. `jq` reads the rep
 
 The `owner` persona is the second Owner `reset.sh` adds with two-factor on (#1281); the cast
 file keeps them and their key as `twoFactorOwner`. `code` prints their authenticator code for
-now, and `login` sends it when its second argument names `code`. The server takes each 30-second
-step once, so wait for the next step before this Owner signs in again. The challenge stays in a
-variable and is never printed.
+now, reading the key on stdin so no process list shows it, and `login` sends the code when its
+second argument names `code`. The server takes each 30-second step once, and a harness may have
+used steps up to a minute ahead, so after `reset.sh`, the Playwright suite or k6 signed this
+Owner in, wait two minutes before this block. The challenge stays in a variable and is never
+printed.
 
 ```sh
 S=~/.tmp/mcp-verify; C="--cacert $S/cert.pem"; MCP=https://localhost:8495; APP=http://127.0.0.1:8081
 CAST=../../simulation/.sim-cast.json; T=$S/owner-read.token; W=$S/worker-read.token; WO=$S/owner-write.token
-code() { python3 ../../simulation/totp.py "$(jq -r .twoFactorOwner.totpKey $CAST)"; }
+code() { jq -r .twoFactorOwner.totpKey $CAST | python3 ../../simulation/totp.py; }
 login() { R=$(jq "$1" $CAST | curl -s $APP/api/v1/auth/login -H 'content-type: application/json' -d @-); if [ -n "$2" ] && [ "$(jq -r .title <<<"$R")" = Auth.SecondFactorRequired ]; then R=$(jq -c --arg code "$($2)" '{challenge,code:$code}' <<<"$R" | curl -s $APP/api/v1/auth/login/second-factor -H 'content-type: application/json' -d @-); fi; jq -r '.accessToken // ("sign-in failed: \(.status) \(.title)\n" | halt_error)' <<<"$R"; }
 JWT=$(login '{farmCode:"default-farm",email:.twoFactorOwner.email,password:.twoFactorOwner.password}' code)
 WJWT=$(login '{farmCode:"default-farm"} + ([.cast[]|select(.role=="Worker")][0]|{email,password})')
