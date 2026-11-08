@@ -36,12 +36,13 @@ public sealed class OwnerGraceWriterTests
     }
 
     // G6.8: the simulation app service reads only its own environment block,
-    // which sets neither setting, so the stack runs the shipped 14 days with the
-    // requirement on, and no env file can change either. Comments go first, at any indent, so neither a comment
-    // that names env_file nor one that would end the block early misleads the
-    // scan; keys match quoted or not, as Compose reads them. Known limits: a
-    // text scan cannot follow a YAML merge key (<<: *anchor) or extends:, so
-    // either could bring an env_file or a grace in from elsewhere unseen.
+    // which sets neither setting, so the stack runs the shipped 14 days with
+    // the requirement on, and no env file can change either. Comments go
+    // first, at any indent, so neither a comment that names env_file nor one
+    // that would end the block early misleads the scan; keys match quoted or
+    // not, as Compose reads them. Known limits: a text scan cannot follow a
+    // YAML merge key (<<: *anchor) or extends:, so either could bring an
+    // env_file or a setting in from elsewhere unseen.
     [Fact]
     public void TheSimulationAppService_ReadsNoEnvFile_AndSetsNeitherSetting()
     {

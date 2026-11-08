@@ -257,8 +257,9 @@ internal static class CluckworkIdentityServiceCollectionExtensions
                 $"{key} must be a whole number from {OwnerGraceOptions.MinDays} to {OwnerGraceOptions.MaxDays}, and '{value}' is not.");
     }
 
-    // #1281: a switch that is not true or false fails the boot, rather than
-    // failing the first Owner request that binds it.
+    // #1281: WarnIfRelaxed's bind already kills a boot on a value that is not
+    // true or false; this guard names the key in the message and gives the
+    // serving-guard registries a row.
     private static void EnsureRequireForOwners(IConfiguration configuration)
     {
         const string key = $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.RequireForOwners)}";

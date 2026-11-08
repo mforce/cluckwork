@@ -155,11 +155,13 @@ public sealed partial class SecondFactorLoginTests
     }
 
     // With TwoFactor:RequireForOwners off, an Owner turns two-factor off like
-    // a Manager (the maintainer, 2026-11-08: "Yes, follows the setting").
+    // a Manager (the maintainer, 2026-11-08: "Yes, follows the setting (Recommended)").
     [Fact]
     public async Task WithTheRequirementOff_AnOwner_TurnsTheirOwnTwoFactorOff()
     {
         var (email, factor) = await SeedEnrolledAsync();
+        var other = await factory.LoginAsync(email);
+        var epoch = (await FactorStateAsync(factor.AccountId, factor.UserId)).Epoch;
         using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", "false"));
         var client = host.CreateClient(TestHarness.Cookieless(factory));
         client.DefaultRequestHeaders.Authorization = new("Bearer", (await factory.LoginAsync(email)).AccessToken);
@@ -170,6 +172,8 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Empty(await TwoFactorRowsAsync(factor.AccountId, factor.UserId));
         Assert.Single(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+        Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Epoch > epoch, "the epoch did not move");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(other.AccessToken)).StatusCode);
     }
 
     // The turn-off spends its grant before it takes the user-row lock; a

@@ -214,7 +214,7 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         ("Jwt", "Jwt__AccessTokenMinutes", "not-a-number"),
         // #1278 — only refresh reads the enrolled-session cap.
         ("Auth", "Auth__EnrolledSessionMaxDays", "not-a-number"),
-        // #1281 — only the serving host's Owner two-factor gate reads the grace.
+        // #1281 — only the serving host reads the grace and the requirement switch.
         ("TwoFactor", "TwoFactor__OwnerGraceDays", "not-a-number"),
         ("TwoFactor", "TwoFactor__RequireForOwners", "not-a-bool"),
         // #543 — SharedState:Redis:ConnectionString is a string, so it cannot

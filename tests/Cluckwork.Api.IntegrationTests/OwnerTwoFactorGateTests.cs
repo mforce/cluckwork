@@ -520,10 +520,11 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
         Assert.False(managerBody.TryGetProperty("requiredBy", out _));
     }
 
-    // TwoFactor:RequireForOwners off (the maintainer, 2026-11-08): the gate
-    // refuses nothing and records no start, and the status route sends no
-    // deadline. Switched back on, an Owner with no start gets a fresh grace
-    // from their next request, and a start set earlier still counts.
+    // TwoFactor:RequireForOwners off: the gate refuses nothing and records no
+    // start (the maintainer, 2026-11-08: "No, record nothing (Recommended)"),
+    // and the status route sends no deadline ("Yes, follows the setting
+    // (Recommended)"). Switched back on, an Owner with no start gets a fresh
+    // grace from their next request, and a start set earlier still counts.
     [Fact]
     public async Task WithTheRequirementOff_NoOwnerIsGated_NoStartIsRecorded_AndRequiredByIsOmitted()
     {
@@ -584,16 +585,26 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
         Assert.All(shipped, file => Assert.DoesNotContain("RequireForOwners", File.ReadAllText(file), StringComparison.OrdinalIgnoreCase));
     }
 
-    // Every startup while the requirement is off logs one warning (the
-    // maintainer, 2026-11-08: "Startup warning").
+    // Every startup while the requirement is off logs one warning, and no
+    // request adds another. Case and surrounding whitespace do not matter, as
+    // bool.TryParse reads the value (the maintainer, 2026-11-08: "Startup warning
+    // (Recommended)").
     [Theory]
     [InlineData("false", 1)]
+    [InlineData(" FALSE ", 1)]
     [InlineData("true", 0)]
-    public void TheRequirementOff_LogsOneWarningAtStartup(string value, int expected)
+    public async Task TheRequirementOff_LogsOneWarningAtStartup(string value, int expected)
     {
+        var owner = await SeedAsync();
+        var token = await factory.LoginForAccessTokenAsync(owner.Email);
         var before = factory.Sink.Events.Count;
         using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", value));
-        host.CreateClient().Dispose();
+        var client = host.CreateClient(TestHarness.Cookieless(factory));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        using var status = await client.GetAsync("/api/v1/auth/two-factor");
+        using var users = await client.GetAsync("/api/v1/users");
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, users.StatusCode);
 
         var warnings = factory.Sink.Events.Skip(before)
             .Count(e => e.Level == LogEventLevel.Warning && e.MessageTemplate.Text.StartsWith("Owner two-factor requirement off", StringComparison.Ordinal));

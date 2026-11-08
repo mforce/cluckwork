@@ -216,7 +216,7 @@ public sealed class OwnerTwoFactorGateUnitTests
             parameters);
         Assert.DoesNotContain(parameters, t => typeof(IConfiguration).IsAssignableFrom(t) || typeof(IHostEnvironment).IsAssignableFrom(t));
         Assert.Equal([nameof(OwnerGraceOptions.OwnerGraceDays), nameof(OwnerGraceOptions.RequireForOwners)],
-            typeof(OwnerGraceOptions).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Select(p => p.Name));
+            typeof(OwnerGraceOptions).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Select(p => p.Name).Order());
     }
 
     private async Task<(bool Passed, HttpContext Context)> RunAsync(
