@@ -73,8 +73,8 @@ public sealed class OwnerTwoFactorGateMiddleware(
 
     // The start is now, for this request, whether or not the write lands. A
     // failed write lets the request through and the next request tries again
-    // (the maintainer, 2026-10-21: "Log an alert event").
-    // Resolved here, not per request: the write happens once per Owner.
+    // (the maintainer, 2026-10-21: "Log an alert event"). The port is resolved
+    // here, not per request, because the write happens once per Owner.
     private static async Task<DateTimeOffset> StartGraceAsync(HttpContext context, DateTimeOffset now)
     {
         try
