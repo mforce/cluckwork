@@ -86,8 +86,10 @@ export async function withCodes(key: string, submit: (code: string) => Promise<n
     if (status < 400) return;
     if (status !== 400 || attempts >= MAX_CODE_ATTEMPTS)
       throw new Error(
-        `the code step answered ${status} to ${attempts} code(s). Check that the cast file's twoFactorOwner.totpKey `
-          + `belongs to this stack (re-run \`bash tools/simulation/reset.sh\`) and that this host's clock is right.`,
+        `the code step answered ${status} to ${attempts} code(s). Another sign-in may have used this Owner's codes `
+          + `in the last minute: wait a minute and try again. If it still fails, check that the cast file's `
+          + `twoFactorOwner.totpKey belongs to this stack (re-run \`bash tools/simulation/reset.sh\`) and that this `
+          + `host's clock is right.`,
       );
   }
 }
