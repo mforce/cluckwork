@@ -88,9 +88,10 @@ public static class TwoFactorCredentialsServiceCollectionExtensions
     // Scoped, like the AppDbContext and UserManager it writes through.
     public static IServiceCollection AddTwoFactorCredentials(this IServiceCollection services)
     {
-        services.AddScoped<TwoFactorCredentials>();
-        services.AddScoped<ITwoFactorCredentials>(sp => sp.GetRequiredService<TwoFactorCredentials>());
-        services.AddScoped<IOwnerGraceStart>(sp => sp.GetRequiredService<TwoFactorCredentials>());
+        // Type mappings, not factory delegates, so the MCP scope walk can follow
+        // them. It holds no state of its own, so two instances in a scope are fine.
+        services.AddScoped<ITwoFactorCredentials, TwoFactorCredentials>();
+        services.AddScoped<IOwnerGraceStart, TwoFactorCredentials>();
         return services;
     }
 }

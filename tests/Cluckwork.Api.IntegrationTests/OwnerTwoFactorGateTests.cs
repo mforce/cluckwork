@@ -348,7 +348,7 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
         using var host = factory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
         {
             var real = services.Last(d => d.ServiceType == typeof(IOwnerGraceStart));
-            services.AddScoped<IOwnerGraceStart>(sp => new SwitchableGraceStart((IOwnerGraceStart)real.ImplementationFactory!(sp), failing));
+            services.AddScoped<IOwnerGraceStart>(sp => new SwitchableGraceStart((IOwnerGraceStart)ActivatorUtilities.CreateInstance(sp, real.ImplementationType!), failing));
         }));
         var owner = await SeedAsync();
         var token = await factory.LoginForAccessTokenAsync(owner.Email);
