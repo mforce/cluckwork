@@ -19,14 +19,15 @@ public static partial class AuthEndpoints
     private static async Task<IResult> TurnOffTwoFactor(
         [FromHeader(Name = StepUpHeaderName)] string? stepUpToken,
         IAccessModule access, ICurrentUser currentUser, TenantContext tenant, ClaimsPrincipal user,
-        HttpResponse response, IWebHostEnvironment env, CancellationToken ct)
+        HttpResponse response, IWebHostEnvironment env, IOptions<OwnerGraceOptions> ownerGrace, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved || ActingEpoch(user) is not { } epoch)
             return Results.Unauthorized();
         // #1281 — every Owner must use two-factor, so the refusal comes before
         // the grant is spent. The role claim is current: a role change bumps
-        // the epoch, which turn-off compares under the row lock.
-        if (user.IsInRole(Roles.Owner))
+        // the epoch, which turn-off compares under the row lock. With the
+        // requirement off, an Owner turns it off like anyone else.
+        if (ownerGrace.Value.RequireForOwners && user.IsInRole(Roles.Owner))
             return Results.Problem("An Owner cannot turn off two-factor authentication. Replace your authenticator instead.",
                 statusCode: StatusCodes.Status403Forbidden, title: EnrolmentErrorCodes.OwnerCannotTurnOff);
 
@@ -39,8 +40,8 @@ public static partial class AuthEndpoints
     }
 
     // #1277 — whether two-factor is on and how many recovery codes are left.
-    // Never a code. #1281 — an Owner also gets the grace deadline; nobody else
-    // must enrol, so nobody else gets one.
+    // Never a code. #1281 — an Owner also gets the grace deadline while the
+    // requirement is on; nobody else must enrol, so nobody else gets one.
     private static async Task<IResult> TwoFactorStatus(
         IAccessModule access, ICurrentUser currentUser, TenantContext tenant, ClaimsPrincipal user,
         IOptions<OwnerGraceOptions> ownerGrace, CancellationToken ct)
@@ -48,7 +49,9 @@ public static partial class AuthEndpoints
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
         var status = await access.GetTwoFactorStatusAsync(tenant.AccountId, currentUser.UserId, ct);
-        var requiredBy = user.IsInRole(Roles.Owner) ? status.RequiredSince?.AddDays(ownerGrace.Value.OwnerGraceDays) : null;
+        var requiredBy = ownerGrace.Value.RequireForOwners && user.IsInRole(Roles.Owner)
+            ? status.RequiredSince?.AddDays(ownerGrace.Value.OwnerGraceDays)
+            : null;
         return Results.Ok(new TwoFactorStatusResponse(status.Enabled, status.RecoveryCodesLeft, requiredBy));
     }
 

@@ -16,7 +16,8 @@ namespace Cluckwork.Api.Middleware;
 // loop an MCP client through re-authorisation.
 //
 // The inputs are the role claim, the row's two columns from the credential
-// check, the days and the clock, so nothing can exempt one user. It sits after
+// check, the days, the RequireForOwners switch and the clock, so nothing can
+// exempt one user. Switched off, the gate refuses nothing and records no start. It sits after
 // MustChangePasswordMiddleware, which lets change-password through, so the
 // password step is never gated.
 public sealed class OwnerTwoFactorGateMiddleware(
@@ -40,7 +41,9 @@ public sealed class OwnerTwoFactorGateMiddleware(
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!CredentialEpochMiddleware.ChecksRequest(context) || !context.User.IsInRole(Roles.Owner))
+        if (!options.Value.RequireForOwners
+            || !CredentialEpochMiddleware.ChecksRequest(context)
+            || !context.User.IsInRole(Roles.Owner))
         {
             await next(context);
             return;

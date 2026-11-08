@@ -520,6 +520,86 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
         Assert.False(managerBody.TryGetProperty("requiredBy", out _));
     }
 
+    // TwoFactor:RequireForOwners off (the maintainer, 2026-11-08): the gate
+    // refuses nothing and records no start, and the status route sends no
+    // deadline. Switched back on, an Owner with no start gets a fresh grace
+    // from their next request, and a start set earlier still counts.
+    [Fact]
+    public async Task WithTheRequirementOff_NoOwnerIsGated_NoStartIsRecorded_AndRequiredByIsOmitted()
+    {
+        var late = await SeedAsync();
+        var fresh = await SeedAsync();
+        var lateToken = await factory.LoginForAccessTokenAsync(late.Email);
+        var freshToken = await factory.LoginForAccessTokenAsync(fresh.Email);
+        await SetStartAsync(late, factory.Clock.GetUtcNow() - PastTheDeadline);
+        await NullStartAsync(fresh);
+        using var off = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", "false"));
+        HttpClient OffClient(string token)
+        {
+            var client = off.CreateClient(TestHarness.Cookieless(factory));
+            client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+            return client;
+        }
+
+        using var lateResponse = await OffClient(lateToken).GetAsync("/api/v1/users");
+        using var freshResponse = await OffClient(freshToken).GetAsync("/api/v1/users");
+        using var status = await OffClient(lateToken).GetAsync("/api/v1/auth/two-factor");
+
+        Assert.Equal(HttpStatusCode.OK, lateResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, freshResponse.StatusCode);
+        Assert.Null(await StartAsync(fresh));
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        Assert.False((await status.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).TryGetProperty("requiredBy", out _));
+
+        factory.Clock.Freeze();
+        using var freshOn = await GetAsync(freshToken);
+        using var lateOn = await GetAsync(lateToken);
+        Assert.Equal(HttpStatusCode.OK, freshOn.StatusCode);
+        Assert.Equal(factory.Clock.GetUtcNow(), await StartAsync(fresh));
+        AssertGated(lateOn);
+    }
+
+    // A value that is not a boolean fails a serving boot.
+    [Theory]
+    [InlineData("yes")]
+    [InlineData("0")]
+    [InlineData("")]
+    public void ARequirementThatIsNotABoolean_FailsTheBoot(string value)
+    {
+        using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", value));
+        var thrown = Assert.ThrowsAny<Exception>(() => host.CreateClient());
+
+        var chain = new List<Exception>();
+        for (Exception? e = thrown; e is not null; e = e.InnerException) chain.Add(e);
+        Assert.Contains(chain, e => e is InvalidOperationException && e.Message.Contains(
+            $"TwoFactor:RequireForOwners must be true or false, and '{value}' is not.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnUnsetRequirement_IsOn_AndTheShippedSettingsLeaveItUnset()
+    {
+        Assert.True(factory.Services.GetRequiredService<IOptions<OwnerGraceOptions>>().Value.RequireForOwners);
+        var shipped = Directory.GetFiles(Path.Combine(RepoRoot(), "src", "Cluckwork.Api"), "appsettings*.json");
+        Assert.True(shipped.Length >= 3, $"found {shipped.Length} shipped settings files, below the floor of 3");
+        Assert.All(shipped, file => Assert.DoesNotContain("RequireForOwners", File.ReadAllText(file), StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Every startup while the requirement is off logs one warning (the
+    // maintainer, 2026-11-08: "Startup warning").
+    [Theory]
+    [InlineData("false", 1)]
+    [InlineData("true", 0)]
+    public void TheRequirementOff_LogsOneWarningAtStartup(string value, int expected)
+    {
+        var before = factory.Sink.Events.Count;
+        using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", value));
+        host.CreateClient().Dispose();
+
+        var warnings = factory.Sink.Events.Skip(before)
+            .Count(e => e.Level == LogEventLevel.Warning && e.MessageTemplate.Text.StartsWith("Owner two-factor requirement off", StringComparison.Ordinal));
+        Assert.Equal(expected, warnings);
+    }
+
     // G6.7: the setting is a whole number from 1 to 365, checked at boot.
     [Theory]
     [InlineData("0")]

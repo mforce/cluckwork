@@ -182,10 +182,14 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // guard below: a one-shot verb never reads the section (#331).
         services.AddOptions<EnrolledSessionOptions>().Bind(configuration.GetSection(EnrolledSessionOptions.SectionName));
         if (role is ProcessRole.Serving) EnsureEnrolledSessionCap(configuration);
-        // #1281 — only the serving host's Owner two-factor gate reads the grace,
-        // so its check is serving-only too, like the session cap above.
+        // #1281 — only the serving host reads the grace and the switch, so
+        // their checks are serving-only too, like the session cap above.
         services.AddOptions<OwnerGraceOptions>().Bind(configuration.GetSection(OwnerGraceOptions.SectionName));
-        if (role is ProcessRole.Serving) EnsureOwnerGraceDays(configuration);
+        if (role is ProcessRole.Serving)
+        {
+            EnsureOwnerGraceDays(configuration);
+            EnsureRequireForOwners(configuration);
+        }
 
         AddUserFeatures(services);
 
@@ -251,6 +255,15 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             || days is < OwnerGraceOptions.MinDays or > OwnerGraceOptions.MaxDays)
             throw new InvalidOperationException(
                 $"{key} must be a whole number from {OwnerGraceOptions.MinDays} to {OwnerGraceOptions.MaxDays}, and '{value}' is not.");
+    }
+
+    // #1281: a switch that is not true or false fails the boot, rather than
+    // failing the first Owner request that binds it.
+    private static void EnsureRequireForOwners(IConfiguration configuration)
+    {
+        const string key = $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.RequireForOwners)}";
+        if (configuration[key] is { } value && !bool.TryParse(value, out _))
+            throw new InvalidOperationException($"{key} must be true or false, and '{value}' is not.");
     }
 
     private static Uri EnsureOAuthIssuer(string? issuer)

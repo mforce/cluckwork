@@ -216,6 +216,7 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         ("Auth", "Auth__EnrolledSessionMaxDays", "not-a-number"),
         // #1281 — only the serving host's Owner two-factor gate reads the grace.
         ("TwoFactor", "TwoFactor__OwnerGraceDays", "not-a-number"),
+        ("TwoFactor", "TwoFactor__RequireForOwners", "not-a-bool"),
         // #543 — SharedState:Redis:ConnectionString is a string, so it cannot
         // fail BINDING; its serving-only failure mode is the malformed-value boot
         // guard (EnsureSharedStateConnectionValid). "abortConnect=false" parses

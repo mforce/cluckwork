@@ -154,6 +154,24 @@ public sealed partial class SecondFactorLoginTests
         Assert.True((await ValidateGrantAsync(factor.AccountId, factor.UserId, grant!)).IsSuccess, "the refusal spent the grant");
     }
 
+    // With TwoFactor:RequireForOwners off, an Owner turns two-factor off like
+    // a Manager (the maintainer, 2026-11-08: "Yes, follows the setting").
+    [Fact]
+    public async Task WithTheRequirementOff_AnOwner_TurnsTheirOwnTwoFactorOff()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", "false"));
+        var client = host.CreateClient(TestHarness.Cookieless(factory));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await factory.LoginAsync(email)).AccessToken);
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
+
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(await TwoFactorRowsAsync(factor.AccountId, factor.UserId));
+        Assert.Single(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+    }
+
     // The turn-off spends its grant before it takes the user-row lock; a
     // change that lands in between leaves the asking session stale.
     private async Task AssertStaleTurnOffRefusedAsync(HttpResponseMessage response, EnrolledFactor factor)

@@ -365,6 +365,11 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#1281 owner grace", "TwoFactor:OwnerGraceDays must be a whole number from 1 to 365",
             Violate: psi => psi.Environment["TwoFactor__OwnerGraceDays"] = "0",
             Satisfy: psi => psi.Environment.Remove("TwoFactor__OwnerGraceDays")),
+
+        // #1281 — the Owner two-factor switch. Unset is on, so Satisfy removes the key.
+        new("#1281 owner requirement", "TwoFactor:RequireForOwners must be true or false",
+            Violate: psi => psi.Environment["TwoFactor__RequireForOwners"] = "yes",
+            Satisfy: psi => psi.Environment.Remove("TwoFactor__RequireForOwners")),
     ];
 
     private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>

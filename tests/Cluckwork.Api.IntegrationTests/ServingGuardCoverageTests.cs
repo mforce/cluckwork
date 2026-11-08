@@ -94,6 +94,7 @@ public sealed class ServingGuardCoverageTests
                 ["OAuth:Issuer is not configured", "OAuth:Issuer must be an absolute https URL"],
             ["EnsureEnrolledSessionCap"] = ["Auth:EnrolledSessionMaxDays must be a whole number from 1 to 365"],
             ["EnsureOwnerGraceDays"] = ["TwoFactor:OwnerGraceDays must be a whole number from 1 to 365"],
+            ["EnsureRequireForOwners"] = ["TwoFactor:RequireForOwners must be true or false"],
         };
 
         Assert.NotEmpty(guardMethods);

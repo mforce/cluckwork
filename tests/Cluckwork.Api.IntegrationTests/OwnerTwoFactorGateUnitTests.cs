@@ -21,7 +21,8 @@ using Microsoft.Extensions.Options;
 namespace Cluckwork.Api.IntegrationTests;
 
 // #1281 G6.3: the gate's only inputs are the role claim, the epoch check's
-// TwoFactorEnabled and SecondFactorRequiredSince, OwnerGraceDays and the clock.
+// TwoFactorEnabled and SecondFactorRequiredSince, OwnerGraceDays,
+// RequireForOwners and the clock.
 // No host: RequestServices resolves only what WriteAsJsonAsync needs and throws
 // on anything else, so the gate cannot reach configuration or a per-user flag.
 public sealed class OwnerTwoFactorGateUnitTests
@@ -34,6 +35,7 @@ public sealed class OwnerTwoFactorGateUnitTests
     private readonly RecordingLogger logger = new();
     private readonly List<Type> resolved = [];
     private bool graceStartRegistered = true;
+    private bool requireForOwners = true;
 
     public OwnerTwoFactorGateUnitTests() => clock.Freeze();
 
@@ -180,12 +182,29 @@ public sealed class OwnerTwoFactorGateUnitTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => RunAsync(Owner(), Check(enrolled: false, start: null)));
     }
 
-    // The gate cannot read a second setting or a per-user exemption: its
+    // Switched off, the gate refuses nothing and records no start, so turning
+    // it back on gives an Owner with no start a fresh grace.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WithTheRequirementOff_AnOwnerPassesPastTheDeadline_AndStartsNoGrace(bool started)
+    {
+        requireForOwners = false;
+
+        var (passed, _) = await RunAsync(Owner(), Check(enrolled: false, started ? Deadline(-TimeSpan.FromDays(30)) : null));
+
+        Assert.True(passed);
+        Assert.Empty(graceStart.Calls);
+        Assert.DoesNotContain(typeof(IOwnerGraceStart), resolved);
+    }
+
+    // The gate cannot read another setting or a per-user exemption: its
     // constructor and InvokeAsync take no configuration, no environment and no
-    // options but the one type, which holds the days and nothing else. What it
-    // resolves per request, the strict provider below limits.
+    // options but the one type, which holds the days and the switch and
+    // nothing else. What it resolves per request, the strict provider below
+    // limits.
     [Fact]
-    public void TheGatesInputs_AreTheDaysAndTheClock()
+    public void TheGatesInputs_AreTheDaysTheSwitchAndTheClock()
     {
         var gate = typeof(OwnerTwoFactorGateMiddleware);
         var parameters = gate.GetConstructors().SelectMany(c => c.GetParameters())
@@ -196,7 +215,7 @@ public sealed class OwnerTwoFactorGateUnitTests
             [typeof(RequestDelegate), typeof(IOptions<OwnerGraceOptions>), typeof(TimeProvider), typeof(HttpContext)],
             parameters);
         Assert.DoesNotContain(parameters, t => typeof(IConfiguration).IsAssignableFrom(t) || typeof(IHostEnvironment).IsAssignableFrom(t));
-        Assert.Equal([nameof(OwnerGraceOptions.OwnerGraceDays)],
+        Assert.Equal([nameof(OwnerGraceOptions.OwnerGraceDays), nameof(OwnerGraceOptions.RequireForOwners)],
             typeof(OwnerGraceOptions).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Select(p => p.Name));
     }
 
@@ -212,7 +231,7 @@ public sealed class OwnerTwoFactorGateUnitTests
         var passed = false;
         var gate = new OwnerTwoFactorGateMiddleware(
             _ => { passed = true; return Task.CompletedTask; },
-            Options.Create(new OwnerGraceOptions { OwnerGraceDays = Days }), clock);
+            Options.Create(new OwnerGraceOptions { OwnerGraceDays = Days, RequireForOwners = requireForOwners }), clock);
         await gate.InvokeAsync(context);
         return passed;
     }

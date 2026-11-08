@@ -129,7 +129,7 @@ if (processRole is ProcessRole.OneShot)
         + "moved or made conditional.");
 
 // #1281 — after the CLI dispatch, because one-shot verbs never read the setting.
-OwnerGraceOptions.WarnIfExtended(app.Services, app.Logger);
+OwnerGraceOptions.WarnIfRelaxed(app.Services, app.Logger);
 
 // One boot line makes export misconfiguration observable — a typo'd env var
 // name otherwise silently disables the whole pipeline (#226 review).
