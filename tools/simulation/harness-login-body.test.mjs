@@ -89,13 +89,14 @@ function capturingConsole(output) {
 
 async function driveK6(sentinel) {
   const output = [];
-  const body = JSON.stringify(problem(sentinel));
+  let title;
   let posted = 0;
   const context = vm.createContext({
     console: capturingConsole(output),
     http: {
       post: () => {
         posted++;
+        const body = JSON.stringify(problem(sentinel, title));
         return { status: 401, headers: {}, body, json: () => JSON.parse(body) };
       },
     },
@@ -120,13 +121,17 @@ async function driveK6(sentinel) {
   const unmet = [];
   const strings = [];
   // Without a key login() stops at the password step; with one, the code step
-  // answers the same 401 and login() stops there.
-  for (const [user, posts] of [
-    [{ email: "probe@example.invalid", password: randomUUID() }, 1],
+  // answers the same 401 and login() stops there, adding the code-step hint.
+  // A member with a key refused at the password step gets no hint.
+  const keyed = () => ({ email: "probe@example.invalid", password: randomUUID(), totpKey: "A".repeat(32) });
+  for (const [user, posts, pendingTitle, hinted] of [
+    [{ email: "probe@example.invalid", password: randomUUID() }, 1, "Auth.SecondFactorRequired", false],
     // Any key: withCodes is stubbed, so it only marks the member as having one.
-    [{ email: "probe@example.invalid", password: randomUUID(), totpKey: "A".repeat(32) }, 2],
+    [keyed(), 2, "Auth.SecondFactorRequired", true],
+    [keyed(), 1, "Auth.InvalidCredentials", false],
   ]) {
     posted = 0;
+    title = pendingTitle;
     let error;
     try {
       context.login(user);
@@ -134,6 +139,8 @@ async function driveK6(sentinel) {
       error = e;
     }
     if (posted !== posts) unmet.push(`login() posted ${posted} times, not ${posts}`);
+    if (String(error?.message).includes("the code step hint") !== hinted)
+      unmet.push(`login() ${hinted ? "left out" : "added"} the code-step hint after a ${pendingTitle} answer at post ${posts}`);
     // Its own error: a plain Error naming the status, not a TypeError or a
     // ReferenceError from a sandbox that no longer fits the file.
     if (error?.constructor?.name !== "Error" || !/status=401/.test(String(error.message)))

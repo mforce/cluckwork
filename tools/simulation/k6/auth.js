@@ -95,7 +95,8 @@ export function login(user) {
   // #1281 — the two-factor Owner's password step answers 401 with a
   // challenge, a credential that goes to the code step and nowhere else.
   const pending = res.status === 401 ? safeJson(res) : null;
-  if (user.totpKey && pending && pending.title === 'Auth.SecondFactorRequired') {
+  const atCodeStep = !!(user.totpKey && pending && pending.title === 'Auth.SecondFactorRequired');
+  if (atCodeStep) {
     res = withCodes(user.totpKey, (code) =>
       http.post(
         `${BASE_URL}${AUTH_PATHS.SECOND_FACTOR}`,
@@ -122,7 +123,7 @@ export function login(user) {
   if (!ok) {
     throw new Error(
       `login failed for ${user.email}: status=${res.status} title=${body && body.title}` +
-        (user.totpKey ? ` ${CODE_STEP_HINT}` : '')
+        (atCodeStep ? ` ${CODE_STEP_HINT}` : '')
     );
   }
 
