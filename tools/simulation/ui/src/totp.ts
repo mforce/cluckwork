@@ -1,12 +1,15 @@
-// tools/simulation/ui/src/totp.ts — authenticator codes for an enrolled cast
-// member (#1281), computed as the server's TotpMatcher does: RFC 6238, SHA-1,
-// 30-second steps, 6 digits.
+// tools/simulation/ui/src/totp.ts — authenticator codes for the cast's
+// twoFactorOwner (#1281), computed as the server's TotpMatcher does: RFC 6238,
+// SHA-1, 30-second steps, 6 digits.
 //
 // The server accepts the steps from two before now to two after, each once
-// (#1274 decision 22). Every sign-in in a process takes the oldest step it has
-// not offered yet, so back-to-back sign-ins spend the window and then wait for a
-// fresh step. A step another process already spent is refused as reused and
-// uncharged, so a caller offers the next one on the same challenge.
+// (#1274 decision 22). A sign-in here starts one step back, not two, so a code
+// sent just after a step boundary is still inside the window, and each later
+// sign-in in the process takes the next step, waiting rather than running ahead.
+//
+// A refused code is charged against the account: wrong codes lock it at five.
+// withCodes therefore stops after MAX_CODE_ATTEMPTS, so one sign-in never locks
+// the Owner out.
 //
 // Plain functions and no parameter properties, so Node's type stripping runs it
 // for totp.test.mjs and for tools/verify/mcp/client.ts.
@@ -14,7 +17,9 @@
 import { createHmac } from "node:crypto";
 
 export const STEP_SECONDS = 30;
-const WINDOW = 2;
+const OLDEST = 1;
+const NEWEST = 2;
+export const MAX_CODE_ATTEMPTS = 3;
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 export interface Clock {
@@ -54,31 +59,35 @@ export function totpCode(key: string, step: number): string {
 
 let lastStep = 0;
 
-// Told each wait before it starts. fixtures.ts extends the running test's
-// timeout by it, so a fresh step costs the test no part of its own budget.
-let onWait: (ms: number) => void = () => {};
-
-export function observeWaits(observer: (ms: number) => void): void {
-  onWait = observer;
-}
-
 const stepAt = (ms: number) => Math.floor(ms / 1000 / STEP_SECONDS);
 
 /** The steps this process may offer, oldest first; it waits rather than run ahead of the window. */
 export async function* codeSteps(clock: Clock = systemClock): AsyncGenerator<number, never> {
   for (;;) {
-    const step = Math.max(stepAt(clock.now()) - WINDOW, lastStep + 1);
-    while (step > stepAt(clock.now()) + WINDOW) {
-      const ms = (step - WINDOW) * STEP_SECONDS * 1000 - clock.now();
-      onWait(ms);
-      await clock.sleep(ms);
-    }
+    const step = Math.max(stepAt(clock.now()) - OLDEST, lastStep + 1);
+    while (step > stepAt(clock.now()) + NEWEST)
+      await clock.sleep((step - NEWEST) * STEP_SECONDS * 1000 - clock.now());
     lastStep = step;
     yield step;
   }
 }
 
-/** Codes for `key`, one per step from codeSteps. A caller stops at the first accepted one. */
-export async function* codes(key: string, clock: Clock = systemClock): AsyncGenerator<string, void> {
-  for await (const step of codeSteps(clock)) yield totpCode(key, step);
+/**
+ * Submits codes for `key` until one is accepted. `submit` sends one code and
+ * answers the response status. A 400 is a refused code, so the next step's
+ * code follows on the same challenge; any other failure, or MAX_CODE_ATTEMPTS
+ * refusals, throws.
+ */
+export async function withCodes(key: string, submit: (code: string) => Promise<number>, clock: Clock = systemClock): Promise<void> {
+  let attempts = 0;
+  for await (const step of codeSteps(clock)) {
+    const status = await submit(totpCode(key, step));
+    attempts++;
+    if (status < 400) return;
+    if (status !== 400 || attempts >= MAX_CODE_ATTEMPTS)
+      throw new Error(
+        `the code step answered ${status} to ${attempts} code(s). Check that the cast file's twoFactorOwner.totpKey `
+          + `belongs to this stack (re-run \`bash tools/simulation/reset.sh\`) and that this host's clock is right.`,
+      );
+  }
 }

@@ -112,8 +112,8 @@ async function driveK6(sentinel) {
     CSRF_HEADER_NAME: "X-Cluckwork-Auth",
     CSRF_HEADER_VALUE: "1",
     REFRESH_COOKIE_NAME_PREFIX: "cluckwork_rt_",
-    // totp.js stands in as one code, so a member with a key reaches the code step.
-    nextCode: () => "000000",
+    // totp.js stands in as one code, so a member with a key reaches the code step once.
+    withCodes: (key, submit) => submit("000000"),
   });
   vm.runInContext(asScript(read("tools/simulation/k6/auth.js"), ["k6/http", "k6", "./config.js", "./totp.js"]), context);
   const unmet = [];
@@ -122,7 +122,8 @@ async function driveK6(sentinel) {
   // answers the same 401 and login() stops there.
   for (const [user, posts] of [
     [{ email: "probe@example.invalid", password: randomUUID() }, 1],
-    [{ email: "probe@example.invalid", password: randomUUID(), totpKey: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" }, 2],
+    // Any key: withCodes is stubbed, so it only marks the member as having one.
+    [{ email: "probe@example.invalid", password: randomUUID(), totpKey: "A".repeat(32) }, 2],
   ]) {
     posted = 0;
     let error;
@@ -159,20 +160,15 @@ async function driveProbeApi(sentinel) {
     },
     Response, Headers,
     API_PREFIX: "/api/v1", BASE_URL: "http://127.0.0.1:1",
-    // totp.ts stands in as one code, so a member with a key reaches the code step once.
-    codes: async function* () { yield "000000"; },
   });
   const source = stripTypeScriptTypes(read("tools/simulation/ui/src/api.ts"));
-  vm.runInContext(asScript(source, ["./env", "./totp"]), context);
+  vm.runInContext(asScript(source, ["./env"]), context);
   const member = { email: "probe@example.invalid", password: randomUUID(), farmCode: "default-farm" };
-  const keyed = { ...member, totpKey: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ" };
   const unmet = [];
   const strings = [];
   for (const [answer, name, call] of [
     ["Auth.SecondFactorRequired", "signInForToken", () => context.signInForToken(member)],
     ["Identity.InvalidCredentials", "signInForToken", () => context.signInForToken(member)],
-    // The code step answers the same 401, so its failure path is driven too.
-    ["Auth.SecondFactorRequired", "signInForToken with a key", () => context.signInForToken(keyed)],
     ["Identity.InvalidCredentials", "apiGet", () => context.apiGet("token", "/flocks")],
   ]) {
     title = answer;
@@ -188,7 +184,7 @@ async function driveProbeApi(sentinel) {
     unmet.push(...shape.problems.map((issue) => `${name} with ${answer}: ${issue}`));
     strings.push(...shape.strings);
   }
-  if (fetched !== 5) unmet.push(`fetch was called ${fetched} times, not 5`);
+  if (fetched !== 3) unmet.push(`fetch was called ${fetched} times, not 3`);
   return { unmet, text: [...output, ...strings].join("\n") };
 }
 

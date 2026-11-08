@@ -392,9 +392,9 @@ jobs:
         run: node --test ../tools/simulation/harness-login-body.test.mjs
 
       # #1281 — the harnesses' authenticator codes: the RFC 6238 vectors, the
-      # step rule, and reset.sh's Python helper agreeing with the TypeScript one.
+      # step rule and the retry bound for the TypeScript, Python and k6 helpers.
       - name: Test the harnesses' authenticator codes
-        run: node --test ../tools/simulation/ui/src/totp.test.mjs
+        run: node --test ../tools/simulation/ui/src/totp.test.mjs ../tools/simulation/k6/totp.test.mjs
 
       - name: Install dependencies
         run: npm ci

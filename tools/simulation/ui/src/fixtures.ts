@@ -39,7 +39,7 @@ import { type CastMember } from "./cast";
 import { farmContext, type FarmContext } from "./farm";
 import { tEn } from "./i18n";
 import { activeMutant } from "./mutants";
-import { codes, observeWaits } from "./totp";
+import { withCodes } from "./totp";
 
 export interface ShellNav {
   /** The desktop sidebar's nav landmark (`aria-label` = nav:primaryNavAriaLabel). */
@@ -94,19 +94,6 @@ export interface PhoneShell {
   openMore(): Promise<MoreSheet>;
 }
 
-// A sign-in that waits for a fresh code step (#1281) extends the running test's
-// timeout by the wait, so the wait costs the test none of its own budget.
-// Preflight signs in outside any test, where there is no timeout to extend.
-observeWaits((ms) => {
-  let info;
-  try {
-    info = base.info();
-  } catch {
-    return;
-  }
-  info.setTimeout(info.timeout + ms);
-});
-
 /**
  * Fills the sign-in form and submits it, then completes the code step for a
  * member with a key (#1281). It asserts nothing about where the app lands, so
@@ -128,23 +115,16 @@ export async function submitSignIn(page: Page, member: CastMember): Promise<void
   if (member.totpKey) await enterCode(page, member.totpKey);
 }
 
-// The SPA's code step, as a person types it. A code for a step another sign-in
-// already spent is refused, uncharged, on the same challenge, so the next step's
-// code follows; anything but that 400 is a real failure.
+// The SPA's code step, as a person types it, with codes from totp.ts.
 async function enterCode(page: Page, key: string): Promise<void> {
-  const field = page.getByLabel(tEn("auth:secondFactorCode"));
-  let attempts = 0;
-  for await (const code of codes(key)) {
-    await field.fill(code);
+  await withCodes(key, async (code) => {
+    await page.getByLabel(tEn("auth:secondFactorCode")).fill(code);
     const answered = page.waitForResponse(
       (r) => r.url().includes("/api/v1/auth/login/second-factor") && r.request().method() === "POST",
     );
     await page.getByRole("button", { name: tEn("auth:secondFactorSubmit") }).click();
-    const response = await answered;
-    if (response.ok()) return;
-    if (response.status() !== 400 || ++attempts >= 6)
-      throw new Error(`the code step answered ${response.status()} after ${attempts} code(s)`);
-  }
+    return (await answered).status();
+  });
 }
 
 export interface Fixtures {

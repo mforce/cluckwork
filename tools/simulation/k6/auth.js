@@ -35,7 +35,7 @@ import {
   CSRF_HEADER_VALUE,
   REFRESH_COOKIE_NAME_PREFIX,
 } from './config.js';
-import { nextCode } from './totp.js';
+import { withCodes } from './totp.js';
 
 // How close to `accessTokenExpiry` (in seconds) before maybeRefresh() will
 // proactively refresh. Access tokens live 15 minutes; 60s of slack is ample
@@ -92,22 +92,20 @@ export function login(user) {
     }
   );
 
-  // #1281 — the enrolled Owner's password step answers 401 with a challenge,
-  // a credential that goes to the code step and nowhere else. A step another VU
-  // spent answers 400, uncharged, on the same challenge, so the next code follows.
+  // #1281 — the two-factor Owner's password step answers 401 with a
+  // challenge, a credential that goes to the code step and nowhere else.
   const pending = res.status === 401 ? safeJson(res) : null;
   if (user.totpKey && pending && pending.title === 'Auth.SecondFactorRequired') {
-    for (let attempt = 0; attempt < 6; attempt++) {
-      res = http.post(
+    res = withCodes(user.totpKey, (code) =>
+      http.post(
         `${BASE_URL}${AUTH_PATHS.SECOND_FACTOR}`,
-        JSON.stringify({ challenge: pending.challenge, code: nextCode(user.totpKey) }),
+        JSON.stringify({ challenge: pending.challenge, code }),
         {
           headers: { 'Content-Type': 'application/json' },
           tags: { name: 'auth_second_factor' },
         }
-      );
-      if (res.status !== 400) break;
-    }
+      )
+    );
   }
 
   const body = safeJson(res);

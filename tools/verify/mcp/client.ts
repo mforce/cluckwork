@@ -28,7 +28,7 @@ import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprot
 import { chromium, type Page } from "playwright";
 import { en } from "../../../web/src/i18n/en.ts";
 import { es } from "../../../web/src/i18n/es.ts";
-import { codes } from "../../simulation/ui/src/totp.ts";
+import { withCodes } from "../../simulation/ui/src/totp.ts";
 import { resolveBrowser } from "../../simulation/ui/src/browser.ts";
 import { scopeEntry } from "../../../web/src/auth/oauthScopes.ts";
 
@@ -50,7 +50,9 @@ function persona(name: string): Member {
   const cast = JSON.parse(readFileSync(CAST, "utf8"));
   switch (name) {
     // #1281 — the second Owner, with two-factor on, so connect and consent take codes.
-    case "owner": return { farmCode: "default-farm", ...cast.twoFactorOwner };
+    case "owner":
+      if (!cast.twoFactorOwner) throw new Error(".sim-cast.json has no twoFactorOwner. Re-run `bash tools/simulation/reset.sh`, which adds them.");
+      return { farmCode: "default-farm", ...cast.twoFactorOwner };
     // The seeder assigns the first Worker one flock (cast.ts restrictedWorker()).
     case "restricted-worker": return { farmCode: "default-farm", ...cast.cast.find((m: { role: string }) => m.role === "Worker") };
     case "readme-owner": return cast.readmeFarm;
@@ -91,21 +93,16 @@ async function signIn(page: Page, member: Member) {
   await page.getByLabel(en.auth.email).fill(member.email);
   await page.getByLabel(en.auth.password).fill(member.password);
   await page.getByRole("button", { name: en.auth.signIn }).click();
-  if (member.totpKey) await withCode(page, member, "/api/v1/auth/login/second-factor", en.auth.secondFactorSubmit, en.auth.secondFactorCode);
+  if (member.totpKey)
+    await withCodes(member.totpKey, (code) => submitCode(page, code, en.auth.secondFactorCode, en.auth.secondFactorSubmit, "/api/v1/auth/login/second-factor"));
 }
 
-// #1281 — types a code from totp.ts and submits, until the route answers. A step
-// another sign-in spent is refused with 400, uncharged, so the next code follows.
-async function withCode(page: Page, member: Member, route: string, submit: string, field: string) {
-  let attempts = 0;
-  for await (const code of codes(member.totpKey!)) {
-    await page.getByLabel(field).fill(code);
-    const answered = page.waitForResponse((r) => r.url().endsWith(route) && r.request().method() === "POST");
-    await page.getByRole("button", { name: submit }).click();
-    const status = (await answered).status();
-    if (status < 400) return;
-    if (status !== 400 || ++attempts >= 6) throw new Error(`${route} answered ${status} after ${attempts} code(s)`);
-  }
+// #1281 — types one code from totp.ts, presses `submit` and answers the route's status.
+async function submitCode(page: Page, code: string, field: string, submit: string, route: string): Promise<number> {
+  await page.getByLabel(field).fill(code);
+  const answered = page.waitForResponse((r) => r.url().endsWith(route) && r.request().method() === "POST");
+  await page.getByRole("button", { name: submit }).click();
+  return (await answered).status();
 }
 
 const scopeBox = (page: Page, scope: string) => {
@@ -171,8 +168,13 @@ function consent(url: URL, redirect: string, member: Member, shots?: string, del
     await page.waitForTimeout(500);
     console.log(`form validation: Allow with no password stays on consent: ${!code && (await password.isVisible())}`);
     await password.fill(member.password);
-    // An enrolled member steps up with the password and a code (#1279).
-    if (member.totpKey) await withCode(page, member, "/api/v1/auth/step-up", CONSENT.allow, CONSENT_AUTH.secondFactorCode);
+    // An enrolled member steps up with the password and a code (#1279). A
+    // refused step-up clears the password, so each try types it again.
+    if (member.totpKey)
+      await withCodes(member.totpKey, async (otp) => {
+        await password.fill(member.password);
+        return submitCode(page, otp, CONSENT_AUTH.secondFactorCode, CONSENT.allow, "/api/v1/auth/step-up");
+      });
     else await page.getByRole("button", { name: CONSENT.allow }).click();
     for (let i = 0; i < 100 && !code; i++) await page.waitForTimeout(100);
     if (!code) throw new Error("no authorization code reached the redirect URI");

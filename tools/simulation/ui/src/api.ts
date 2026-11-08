@@ -19,7 +19,6 @@
 
 import { API_PREFIX, BASE_URL } from "./env";
 import type { CastMember } from "./cast";
-import { codes } from "./totp";
 
 // The status and the problem title, never the body: a failed login's body can
 // carry a sign-in challenge (#1274), which is a credential.
@@ -61,17 +60,14 @@ export async function signInForToken(member: CastMember): Promise<string> {
     }),
   });
   if (!res.ok) {
-    // Read once: the body is a stream.
-    const body = (await res.json().catch(() => null)) as { title?: unknown; challenge?: unknown } | null;
-    const title = typeof body?.title === "string" ? body.title : null;
-    // #1278 — an enrolled member's password step answers 401 with a challenge,
-    // which is a credential: it goes to the code step and nowhere else.
-    if (title === "Auth.SecondFactorRequired" && member.totpKey && typeof body?.challenge === "string")
-      return codeStep(member, body.challenge);
+    const title = await problemTitle(res);
+    // #1278 — an enrolled member's password step answers 401 with a challenge.
+    // Only twoFactorOwner() has two-factor on (#1281), and the browser fixture
+    // signs them in; this probe signs in members without it.
     if (title === "Auth.SecondFactorRequired")
       throw new ApiProbeError(
-        `${member.email} has two-factor authentication on, and the cast file holds no key for it. `
-          + `Re-run \`bash tools/simulation/reset.sh\`, which enrols the Owner and stores the key.`,
+        `${member.email} has two-factor authentication on, and signInForToken signs in only members without it. `
+          + `Sign in as an unenrolled member.`,
         res.status,
         title,
       );
@@ -84,23 +80,6 @@ export async function signInForToken(member: CastMember): Promise<string> {
   }
   const body = (await res.json()) as { accessToken: string };
   return body.accessToken;
-}
-
-// #1281 — the code step, with codes from totp.ts. A step another sign-in spent
-// is refused as 400, uncharged, on the same challenge, so the next one follows.
-async function codeStep(member: CastMember, challenge: string): Promise<string> {
-  let attempts = 0;
-  for await (const code of codes(member.totpKey!)) {
-    const res = await fetch(`${BASE_URL}${API_PREFIX}/auth/login/second-factor`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ challenge, code }),
-    });
-    if (res.ok) return ((await res.json()) as { accessToken: string }).accessToken;
-    if (res.status !== 400 || ++attempts >= 6)
-      throw new ApiProbeError(`The code step failed for ${member.email} (${res.status}).`, res.status, await problemTitle(res));
-  }
-  throw new Error("unreachable: codes() never ends");
 }
 
 /** An authenticated GET returning parsed JSON. Throws on a non-2xx. */
