@@ -2,7 +2,9 @@
 // the code itself; the step rule pins how a process spends the server's window.
 // Run: node --test tools/simulation/ui/src/totp.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import { STEP_SECONDS, codeSteps, observeWaits, totpCode } from "./totp.ts";
 
 // RFC 6238 appendix B, SHA-1: the ASCII key "12345678901234567890" in base32.
@@ -34,9 +36,7 @@ test("a process never offers a step twice and waits past the window", async () =
 
 // reset.sh confirms the Owner's enrolment with the Python helper, and every
 // later sign-in uses this one, so the two must agree.
-test("reset.sh's Python helper computes the same codes", async () => {
-  const { spawnSync } = await import("node:child_process");
-  const { fileURLToPath } = await import("node:url");
+test("reset.sh's Python helper computes the same codes", () => {
   const dir = fileURLToPath(new URL("../..", import.meta.url));
   const steps = [1, 37037036, 66666666];
   const run = spawnSync("python3", ["-I", "-c",
