@@ -31,20 +31,22 @@ public sealed class OwnerGraceWriterTests
 
     // G6.8: the simulation app service reads only its own environment block,
     // which sets no grace, so the stack runs the shipped 14 days and no env file
-    // can raise them. Comment lines are skipped; one names env_file on purpose.
+    // can raise them. Comments go first, at any indent, so neither a comment
+    // that names env_file nor one that would end the block early misleads the
+    // scan; keys match quoted or not, as Compose reads them.
     [Fact]
     public void TheSimulationAppService_ReadsNoEnvFile_AndSetsNoGrace()
     {
-        var lines = File.ReadAllLines(Path.Combine(TenancyDocsFreshnessTests.RepoRoot(), "tools", "simulation", "docker-compose.sim.yml"));
-        var start = Array.IndexOf(lines, "  app:");
-        Assert.True(start >= 0, "docker-compose.sim.yml has no app service");
-        var service = lines.Skip(start + 1)
-            .TakeWhile(line => !Regex.IsMatch(line, @"^  \S"))
-            .Where(line => !line.TrimStart().StartsWith('#'))
+        var lines = File.ReadAllLines(Path.Combine(TenancyDocsFreshnessTests.RepoRoot(), "tools", "simulation", "docker-compose.sim.yml"))
+            .Select(line => Regex.Replace(line, @"(^|\s)#.*$", "").TrimEnd())
+            .Where(line => line.Length > 0)
             .ToList();
+        var start = lines.IndexOf("  app:");
+        Assert.True(start >= 0, "docker-compose.sim.yml has no app service");
+        var service = lines.Skip(start + 1).TakeWhile(line => !Regex.IsMatch(line, @"^  \S")).ToList();
 
-        Assert.Contains(service, line => Regex.IsMatch(line, @"^    environment:\s*$"));
-        Assert.DoesNotContain(service, line => Regex.IsMatch(line, @"^\s+env_file:"));
+        Assert.Contains(service, line => Regex.IsMatch(line, @"^    [""']?environment[""']?\s*:$"));
+        Assert.DoesNotContain(service, line => Regex.IsMatch(line, @"^\s+[""']?env_file[""']?\s*:"));
         Assert.DoesNotContain(service, line => line.Contains("OwnerGraceDays", StringComparison.OrdinalIgnoreCase));
     }
 
