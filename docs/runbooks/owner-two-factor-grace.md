@@ -21,6 +21,8 @@ Each Owner's grace starts at their first signed-in request after #1281, or after
 
 The value is a whole number from 1 to 365. Any other value stops the API from starting. The API reads it at startup, so a change needs a restart.
 
+The start never moves, so raising the setting cannot help an Owner whose start is more than 365 days old. A two-factor reset and [`recover-admin`](break-glass-account-recovery.md) keep the start too. While a fault blocks enrolment, another Owner can change that Owner's role to Manager, which lifts the gate, and change it back once enrolment works. A farm whose only Owner is in this state waits for the fault to be fixed.
+
 ## Procedure
 
 ### 1. Raise the setting

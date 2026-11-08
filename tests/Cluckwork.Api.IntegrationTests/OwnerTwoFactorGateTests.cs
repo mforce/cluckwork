@@ -542,8 +542,10 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
     public void AnUnsetGrace_IsFourteenDays_AndTheShippedSettingsLeaveItUnset()
     {
         Assert.Equal(14, factory.Services.GetRequiredService<IOptions<OwnerGraceOptions>>().Value.OwnerGraceDays);
-        var shipped = File.ReadAllText(Path.Combine(RepoRoot(), "src", "Cluckwork.Api", "appsettings.json"));
-        Assert.DoesNotContain("OwnerGraceDays", shipped, StringComparison.Ordinal);
+        // Every environment's shipped file, so no image sets the grace.
+        var shipped = Directory.GetFiles(Path.Combine(RepoRoot(), "src", "Cluckwork.Api"), "appsettings*.json");
+        Assert.True(shipped.Length >= 3, $"found {shipped.Length} shipped settings files, below the floor of 3");
+        Assert.All(shipped, file => Assert.DoesNotContain("OwnerGraceDays", File.ReadAllText(file), StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
