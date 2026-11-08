@@ -45,7 +45,7 @@ public sealed class AuthSecurityEventLogger(
             SecurityEvents.AccountLockedOut, userId, ClientIp);
 
     // #1281 — a warning: an Owner's grace start failed and the request passed.
-    // ClientIp only, like LoginFailed.
+    // ClientIp only, besides the farm's AccountId from the request log scope.
     public void OwnerGraceStartFailed() =>
         logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.OwnerGraceStartFailed, ClientIp);
 

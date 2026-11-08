@@ -61,6 +61,7 @@ public sealed class CredentialEpochMiddlewareVerdictTests
         var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(
             context.Response.Body, JsonSerializerOptions.Web);
         Assert.Equal(expectedTitle, problem!.Title);
+        Assert.Equal(StatusCodes.Status401Unauthorized, problem.Status);
     }
 
     // #1281 — the Owner two-factor gate reads what the check read, from the
