@@ -69,13 +69,13 @@ public sealed class OwnerTwoFactorGateMiddleware(
         }
 
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
-        context.Response.ContentType = "application/problem+json";
+        // The writer sets the content type itself, so it is passed here, not set before.
         await context.Response.WriteAsJsonAsync(new ProblemDetails
         {
             Title = EnrolmentErrorCodes.EnrolmentRequired,
             Detail = "Set up two-factor authentication to continue.",
             Status = StatusCodes.Status403Forbidden,
-        });
+        }, options: null, contentType: "application/problem+json");
     }
 
     // The start is now, for this request, whether or not the write lands. A

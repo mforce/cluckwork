@@ -39,6 +39,7 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
         var response = await client.GetAsync("/api/v1/flocks");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("Auth.MustChangePassword", body);
     }

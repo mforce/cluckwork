@@ -8,6 +8,7 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Access.Users;
 using Cluckwork.Domain.Modules.Farm.Contracts;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
@@ -141,10 +142,101 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
         using var refused = await GetAsync(token);
         using var status = await GetAsync(token, "/api/v1/auth/two-factor");
 
-        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        AssertGated(refused);
         Assert.Equal(EnrolmentErrorCodes.EnrolmentRequired, await TitleAsync(refused));
-        Assert.False(refused.Headers.WwwAuthenticate.Any());
         Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+    }
+
+    // A 403 problem with no challenge, which would loop an MCP client.
+    private static void AssertGated(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.False(response.Headers.WwwAuthenticate.Any());
+    }
+
+    // The record gates the consent route: past the deadline, an unenrolled
+    // Owner can neither read the consent screen nor approve with a grant.
+    [Fact]
+    public async Task PastTheDeadline_TheConsentReadAndApprove_AreGated()
+    {
+        var owner = await SeedAsync();
+        var jwt = await factory.LoginForAccessTokenAsync(owner.Email);
+        var grant = await OAuthServerTests.StepUpAsync(factory, jwt);
+        await SetStartAsync(owner, factory.Clock.GetUtcNow() - PastTheDeadline);
+        var query = OAuthServerTests.AuthorizeQuery(
+            await OAuthServerTests.RegisterClientAsync(factory.Services), OAuthServerTests.NewCodeVerifier());
+
+        using var read = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, query);
+        using var approve = await OAuthServerTests.SendAuthorizeAsync(factory, jwt, query, stepUp: grant);
+
+        foreach (var response in new[] { read, approve })
+        {
+            AssertGated(response);
+            Assert.Equal(EnrolmentErrorCodes.EnrolmentRequired, await TitleAsync(response));
+        }
+    }
+
+    // G6.1: one user with both flags changes the password first, is then sent
+    // to enrolment, enrols and reaches the app.
+    [Fact]
+    public async Task AUserWithBothFlags_ChangesThePassword_ThenEnrols_ThenReachesTheApp()
+    {
+        var owner = await SeedAsync();
+        var email = $"gate-both-{Guid.NewGuid():N}@test.local";
+        var user = new Seeded(email, owner.AccountId, await factory.SeedUserPendingPasswordChangeAsync(owner.AccountId, email));
+        await SetStartAsync(user, factory.Clock.GetUtcNow() - PastTheDeadline);
+        var first = await factory.LoginForAccessTokenAsync(email);
+
+        using var passwordGate = await GetAsync(first);
+        var newPassword = $"Aa1!{Guid.NewGuid():N}";
+        var changed = await AccessTokenAsync(await PostAsync(first, "/api/v1/auth/change-password",
+            new { currentPassword = TestHarness.Password, newPassword }));
+        using var enrolmentGate = await GetAsync(changed);
+        var grant = (await JsonAsync(await PostAsync(changed, "/api/v1/auth/step-up", new { password = newPassword })))
+            .GetProperty("token").GetString()!;
+        var key = (await JsonAsync(await PostAsync(changed, "/api/v1/auth/two-factor/start", null, grant))).GetProperty("key").GetString()!;
+        var code = TotpMatcher.Compute(TotpMatcher.DecodeBase32(key), TotpMatcher.StepAt(factory.Clock.GetUtcNow())).ToString("D6");
+        var enrolled = await AccessTokenAsync(await PostAsync(changed, "/api/v1/auth/two-factor/confirm", new { code }));
+        using var reached = await GetAsync(enrolled);
+
+        AssertGated(passwordGate);
+        Assert.Equal("Auth.MustChangePassword", await TitleAsync(passwordGate));
+        AssertGated(enrolmentGate);
+        Assert.Equal(EnrolmentErrorCodes.EnrolmentRequired, await TitleAsync(enrolmentGate));
+        Assert.Equal(HttpStatusCode.OK, reached.StatusCode);
+    }
+
+    private async Task<HttpResponseMessage> PostAsync(string bearer, string path, object? body, string? grant = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = body is null ? null : JsonContent.Create(body) };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        if (grant is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, grant);
+        return await factory.CreateAuthedClient(bearer).SendAsync(request);
+    }
+
+    private static async Task<System.Text.Json.JsonElement> JsonAsync(HttpResponseMessage response)
+    {
+        Assert.True(response.IsSuccessStatusCode, $"{response.RequestMessage!.RequestUri} answered {(int)response.StatusCode}");
+        return await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+    }
+
+    private static async Task<string> AccessTokenAsync(HttpResponseMessage response) =>
+        (await JsonAsync(response)).GetProperty("accessToken").GetString()!;
+
+    // The guarded statement moves only a null start.
+    [Fact]
+    public async Task StartAsync_LeavesASetStart()
+    {
+        var owner = await SeedAsync();
+        var set = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        await SetStartAsync(owner, set);
+
+        using (var scope = factory.Services.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<IOwnerGraceStart>()
+                .StartAsync(owner.AccountId, owner.UserId, factory.Clock.GetUtcNow(), CancellationToken.None);
+
+        Assert.Equal(set, await StartAsync(owner));
     }
 
     [Fact]
