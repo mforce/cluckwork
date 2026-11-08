@@ -359,6 +359,12 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#1278 session cap", "Auth:EnrolledSessionMaxDays must be a whole number from 1 to 365",
             Violate: psi => psi.Environment["Auth__EnrolledSessionMaxDays"] = "0",
             Satisfy: psi => psi.Environment.Remove("Auth__EnrolledSessionMaxDays")),
+
+        // #1281 — only the Owner two-factor gate reads the grace. Unset is the
+        // default of 14 days, so Satisfy removes the key.
+        new("#1281 owner grace", "TwoFactor:OwnerGraceDays must be a whole number from 1 to 365",
+            Violate: psi => psi.Environment["TwoFactor__OwnerGraceDays"] = "0",
+            Satisfy: psi => psi.Environment.Remove("TwoFactor__OwnerGraceDays")),
     ];
 
     private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>

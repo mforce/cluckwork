@@ -182,14 +182,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // guard below: a one-shot verb never reads the section (#331).
         services.AddOptions<EnrolledSessionOptions>().Bind(configuration.GetSection(EnrolledSessionOptions.SectionName));
         if (role is ProcessRole.Serving) EnsureEnrolledSessionCap(configuration);
-        // #1281 — the Owner two-factor gate's days, checked at start (a bad value
-        // fails the serving boot); a one-shot verb never starts the host.
-        services.AddOptions<OwnerGraceOptions>()
-            .Bind(configuration.GetSection(OwnerGraceOptions.SectionName))
-            .Validate(o => o.OwnerGraceDays is >= OwnerGraceOptions.MinDays and <= OwnerGraceOptions.MaxDays,
-                $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.OwnerGraceDays)} must be a whole number from "
-                + $"{OwnerGraceOptions.MinDays} to {OwnerGraceOptions.MaxDays}.")
-            .ValidateOnStart();
+        // #1281 — only the serving host's Owner two-factor gate reads the grace,
+        // so its check is serving-only too, like the session cap above.
+        services.AddOptions<OwnerGraceOptions>().Bind(configuration.GetSection(OwnerGraceOptions.SectionName));
+        if (role is ProcessRole.Serving) EnsureOwnerGraceDays(configuration);
 
         AddUserFeatures(services);
 
@@ -243,6 +239,18 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             || days is < EnrolledSessionOptions.MinDays or > EnrolledSessionOptions.MaxDays)
             throw new InvalidOperationException(
                 $"{key} must be a whole number from {EnrolledSessionOptions.MinDays} to {EnrolledSessionOptions.MaxDays}, and '{value}' is not.");
+    }
+
+    // #1274 decision 18: no value ever means "enforce now", so a grace that is
+    // not a whole number from 1 to 365 fails the boot.
+    private static void EnsureOwnerGraceDays(IConfiguration configuration)
+    {
+        const string key = $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.OwnerGraceDays)}";
+        if (configuration[key] is not { } value) return;
+        if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var days)
+            || days is < OwnerGraceOptions.MinDays or > OwnerGraceOptions.MaxDays)
+            throw new InvalidOperationException(
+                $"{key} must be a whole number from {OwnerGraceOptions.MinDays} to {OwnerGraceOptions.MaxDays}, and '{value}' is not.");
     }
 
     private static Uri EnsureOAuthIssuer(string? issuer)

@@ -4,7 +4,7 @@ namespace Cluckwork.Api.Configuration;
 
 // #1281 (#1274 decision 18) — how many days an Owner may go without two-factor,
 // counted from SecondFactorRequiredSince. A whole number from 1 to 365, checked
-// when the serving host starts, so no value ever means "enforce now". Raising
+// when a serving process boots, so no value ever means "enforce now". Raising
 // it and restarting moves every Owner's deadline out at once. The only setting
 // the Owner two-factor gate reads.
 public sealed class OwnerGraceOptions
