@@ -18,7 +18,7 @@
 
 ## How the grace period works
 
-Each Owner's grace starts at their first signed-in request after #1281, or, for a user who was never an Owner, at their first request after a promotion to Owner. It is stored in `AspNetUsers`. A former Owner who is promoted again keeps the old start. It lasts `TwoFactor:OwnerGraceDays` days, 14 when the setting is unset. Until then the app refuses nothing. After it, an Owner without two-factor reaches only the password change, the two-factor setup and sign-out, and every other request, connected apps included, answers 403 `Auth.TwoFactorEnrolmentRequired`.
+While the requirement is on ([step 4](#4-switch-the-requirement-off)), each Owner's grace starts at their first signed-in request after #1281, or, for a user who was never an Owner, at their first request after a promotion to Owner. It is stored in `AspNetUsers`. A former Owner who is promoted again keeps the old start. It lasts `TwoFactor:OwnerGraceDays` days, 14 when the setting is unset. Until then the app refuses nothing. After it, an Owner without two-factor reaches only the password change, the two-factor setup and sign-out, and every other request, connected apps included, answers 403 `Auth.TwoFactorEnrolmentRequired`.
 
 The value is a whole number from 1 to 365. Any other value stops the API from starting. The API reads it at startup, so a change needs a restart.
 
@@ -44,19 +44,19 @@ Set `TwoFactor__RequireForOwners=false` on the API service and restart. Until yo
 
 - the app refuses no Owner for want of two-factor, and records no grace start;
 - an Owner may turn their own two-factor off, as a Manager may;
-- `GET /api/v1/auth/two-factor` answers no `requiredBy`, so the app shows no deadline;
+- `GET /api/v1/auth/two-factor` answers no `requiredBy`, so the app shows no deadline once its banner ships;
 - every startup logs one warning: `Owner two-factor requirement off: TwoFactor:RequireForOwners is false, so no Owner must use two-factor`.
 
-The value is `true` or `false`, in any case. Any other value, `0`, `1` and `yes` included, stops the API from starting.
+The value is `true` or `false`, in any case, and surrounding spaces are ignored, so ` false ` turns the requirement off too. Any other value, `0`, `1` and `yes` included, stops the API from starting.
 
 ### 5. Switch the requirement back on
 
 Remove the variable, or set it to `true`, and restart. What each Owner without two-factor sees depends on their grace start:
 
 - An Owner with no start, such as one who first signed in while the requirement was off, gets a fresh grace of `OwnerGraceDays` days from their next request.
-- An Owner whose start was set before the requirement went off keeps that start. Switching the requirement off does not stop the days counting, so an Owner whose deadline passed meanwhile is refused at their next request.
+- An Owner whose start was set before the requirement went off keeps that start, and so does one who turned their two-factor off meanwhile. Switching the requirement off does not stop the days counting, so an Owner whose deadline passed meanwhile is refused at their next request.
 
-To give those Owners time to enrol, raise `TwoFactor__OwnerGraceDays` ([step 1](#1-raise-the-setting)) in the same restart, and lower it again ([step 3](#3-lower-it-again)) once they have enrolled.
+To give those Owners time to enrol, raise `TwoFactor__OwnerGraceDays` ([step 1](#1-raise-the-setting)) in the same restart, and lower it again ([step 3](#3-lower-it-again)) once they have enrolled. Raising it cannot help an Owner whose start is more than 365 days old; for that Owner, use the way out in [How the grace period works](#how-the-grace-period-works).
 
 ## Verify
 
