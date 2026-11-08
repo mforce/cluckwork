@@ -56,6 +56,7 @@ public sealed class CredentialEpochMiddlewareVerdictTests
         Assert.False(admitted);
         Assert.Null(context.Features.Get<CredentialCheck?>());
         Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType);
         context.Response.Body.Position = 0;
         var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(
             context.Response.Body, JsonSerializerOptions.Web);
