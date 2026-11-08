@@ -17,9 +17,9 @@ namespace Cluckwork.Api.Middleware;
 //
 // The inputs are the role claim, the row's two columns from the credential
 // check, the days, the RequireForOwners switch and the clock, so nothing can
-// exempt one user. Switched off, the gate refuses nothing and records no start. It sits after
-// MustChangePasswordMiddleware, which lets change-password through, so the
-// password step is never gated.
+// exempt one user. Switched off, the gate refuses nothing and records no
+// start. It sits after MustChangePasswordMiddleware, which lets
+// change-password through, so the password step is never gated.
 public sealed class OwnerTwoFactorGateMiddleware(
     RequestDelegate next,
     IOptions<OwnerGraceOptions> options,

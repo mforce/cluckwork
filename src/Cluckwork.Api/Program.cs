@@ -128,7 +128,7 @@ if (processRole is ProcessRole.OneShot)
         + "without a matching CliDispatcher command, or healthcheck's early return above was "
         + "moved or made conditional.");
 
-// #1281 — after the CLI dispatch, because one-shot verbs never read the setting.
+// #1281 — after the CLI dispatch, because one-shot verbs never read the settings.
 OwnerGraceOptions.WarnIfRelaxed(app.Services, app.Logger);
 
 // One boot line makes export misconfiguration observable — a typo'd env var
