@@ -59,7 +59,6 @@ public sealed class MustChangePasswordMiddleware(RequestDelegate next)
             && !IsAllowedPath(context.Request.Path))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            // The writer sets the content type itself, so it is passed here, not set before.
             await context.Response.WriteAsJsonAsync(new ProblemDetails
             {
                 Title = "Auth.MustChangePassword",

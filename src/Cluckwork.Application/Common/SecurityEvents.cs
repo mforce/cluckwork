@@ -122,6 +122,6 @@ public static class SecurityEvents
     // #1281 (#1274 decision 18) — a warning: setting an Owner's grace start
     // failed, so the request passed and the next one tries again. While it
     // keeps failing that Owner's grace does not end; the rate is the signal.
-    // ClientIp only.
+    // ClientIp only, besides the farm's AccountId from the request log scope.
     public const string OwnerGraceStartFailed = "Auth.OwnerGraceStartFailed";
 }

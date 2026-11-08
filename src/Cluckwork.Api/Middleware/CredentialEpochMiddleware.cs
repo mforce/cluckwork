@@ -68,7 +68,8 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 // #806 — the token no longer grants access, so an MCP client must re-authorize.
                 CluckworkMcp.AddChallenge(context, "error=\"invalid_token\"");
-                // The writer sets the content type itself, so it is passed here, not set before.
+                // WriteAsJsonAsync sets the content type itself, so the problem type is
+                // passed to it, as the password and two-factor gates do.
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
                     Title = title,

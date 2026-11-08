@@ -62,7 +62,6 @@ public sealed class OwnerTwoFactorGateMiddleware(
         }
 
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
-        // The writer sets the content type itself, so it is passed here, not set before.
         await context.Response.WriteAsJsonAsync(new ProblemDetails
         {
             Title = EnrolmentErrorCodes.EnrolmentRequired,

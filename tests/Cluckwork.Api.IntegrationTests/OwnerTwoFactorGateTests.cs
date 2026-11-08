@@ -526,6 +526,7 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
     [InlineData("366")]
     [InlineData("1.5")]
     [InlineData("fourteen")]
+    [InlineData("")]
     public void AnOutOfRangeOrFractionalGrace_FailsTheBoot(string days)
     {
         using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:OwnerGraceDays", days));
@@ -542,7 +543,7 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
     public void AnUnsetGrace_IsFourteenDays_AndTheShippedSettingsLeaveItUnset()
     {
         Assert.Equal(14, factory.Services.GetRequiredService<IOptions<OwnerGraceOptions>>().Value.OwnerGraceDays);
-        // Every environment's shipped file, so no image sets the grace.
+        // Every appsettings*.json in the API project.
         var shipped = Directory.GetFiles(Path.Combine(RepoRoot(), "src", "Cluckwork.Api"), "appsettings*.json");
         Assert.True(shipped.Length >= 3, $"found {shipped.Length} shipped settings files, below the floor of 3");
         Assert.All(shipped, file => Assert.DoesNotContain("OwnerGraceDays", File.ReadAllText(file), StringComparison.OrdinalIgnoreCase));
