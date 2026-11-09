@@ -4,7 +4,25 @@ import { LANGUAGES, t } from "../src/i18n";
 
 for (const language of LANGUAGES) {
   test(`Users table fits every supported viewport and theme in ${language}`, async ({ page, signIn }) => {
-    await signIn(owner());
+    const member = owner();
+    await signIn(member);
+    // Every seeded name is short. Add the second Owner that #1281 seeds to the
+    // real list, so every stack measures the table with a longer name in it.
+    await page.route("**/api/v1/users", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const users = await response.json();
+      users.push({
+        ...users[0],
+        id: crypto.randomUUID(),
+        email: `sim-owner-2fa@${member.email.split("@")[1]}`,
+        displayName: "Two-factor Owner",
+        role: "Admin",
+        disabledAt: null,
+        twoFactorEnabled: true,
+      });
+      await route.fulfill({ response, json: users });
+    });
     await page.goto("/account");
     const languageSelect = page.locator('select:has(option[value="en"]):has(option[value="es"])');
     await languageSelect.selectOption(language);
