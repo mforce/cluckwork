@@ -330,7 +330,9 @@ export function UsersPage() {
                   <TableRow key={u.id} className={u.disabledAt ? "muted" : undefined}
                     {...selectableRowProps(u.id === selectedId, () => setSelectedId(u.id))}>
                     <TableCell sx={NOWRAP}>{u.email}</TableCell>
-                    <TableCell sx={NOWRAP}>{u.displayName ?? "—"}</TableCell>
+                    {/* A name is free text, so from md up it wraps rather than
+                        widen the table past the pane. Phones keep one line (#984). */}
+                    <TableCell sx={{ whiteSpace: { xs: "nowrap", md: "normal" } }}>{u.displayName ?? "—"}</TableCell>
                     <TableCell sx={NOWRAP}>{roleLabel(u.role)}</TableCell>
                     <TableCell sx={NOWRAP}>
                       {u.disabledAt
