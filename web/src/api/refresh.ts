@@ -348,12 +348,17 @@ async function sendWithRefresh<T>(
   token: string,
   { held, unresendable = () => false }: { held?: HeldAuthCookieLock; unresendable?: (err: ApiError) => boolean } = {},
 ): Promise<T> {
-  // #1281 — the Owner gate's refusal, on any send, leads to the setup screen.
-  const send = (bearer: string) => sendOnce(bearer).catch((err: unknown) => {
-    if (err instanceof ApiError && err.status === 403 && err.title === TWO_FACTOR_ENROLMENT_REQUIRED)
-      onTwoFactorEnrolmentRequired?.();
-    throw err;
-  });
+  // #1281 — the Owner gate's refusal, on any send, leads to the setup screen,
+  // unless the session that sent it has ended: it is not the next user's.
+  const send = (bearer: string) => {
+    const generation = sessionGeneration;
+    return sendOnce(bearer).catch((err: unknown) => {
+      if (err instanceof ApiError && err.status === 403 && err.title === TWO_FACTOR_ENROLMENT_REQUIRED
+        && generation === sessionGeneration)
+        onTwoFactorEnrolmentRequired?.();
+      throw err;
+    });
+  };
   // A held context identifies the non-replayable password form. Generic API
   // requests may continue on a newer login after supersession; this one must
   // not refresh that newer cookie or resend the old password body against it.
