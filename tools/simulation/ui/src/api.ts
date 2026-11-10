@@ -92,6 +92,17 @@ export async function apiGet<T>(token: string, path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** An authenticated PUT for cleanup, with a fresh Idempotency-Key. Throws on a non-2xx. */
+export async function apiPut(token: string, path: string, body: unknown): Promise<void> {
+  const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
+    method: "PUT",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok)
+    throw new ApiProbeError(`PUT ${path} -> ${res.status}`, res.status, await problemTitle(res));
+}
+
 /** An authenticated GET returning only the status — for probing an expected refusal. */
 export async function apiGetStatus(token: string, path: string): Promise<number> {
   const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
