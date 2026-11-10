@@ -40,8 +40,9 @@ public sealed class MustChangePasswordGateTests(CluckworkWebApplicationFactory f
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Auth.MustChangePassword", body);
+        var body = await TestHarness.ReadProblemAsync(response);
+        Assert.Equal("Auth.MustChangePassword", body.GetProperty("title").GetString());
+        Assert.Equal((int)HttpStatusCode.Forbidden, body.GetProperty("status").GetInt32());
     }
 
     // #339 review — UseExceptionHandler (Program.cs) re-executes the whole

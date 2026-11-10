@@ -482,7 +482,8 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
     private sealed class SwitchableGraceStart(IOwnerGraceStart real, FailingSwitch failing) : IOwnerGraceStart
     {
         public Task StartAsync(Guid accountId, Guid userId, DateTimeOffset now, CancellationToken ct) =>
-            failing.Failing ? throw new InvalidOperationException("the grace start failed") : real.StartAsync(accountId, userId, now, ct);
+            // A database error can quote the row; the user id stands in for it.
+            failing.Failing ? throw new InvalidOperationException($"the grace start failed for {userId}") : real.StartAsync(accountId, userId, now, ct);
     }
 
     // Raising the setting and restarting moves an existing deadline out.
