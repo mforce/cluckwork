@@ -57,7 +57,9 @@ public sealed class OwnerTwoFactorGateUnitTests
 
         Assert.False(passed);
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
-        Assert.Equal(EnrolmentErrorCodes.EnrolmentRequired, (await ProblemAsync(context)).Title);
+        var problem = await ProblemAsync(context);
+        Assert.Equal(EnrolmentErrorCodes.EnrolmentRequired, problem.Title);
+        Assert.Equal(StatusCodes.Status403Forbidden, problem.Status);
         Assert.False(context.Response.Headers.ContainsKey("WWW-Authenticate"));
     }
 
@@ -104,6 +106,9 @@ public sealed class OwnerTwoFactorGateUnitTests
     [InlineData("POST", "/api/v1/auth/two-factor/start")]
     [InlineData("POST", "/api/v1/auth/two-factor/confirm/")]
     [InlineData("POST", "/api/v1/auth/logout")]
+    // Routing matches the method and the path in any case.
+    [InlineData("get", "/api/v1/auth/two-factor")]
+    [InlineData("POST", "/API/V1/AUTH/STEP-UP")]
     public async Task PastTheDeadline_TheEnrolmentPathsStayOpen(string method, string path)
     {
         var (passed, _) = await RunAsync(Owner(), Check(enrolled: false, Deadline(-TimeSpan.FromDays(1))), method, path);

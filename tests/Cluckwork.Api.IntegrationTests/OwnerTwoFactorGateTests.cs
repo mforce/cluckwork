@@ -466,6 +466,8 @@ public sealed class OwnerTwoFactorGateTests(SecondFactorFactory factory) : IDisp
             Assert.Equal(["ClientIp", "SecurityEvent"], e.Properties.Keys
                 .Where(k => k is not ("RequestId" or "RequestPath" or "SourceContext" or "AccountId")).Order());
             Assert.DoesNotContain(owner.UserId.ToString(), e.RenderMessage(), StringComparison.OrdinalIgnoreCase);
+            // A database error can quote the row (log redaction policy).
+            Assert.Null(e.Exception);
         });
         Assert.Null(stillNull);
         Assert.Equal(HttpStatusCode.OK, third.StatusCode);
