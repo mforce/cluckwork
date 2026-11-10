@@ -3515,6 +3515,9 @@ export const tl = {
       + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng I-set up "
       + "ang iyong password, at ng tatlo pa ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "
       + "mo pang device at mga connected app.",
+    // #1281 — every Owner must use two-factor authentication.
+    accountOwnerTwoFactor:
+      "Kailangang gumamit ng two-factor authentication ang mga <strong>Owner</strong>. Hanggang sa iyong deadline, ipinapakita ng bawat screen ang petsa at oras kung kailan ito dapat i-set up, kasama ang <strong>I-set up</strong>. Pagkalipas ng deadline, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ang two-factor authentication, tapos bubuksan nito ang page na hiningi mo. Habang kailangan ito, hindi iniaalok ang <strong>I-off</strong>.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:
@@ -4117,7 +4120,8 @@ export const tl = {
     glossaryTwoFactorAuthDef:
       "Pag-sign in gamit ang iyong password at pangalawang patunay mula sa iyong phone: isang code mula sa "
       + "iyong authenticator app, o isang recovery code kung wala ang phone. I-on ito sa Account › Seguridad, "
-      + "gamit ang I-set up. Kapag in-on ito, masa-sign out ang iba mo pang device at mga connected app.",
+      + "gamit ang I-set up. Kapag in-on ito, masa-sign out ang iba mo pang device at mga connected app."
+      + " Kailangan itong i-on ng bawat Owner bago ang isang deadline. Pagkalipas nito, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ito.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
       "Ang app sa iyong phone na nagpapakita ng bagong 6-digit na code bawat 30 segundo. Lumalabas dito ang "
@@ -4135,7 +4139,8 @@ export const tl = {
     glossaryTurnOffTwoFactorDef:
       "Pag-alis ng sarili mong pangalawang factor, gamit ang I-off sa Account › Seguridad. Hihinto sa paggana "
       + "ang iyong authenticator app at mga recovery code, masa-sign out ang iba mo pang device at mga connected "
-      + "app, at password lang ang gagamitin mo sa pag-sign in.",
+      + "app, at password lang ang gagamitin mo sa pag-sign in."
+      + " Hindi ito puwedeng i-off ng isang Owner habang kailangan ang two-factor authentication.",
 
     glossaryResetTwoFactorTerm: "Pag-reset ng two-factor authentication",
     glossaryResetTwoFactorDef:

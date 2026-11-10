@@ -3394,6 +3394,9 @@ export const es = {
       + "teléfono nuevo y <strong>Desactivar</strong> la quita. Configurar pide antes su contraseña, y los otros tres su contraseña y un código. "
       + "Activarla, reemplazar la aplicación y desactivarla cierran la sesión en sus otros dispositivos y "
       + "aplicaciones conectadas.",
+    // #1281 — every Owner must use two-factor authentication.
+    accountOwnerTwoFactor:
+      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, cada pantalla muestra la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:
@@ -3976,7 +3979,8 @@ export const es = {
     glossaryTwoFactorAuthDef:
       "Iniciar sesión con su contraseña y una segunda prueba de su teléfono: un código de su aplicación de "
       + "autenticación, o un código de recuperación sin el teléfono. Actívela en Cuenta › Seguridad, con "
-      + "Configurar. Al activarla se cierra la sesión en sus otros dispositivos y aplicaciones conectadas.",
+      + "Configurar. Al activarla se cierra la sesión en sus otros dispositivos y aplicaciones conectadas."
+      + " Todo propietario debe activarla antes de una fecha límite. Después, Cluckwork muestra solo la pantalla de configuración hasta que esté activada.",
     glossaryAuthenticatorAppTerm: "Aplicación de autenticación",
     glossaryAuthenticatorAppDef:
       "La aplicación de su teléfono que muestra un código nuevo de 6 dígitos cada 30 segundos. Cluckwork aparece "
@@ -3994,7 +3998,8 @@ export const es = {
     glossaryTurnOffTwoFactorDef:
       "Quitar su propio segundo factor, con Desactivar en Cuenta › Seguridad. Su aplicación de autenticación y "
       + "sus códigos de recuperación dejan de funcionar, se cierra la sesión en sus otros dispositivos y "
-      + "aplicaciones conectadas, e inicia sesión solo con su contraseña.",
+      + "aplicaciones conectadas, e inicia sesión solo con su contraseña."
+      + " Un propietario no puede desactivarla mientras la autenticación en dos pasos sea obligatoria.",
 
     glossaryResetTwoFactorTerm: "Restablecer la autenticación en dos pasos",
     glossaryResetTwoFactorDef:

@@ -4104,6 +4104,9 @@ export const en = {
       + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
       + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "
       + "other devices and connected apps.",
+    // #1281 — every Owner must use two-factor authentication.
+    accountOwnerTwoFactor:
+      "<strong>Owners</strong> must use two-factor authentication. Until your deadline, every screen shows the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. While it is required, <strong>Turn off</strong> is not offered.",
 
     // Install on a phone
     installHeading: "Install on a phone",
@@ -4635,7 +4638,8 @@ export const en = {
     glossaryTwoFactorAuthDef:
       "Signing in with your password and a second proof from your phone: a code from your authenticator app, "
       + "or a recovery code without the phone. Turn it on in Account › Security, with Set up. Turning it on signs "
-      + "out your other devices and connected apps.",
+      + "out your other devices and connected apps."
+      + " Every Owner must turn it on by a deadline. After it, Cluckwork shows only the set-up screen until it is on.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
       "The app on your phone that shows a new 6-digit code every 30 seconds. Cluckwork appears in it with your "
@@ -4652,7 +4656,8 @@ export const en = {
     glossaryTurnOffTwoFactorDef:
       "Removing your own second factor, with Turn off in Account › Security. Your authenticator app and recovery "
       + "codes stop working, your other devices and connected apps are signed out, and you sign in with your "
-      + "password only.",
+      + "password only."
+      + " An Owner can't turn it off while two-factor authentication is required.",
 
     // #1280
     glossaryResetTwoFactorTerm: "Reset two-factor authentication",

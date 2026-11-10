@@ -1396,6 +1396,15 @@ authenticator app** (for a new phone) runs the same set-up after a step-up with
 the password and a code; the old app keeps working until the new one's code is
 confirmed. Turning it on and replacing the app are audited
 (`User.TwoFactorEnabled`).
+Every **Owner** must turn it on (#1281). From the Owner's first request the
+Owner has `TwoFactor:OwnerGraceDays` days, 14 by default. Until that deadline,
+the app shell shows "Every Owner must use two-factor authentication. Set it up
+by <date and time>", in the browser's time zone, with **Set up**, which opens
+the set-up on **Account**. From the deadline, the app shows only the set-up
+screen, which offers **Sign out**, until two-factor authentication is on, and
+then opens the page the Owner asked for. Sign-in itself is never refused. An
+operator can switch the requirement off for every Owner with
+`TwoFactor:RequireForOwners`.
 
 **Authenticator app (#1277)** — the phone app that shows a new 6-digit code
 every 30 seconds for each account added to it. Cluckwork appears in it as
@@ -1420,7 +1429,9 @@ with the password and a code. Their authenticator app and recovery codes stop
 working, every other session and connected app ends, this device stays signed
 in, and the next sign-in asks for the password only. It is audited
 (`User.TwoFactorDisabled`). Removing another user's is **Reset two-factor
-authentication**.
+authentication**. While two-factor authentication is required for Owners
+(#1281), an Owner cannot turn it off: **Security** says why in place of
+**Turn off**.
 
 **Reset two-factor authentication (#1280)** — an Owner, or `recover-admin`,
 removes another user's second factor so they can enrol again, for example after
