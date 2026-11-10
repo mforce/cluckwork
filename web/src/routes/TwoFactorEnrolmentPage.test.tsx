@@ -119,6 +119,9 @@ const press = async (name: string, scope: HTMLElement = document.body) => {
   await act(async () => { fireEvent.click(within(scope).getByRole("button", { name })); });
 };
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+// A screen sends its request after its effects run, which can be after the
+// render a test waits for, so a test that answers a held request waits for it.
+const sent = (key: string) => waitFor(() => expect(held.get(key)).toBeDefined());
 
 async function enrol() {
   await press(t("setUpButton"), (await setUpScreen()).closest("main")!);
@@ -217,6 +220,7 @@ describe("the forced two-factor setup screen", () => {
     holding.add("GET /auth/two-factor");
     render("/reports");
     await setUpScreen();
+    await sent("GET /auth/two-factor");
 
     gated = false;
     requiredBy = undefined;
@@ -253,6 +257,7 @@ describe("the forced two-factor setup screen", () => {
     render("/");
     holding.add("GET /flocks");
     await press("load flocks");
+    await sent("GET /flocks");
     holding.clear();
     await press("sign out of home");
     await screen.findByText(/login screen/);
@@ -272,6 +277,7 @@ describe("the forced two-factor setup screen", () => {
     render("/");
     holding.add("GET /flocks");
     await press("load flocks");
+    await sent("GET /flocks");
     holding.clear();
     gated = true;
     await press("load flocks");
@@ -302,10 +308,12 @@ describe("the forced two-factor setup screen", () => {
     holding.add("POST /auth/logout");
 
     await act(async () => { fireEvent.click(signOut); });
+    await sent("POST /auth/logout");
     expect(signOut).toBeDisabled();
     // jsdom does not model inert, so the attribute is what can be checked.
     if (holdsSetUp) expect(screen.getByRole("button", { name: t("setUpButton") }).closest("[inert]")).not.toBeNull();
     await act(async () => { fireEvent.click(signOut); });
+    await settle();
 
     expect(requests.filter((r) => r === "POST /auth/logout")).toHaveLength(1);
     holding.clear();
