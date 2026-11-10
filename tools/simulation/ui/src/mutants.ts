@@ -405,6 +405,8 @@ export const MUTANTS: Record<string, Mutant> = {
         });
       };
       await page.route("**/api/v1/auth/login", forgeRole);
+      // #1281 — an enrolled member's token arrives from the code step instead.
+      await page.route("**/api/v1/auth/login/second-factor", forgeRole);
       await page.route("**/api/v1/auth/refresh", forgeRole);
     },
   },

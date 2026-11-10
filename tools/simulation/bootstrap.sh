@@ -292,6 +292,13 @@ RateLimiting__Refresh__PermitLimit=1000000
 RateLimiting__Refresh__WindowSeconds=900
 RateLimiting__ClientErrors__PermitLimit=1000000
 RateLimiting__ClientErrors__WindowSeconds=300
+# #1281 — the code step has its own per-address bucket. Like Login above:
+# per run, the suite signs the two-factor Owner in through the code step once,
+# k6's auth smoke twice (setup and its VU) and the verify client once per
+# connect, all from one host, and runs go back to back. reset.sh signs that
+# Owner in before two-factor is on, so its sign-in takes no code.
+RateLimiting__SecondFactor__PermitLimit=1000000
+RateLimiting__SecondFactor__WindowSeconds=900
 
 # --- Host/proxy interpolation vars (parity with deploy/.env.example) ---
 #

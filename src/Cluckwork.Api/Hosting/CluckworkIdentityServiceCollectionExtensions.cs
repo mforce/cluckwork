@@ -8,6 +8,7 @@ using Cluckwork.Infrastructure.Modules.Access.OAuth;
 using Cluckwork.Infrastructure.OAuth;
 using Cluckwork.Infrastructure.Modules.Access.Repositories;
 using System.Security.Cryptography;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Api.Mcp;
 using Cluckwork.Api.Middleware;
 using Cluckwork.Api.Modules.Access.OAuth;
@@ -181,6 +182,14 @@ internal static class CluckworkIdentityServiceCollectionExtensions
         // guard below: a one-shot verb never reads the section (#331).
         services.AddOptions<EnrolledSessionOptions>().Bind(configuration.GetSection(EnrolledSessionOptions.SectionName));
         if (role is ProcessRole.Serving) EnsureEnrolledSessionCap(configuration);
+        // #1281 — only the serving host reads the grace and the switch, so
+        // their checks are serving-only too, like the session cap above.
+        services.AddOptions<OwnerGraceOptions>().Bind(configuration.GetSection(OwnerGraceOptions.SectionName));
+        if (role is ProcessRole.Serving)
+        {
+            EnsureOwnerGraceDays(configuration);
+            EnsureRequireForOwners(configuration);
+        }
 
         AddUserFeatures(services);
 
@@ -234,6 +243,28 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             || days is < EnrolledSessionOptions.MinDays or > EnrolledSessionOptions.MaxDays)
             throw new InvalidOperationException(
                 $"{key} must be a whole number from {EnrolledSessionOptions.MinDays} to {EnrolledSessionOptions.MaxDays}, and '{value}' is not.");
+    }
+
+    // #1274 decision 18: no value ever means "enforce now", so a grace that is
+    // not a whole number from 1 to 365 fails the boot.
+    private static void EnsureOwnerGraceDays(IConfiguration configuration)
+    {
+        const string key = $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.OwnerGraceDays)}";
+        if (configuration[key] is not { } value) return;
+        if (!int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var days)
+            || days is < OwnerGraceOptions.MinDays or > OwnerGraceOptions.MaxDays)
+            throw new InvalidOperationException(
+                $"{key} must be a whole number from {OwnerGraceOptions.MinDays} to {OwnerGraceOptions.MaxDays}, and '{value}' is not.");
+    }
+
+    // #1281: WarnIfRelaxed's bind already kills a boot on a value that is not
+    // true or false; this guard names the key in the message and gives the
+    // serving-guard registries a row.
+    private static void EnsureRequireForOwners(IConfiguration configuration)
+    {
+        const string key = $"{OwnerGraceOptions.SectionName}:{nameof(OwnerGraceOptions.RequireForOwners)}";
+        if (configuration[key] is { } value && !bool.TryParse(value, out _))
+            throw new InvalidOperationException($"{key} must be true or false, and '{value}' is not.");
     }
 
     private static Uri EnsureOAuthIssuer(string? issuer)

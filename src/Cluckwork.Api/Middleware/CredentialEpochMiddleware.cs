@@ -19,13 +19,9 @@ namespace Cluckwork.Api.Middleware;
 // and the responses.
 public sealed class CredentialEpochMiddleware(RequestDelegate next)
 {
-    private const string LogoutPath = "/api/v1/auth/logout";
-
     public async Task InvokeAsync(HttpContext context, ICredentialEpochVerifier verifier)
     {
-        if (context.User.Identity?.IsAuthenticated == true
-            && context.Features.Get<IExceptionHandlerFeature>() is null
-            && !IsLogoutPath(context.Request.Path))
+        if (ChecksRequest(context))
         {
             var userIdClaim = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             var accountIdClaim = context.User.FindFirst("account_id")?.Value;
@@ -36,13 +32,14 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 : 0;
 
             // An unparseable user or account claim never reaches the database.
-            var verdict = Guid.TryParse(userIdClaim, out var userId)
+            var check = Guid.TryParse(userIdClaim, out var userId)
                 && Guid.TryParse(accountIdClaim, out var accountId)
                 ? await verifier.VerifyAsync(userId, accountId, tokenEpoch,
                     // #800 — only an OAuth access token carries client_id.
                     context.User.HasClaim(claim => claim.Type == OpenIddictConstants.Claims.ClientId),
                     context.RequestAborted)
-                : CredentialVerdict.UnknownUser;
+                : new CredentialCheck(CredentialVerdict.UnknownUser, false, null);
+            var verdict = check.Verdict;
 
             // #1229 — an OAuth token names its authorization and itself. Only a Current
             // one counts as use, and a Superseded one can never pass again, so it is revoked.
@@ -71,23 +68,29 @@ public sealed class CredentialEpochMiddleware(RequestDelegate next)
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 // #806 — the token no longer grants access, so an MCP client must re-authorize.
                 CluckworkMcp.AddChallenge(context, "error=\"invalid_token\"");
-                context.Response.ContentType = "application/problem+json";
+                // WriteAsJsonAsync sets the content type itself, so the problem type is
+                // passed to it, as the password and two-factor gates do.
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
                     Title = title,
                     Detail = detail,
                     Status = StatusCodes.Status401Unauthorized,
-                });
+                }, options: null, contentType: "application/problem+json");
                 return;
             }
+
+            // #1281 — the Owner two-factor gate reads the row through this check.
+            context.Features.Set<CredentialCheck?>(check);
         }
 
         await next(context);
     }
 
-    // Endpoint routing accepts the conventional trailing-slash form too. Keep
-    // both spellings reachable for a superseded bearer, without widening the
-    // exemption to descendants such as /auth/logout/anything.
-    internal static bool IsLogoutPath(PathString path) =>
-        path == LogoutPath || path == $"{LogoutPath}/";
+    // The requests this check reads the row for: authenticated, not the
+    // exception handler's re-execution and not logout. The Owner two-factor
+    // gate skips exactly the others, so it can require the check on these.
+    internal static bool ChecksRequest(HttpContext context) =>
+        context.User.Identity?.IsAuthenticated == true
+        && context.Features.Get<IExceptionHandlerFeature>() is null
+        && !LogoutPath.Matches(context.Request.Path);
 }

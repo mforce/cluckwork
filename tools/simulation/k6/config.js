@@ -28,6 +28,7 @@ export const REFRESH_COOKIE_NAME_PREFIX = 'cluckwork_rt';
 
 export const AUTH_PATHS = {
   LOGIN: '/api/v1/auth/login',
+  SECOND_FACTOR: '/api/v1/auth/login/second-factor',
   REFRESH: '/api/v1/auth/refresh',
 };
 
@@ -44,4 +45,16 @@ export function loadCastUsers() {
   const owner = { ...rawCast.owner };
   const cast = rawCast.cast.map((member) => ({ ...member }));
   return [owner, ...cast];
+}
+
+/**
+ * The second Owner, with two-factor on and a `totpKey` (#1281). reset.sh adds
+ * them outside `cast`, so loadCastUsers() and the baseline's 10-user capacity
+ * run are unchanged.
+ */
+export function loadTwoFactorOwner() {
+  if (!rawCast.twoFactorOwner) {
+    throw new Error('.sim-cast.json has no twoFactorOwner. Re-run `bash tools/simulation/reset.sh`, which adds them.');
+  }
+  return { ...rawCast.twoFactorOwner };
 }

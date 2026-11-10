@@ -50,7 +50,8 @@ PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install   # on NixOS — see "Browsers"
 #                              npm install && npx playwright install chromium   # elsewhere
 
 # 3. Run.
-npm test                    # the smoke suite (~30s)
+npm test                    # the smoke suite (6.2 min on one worker, measured 2026-11-08;
+                            # CI's e2e job splits it across three shards)
 npm run report              # open the HTML report
 npm run mutation            # prove the suite can actually fail (~3 min)
 bash run-canary.sh          # Core Web Vitals on a quiet system
@@ -95,7 +96,9 @@ specs-canary/                 the canary
 src/
   browser.ts     which Chromium, and why there are two right answers
   cast.ts        personas from ../.sim-cast.json; cast label -> SPA role,
-                 plus readmeFarmOwner() for the second farm
+                 plus readmeFarmOwner() for the second farm and
+                 twoFactorOwner(), the Owner with two-factor on (#1281)
+  totp.ts        authenticator codes for twoFactorOwner()
   farm.ts        farm-local dates via Intl, mirroring web/src/lib/dates.ts
   i18n.ts        selector text read from the SPA's own en/es/tl catalogs
   api.ts         HTTP, for preflight and ground truth only — never assertions

@@ -53,7 +53,12 @@ public sealed class TwoFactorOwnershipTests
             "TwoFactorEnabled", "an enrolled user changes the password with a code (decision 11)"),
         new(InInfrastructure + Identity + "IdentityProvider.ListUsersAsync(System.Guid, System.Threading.CancellationToken)",
             "TwoFactorEnabled", "the Users page offers the reset only for an enrolled user (decision 17)"),
+        new(VerifierRead, "TwoFactorEnabled", "the Owner two-factor gate reads enrolment from the credential check's row (#1281)"),
+        new(VerifierRead, "SecondFactorRequiredSince", "the Owner two-factor gate reads the grace start from the same row (#1281)"),
     ];
+
+    private const string VerifierRead = InInfrastructure + Identity
+        + "CredentialEpochVerifier.VerifyAsync(System.Guid, System.Guid, int, bool, System.Threading.CancellationToken)";
 
     // The password step's read of the sign-in count, which the challenge
     // carries (decision 2): the record requires the walk to find it.

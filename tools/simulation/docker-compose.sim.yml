@@ -136,6 +136,9 @@ services:
       RateLimiting__Refresh__WindowSeconds: ${RateLimiting__Refresh__WindowSeconds}
       RateLimiting__ClientErrors__PermitLimit: ${RateLimiting__ClientErrors__PermitLimit}
       RateLimiting__ClientErrors__WindowSeconds: ${RateLimiting__ClientErrors__WindowSeconds}
+      # #1281 — defaults, so an .env.sim written before the Owner enrolled still boots.
+      RateLimiting__SecondFactor__PermitLimit: ${RateLimiting__SecondFactor__PermitLimit:-1000000}
+      RateLimiting__SecondFactor__WindowSeconds: ${RateLimiting__SecondFactor__WindowSeconds:-900}
       # No traefik in this stack, so this trusted-proxy CIDR is inert — kept
       # only so RateLimiting__TrustedProxies matches the base stack's shape.
       RateLimiting__TrustedProxies__0: ${TRUSTED_PROXY_CIDR}

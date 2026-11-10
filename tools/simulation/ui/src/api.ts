@@ -62,11 +62,12 @@ export async function signInForToken(member: CastMember): Promise<string> {
   if (!res.ok) {
     const title = await problemTitle(res);
     // #1278 — an enrolled member's password step answers 401 with a challenge.
-    // Completing the code step for the cast is #1281's work.
+    // Only twoFactorOwner() has two-factor on (#1281), and the browser fixture
+    // signs them in; this probe signs in members without it.
     if (title === "Auth.SecondFactorRequired")
       throw new ApiProbeError(
-        `${member.email} has two-factor authentication on, and signInForToken does not complete `
-          + `the code step yet (#1281). Sign in as an unenrolled member.`,
+        `${member.email} has two-factor authentication on, and signInForToken signs in only members without it. `
+          + `Sign in as an unenrolled member.`,
         res.status,
         title,
       );

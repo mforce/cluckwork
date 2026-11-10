@@ -35,6 +35,7 @@ import {
   CSRF_HEADER_VALUE,
   REFRESH_COOKIE_NAME_PREFIX,
 } from './config.js';
+import { CODE_STEP_HINT, withCodes } from './totp.js';
 
 // How close to `accessTokenExpiry` (in seconds) before maybeRefresh() will
 // proactively refresh. Access tokens live 15 minutes; 60s of slack is ample
@@ -82,7 +83,7 @@ function safeJson(res) {
  * token and the refresh cookie.
  */
 export function login(user) {
-  const res = http.post(
+  let res = http.post(
     `${BASE_URL}${AUTH_PATHS.LOGIN}`,
     JSON.stringify({ farmCode: 'default-farm', email: user.email, password: user.password }),
     {
@@ -90,6 +91,23 @@ export function login(user) {
       tags: { name: 'auth_login' },
     }
   );
+
+  // #1281 — the two-factor Owner's password step answers 401 with a
+  // challenge, a credential that goes to the code step and nowhere else.
+  const pending = res.status === 401 ? safeJson(res) : null;
+  const atCodeStep = !!(user.totpKey && pending && pending.title === 'Auth.SecondFactorRequired');
+  if (atCodeStep) {
+    res = withCodes(user.totpKey, (code) =>
+      http.post(
+        `${BASE_URL}${AUTH_PATHS.SECOND_FACTOR}`,
+        JSON.stringify({ challenge: pending.challenge, code }),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          tags: { name: 'auth_second_factor' },
+        }
+      )
+    );
+  }
 
   const body = safeJson(res);
   const cookie = extractSetCookie(res, REFRESH_COOKIE_NAME_PREFIX);
@@ -104,7 +122,8 @@ export function login(user) {
   // The status and title only: a failed login's body can carry a sign-in challenge (#1274).
   if (!ok) {
     throw new Error(
-      `login failed for ${user.email}: status=${res.status} title=${body && body.title}`
+      `login failed for ${user.email}: status=${res.status} title=${body && body.title}` +
+        (atCodeStep ? ` ${CODE_STEP_HINT}` : '')
     );
   }
 

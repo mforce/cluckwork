@@ -36,7 +36,7 @@ internal sealed class TwoFactorCredentials(
     UserManager<ApplicationUser> userManager,
     TimeProvider timeProvider,
     AuthSecurityEventLogger securityEvents,
-    IAccountRepository accounts) : ITwoFactorCredentials
+    IAccountRepository accounts) : ITwoFactorCredentials, IOwnerGraceStart
 {
     // Stored with every row or value: changing one makes every stored key
     // unreadable or orphaned.
@@ -58,12 +58,26 @@ internal sealed class TwoFactorCredentials(
     // on a sign-in. Never a code, only the number left.
     public async Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct)
     {
-        var enabled = await db.Users.AsNoTracking()
+        var user = await db.Users.AsNoTracking()
             .Where(u => u.Id == userId && u.AccountId == accountId)
-            .Select(u => u.TwoFactorEnabled)
+            .Select(u => new { u.TwoFactorEnabled, u.SecondFactorRequiredSince })
             .SingleOrDefaultAsync(ct);
-        return new TwoFactorStatus(enabled, enabled ? await RecoveryCodesLeftAsync(accountId, userId, ct) : 0);
+        var enabled = user?.TwoFactorEnabled == true;
+        return new TwoFactorStatus(
+            enabled, enabled ? await RecoveryCodesLeftAsync(accountId, userId, ct) : 0, user?.SecondFactorRequiredSince);
     }
+
+    // #1281 (#1274 decision 18) — an Owner's grace start, set once. One guarded
+    // statement, as SetLanguageAsync writes the row, so it takes only its row
+    // lock and never joins a transaction. Rotating ConcurrencyStamp makes a
+    // stale full-entity save fail its concurrency check instead of clearing the
+    // value (G3.19).
+    public async Task StartAsync(Guid accountId, Guid userId, DateTimeOffset now, CancellationToken ct) =>
+        await db.Users
+            .Where(u => u.Id == userId && u.AccountId == accountId && u.SecondFactorRequiredSince == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(u => u.SecondFactorRequiredSince, now)
+                .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
 
     // #1274 "Verifying a code", steps 1 to 6.
     public async Task<FactorOutcome> VerifyAsync(

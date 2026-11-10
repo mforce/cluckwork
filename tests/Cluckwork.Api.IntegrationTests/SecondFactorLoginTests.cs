@@ -35,10 +35,12 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
 
     private sealed record UserCounters(int AccessFailed, int DailyFailures, long SignIns, long Watermark, DateTimeOffset? LockoutEnd);
 
-    private async Task<(string Email, EnrolledFactor Factor)> SeedEnrolledAsync()
+    // An Owner by default; asOwner: false seeds a plain user, who may turn
+    // two-factor off (#1281 forbids an Owner to).
+    private async Task<(string Email, EnrolledFactor Factor)> SeedEnrolledAsync(bool asOwner = true)
     {
         var email = $"tf-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        await factory.SeedAccountWithUserAsync(email, asAdmin: asOwner);
         return (email, await factory.EnrolTwoFactorAsync(email));
     }
 

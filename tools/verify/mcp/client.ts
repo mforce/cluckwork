@@ -28,6 +28,7 @@ import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprot
 import { chromium, type Page } from "playwright";
 import { en } from "../../../web/src/i18n/en.ts";
 import { es } from "../../../web/src/i18n/es.ts";
+import { withCodes } from "../../simulation/ui/src/totp.ts";
 import { resolveBrowser } from "../../simulation/ui/src/browser.ts";
 import { scopeEntry } from "../../../web/src/auth/oauthScopes.ts";
 
@@ -39,14 +40,19 @@ const MCP = new URL("/mcp", BASE);
 const APP = "Cluckwork live verifier";
 // MCP_LANG=es reads the consent screen in Spanish, for a person whose language is Spanish.
 const CONSENT = process.env.MCP_LANG === "es" ? es.connect : en.connect;
+const CONSENT_AUTH = process.env.MCP_LANG === "es" ? es.auth : en.auth;
 const CAST = new URL("../../simulation/.sim-cast.json", import.meta.url);
 
-type Member = { farmCode: string; email: string; password: string };
+// totpKey: the Owner reset.sh adds with two-factor on (#1281).
+type Member = { farmCode: string; email: string; password: string; totpKey?: string };
 
 function persona(name: string): Member {
   const cast = JSON.parse(readFileSync(CAST, "utf8"));
   switch (name) {
-    case "owner": return { farmCode: "default-farm", ...cast.owner };
+    // #1281 — the second Owner, with two-factor on, so connect and consent take codes.
+    case "owner":
+      if (!cast.twoFactorOwner) throw new Error(".sim-cast.json has no twoFactorOwner. Re-run `bash tools/simulation/reset.sh`, which adds them.");
+      return { farmCode: "default-farm", ...cast.twoFactorOwner };
     // The seeder assigns the first Worker one flock (cast.ts restrictedWorker()).
     case "restricted-worker": return { farmCode: "default-farm", ...cast.cast.find((m: { role: string }) => m.role === "Worker") };
     case "readme-owner": return cast.readmeFarm;
@@ -87,6 +93,16 @@ async function signIn(page: Page, member: Member) {
   await page.getByLabel(en.auth.email).fill(member.email);
   await page.getByLabel(en.auth.password).fill(member.password);
   await page.getByRole("button", { name: en.auth.signIn }).click();
+  if (member.totpKey)
+    await withCodes(member.totpKey, (code) => submitCode(page, code, en.auth.secondFactorCode, en.auth.secondFactorSubmit, "/api/v1/auth/login/second-factor"));
+}
+
+// #1281 — types one code from totp.ts, presses `submit` and answers the route's status.
+async function submitCode(page: Page, code: string, field: string, submit: string, route: string): Promise<number> {
+  await page.getByLabel(field).fill(code);
+  const answered = page.waitForResponse((r) => r.url().endsWith(route) && r.request().method() === "POST");
+  await page.getByRole("button", { name: submit }).click();
+  return (await answered).status();
 }
 
 const scopeBox = (page: Page, scope: string) => {
@@ -152,7 +168,14 @@ function consent(url: URL, redirect: string, member: Member, shots?: string, del
     await page.waitForTimeout(500);
     console.log(`form validation: Allow with no password stays on consent: ${!code && (await password.isVisible())}`);
     await password.fill(member.password);
-    await page.getByRole("button", { name: CONSENT.allow }).click();
+    // An enrolled member steps up with the password and a code (#1279). A
+    // refused step-up clears the password, so each try types it again.
+    if (member.totpKey)
+      await withCodes(member.totpKey, async (otp) => {
+        await password.fill(member.password);
+        return submitCode(page, otp, CONSENT_AUTH.secondFactorCode, CONSENT.allow, "/api/v1/auth/step-up");
+      });
+    else await page.getByRole("button", { name: CONSENT.allow }).click();
     for (let i = 0; i < 100 && !code; i++) await page.waitForTimeout(100);
     if (!code) throw new Error("no authorization code reached the redirect URI");
     return code;

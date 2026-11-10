@@ -85,7 +85,7 @@ public sealed partial class SecondFactorLoginTests
     [Fact]
     public async Task TurningTwoFactorOff_EndsTheFactorAndEveryOtherSession_AndKeepsTheActingOne()
     {
-        var (email, factor) = await SeedEnrolledAsync();
+        var (email, factor) = await SeedEnrolledAsync(asOwner: false);
         var other = await factory.LoginAsync(email);
         var app = await ConnectedAppToken.IssueAsync(factory, other.AccessToken, factor.RecoveryCodes[1]);
         var acting = await factory.LoginAsync(email);
@@ -118,7 +118,7 @@ public sealed partial class SecondFactorLoginTests
     public async Task TurningTwoFactorOff_WhenItIsNotOn_Is204_AndChangesNoSession(bool enrolmentStarted)
     {
         var email = $"tf-plain-{Guid.NewGuid():N}@test.local";
-        var accountId = await factory.SeedAccountWithUserAsync(email);
+        var accountId = await factory.SeedAccountWithUserAsync(email, asAdmin: false);
         var userId = await UserIdAsync(accountId, email);
         var session = await factory.LoginAsync(email);
         if (enrolmentStarted) await StartEnrolmentAsync(accountId, userId);
@@ -134,6 +134,46 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(refreshRows, await factory.WithTenantScopeAsync(accountId, db => db.RefreshTokens.CountAsync(t => t.UserId == userId)));
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(session.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(accountId, session.RefreshToken)).StatusCode);
+    }
+
+    // #1281 G6.4: an Owner cannot turn their own two-factor off. The refusal
+    // comes before the grant is spent and changes nothing; the Owner replaces
+    // a lost authenticator instead (decision 11).
+    [Fact]
+    public async Task AnOwner_CannotTurnTheirOwnTwoFactorOff()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
+
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
+
+        Assert.Equal((HttpStatusCode.Forbidden, EnrolmentErrorCodes.OwnerCannotTurnOff), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Enabled, "the factor was cleared");
+        Assert.Empty(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+        Assert.True((await ValidateGrantAsync(factor.AccountId, factor.UserId, grant!)).IsSuccess, "the refusal spent the grant");
+    }
+
+    // With TwoFactor:RequireForOwners off, an Owner turns two-factor off like
+    // a Manager (the maintainer, 2026-11-08: "Yes, follows the setting (Recommended)").
+    [Fact]
+    public async Task WithTheRequirementOff_AnOwner_TurnsTheirOwnTwoFactorOff()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        var other = await factory.LoginAsync(email);
+        var epoch = (await FactorStateAsync(factor.AccountId, factor.UserId)).Epoch;
+        using var host = factory.WithWebHostBuilder(builder => builder.UseSetting("TwoFactor:RequireForOwners", "false"));
+        var client = host.CreateClient(TestHarness.Cookieless(factory));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await factory.LoginAsync(email)).AccessToken);
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
+
+        var response = await DeleteWithGrantAsync(client, TwoFactorPath, grant!);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Empty(await TwoFactorRowsAsync(factor.AccountId, factor.UserId));
+        Assert.Single(await AuditRowsAsync(factor.AccountId, factor.UserId, AuditActions.UserTwoFactorDisabled));
+        Assert.True((await FactorStateAsync(factor.AccountId, factor.UserId)).Epoch > epoch, "the epoch did not move");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(other.AccessToken)).StatusCode);
     }
 
     // The turn-off spends its grant before it takes the user-row lock; a
@@ -178,7 +218,7 @@ public sealed partial class SecondFactorLoginTests
     public async Task TurningTwoFactorOff_WithAGrantFromBeforeAnEnrolment_IsRefused()
     {
         var email = $"tf-plain-{Guid.NewGuid():N}@test.local";
-        await factory.SeedAccountWithUserAsync(email);
+        await factory.SeedAccountWithUserAsync(email, asAdmin: false);
         var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
         EnrolledFactor? factor = null;

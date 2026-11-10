@@ -145,6 +145,87 @@ print(f"Owner {email} ({farm_code}) rotated onto the stable .sim-cast.json passw
 PY
 }
 
+# #1281 — a second Owner of the farm, with two-factor on. The main Owner adds
+# them through the Users route, and they turn two-factor on through the real
+# step-up, start and confirm routes, as a person would. They go into the
+# cast file as `twoFactorOwner`, with their `totpKey`, outside `cast`, whose
+# size k6's baseline depends on. k6's auth smoke, the verify client and the
+# two-factor Playwright spec sign them in with codes. The main Owner stays
+# unenrolled: an Owner passes the gate only during the grace period, which
+# starts afresh at every reset, so the rest of the suite signs in with no code.
+add_enrolled_owner() {
+  FARM_CODE="$1" OWNER_EMAIL="$2" OWNER_PASSWORD="$3" CAST_FILE="$4" \
+    APP_PORT="$APP_PORT" SIM_DIR="$SCRIPT_DIR" python3 - <<'PY'
+import json
+import os
+import secrets
+import sys
+import urllib.request
+import uuid
+
+base = f"http://127.0.0.1:{os.environ['APP_PORT']}/api/v1"
+farm_code = os.environ["FARM_CODE"]
+
+
+def post(path, body, token=None, step_up=None):
+    req = urllib.request.Request(
+        f"{base}{path}",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json", "Idempotency-Key": str(uuid.uuid4())},
+    )
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    if step_up:
+        req.add_header("X-Cluckwork-Step-Up", step_up)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        # The status and title only: a failed login's body can carry a sign-in
+        # challenge (#1274), which is a credential.
+        try:
+            problem = json.loads(exc.read())
+        except ValueError:
+            problem = None
+        title = problem.get("title") if isinstance(problem, dict) else None
+        print(f"FAILED: POST {path} -> {exc.code} {title}", file=sys.stderr)
+        sys.exit(1)
+
+
+def sign_in(email, password):
+    return post("/auth/login", {"farmCode": farm_code, "email": email, "password": password})["accessToken"]
+
+
+def step_up(token, password):
+    return post("/auth/step-up", {"password": password}, token=token)["token"]
+
+
+owner_password = os.environ["OWNER_PASSWORD"]
+owner_token = sign_in(os.environ["OWNER_EMAIL"], owner_password)
+
+sys.path.insert(0, os.environ["SIM_DIR"])
+import totp
+
+cast_file = os.environ["CAST_FILE"]
+with open(cast_file) as f:
+    cast = json.load(f)
+email = f"sim-owner-2fa@{cast['emailDomain']}"
+password = f"Aa1!{secrets.token_urlsafe(18)}"
+post("/users", {"email": email, "password": password, "role": "Admin", "name": "Two-factor Owner"},
+     token=owner_token, step_up=step_up(owner_token, owner_password))
+token = sign_in(email, password)
+key = post("/auth/two-factor/start", {}, token=token, step_up=step_up(token, password))["key"]
+post("/auth/two-factor/confirm", {"code": totp.code(key)}, token=token)
+
+cast["twoFactorOwner"] = {"email": email, "password": password, "role": "Owner", "totpKey": key}
+with open(cast_file, "w") as f:
+    json.dump(cast, f, indent=2)
+    f.write("\n")
+print(f"Owner {email} ({farm_code}) added with two-factor on; the key is in {os.path.basename(cast_file)}.")
+PY
+}
+
 # Signs in with the STABLE password and reports how much production data the farm
 # holds. Two jobs in one round trip, both of which the caller needs: the login
 # answers "does .sim-cast.json still match this database", and the flock count
@@ -394,6 +475,11 @@ if actual_users != expected_users:
 
 print(f"manifest OK: complete=true, counts.usersTotal={actual_users}.")
 PY
+
+# --- A second Owner with two-factor on (#1281) -----------------------------
+# After the manifest check, which counts only the users the seeder made.
+echo "-- a second Owner, with two-factor on (#1281) --"
+add_enrolled_owner "default-farm" "$SEED_ADMIN_EMAIL" "$SEED_ADMIN_PASSWORD" "$SCRIPT_DIR/.sim-cast.json"
 
 # --- The README-capture farm: a SECOND farm, demo-seeded --------------------
 #

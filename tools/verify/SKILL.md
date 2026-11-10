@@ -83,7 +83,9 @@ Inside a spec, the handles that matter:
   (timezone), `nav` (desktop shell), `phone` (tab bar and More sheet at 390).
 - Personas from `../src/cast`: `owner()`, `castMember("Manager")`,
   `unrestrictedWorker()`, `restrictedWorker()`, `readmeFarmOwner()` (the demo farm; its
-  `farmCode` is `readme-farm`). Never type a credential; never print one.
+  `farmCode` is `readme-farm`), and `twoFactorOwner()`, a second Owner with two-factor on
+  whose sign-in takes a code from `../src/totp.ts` (#1281). `owner()` has no two-factor and
+  needs no code. Never type a credential; never print one.
 - Labels through `tEn("<ns>:<key>")` from `../src/i18n`, never hardcoded English:
   `tEn("dailyEntry:flockLabel")`, `tEn("sales:newOrder")`, `tEn("stock:lotsHeading")`.
 - `commitNamedPicker(page, tEn("dailyEntry:flockLabel"), "Sim House A")` from `../src/dom`

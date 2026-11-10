@@ -59,13 +59,12 @@ public sealed class MustChangePasswordMiddleware(RequestDelegate next)
             && !IsAllowedPath(context.Request.Path))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            context.Response.ContentType = "application/problem+json";
             await context.Response.WriteAsJsonAsync(new ProblemDetails
             {
                 Title = "Auth.MustChangePassword",
                 Detail = "A password change is required before this action is available.",
                 Status = StatusCodes.Status403Forbidden,
-            });
+            }, options: null, contentType: "application/problem+json");
             return;
         }
 

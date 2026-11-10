@@ -93,6 +93,21 @@ driver iterating the cast must not have to ask which farm each member belongs to
 `verify-harness.sh` fails closed when that key is missing from a cast file that
 exists, which is the drift a git-ignored file outliving its generator produces.
 
+### The two-factor Owner (#1281)
+
+Every Owner must turn on two-factor authentication once their grace period ends.
+The main simulation Owner (`owner`) stays unenrolled, so the persona specs sign
+it in with no code. That holds only while its grace lasts: the grace starts at
+its first request after each `reset.sh`, and a sim stack is reset long before it
+ends. `reset.sh` adds a second default-farm Owner, `sim-owner-2fa@…`, who turns
+two-factor on through the real step-up, start and confirm routes, and writes them
+as a top-level `twoFactorOwner` key (`email`, `password`, `role`, `totpKey`). The
+key sits outside `cast`, whose size k6's baseline depends on. k6's auth smoke,
+the verify MCP client and `ui/specs/two-factor.spec.ts` sign this Owner in with
+codes from `totp.py`, `ui/src/totp.ts` and `k6/totp.js`. The server takes each
+30-second step once, so a client that signs this Owner in again soon waits for a
+fresh step.
+
 ## KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370
 
 **Nothing automated runs this harness.** It is deliberately not in CI — it is

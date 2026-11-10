@@ -13,7 +13,7 @@
 
 import http from 'k6/http';
 import { check } from 'k6';
-import { BASE_URL, ME_PATH, loadCastUsers } from './config.js';
+import { BASE_URL, ME_PATH, loadCastUsers, loadTwoFactorOwner } from './config.js';
 import {
   login,
   authHeaders,
@@ -22,10 +22,13 @@ import {
   preflightCredentials,
 } from './auth.js';
 
-const users = loadCastUsers();
+// #1281 — the Owner with two-factor on takes one more VU, so the smoke
+// signs in through the code step too.
+const users = [...loadCastUsers(), loadTwoFactorOwner()];
 // "a handful of VUs (<=10), one distinct user each" — the cast is exactly
-// owner + 9 members, so this also happens to exercise the whole cast.
-const SMOKE_VU_COUNT = Math.min(10, users.length);
+// owner + 9 members, so this also happens to exercise the whole cast. The
+// two-factor Owner is the eleventh.
+const SMOKE_VU_COUNT = Math.min(11, users.length);
 
 export const options = {
   scenarios: {

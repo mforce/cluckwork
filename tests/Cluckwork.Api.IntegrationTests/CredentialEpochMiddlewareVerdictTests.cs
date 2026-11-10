@@ -16,9 +16,11 @@ public sealed class CredentialEpochMiddlewareVerdictTests
 {
     private sealed class FixedVerifier(CredentialVerdict verdict) : ICredentialEpochVerifier
     {
-        public Task<CredentialVerdict> VerifyAsync(
+        public static readonly DateTimeOffset RequiredSince = new(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
+
+        public Task<CredentialCheck> VerifyAsync(
             Guid userId, Guid accountId, int tokenEpoch, bool connectedApp, CancellationToken ct = default) =>
-            Task.FromResult(verdict);
+            Task.FromResult(new CredentialCheck(verdict, TwoFactorEnabled: true, RequiredSince));
     }
 
     private static DefaultHttpContext AuthenticatedRequest()
@@ -52,22 +54,27 @@ public sealed class CredentialEpochMiddlewareVerdictTests
             .InvokeAsync(context, new FixedVerifier(verdict));
 
         Assert.False(admitted);
+        Assert.Null(context.Features.Get<CredentialCheck?>());
         Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.StartsWith("application/problem+json", context.Response.ContentType);
         context.Response.Body.Position = 0;
         var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(
             context.Response.Body, JsonSerializerOptions.Web);
         Assert.Equal(expectedTitle, problem!.Title);
+        Assert.Equal(StatusCodes.Status401Unauthorized, problem.Status);
     }
 
+    // #1281 — the Owner two-factor gate reads what the check read, from the
+    // request, on Current only.
     [Fact]
-    public async Task Current_IsAdmitted()
+    public async Task Current_IsAdmitted_WithTheCheckAsARequestFeature()
     {
         var context = AuthenticatedRequest();
-        var admitted = false;
+        CredentialCheck? seen = null;
 
-        await new CredentialEpochMiddleware(_ => { admitted = true; return Task.CompletedTask; })
+        await new CredentialEpochMiddleware(next => { seen = next.Features.Get<CredentialCheck?>(); return Task.CompletedTask; })
             .InvokeAsync(context, new FixedVerifier(CredentialVerdict.Current));
 
-        Assert.True(admitted);
+        Assert.Equal(new CredentialCheck(CredentialVerdict.Current, true, FixedVerifier.RequiredSince), seen);
     }
 }
