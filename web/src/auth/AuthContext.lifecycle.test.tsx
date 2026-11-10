@@ -25,6 +25,8 @@ vi.mock("../api/client", () => ({
   setOnTwoFactorEnrolmentRequired: vi.fn(),
 }));
 
+// Made at run time: no credential literal, even in a test.
+const PASSWORD = crypto.randomUUID();
 const mockApiLogin = vi.mocked(apiLogin);
 const mockApiCompleteSecondFactor = vi.mocked(apiCompleteSecondFactor);
 const mockApiLogout = vi.mocked(apiLogout);
@@ -44,7 +46,7 @@ function Probe() {
       <span data-testid="two-factor">{String(twoFactor)}</span>
       <span data-testid="must-enrol">{String(mustEnrolTwoFactor)}</span>
       <span data-testid="user-id">{userId ?? "null"}</span>
-      <button onClick={() => void login("default-farm", "a@b.co", "pw")}>login</button>
+      <button onClick={() => void login("default-farm", "a@b.co", PASSWORD)}>login</button>
       <button onClick={() => void completeSecondFactor("default-farm", "challenge", "code")}>second factor</button>
       <button onClick={() => void logout()}>logout</button>
     </div>
@@ -91,7 +93,7 @@ describe("AuthProvider lifecycle", () => {
     expect(mockApiLogin).toHaveBeenCalledWith({
       farmCode: "default-farm",
       email: "a@b.co",
-      password: "pw",
+      password: PASSWORD,
     });
     expect(screen.getByTestId("role")).toHaveTextContent("Sales");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
@@ -511,7 +513,7 @@ describe("AuthProvider lifecycle", () => {
 // login screen can offer it later. Remembered only after apiLogin resolves.
 function MixedProbe() {
   const { login } = useAuth();
-  return <button onClick={() => void login("Sunny-Acres", "a@b.co", "pw")}>mixed login</button>;
+  return <button onClick={() => void login("Sunny-Acres", "a@b.co", PASSWORD)}>mixed login</button>;
 }
 
 // A probe that catches the login rejection the way an application boundary would,
@@ -521,7 +523,7 @@ function GuardedLoginProbe() {
   return (
     <button
       onClick={() => {
-        void login("default-farm", "a@b.co", "pw").catch(() => {});
+        void login("default-farm", "a@b.co", PASSWORD).catch(() => {});
       }}
     >
       guarded login

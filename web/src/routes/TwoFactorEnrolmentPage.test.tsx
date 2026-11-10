@@ -96,7 +96,7 @@ function Login() {
   return (
     <div>
       login screen
-      <button type="button" onClick={() => void login("default-farm", "m@farm.local", "pw").then(() => navigate("/"))}>sign in</button>
+      <button type="button" onClick={() => void login("default-farm", "m@farm.local", crypto.randomUUID()).then(() => navigate("/"))}>sign in</button>
     </div>
   );
 }
@@ -235,6 +235,19 @@ describe("the forced two-factor setup screen", () => {
     expect(setUpShown()).toBe(true);
   });
 
+  // The gate goes by the server's clock, so a browser running behind must not
+  // send the user back to a page the gate refuses.
+  it("keeps the user there when the status route puts the deadline in the future", async () => {
+    requiredBy = new Date(Date.now() + 86_400_000).toISOString();
+    render("/reports");
+    await setUpScreen();
+    await waitFor(() => expect(requests).toContain("GET /auth/two-factor"));
+    await settle();
+
+    expect(setUpShown()).toBe(true);
+    expect(requests.filter((r) => r === "GET /reports/summary")).toHaveLength(1);
+  });
+
   it("ignores a 403 from an earlier session that lands on the next user", async () => {
     gated = false;
     render("/");
@@ -281,15 +294,17 @@ describe("the forced two-factor setup screen", () => {
   });
 
   it.each([
-    ["the setup screen", OWNER, t("requiredSignOut")],
-    ["the password screen", { ...OWNER, must_change_password: "true" }, i18n.t("auth:setPasswordSignOut")],
-  ])("signs out once when Sign out on %s is pressed twice", async (_, token, label) => {
+    ["the setup screen", OWNER, t("requiredSignOut"), true],
+    ["the password screen", { ...OWNER, must_change_password: "true" }, i18n.t("auth:setPasswordSignOut"), false],
+  ])("signs out once when Sign out on %s is pressed twice", async (_, token, label, holdsSetUp) => {
     render("/reports", token);
     const signOut = await screen.findByRole("button", { name: label });
     holding.add("POST /auth/logout");
 
     await act(async () => { fireEvent.click(signOut); });
     expect(signOut).toBeDisabled();
+    // jsdom does not model inert, so the attribute is what can be checked.
+    if (holdsSetUp) expect(screen.getByRole("button", { name: t("setUpButton") }).closest("[inert]")).not.toBeNull();
     await act(async () => { fireEvent.click(signOut); });
 
     expect(requests.filter((r) => r === "POST /auth/logout")).toHaveLength(1);

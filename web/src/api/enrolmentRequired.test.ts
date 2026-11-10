@@ -37,12 +37,14 @@ afterEach(() => {
 
 describe("the Owner gate's 403", () => {
   it("calls the callback and still rejects with the same ApiError", async () => {
-    fetchMock.mockResolvedValueOnce(problem(403, GATE));
+    const detail = crypto.randomUUID();
+    const traceRef = crypto.randomUUID();
+    fetchMock.mockResolvedValueOnce(json({ title: GATE, detail, traceRef }, 403));
 
     const err = await apiGet("/flocks").catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(ApiError);
-    expect(err).toMatchObject({ status: 403, title: GATE });
+    expect(err).toMatchObject({ status: 403, title: GATE, message: detail, extensions: { traceRef } });
     expect(onRequired).toHaveBeenCalledTimes(1);
   });
 
