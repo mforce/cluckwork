@@ -5,7 +5,6 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { ThemeProvider } from "@mui/material/styles";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthProvider } from "../auth/AuthContext";
-import { RecoveryCodesProvider } from "./account/recoveryCodes";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
 import i18n from "../i18n";
@@ -200,13 +199,13 @@ describe("AppLayout sidebar", () => {
     let retried = 0;
     render(
       <MemoryRouter>
-        <AuthProvider><RecoveryCodesProvider>
+        <AuthProvider>
           <FarmContext.Provider value={farmState({
             farm: null, loadFailed: true, refresh: async () => { retried += 1; return true; },
           })}>
             <AppLayout />
           </FarmContext.Provider>
-        </RecoveryCodesProvider></AuthProvider>
+        </AuthProvider>
       </MemoryRouter>);
 
     const banner = screen.getByRole("alert");
@@ -222,13 +221,13 @@ describe("AppLayout sidebar", () => {
     // (round 2: codex + pi).
     render(
       <MemoryRouter>
-        <AuthProvider><RecoveryCodesProvider>
+        <AuthProvider>
           <FarmContext.Provider value={farmState({
             farm: account({ name: "Hen House" }), loadFailed: true,
           })}>
             <AppLayout />
           </FarmContext.Provider>
-        </RecoveryCodesProvider></AuthProvider>
+        </AuthProvider>
       </MemoryRouter>);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/may be out of date/);
@@ -394,13 +393,13 @@ describe("AppLayout i18n wiring (#182, Task 7)", () => {
       withNavOverride("tryAgain", "NAV-TRYAGAIN-MARKER", () => {
         render(
           <MemoryRouter>
-            <AuthProvider><RecoveryCodesProvider>
+            <AuthProvider>
               <FarmContext.Provider value={farmState({
                 farm: null, loadFailed: true, refresh: async () => true,
               })}>
                 <AppLayout />
               </FarmContext.Provider>
-            </RecoveryCodesProvider></AuthProvider>
+            </AuthProvider>
           </MemoryRouter>);
         expect(screen.getByRole("alert")).toHaveTextContent("NAV-NEVERLOADED-MARKER");
         expect(screen.getByRole("button", { name: "NAV-TRYAGAIN-MARKER" })).toBeInTheDocument();
@@ -412,13 +411,13 @@ describe("AppLayout i18n wiring (#182, Task 7)", () => {
     withNavOverride("farmLoadFailedStale", "NAV-STALE-MARKER", () => {
       render(
         <MemoryRouter>
-          <AuthProvider><RecoveryCodesProvider>
+          <AuthProvider>
             <FarmContext.Provider value={farmState({
               farm: account({ name: "Hen House" }), loadFailed: true,
             })}>
               <AppLayout />
             </FarmContext.Provider>
-          </RecoveryCodesProvider></AuthProvider>
+          </AuthProvider>
         </MemoryRouter>);
       expect(screen.getByRole("alert")).toHaveTextContent("NAV-STALE-MARKER");
     });

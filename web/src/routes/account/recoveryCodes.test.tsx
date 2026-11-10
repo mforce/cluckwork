@@ -25,9 +25,6 @@ import i18n from "../../i18n";
 // live in a slot above the routes. No navigation drops them; only the end of
 // the session does. Driven through a real BrowserRouter over jsdom's history,
 // because a MemoryRouter would ignore Back and the skip link.
-// #1281 — the shell's deadline banner reads the status too; these tests count
-// the Account section's reads, and TwoFactorDeadlineBanner.test.tsx covers it.
-vi.mock("../TwoFactorDeadlineBanner", () => ({ TwoFactorDeadlineBanner: () => null }));
 vi.mock("../../api/cluckwork", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/cluckwork")>(),
   getTwoFactorStatus: vi.fn(),

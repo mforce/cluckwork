@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { App } from "./App";
 import {
-  getExpenseSummary, getProductionReport, getProfitReport, getTwoFactorStatus, getSalesSummary,
+  getExpenseSummary, getProductionReport, getProfitReport, getSalesSummary,
 } from "./api/cluckwork";
 import type {
   ExpenseSummaryReport, ProductionReport, ProfitReport, SalesSummary,
@@ -29,7 +29,6 @@ vi.mock("./api/cluckwork", async (importOriginal) => {
     getSalesSummary: vi.fn(),
     getExpenseSummary: vi.fn(),
     getProfitReport: vi.fn(),
-    getTwoFactorStatus: vi.fn(),
   };
 });
 
@@ -96,7 +95,6 @@ beforeEach(() => {
   mockGetSalesSummary.mockResolvedValue(sales);
   mockGetExpenseSummary.mockResolvedValue(expenses);
   mockGetProfitReport.mockResolvedValue(profit);
-  vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: false, recoveryCodesLeft: 0 });
 });
 
 afterEach(() => {

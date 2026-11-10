@@ -24,6 +24,7 @@ import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
 import { TwoFactorFlow } from "./account/TwoFactorFlow";
 import { takeSetUpRequest, useTwoFactor } from "./account/useTwoFactor";
+import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
 
 const MIN_LENGTH = 12;
 
@@ -93,6 +94,7 @@ export function AccountPage() {
 
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
+      <TwoFactorDeadlineBanner status={twoFactorSection.status.data} onSetUp={() => openProof("start")} />
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
         {t("eyebrow")}
       </Typography>

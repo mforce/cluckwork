@@ -3,7 +3,6 @@ import { render, screen, act, fireEvent, within, waitFor } from "@testing-librar
 import { useState } from "react";
 import { MemoryRouter } from "react-router";
 import { AuthProvider } from "../auth/AuthContext";
-import { RecoveryCodesProvider } from "./account/recoveryCodes";
 import { FarmContext } from "../farm/FarmContext";
 import { farmState } from "../test/fixtures";
 import { Dialog } from "../components/Dialog";
@@ -23,14 +22,14 @@ import { AppLayout } from "./AppLayout";
 function Shell({ loadFailed, children }: { loadFailed: boolean; children?: React.ReactNode }) {
   return (
     <MemoryRouter>
-      <AuthProvider><RecoveryCodesProvider>
+      <AuthProvider>
         <FarmContext.Provider value={farmState({
           farm: null, loadFailed, refresh: async () => true,
         })}>
           <AppLayout />
           {children}
         </FarmContext.Provider>
-      </RecoveryCodesProvider></AuthProvider>
+      </AuthProvider>
     </MemoryRouter>
   );
 }

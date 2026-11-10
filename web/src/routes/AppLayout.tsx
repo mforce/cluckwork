@@ -15,7 +15,6 @@ import { MAIN_CONTENT_ID } from "../lib/mainContent";
 import { useFarm } from "../farm/useFarm";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
-import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
 import type { NavEntry } from "./nav";
 
 const ICON = 17;
@@ -169,8 +168,6 @@ export function AppLayout() {
             check. The CONDITIONAL banner below keeps the role, and with it its
             place in that net. */}
         <p className="sr-only" aria-live="assertive" aria-atomic="true">{missedFarmWarning}</p>
-
-        <TwoFactorDeadlineBanner />
 
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a
