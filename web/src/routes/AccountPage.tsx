@@ -46,15 +46,15 @@ export function AccountPage() {
   const { busy, run } = usePendingAction();
   const twoFactorSection = useTwoFactor();
   const setUpRequest = useLocation().state as unknown;
-  const { openProof, cancels } = twoFactorSection;
+  const { openProof, backToSummary } = twoFactorSection;
   useEffect(() => {
     if (takeSetUpRequest(setUpRequest)) openProof("start");
   }, [setUpRequest, openProof]);
-  // #1281 — after a Cancel out of the scan step, the control that opened it is
-  // back but was unmounted, so the Security section's heading takes focus.
+  // #1281 — back from the scan step (a Cancel, or a Replace), the control
+  // that opened it was unmounted, so the Security section's heading takes focus.
   useEffect(() => {
-    if (cancels > 0) document.getElementById(SECURITY_SUMMARY_ID)?.focus();
-  }, [cancels]);
+    if (backToSummary > 0) document.getElementById(SECURITY_SUMMARY_ID)?.focus();
+  }, [backToSummary]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

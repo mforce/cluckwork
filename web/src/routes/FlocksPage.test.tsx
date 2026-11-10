@@ -784,7 +784,7 @@ describe("FlocksPage role gating", () => {
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
           isAuthenticated: true, isLoading: false, isAdmin, role: (isAdmin ? "Admin" : "Worker") as Role,
-          userId: "u1", mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, tokenVersion: 0, unauthenticatedReason: null,
+          userId: "u1", mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >

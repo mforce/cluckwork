@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
@@ -46,6 +46,15 @@ let homeMounts: number;
 // token the gate does not refuse (refreshedClaims).
 let tokenExpired: boolean;
 let refreshedClaims: Record<string, unknown>;
+// Every status read answers 401, as for a session the server has ended, while
+// the refresh still answers.
+let statusDead: boolean;
+let confirmWrong: boolean;
+// Answers wait this long, and an aborted request rejects, as in a browser.
+let delayMs: number;
+// Past this many requests nothing answers, so a request loop fails its test
+// instead of running on.
+const CEILING = 400;
 
 function answer(key: string): Response {
   if (tokenExpired && key !== "POST /auth/refresh") {
@@ -53,6 +62,7 @@ function answer(key: string): Response {
     return json({ title: "Unauthorized" }, 401);
   }
   if (key === "GET /auth/two-factor") {
+    if (statusDead) return json({ title: "Unauthorized" }, 401);
     if (statusFails) return json({ title: "Server error" }, 500);
     return json({ enabled: enrolled, recoveryCodesLeft: enrolled ? 10 : 0, ...(requiredBy && { requiredBy }) });
   }
@@ -62,6 +72,7 @@ function answer(key: string): Response {
     return json({ key: secret, otpauthUri: `otpauth://totp/Cluckwork:owner?secret=${secret}&issuer=Cluckwork` });
   }
   if (key === "POST /auth/two-factor/confirm") {
+    if (confirmWrong) return json({ title: "Auth.EnrolmentCodeIncorrect", detail: crypto.randomUUID(), attemptsLeft: 3 }, 400);
     enrolled = true;
     gated = false;
     return pair({ role: "Admin", two_factor: "true" }, { recoveryCodes });
@@ -80,8 +91,15 @@ function answer(key: string): Response {
 function serve(url: string, init: RequestInit = {}): Promise<Response> {
   const key = `${init.method ?? "GET"} ${url.replace(/^\/api\/v1/, "")}`;
   requests.push(key);
-  if (!holding.has(key)) return Promise.resolve(answer(key));
-  return new Promise((resolve) => { held.set(key, [...(held.get(key) ?? []), resolve]); });
+  if (requests.length > CEILING) return new Promise(() => undefined);
+  if (holding.has(key)) return new Promise((resolve) => { held.set(key, [...(held.get(key) ?? []), resolve]); });
+  if (delayMs === 0) return Promise.resolve(answer(key));
+  return new Promise((resolve, reject) => {
+    const signal = init.signal ?? undefined;
+    if (signal?.aborted) { reject(signal.reason); return; }
+    const timer = setTimeout(() => resolve(answer(key)), delayMs);
+    signal?.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+  });
 }
 
 // A screen behind the gate that loads on mount, as every app screen does.
@@ -126,7 +144,7 @@ const tree = () => (
     </Route>
   </Routes>
 );
-const OWNER = { sub: "u1", role: "Admin", account_id: ACCOUNT };
+const OWNER = { sub: "u1", role: "Admin", account_id: ACCOUNT, credential_epoch: "1" };
 const render = (route: string, token: Record<string, unknown> = OWNER) => renderWithProviders(tree(), { route, token, me: null });
 
 const setUpScreen = () => screen.findByRole("button", { name: t("setUpButton") });
@@ -135,6 +153,13 @@ const press = async (name: string, scope: HTMLElement = document.body) => {
   await act(async () => { fireEvent.click(within(scope).getByRole("button", { name })); });
 };
 const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+// In short act scopes, so each answer is rendered, and its effects run,
+// before the next request answers, as in a browser.
+const wait = async (ms: number) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) await act(() => new Promise((resolve) => setTimeout(resolve, 2)));
+};
+const count = (key: string) => requests.filter((r) => r === key).length;
 // A screen sends its request after its effects run, which can be after the
 // render a test waits for, so a test that answers a held request waits for it.
 const sent = (key: string) => waitFor(() => expect(held.get(key)).toBeDefined());
@@ -163,9 +188,24 @@ beforeEach(() => {
   holding = new Set();
   homeMounts = 0;
   tokenExpired = false;
-  refreshedClaims = {};
+  // An ordinary refresh: the same user, with the same credentials.
+  refreshedClaims = { role: "Admin", credential_epoch: "1" };
+  statusDead = false;
+  confirmWrong = false;
+  delayMs = 0;
   recoveryCodes = Array.from({ length: 10 }, () => crypto.randomUUID().slice(0, 19));
   vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => serve(url, init)));
+  // An effect that sets state on every render spins inside act and would hang
+  // the file. React reports it with this message, so a loop fails its test.
+  const report = console.error;
+  vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    if (String(args[0]).includes("Maximum update depth")) throw new Error("render loop");
+    report(...args);
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("the forced two-factor setup screen", () => {
@@ -305,9 +345,10 @@ describe("the forced two-factor setup screen", () => {
   // A refresh can hand this tab a token the gate does not refuse with no
   // sign-in here: another user's, from a second tab on this farm, or this
   // user's after another Owner made them a Manager.
+  // A role change bumps the credential epoch (#1274 decision 18).
   it.each([
-    ["another user's", { sub: "u2", role: "Manager" }],
-    ["this user's as a Manager", { sub: "u1", role: "Manager" }],
+    ["another user's", { sub: "u2", role: "Manager", credential_epoch: "1" }],
+    ["this user's as a Manager", { sub: "u1", role: "Manager", credential_epoch: "2" }],
   ])("reads the status again when a refresh adopts %s token, and lets the user go", async (_, claims) => {
     render("/reports");
     await setUpScreen();
@@ -320,6 +361,38 @@ describe("the forced two-factor setup screen", () => {
 
     expect(requests).toContain("POST /auth/refresh");
     expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
+  });
+
+  // At 304ae233 the refresh made the status read again and aborted the
+  // resend whose second 401 ends the session: 67 status reads in 1.5 s.
+  it("ends the session when the status read answers 401 to a fresh token, with a bounded number of requests", async () => {
+    delayMs = 20;
+    statusDead = true;
+    render("/reports");
+    await setUpScreen();
+    await wait(1500);
+
+    expect(count("POST /auth/refresh")).toBeLessThanOrEqual(1);
+    expect(count("GET /auth/two-factor")).toBeLessThanOrEqual(2);
+    expect(screen.getByText("login screen")).toBeInTheDocument();
+  }, 10_000);
+
+  it("keeps the scan step, its key and the typed code across an ordinary refresh, and reads nothing again", async () => {
+    render("/reports");
+    await toScanStep();
+    const key = document.querySelector("code")!.textContent;
+    const typed = freshCode();
+    fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: typed } });
+    const reads = count("GET /auth/two-factor");
+
+    tokenExpired = true;
+    await act(async () => { await apiGet("/flocks").catch(() => undefined); });
+    await settle();
+
+    expect(count("POST /auth/refresh")).toBe(1);
+    expect(count("GET /auth/two-factor")).toBe(reads);
+    expect(document.querySelector("code")!.textContent).toBe(key);
+    expect(screen.getByLabelText(new RegExp(t("codeLabel")))).toHaveValue(typed);
   });
 
   it("reads the status again on Try again, and can let the user go", async () => {
@@ -355,6 +428,38 @@ describe("the forced two-factor setup screen", () => {
     render("/reports");
     await toScanStep();
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: t("enrolHeading") })).toHaveFocus());
+  });
+
+  it("leaves focus in the code field while the user types, and after a wrong code", async () => {
+    render("/reports");
+    await toScanStep();
+    expect(screen.getByRole("heading", { level: 2, name: t("enrolHeading") })).toHaveAttribute("tabindex", "-1");
+    const field = screen.getByLabelText(new RegExp(t("codeLabel")));
+    act(() => field.focus());
+    fireEvent.change(field, { target: { value: "1" } });
+    fireEvent.change(field, { target: { value: "12" } });
+    await settle();
+    expect(field).toHaveFocus();
+
+    confirmWrong = true;
+    fireEvent.change(field, { target: { value: freshCode() } });
+    await press(t("confirmButton"));
+    await screen.findByText(new RegExp(t("codeIncorrectAttempts_other").split("{{")[0]!));
+    expect(screen.getByRole("heading", { level: 2, name: t("enrolHeading") })).not.toHaveFocus();
+  });
+
+  it("leaves focus in the proof dialog after a Cancel, while the user types", async () => {
+    render("/reports");
+    await toScanStep();
+    await press(i18n.t("common:cancel"));
+    await waitFor(() => expect(screen.getByRole("button", { name: t("setUpButton") })).toHaveFocus());
+
+    await press(t("setUpButton"));
+    const password = within(await screen.findByRole("dialog")).getByLabelText(/Your current password/);
+    act(() => password.focus());
+    fireEvent.change(password, { target: { value: "x" } });
+    await settle();
+    expect(password).toHaveFocus();
   });
 
   it("moves focus back to Set up when the user cancels the scan step", async () => {

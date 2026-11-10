@@ -1304,7 +1304,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
           mustChangePassword: false,
           twoFactor: false,
           mustEnrolTwoFactor: false,
-          setMustEnrolTwoFactor: () => {}, tokenVersion: 0,
+          setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -3102,7 +3102,7 @@ describe("UsersPage step-up authentication (#308)", () => {
           mustChangePassword: false,
           twoFactor: false,
           mustEnrolTwoFactor: false,
-          setMustEnrolTwoFactor: () => {}, tokenVersion: 0,
+          setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -3671,7 +3671,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
           mustChangePassword: false,
           twoFactor: false,
           mustEnrolTwoFactor: false,
-          setMustEnrolTwoFactor: () => {}, tokenVersion: 0,
+          setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -4167,7 +4167,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
-          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, tokenVersion: 0, unauthenticatedReason: null,
+          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >

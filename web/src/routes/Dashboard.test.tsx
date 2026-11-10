@@ -30,7 +30,7 @@ function AuthOverride({ role, children }: { role: Role; children: ReactNode }) {
     <AuthContext.Provider value={{
       isAuthenticated: true, isLoading: false,
       isAdmin: role === "Admin" || role === "Manager",
-      role, userId: "u1", mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, tokenVersion: 0, unauthenticatedReason: null,
+      role, userId: "u1", mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
       login: async () => ({ kind: "signedIn" as const }), completeSecondFactor: async () => {}, logout: async () => {},
     }}>
       {/* As in App: the slot sits above every route, and the Dashboard's status read follows it (#1281). */}

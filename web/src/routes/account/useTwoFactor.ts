@@ -55,10 +55,11 @@ function stale(err: unknown): unknown {
   return isProblem(err, 401, "Auth.CredentialsSuperseded") ? new Error(i18n.t("account:sessionChanged")) : err;
 }
 
-// reloadKey: a value whose change reads the status again (the setup screen
-// passes the session's token version).
-export function useTwoFactor(reloadKey?: unknown) {
-  const { isAuthenticated, twoFactor: enrolled } = useAuth();
+export function useTwoFactor() {
+  // #1281 — credentialKey: a new user or new credentials (a role change)
+  // can mean the gate no longer refuses this user, so the status is read
+  // again. A refresh keeps it, so a refresh alone reads nothing.
+  const { isAuthenticated, twoFactor: enrolled, credentialKey } = useAuth();
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
   const [flow, setFlow] = useState<Flow>(SUMMARY);
@@ -72,10 +73,11 @@ export function useTwoFactor(reloadKey?: unknown) {
   // answers after the user came back), so a page mounted since still shows
   // what the server now holds. Both triggers stay: a Turn off is not a slot
   // request, and a regenerate changes no claim.
-  const status = useLatestLoad([slot.settled, enrolled, reloadKey], getTwoFactorStatus);
-  // #1281 — counts Cancels out of the scan and restart steps, so the screen
-  // can move focus to where the user goes back to.
-  const [cancels, setCancels] = useState(0);
+  const status = useLatestLoad([slot.settled, enrolled, credentialKey], getTwoFactorStatus);
+  // #1281 — counts returns to the summary with no dialog to take focus (a
+  // Cancel, or a Replace that issues no codes), so the screen can move focus
+  // to where the user goes back to.
+  const [backToSummary, setBackToSummary] = useState(0);
   const email = useMe()?.email ?? "";
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
@@ -218,19 +220,21 @@ export function useTwoFactor(reloadKey?: unknown) {
     if (isCodeSet(recoveryCodes)) delivery.deliver(recoveryCodes, { regenerated: false, email });
     if (!current()) return;
     setFlow(SUMMARY);
-    if (!isCodeSet(recoveryCodes)) setMessage(i18n.t("account:replacedMessage"));
+    if (isCodeSet(recoveryCodes)) return;
+    setMessage(i18n.t("account:replacedMessage"));
+    setBackToSummary((n) => n + 1);
   }
 
   function leaveFlow() {
     dismissDialog("confirm");
     setCode("");
     setFlow(SUMMARY);
-    setCancels((n) => n + 1);
+    setBackToSummary((n) => n + 1);
   }
 
   return {
     status, flow, action, proof, setProof, code, setCode, message, dialog,
-    openProof, closeProof, onProof, onConfirm, leaveFlow, cancels,
+    openProof, closeProof, onProof, onConfirm, leaveFlow, backToSummary,
   };
 }
 

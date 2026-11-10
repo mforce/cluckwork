@@ -390,7 +390,7 @@ describe("the step-up proof", () => {
       <MemoryRouter>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
-          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, tokenVersion: 0, unauthenticatedReason: null,
+          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}>
           <RecoveryCodesProvider>
@@ -469,6 +469,34 @@ describe("focus around the scan step", () => {
     await renderAccount(OFF);
     await enrol();
     await press(i18n.t("common:cancel"));
+    await waitFor(() => expect(document.getElementById(SECURITY_SUMMARY_ID)).toHaveFocus());
+
+    // Only the Cancel moves it: typing afterwards keeps focus where it is.
+    const current = screen.getByLabelText(new RegExp(t("currentPasswordLabel")));
+    act(() => current.focus());
+    fireEvent.change(current, { target: { value: password() } });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(current).toHaveFocus();
+  });
+
+  it("moves no focus when the page first renders", async () => {
+    await renderAccount(OFF);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(document.getElementById(SECURITY_SUMMARY_ID)).not.toHaveFocus();
+  });
+
+  it("moves to the Security section's heading after a Replace that issues no codes", async () => {
+    await renderAccount(ON);
+    mockStart.mockResolvedValueOnce(enrolmentFor());
+    await press(t("replaceButton"));
+    prove(true);
+    await press(t("continueButton"), dialog());
+    await screen.findByRole("heading", { name: t("replaceHeading") });
+    mockConfirm.mockResolvedValueOnce({ recoveryCodes: undefined });
+    typeCode();
+    await press(t("confirmButton"));
+
+    await screen.findByText(t("replacedMessage"));
     await waitFor(() => expect(document.getElementById(SECURITY_SUMMARY_ID)).toHaveFocus());
   });
 });

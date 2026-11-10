@@ -9,6 +9,7 @@ import { WaterPage } from "./WaterPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { makeToken } from "../test/jwt";
 import { freshCode } from "../test/codes";
+import { apiGet } from "../api/client";
 import i18n from "../i18n";
 
 // #1281 — the Owner's grace deadline, from requiredBy on the status route,
@@ -20,7 +21,7 @@ import i18n from "../i18n";
 const ZONE = "Asia/Kathmandu";
 const DAY = 86_400_000;
 const ACCOUNT = crypto.randomUUID();
-const OWNER = { sub: "u1", role: "Admin", account_id: ACCOUNT };
+const OWNER = { sub: "u1", role: "Admin", account_id: ACCOUNT, credential_epoch: "1" };
 const t = (key: string, options: Record<string, unknown> = {}) => i18n.t(`account:${key}` as "account:heading", options);
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -32,8 +33,15 @@ let requests: string[];
 // Requests whose answers the test hands out itself, by key.
 let held: Map<string, ((res: Response) => void)[]>;
 let holding: Set<string>;
+// The next request answers 401 once, and an ordinary refresh follows.
+let tokenExpired: boolean;
 
 function answer(key: string): Response {
+  if (tokenExpired && key !== "POST /auth/refresh") {
+    tokenExpired = false;
+    return json({ title: "Unauthorized" }, 401);
+  }
+  if (key === "POST /auth/refresh") return json({ accessToken: makeToken(OWNER), accessTokenExpiry: "2099-01-01T00:00:00Z" });
   if (key === "GET /auth/two-factor") return json(status);
   if (key.startsWith("GET /reports/production")) return json({ days: [], totalEggs: 0, totalSellable: 0, totalFromCounts: 0 });
   if (key === "POST /auth/step-up") return json({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
@@ -120,6 +128,7 @@ beforeEach(() => {
   requests = [];
   held = new Map();
   holding = new Set();
+  tokenExpired = false;
   status = { enabled: false, recoveryCodesLeft: 0, requiredBy: new Date(Date.now() + 5 * DAY).toISOString() };
   vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit = {}) => {
     const key = `${init.method ?? "GET"} ${url.replace(/^\/api\/v1/, "")}`;
@@ -243,6 +252,20 @@ describe("the two-factor deadline banner", () => {
     fireEvent.click(within(codes).getByRole("checkbox"));
     await press(t("doneButton"), codes);
     await waitFor(() => expect(banner()).toBeNull());
+  });
+
+  it.each([["the Dashboard", "/"], ["Account", "/account"]])("reads no status again on %s when the token refreshes", async (_, route) => {
+    render(route);
+    await waitFor(() => expect(banner()).not.toBeNull());
+    await settle();
+    const reads = requests.filter((r) => r === "GET /auth/two-factor").length;
+
+    tokenExpired = true;
+    await act(async () => { await apiGet("/flocks").catch(() => undefined); });
+    await settle();
+
+    expect(requests).toContain("POST /auth/refresh");
+    expect(requests.filter((r) => r === "GET /auth/two-factor")).toHaveLength(reads);
   });
 
   it("goes once the user turns two-factor on through Account in the same session", async () => {

@@ -19,11 +19,9 @@ import { useTwoFactor } from "./account/useTwoFactor";
 export function TwoFactorEnrolmentPage() {
   const { t } = useTranslation("account");
   const { t: tn } = useTranslation("nav");
-  const { logout, setMustEnrolTwoFactor, tokenVersion } = useAuth();
-  // A new token (a refresh that adopts another user's, or this user's after a
-  // role change) can mean the gate no longer refuses this user.
-  const twoFactor = useTwoFactor(tokenVersion);
-  const { flow, status, openProof, cancels, dialog: { busy } } = twoFactor;
+  const { logout, setMustEnrolTwoFactor } = useAuth();
+  const twoFactor = useTwoFactor();
+  const { flow, status, openProof, backToSummary, dialog: { busy } } = twoFactor;
   const { busy: signingOut, run } = usePendingAction();
   const heading = useRef<HTMLHeadingElement>(null);
   const setUp = useRef<HTMLButtonElement>(null);
@@ -39,8 +37,8 @@ export function TwoFactorEnrolmentPage() {
   }, [t, tn]);
 
   useEffect(() => {
-    if (cancels > 0) setUp.current?.focus();
-  }, [cancels]);
+    if (backToSummary > 0) setUp.current?.focus();
+  }, [backToSummary]);
 
   return (
     <Box component="main" sx={{ minHeight: "100dvh", p: { xs: 2, md: 4 }, background: "var(--surface-2)" }}>

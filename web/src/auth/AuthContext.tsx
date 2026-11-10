@@ -5,7 +5,7 @@ import {
   setOnTokensChanged, setOnTwoFactorEnrolmentRequired, setOnUnauthenticated,
 } from "../api/client";
 import type { LoginOutcome } from "../api/client";
-import { currentUserHasTwoFactor, currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
+import { currentCredentialKey, currentUserHasTwoFactor, currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { bindFarm, clearAccessToken, getAccessToken, getBoundAccountId, purgeLegacyTokens } from "./tokenStore";
 import { clearSplashSeenMarker } from "../session/SessionContext";
@@ -42,9 +42,10 @@ interface AuthState {
   // not follow TwoFactor:RequireForOwners.
   mustEnrolTwoFactor: boolean;
   setMustEnrolTwoFactor: (required: boolean) => void;
-  // #1281 — counts the access tokens this tab has adopted (sign-in, refresh,
-  // a rotation), so a screen can read again what a new token may change.
-  tokenVersion: number;
+  // #1281 — the token's subject and credential epoch (claims.ts), so a screen
+  // can read again what a new user or new credentials may change. An
+  // ordinary refresh leaves it as it was.
+  credentialKey: string | null;
   unauthenticatedReason: string | null;
   // #1274 — an enrolled user's correct password returns the code step; the
   // tab binds its farm only once a session exists.
@@ -66,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
   const [twoFactor, setTwoFactor] = useState(currentUserHasTwoFactor);
   const [mustEnrolTwoFactor, setMustEnrolTwoFactor] = useState(false);
-  const [tokenVersion, setTokenVersion] = useState(0);
+  const [credentialKey, setCredentialKey] = useState(currentCredentialKey);
   const [unauthenticatedReason, setUnauthenticatedReason] = useState<string | null>(null);
 
   // One place that re-derives every claim-decoded field from the current
@@ -80,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMustChangePassword(currentUserMustChangePassword());
     setTwoFactor(currentUserHasTwoFactor());
     setUserId(currentUserId());
-    setTokenVersion((v) => v + 1);
+    setCredentialKey(currentCredentialKey());
   }, []);
 
   // When any authenticated request exhausts its refresh, drop auth state so the
@@ -210,10 +211,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
-      setMustEnrolTwoFactor, tokenVersion, unauthenticatedReason, login, completeSecondFactor, logout,
+      setMustEnrolTwoFactor, credentialKey, unauthenticatedReason, login, completeSecondFactor, logout,
     }),
     [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
-      tokenVersion, unauthenticatedReason, login, completeSecondFactor, logout],
+      credentialKey, unauthenticatedReason, login, completeSecondFactor, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
