@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import type { FormEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown, Plug } from "lucide-react";
@@ -22,7 +23,7 @@ import { roleLabel } from "../i18n/enums";
 import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
 import { TwoFactorFlow } from "./account/TwoFactorFlow";
-import { useTwoFactor } from "./account/useTwoFactor";
+import { takeSetUpRequest, useTwoFactor } from "./account/useTwoFactor";
 
 const MIN_LENGTH = 12;
 
@@ -42,6 +43,11 @@ export function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
   const twoFactorSection = useTwoFactor();
+  const setUpRequest = useLocation().state as unknown;
+  const { openProof } = twoFactorSection;
+  useEffect(() => {
+    if (takeSetUpRequest(setUpRequest)) openProof("start");
+  }, [setUpRequest, openProof]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

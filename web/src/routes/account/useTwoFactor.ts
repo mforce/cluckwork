@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { EnrolmentStart } from "../../api/cluckwork";
@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
 import i18n from "../../i18n";
+import { newId } from "../../lib/ids";
 import { useMe } from "../../session/SessionContext";
 import { useRecoveryCodesSlot } from "./recoveryCodes";
 import type { Delivery } from "./recoveryCodes";
@@ -30,6 +31,20 @@ export type Flow =
   | { step: "restart"; replacing: boolean; reason: "expired" | "attempts" | "session" };
 
 const SUMMARY: Flow = { step: "summary" };
+
+// #1281 — the deadline banner's Set up opens the setup dialog on Account. One
+// shot, as AuditPage's pivot focus is: a reload or Back does not open it again.
+let pendingSetUp: string | null = null;
+export function requestSetUp(): { setUpTwoFactor: string } {
+  pendingSetUp = newId();
+  return { setUpTwoFactor: pendingSetUp };
+}
+export function takeSetUpRequest(state: unknown): boolean {
+  const id = (state as { setUpTwoFactor?: unknown } | null)?.setUpTwoFactor;
+  if (id === undefined || id !== pendingSetUp) return false;
+  pendingSetUp = null;
+  return true;
+}
 
 const isProblem = (err: unknown, status: number, title: string): err is ApiError =>
   err instanceof ApiError && err.status === status && err.title === title;
@@ -69,11 +84,11 @@ export function useTwoFactor() {
   }, [isAuthenticated, dismissDialog]);
 
   // Every way out clears the proof (cancel, send, logout), so opening does not.
-  function openProof(next: ProofAction) {
+  const openProof = useCallback((next: ProofAction) => {
     openDialog(next);
     setMessage(null);
     setAction(next);
-  }
+  }, [openDialog]);
 
   function closeProof() {
     setProof(NO_PROOF);

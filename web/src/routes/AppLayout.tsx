@@ -15,6 +15,7 @@ import { MAIN_CONTENT_ID } from "../lib/mainContent";
 import { useFarm } from "../farm/useFarm";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
+import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
 import type { NavEntry } from "./nav";
 
 const ICON = 17;
@@ -179,6 +180,8 @@ export function AppLayout() {
             then a re-read failed -> what is on screen is what a save was meant
             to replace, so a new timezone silently does not apply (round 2:
             codex + pi). */}
+        <TwoFactorDeadlineBanner />
+
         {farmWarning !== null && (
           <Alert severity="warning" className="farm-warning"
             action={<Button color="inherit" size="small" onClick={() => void refresh()}>{t("tryAgain")}</Button>}>
