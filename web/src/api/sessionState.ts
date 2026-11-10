@@ -16,6 +16,13 @@ export function setOnTokensChanged(cb: (() => void) | null): void {
   onTokensChanged = cb;
 }
 
+// #1281 — called when the API answers 403 Auth.TwoFactorEnrolmentRequired:
+// an Owner past the grace deadline. AuthContext wires this to the setup screen.
+export let onTwoFactorEnrolmentRequired: (() => void) | null = null;
+export function setOnTwoFactorEnrolmentRequired(cb: (() => void) | null): void {
+  onTwoFactorEnrolmentRequired = cb;
+}
+
 export class StaleSessionError extends Error {
   constructor() {
     super("Discarded: superseded by a newer login or an intervening logout.");

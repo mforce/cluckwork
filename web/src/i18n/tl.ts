@@ -252,6 +252,12 @@ export const tl = {
     replaceButton: "Palitan ang authenticator app",
     turnOffHint: "Alisin ang dagdag na code sa pag-sign in.",
     turnOffButton: "I-off",
+    // #1281 — every Owner must use two-factor authentication: the setup screen
+    // past the deadline, the deadline banner, and Turn off while it is required.
+    requiredBody: "Kailangang gumamit ng two-factor authentication ang bawat Owner. I-set up ito ngayon para patuloy mong magamit ang Cluckwork. Kailangan mo ang iyong password at isang authenticator app sa iyong phone.",
+    requiredSignOut: "Mag-sign out",
+    deadlineBanner: "Kailangang gumamit ng two-factor authentication ang bawat Owner. I-set up ito hanggang {{deadline}}.",
+    turnOffRequired: "Kailangang naka-on ang two-factor authentication ng bawat Owner, kaya hindi mo ito puwedeng i-off.",
     setUpTitle: "I-set up ang two-factor authentication",
     setUpBody: "Idaragdag mo ang Cluckwork sa isang authenticator app sa iyong phone, tapos kukumpirmahin mo ang isang code mula rito.",
     replaceTitle: "Palitan ang iyong authenticator app?",
@@ -347,6 +353,7 @@ export const tl = {
     farmEmpty: "Wala pang nagkonekta ng app sa bukid na ito.",
   },
   errors: {
+    "Auth.OwnerCannotTurnOffTwoFactor": "Kailangang naka-on ang two-factor authentication ng bawat Owner, kaya hindi mo ito puwedeng i-off.",
     "Identity.StepUpRequired": "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password, at isang bagong code kung gumagamit ka ng two-factor authentication.",
     "Auth.Forbidden": "Wala kang pahintulot na gawin ito.",
     "Users.CannotResetOwnTwoFactor": "Hindi mo puwedeng i-reset ang sarili mong two-factor authentication. Humingi ng tulong sa ibang Owner.",

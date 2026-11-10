@@ -312,6 +312,12 @@ export const en = {
     replaceButton: "Replace authenticator app",
     turnOffHint: "Remove the extra code at sign-in.",
     turnOffButton: "Turn off",
+    // #1281 — every Owner must use two-factor authentication: the setup screen
+    // past the deadline, the deadline banner, and Turn off while it is required.
+    requiredBody: "Every Owner must use two-factor authentication. Set it up now to keep using Cluckwork. You need your password and an authenticator app on your phone.",
+    requiredSignOut: "Sign out",
+    deadlineBanner: "Every Owner must use two-factor authentication. Set it up by {{deadline}}.",
+    turnOffRequired: "Every Owner must keep two-factor authentication on, so you can't turn it off.",
     setUpTitle: "Set up two-factor authentication",
     setUpBody: "You add Cluckwork to an authenticator app on your phone, then confirm a code from it.",
     replaceTitle: "Replace your authenticator app?",
@@ -410,6 +416,7 @@ export const en = {
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
   // literal flat keys, not nested paths. Filled in Task 4.
   errors: {
+    "Auth.OwnerCannotTurnOffTwoFactor": "Every Owner must keep two-factor authentication on, so you can't turn it off.",
     // #1280 — step-up and Owner refusals shared by the Users routes, and the
     // two-factor reset's own self-target refusal.
     "Identity.StepUpRequired": "Your confirmation is no longer valid. Enter your current password again, and a new code if you use two-factor authentication.",

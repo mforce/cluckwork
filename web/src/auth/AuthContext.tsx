@@ -2,7 +2,7 @@ import { createContext, useCallback, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react";
 import {
   login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, logout as apiLogout, restoreSession,
-  setOnTokensChanged, setOnUnauthenticated,
+  setOnTokensChanged, setOnTwoFactorEnrolmentRequired, setOnUnauthenticated,
 } from "../api/client";
 import type { LoginOutcome } from "../api/client";
 import { currentUserHasTwoFactor, currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
@@ -35,6 +35,13 @@ interface AuthState {
   mustChangePassword: boolean;
   // #1279 — two-factor authentication is on, so step-up asks for a code too.
   twoFactor: boolean;
+  // #1281 — the API refused a request with 403 Auth.TwoFactorEnrolmentRequired,
+  // or the status route put the deadline in the past: ProtectedRoute shows the
+  // setup screen until the status route reads two-factor on. Never derived
+  // from the role or the two_factor claim, which do not follow
+  // TwoFactor:RequireForOwners.
+  mustEnrolTwoFactor: boolean;
+  setMustEnrolTwoFactor: (required: boolean) => void;
   unauthenticatedReason: string | null;
   // #1274 — an enrolled user's correct password returns the code step; the
   // tab binds its farm only once a session exists.
@@ -55,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(currentUserId);
   const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
   const [twoFactor, setTwoFactor] = useState(currentUserHasTwoFactor);
+  const [mustEnrolTwoFactor, setMustEnrolTwoFactor] = useState(false);
   const [unauthenticatedReason, setUnauthenticatedReason] = useState<string | null>(null);
 
   // One place that re-derives every claim-decoded field from the current
@@ -78,12 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOnUnauthenticated((title) => {
       clearAccessToken();
       setIsAuthenticated(false);
+      setMustEnrolTwoFactor(false);
       setUnauthenticatedReason(title ?? null);
     });
     setOnTokensChanged(refreshClaims);
+    setOnTwoFactorEnrolmentRequired(() => setMustEnrolTwoFactor(true));
     return () => {
       setOnUnauthenticated(null);
       setOnTokensChanged(null);
+      setOnTwoFactorEnrolmentRequired(null);
     };
   }, [refreshClaims]);
 
@@ -151,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // A silent token refresh never reaches this line, so it's exempt by design.
     clearSplashSeenMarker();
     setIsAuthenticated(true);
+    setMustEnrolTwoFactor(false);
     setUnauthenticatedReason(null);
     refreshClaims();
   }, [refreshClaims]);
@@ -181,6 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole("Worker");
     setMustChangePassword(false);
     setTwoFactor(false);
+    setMustEnrolTwoFactor(false);
     setUserId(null);
     setUnauthenticatedReason(null);
     // #586 — attribution is gone, so the palette becomes what the DEVICE can
@@ -191,11 +204,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, unauthenticatedReason, login,
-      completeSecondFactor, logout,
+      isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
+      setMustEnrolTwoFactor, unauthenticatedReason, login, completeSecondFactor, logout,
     }),
-    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, unauthenticatedReason, login,
-      completeSecondFactor, logout],
+    [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
+      unauthenticatedReason, login, completeSecondFactor, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

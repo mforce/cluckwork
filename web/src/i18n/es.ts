@@ -243,6 +243,12 @@ export const es = {
     replaceButton: "Reemplazar aplicación de autenticación",
     turnOffHint: "Quite el código adicional al iniciar sesión.",
     turnOffButton: "Desactivar",
+    // #1281 — every Owner must use two-factor authentication: the setup screen
+    // past the deadline, the deadline banner, and Turn off while it is required.
+    requiredBody: "Todo propietario debe usar la autenticación en dos pasos. Configúrela ahora para seguir usando Cluckwork. Necesita su contraseña y una aplicación de autenticación en su teléfono.",
+    requiredSignOut: "Cerrar sesión",
+    deadlineBanner: "Todo propietario debe usar la autenticación en dos pasos. Configúrela a más tardar el {{deadline}}.",
+    turnOffRequired: "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puede desactivarla.",
     setUpTitle: "Configurar la autenticación en dos pasos",
     setUpBody: "Agregará Cluckwork a una aplicación de autenticación en su teléfono y luego confirmará un código de ella.",
     replaceTitle: "¿Reemplazar su aplicación de autenticación?",
@@ -338,6 +344,7 @@ export const es = {
     farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
   },
   errors: {
+    "Auth.OwnerCannotTurnOffTwoFactor": "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puede desactivarla.",
     "Identity.StepUpRequired": "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual y, si usas la autenticación en dos pasos, un código nuevo.",
     "Auth.Forbidden": "No tienes permiso para hacer esto.",
     "Users.CannotResetOwnTwoFactor": "No puedes restablecer tu propia autenticación en dos pasos. Pide a otro propietario.",

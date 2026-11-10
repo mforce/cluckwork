@@ -389,7 +389,7 @@ describe("the step-up proof", () => {
       <MemoryRouter>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
-          mustChangePassword: false, twoFactor: true, unauthenticatedReason: null,
+          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}>
           <RecoveryCodesProvider>

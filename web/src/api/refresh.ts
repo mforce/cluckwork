@@ -3,7 +3,7 @@ import { accountIdFromToken } from "../auth/claims";
 import type { AccessTokenResponse } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
-import { StaleSessionError, revokeSupersededCookie, onUnauthenticated, onTokensChanged } from "./sessionState";
+import { StaleSessionError, revokeSupersededCookie, onUnauthenticated, onTokensChanged, onTwoFactorEnrolmentRequired } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS } from "./authCookieLock";
 import { isSignedOut, sessionGeneration, settledLogin } from "./session";
 import { newId } from "../lib/ids";
@@ -331,6 +331,8 @@ export async function apiFetch<T>(
   });
 }
 
+const TWO_FACTOR_ENROLMENT_REQUIRED = "Auth.TwoFactorEnrolmentRequired";
+
 // Clears this tab's session, tells the app why, and rethrows the 401 that
 // showed it was over.
 function endSession(err: ApiError): never {
@@ -342,10 +344,16 @@ function endSession(err: ApiError): never {
 // One request with one transparent refresh-and-retry, for apiFetch and
 // apiGetBlob alike.
 async function sendWithRefresh<T>(
-  send: (token: string) => Promise<T>,
+  sendOnce: (token: string) => Promise<T>,
   token: string,
   { held, unresendable = () => false }: { held?: HeldAuthCookieLock; unresendable?: (err: ApiError) => boolean } = {},
 ): Promise<T> {
+  // #1281 — the Owner gate's refusal, on any send, leads to the setup screen.
+  const send = (bearer: string) => sendOnce(bearer).catch((err: unknown) => {
+    if (err instanceof ApiError && err.status === 403 && err.title === TWO_FACTOR_ENROLMENT_REQUIRED)
+      onTwoFactorEnrolmentRequired?.();
+    throw err;
+  });
   // A held context identifies the non-replayable password form. Generic API
   // requests may continue on a newer login after supersession; this one must
   // not refresh that newer cookie or resend the old password body against it.
