@@ -6,8 +6,9 @@
 // plain HTTP and the authorization server refuses that outside Development, so
 // the /connect half is the verify MCP client's (tools/verify/features/mcp.md).
 //
-// The deadline banner: the main simulation Owner stays unenrolled, and every
-// reset.sh starts their grace afresh, so they are always inside it. The stack
+// The deadline banner, on the Dashboard and Account only: the main simulation
+// Owner stays unenrolled, and every reset.sh starts their grace afresh, so
+// they are always inside it. The stack
 // cannot put an Owner past the deadline (G6.8 forbids setting the days, and
 // G6.7 forbids writing the start under tools/), so the setup screen is
 // Vitest's (web/src/routes/TwoFactorEnrolmentPage.test.tsx).
@@ -33,17 +34,17 @@ test.describe("Two-factor sign-in (#1281)", () => {
     await expect(page.locator("main#main-content")).toBeVisible();
   });
 
+  // "On" comes from the same status read the banner would use, so the screen
+  // has rendered it.
   test("an Owner with two-factor on sees no deadline banner", async ({ page }) => {
-    await page.goto("/reports");
-    const status = page.waitForResponse((r) => r.url().endsWith("/api/v1/auth/two-factor") && r.ok());
+    await page.goto("/account");
     await submitSignIn(page, twoFactorOwner());
-    await status;
 
-    await expect(page.locator("main#main-content")).toBeVisible();
+    await expect(page.getByText(tEn("account:twoFactorOn"), { exact: true })).toBeVisible();
     await expect(deadlineBanner(page)).toHaveCount(0);
   });
 
-  test("an Owner without two-factor sees the deadline, and Set up opens the setup on Account", async ({ page }) => {
+  test("an Owner without two-factor sees the deadline on the Dashboard, and Set up opens the setup on Account", async ({ page }) => {
     await page.goto("/");
     await submitSignIn(page, owner());
 
@@ -53,5 +54,19 @@ test.describe("Two-factor sign-in (#1281)", () => {
 
     await expect(page).toHaveURL(/\/account$/);
     await expect(page.getByRole("dialog", { name: tEn("account:setUpTitle") })).toBeVisible();
+  });
+
+  // In-app navigation keeps the app shell, so a banner placed there would
+  // still be on screen when Water's own heading is.
+  test("an Owner without two-factor sees no deadline banner on a ledger screen", async ({ page }) => {
+    await page.goto("/");
+    await submitSignIn(page, owner());
+    await expect(deadlineBanner(page)).toBeVisible();
+
+    await page.getByRole("navigation", { name: tEn("nav:primaryNavAriaLabel") }).getByRole("link", { name: tEn("nav:water") }).click();
+
+    await expect(page).toHaveURL(/\/water$/);
+    await expect(page.getByRole("heading", { name: tEn("water:title"), exact: true })).toBeVisible();
+    await expect(deadlineBanner(page)).toHaveCount(0);
   });
 });
