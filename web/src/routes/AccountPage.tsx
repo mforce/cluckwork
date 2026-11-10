@@ -24,6 +24,7 @@ import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
 import { TwoFactorFlow } from "./account/TwoFactorFlow";
 import { takeSetUpRequest, useTwoFactor } from "./account/useTwoFactor";
+import { SECURITY_SUMMARY_ID } from "./account/recoveryCodes";
 import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
 
 const MIN_LENGTH = 12;
@@ -45,10 +46,15 @@ export function AccountPage() {
   const { busy, run } = usePendingAction();
   const twoFactorSection = useTwoFactor();
   const setUpRequest = useLocation().state as unknown;
-  const { openProof } = twoFactorSection;
+  const { openProof, cancels } = twoFactorSection;
   useEffect(() => {
     if (takeSetUpRequest(setUpRequest)) openProof("start");
   }, [setUpRequest, openProof]);
+  // #1281 — after a Cancel out of the scan step, the control that opened it is
+  // back but was unmounted, so the Security section's heading takes focus.
+  useEffect(() => {
+    if (cancels > 0) document.getElementById(SECURITY_SUMMARY_ID)?.focus();
+  }, [cancels]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

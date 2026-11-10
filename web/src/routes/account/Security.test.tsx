@@ -8,7 +8,7 @@ import { freshCode } from "../../test/codes";
 import { AuthContext } from "../../auth/AuthContext";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
-import { RecoveryCodesProvider } from "./recoveryCodes";
+import { RecoveryCodesProvider, SECURITY_SUMMARY_ID } from "./recoveryCodes";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
@@ -390,7 +390,7 @@ describe("the step-up proof", () => {
       <MemoryRouter>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
-          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, unauthenticatedReason: null,
+          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, tokenVersion: 0, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}>
           <RecoveryCodesProvider>
@@ -452,5 +452,23 @@ describe("Turn off while two-factor is required", () => {
     prove(true);
     await press(t("turnOffButton"), dialog());
     expect(await within(dialog()).findByText(t("turnOffRequired"))).toBeInTheDocument();
+  });
+});
+
+// #1281 — the scan step replaces the page, so the control that opened it is
+// gone. Focus goes to the step's heading, and on Cancel to the Security
+// section's heading (the maintainer, 2026-11-10: "Fix both here (Recommended)").
+describe("focus around the scan step", () => {
+  it("moves to the scan step's heading when the proof dialog closes into it", async () => {
+    await renderAccount(OFF);
+    await enrol();
+    await waitFor(() => expect(screen.getByRole("heading", { name: t("enrolHeading") })).toHaveFocus());
+  });
+
+  it("moves to the Security section's heading when the user cancels the scan step", async () => {
+    await renderAccount(OFF);
+    await enrol();
+    await press(i18n.t("common:cancel"));
+    await waitFor(() => expect(document.getElementById(SECURITY_SUMMARY_ID)).toHaveFocus());
   });
 });

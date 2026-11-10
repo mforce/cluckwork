@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes, useLocation, useNavigate } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { makeToken } from "../test/jwt";
@@ -23,6 +23,7 @@ const ALLOWED = new Set([
 ]);
 const ACCOUNT = crypto.randomUUID();
 const PAST = new Date(Date.now() - 86_400_000).toISOString();
+const FUTURE = new Date(Date.now() + 5 * 86_400_000).toISOString();
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -40,8 +41,17 @@ let recoveryCodes: string[];
 // Requests whose answers the test hands out itself, by key.
 let held: Map<string, ((res: Response) => void)[]>;
 let holding: Set<string>;
+let homeMounts: number;
+// The next request answers 401 once, and the refresh then hands this tab a
+// token the gate does not refuse (refreshedClaims).
+let tokenExpired: boolean;
+let refreshedClaims: Record<string, unknown>;
 
 function answer(key: string): Response {
+  if (tokenExpired && key !== "POST /auth/refresh") {
+    tokenExpired = false;
+    return json({ title: "Unauthorized" }, 401);
+  }
   if (key === "GET /auth/two-factor") {
     if (statusFails) return json({ title: "Server error" }, 500);
     return json({ enabled: enrolled, recoveryCodesLeft: enrolled ? 10 : 0, ...(requiredBy && { requiredBy }) });
@@ -57,6 +67,11 @@ function answer(key: string): Response {
     return pair({ role: "Admin", two_factor: "true" }, { recoveryCodes });
   }
   if (key === "POST /auth/change-password") return pair({ role: "Admin" });
+  if (key === "POST /auth/refresh") {
+    gated = false;
+    requiredBy = undefined;
+    return pair(refreshedClaims);
+  }
   if (key === "POST /auth/login") return pair({ sub: "u2", role: "Manager" });
   if (key === "POST /auth/logout") return new Response(null, { status: 204 });
   return gated ? refused() : json({});
@@ -80,6 +95,7 @@ function Reports() {
 function Home() {
   const { logout } = useAuth();
   const [saved, setSaved] = useState(false);
+  useEffect(() => { homeMounts += 1; }, []);
   return (
     <div>
       protected home
@@ -123,12 +139,16 @@ const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 100)
 // render a test waits for, so a test that answers a held request waits for it.
 const sent = (key: string) => waitFor(() => expect(held.get(key)).toBeDefined());
 
-async function enrol() {
+async function toScanStep() {
   await press(t("setUpButton"), (await setUpScreen()).closest("main")!);
   const proof = screen.getByRole("dialog");
   fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: `Aa1!${crypto.randomUUID()}` } });
   await press(t("continueButton"), proof);
   await screen.findByRole("heading", { name: t("scanHeading") });
+}
+
+async function enrol() {
+  await toScanStep();
   fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });
   await press(t("confirmButton"));
 }
@@ -141,6 +161,9 @@ beforeEach(() => {
   requests = [];
   held = new Map();
   holding = new Set();
+  homeMounts = 0;
+  tokenExpired = false;
+  refreshedClaims = {};
   recoveryCodes = Array.from({ length: 10 }, () => crypto.randomUUID().slice(0, 19));
   vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => serve(url, init)));
 });
@@ -252,7 +275,12 @@ describe("the forced two-factor setup screen", () => {
     expect(requests.filter((r) => r === "GET /reports/summary")).toHaveLength(1);
   });
 
-  it("ignores a 403 from an earlier session that lands on the next user", async () => {
+  // A next user inside the grace period would be held: a requiredBy in the
+  // future keeps the setup screen.
+  it.each([
+    ["with no deadline", undefined],
+    ["inside the grace period", FUTURE],
+  ])("ignores a 403 from an earlier session that lands on the next user %s, and leaves their screen mounted", async (_, next) => {
     gated = false;
     render("/");
     holding.add("GET /flocks");
@@ -261,15 +289,79 @@ describe("the forced two-factor setup screen", () => {
     holding.clear();
     await press("sign out of home");
     await screen.findByText(/login screen/);
-    requiredBy = undefined;
+    requiredBy = next;
     await press("sign in");
     await screen.findByText(/protected home/);
+    const mounts = homeMounts;
 
     await act(async () => { held.get("GET /flocks")![0]!(refused()); });
     await settle();
 
     expect(setUpShown()).toBe(false);
     expect(screen.getByText(/protected home/)).toBeInTheDocument();
+    expect(homeMounts).toBe(mounts);
+  });
+
+  // A refresh can hand this tab a token the gate does not refuse with no
+  // sign-in here: another user's, from a second tab on this farm, or this
+  // user's after another Owner made them a Manager.
+  it.each([
+    ["another user's", { sub: "u2", role: "Manager" }],
+    ["this user's as a Manager", { sub: "u1", role: "Manager" }],
+  ])("reads the status again when a refresh adopts %s token, and lets the user go", async (_, claims) => {
+    render("/reports");
+    await setUpScreen();
+    await waitFor(() => expect(requests).toContain("GET /auth/two-factor"));
+    await settle();
+
+    refreshedClaims = claims;
+    tokenExpired = true;
+    await act(async () => { await apiGet("/flocks").catch(() => undefined); });
+
+    expect(requests).toContain("POST /auth/refresh");
+    expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
+  });
+
+  it("reads the status again on Try again, and can let the user go", async () => {
+    statusFails = true;
+    render("/reports");
+    await screen.findByText(t("statusLoadFailed"));
+
+    statusFails = false;
+    gated = false;
+    requiredBy = undefined;
+    await press(t("statusRetry"));
+
+    expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
+  });
+
+  // A sign-out then would drop the answer that carries the only copy of the
+  // recovery codes.
+  it("keeps Sign out disabled while the confirm is in flight", async () => {
+    render("/reports");
+    await toScanStep();
+    fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });
+    holding.add("POST /auth/two-factor/confirm");
+    await press(t("confirmButton"));
+    await sent("POST /auth/two-factor/confirm");
+
+    expect(screen.getByRole("button", { name: t("requiredSignOut") })).toBeDisabled();
+    holding.clear();
+    await act(async () => { held.get("POST /auth/two-factor/confirm")![0]!(answer("POST /auth/two-factor/confirm")); });
+    await settle();
+  });
+
+  it("moves focus to the scan step's heading when the proof dialog closes into it", async () => {
+    render("/reports");
+    await toScanStep();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: t("enrolHeading") })).toHaveFocus());
+  });
+
+  it("moves focus back to Set up when the user cancels the scan step", async () => {
+    render("/reports");
+    await toScanStep();
+    await press(i18n.t("common:cancel"));
+    await waitFor(() => expect(screen.getByRole("button", { name: t("setUpButton") })).toHaveFocus());
   });
 
   it("does not hold the user when a 403 sent before the confirm lands after it", async () => {

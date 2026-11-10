@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Link, Paper, Stack, TextField, Typography } from "@mui/material";
 import { BusyButton } from "../../components/BusyButton";
@@ -11,12 +13,18 @@ import type { Flow, TwoFactor } from "./useTwoFactor";
 export function TwoFactorFlow({ twoFactor }: { twoFactor: TwoFactor }) {
   const { t } = useTranslation("account");
   const { flow } = twoFactor;
+  // #1281 — the control that opened this step has left the page with the
+  // summary, so each step's heading takes focus.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [flow.step]);
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>{t("flowEyebrow")}</Typography>
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, mt: 1 }}>
-        {flow.step === "scan" && <ScanStep twoFactor={twoFactor} flow={flow} />}
-        {flow.step === "restart" && <RestartStep twoFactor={twoFactor} flow={flow} />}
+        {flow.step === "scan" && <ScanStep twoFactor={twoFactor} flow={flow} headingRef={headingRef} />}
+        {flow.step === "restart" && <RestartStep twoFactor={twoFactor} flow={flow} headingRef={headingRef} />}
       </Paper>
     </Box>
   );
@@ -26,7 +34,9 @@ const heading = (replacing: boolean) => (replacing ? "replaceHeading" : "enrolHe
 
 const RESTART_REASONS = { expired: "setUpExpired", attempts: "setUpTooManyAttempts", session: "setUpSessionChanged" } as const;
 
-function ScanStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "scan" }> }) {
+function ScanStep({ twoFactor, flow, headingRef }: {
+  twoFactor: TwoFactor; flow: Extract<Flow, { step: "scan" }>; headingRef: RefObject<HTMLHeadingElement | null>;
+}) {
   const { t } = useTranslation("account");
   const { t: tc } = useTranslation("common");
   const { code, setCode, onConfirm, leaveFlow, dialog: { busy, isPending, errors } } = twoFactor;
@@ -34,7 +44,7 @@ function ScanStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flo
   const { copy, notice } = useCopy();
   return (
     <Stack spacing={2} component="form" onSubmit={onConfirm}>
-      <Typography variant="h2">{t(heading(flow.replacing))}</Typography>
+      <Typography variant="h2" ref={headingRef} tabIndex={-1}>{t(heading(flow.replacing))}</Typography>
       <Box sx={{ display: "flex", flexWrap: { xs: "wrap", md: "nowrap" }, gap: 3, alignItems: "flex-start" }}>
         <TwoFactorQr uri={otpauthUri} label={t("qrLabel")} />
         <Stack spacing={1.5} sx={{ flex: 1, minWidth: { xs: "100%", md: 0 } }}>
@@ -77,13 +87,15 @@ function ScanStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flo
   );
 }
 
-function RestartStep({ twoFactor, flow }: { twoFactor: TwoFactor; flow: Extract<Flow, { step: "restart" }> }) {
+function RestartStep({ twoFactor, flow, headingRef }: {
+  twoFactor: TwoFactor; flow: Extract<Flow, { step: "restart" }>; headingRef: RefObject<HTMLHeadingElement | null>;
+}) {
   const { t } = useTranslation("account");
   const { t: tc } = useTranslation("common");
   const { openProof, leaveFlow } = twoFactor;
   return (
     <Stack spacing={2}>
-      <Typography variant="h2">{t(heading(flow.replacing))}</Typography>
+      <Typography variant="h2" ref={headingRef} tabIndex={-1}>{t(heading(flow.replacing))}</Typography>
       <Alert severity="error">{t(RESTART_REASONS[flow.reason])}</Alert>
       <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
         <Button variant="contained" onClick={() => openProof("start")}>{t("startAgainButton")}</Button>

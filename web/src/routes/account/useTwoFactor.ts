@@ -55,7 +55,9 @@ function stale(err: unknown): unknown {
   return isProblem(err, 401, "Auth.CredentialsSuperseded") ? new Error(i18n.t("account:sessionChanged")) : err;
 }
 
-export function useTwoFactor() {
+// reloadKey: a value whose change reads the status again (the setup screen
+// passes the session's token version).
+export function useTwoFactor(reloadKey?: unknown) {
   const { isAuthenticated, twoFactor: enrolled } = useAuth();
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
@@ -70,7 +72,10 @@ export function useTwoFactor() {
   // answers after the user came back), so a page mounted since still shows
   // what the server now holds. Both triggers stay: a Turn off is not a slot
   // request, and a regenerate changes no claim.
-  const status = useLatestLoad([slot.settled, enrolled], getTwoFactorStatus);
+  const status = useLatestLoad([slot.settled, enrolled, reloadKey], getTwoFactorStatus);
+  // #1281 — counts Cancels out of the scan and restart steps, so the screen
+  // can move focus to where the user goes back to.
+  const [cancels, setCancels] = useState(0);
   const email = useMe()?.email ?? "";
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
@@ -220,11 +225,12 @@ export function useTwoFactor() {
     dismissDialog("confirm");
     setCode("");
     setFlow(SUMMARY);
+    setCancels((n) => n + 1);
   }
 
   return {
     status, flow, action, proof, setProof, code, setCode, message, dialog,
-    openProof, closeProof, onProof, onConfirm, leaveFlow,
+    openProof, closeProof, onProof, onConfirm, leaveFlow, cancels,
   };
 }
 

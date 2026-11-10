@@ -37,11 +37,14 @@ interface AuthState {
   twoFactor: boolean;
   // #1281 — the API refused a request with 403 Auth.TwoFactorEnrolmentRequired,
   // or the status route put the deadline in the past: ProtectedRoute shows the
-  // setup screen until the status route reads two-factor on. Never derived
-  // from the role or the two_factor claim, which do not follow
-  // TwoFactor:RequireForOwners.
+  // setup screen until the status route reads two-factor on or sends no
+  // requiredBy. Never derived from the role or the two_factor claim, which do
+  // not follow TwoFactor:RequireForOwners.
   mustEnrolTwoFactor: boolean;
   setMustEnrolTwoFactor: (required: boolean) => void;
+  // #1281 — counts the access tokens this tab has adopted (sign-in, refresh,
+  // a rotation), so a screen can read again what a new token may change.
+  tokenVersion: number;
   unauthenticatedReason: string | null;
   // #1274 — an enrolled user's correct password returns the code step; the
   // tab binds its farm only once a session exists.
@@ -63,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mustChangePassword, setMustChangePassword] = useState(currentUserMustChangePassword);
   const [twoFactor, setTwoFactor] = useState(currentUserHasTwoFactor);
   const [mustEnrolTwoFactor, setMustEnrolTwoFactor] = useState(false);
+  const [tokenVersion, setTokenVersion] = useState(0);
   const [unauthenticatedReason, setUnauthenticatedReason] = useState<string | null>(null);
 
   // One place that re-derives every claim-decoded field from the current
@@ -76,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMustChangePassword(currentUserMustChangePassword());
     setTwoFactor(currentUserHasTwoFactor());
     setUserId(currentUserId());
+    setTokenVersion((v) => v + 1);
   }, []);
 
   // When any authenticated request exhausts its refresh, drop auth state so the
@@ -205,10 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
-      setMustEnrolTwoFactor, unauthenticatedReason, login, completeSecondFactor, logout,
+      setMustEnrolTwoFactor, tokenVersion, unauthenticatedReason, login, completeSecondFactor, logout,
     }),
     [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
-      unauthenticatedReason, login, completeSecondFactor, logout],
+      tokenVersion, unauthenticatedReason, login, completeSecondFactor, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
