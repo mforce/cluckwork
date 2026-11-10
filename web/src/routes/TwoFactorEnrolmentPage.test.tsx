@@ -148,7 +148,7 @@ describe("the forced two-factor setup screen", () => {
 
     await setUpScreen();
     expect(screen.queryByText(/reports page/)).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: t("enrolHeading") })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: t("enrolHeading") })).toHaveFocus());
     expect(document.title).toContain(t("enrolHeading"));
     await waitFor(() => expect(requests).toContain("GET /auth/two-factor"));
     await settle();

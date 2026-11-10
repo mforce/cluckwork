@@ -38,6 +38,7 @@ export function TwoFactorEnrolmentPage() {
   return (
     <Box component="main" sx={{ minHeight: "100dvh", p: { xs: 2, md: 4 }, background: "var(--surface-2)" }}>
       <Stack spacing={3} sx={{ maxWidth: "760px", mx: "auto" }}>
+        {/* The setup steps wait while Sign out runs. */}
         <Box inert={signingOut}>
           {flow.step === "summary" ? (
             <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
@@ -50,7 +51,7 @@ export function TwoFactorEnrolmentPage() {
                   </Alert>
                 )}
                 <Box>
-                  <Button variant="contained" disabled={busy || signingOut} onClick={() => openProof("start")}>{t("setUpButton")}</Button>
+                  <Button variant="contained" disabled={busy} onClick={() => openProof("start")}>{t("setUpButton")}</Button>
                 </Box>
               </Stack>
             </Paper>
