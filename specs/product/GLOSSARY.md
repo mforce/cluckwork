@@ -1398,9 +1398,10 @@ confirmed. Turning it on and replacing the app are audited
 (`User.TwoFactorEnabled`).
 Every **Owner** must turn it on (#1281). From the Owner's first request the
 Owner has `TwoFactor:OwnerGraceDays` days, 14 by default. Until that deadline,
-the app shell shows "Every Owner must use two-factor authentication. Set it up
-by <date and time>", in the browser's time zone, with **Set up**, which opens
-the set-up on **Account**. From the deadline, the app shows only the set-up
+the **Dashboard** and the **Account** screen show "Every Owner must use
+two-factor authentication. Set it up by <date and time>", in the browser's time
+zone, with **Set up**, which opens the set-up on **Account**. No other screen
+shows it. From the deadline, the app shows only the set-up
 screen, which offers **Sign out**, until two-factor authentication is on, and
 then opens the page the Owner asked for. Sign-in itself is never refused. An
 operator can switch the requirement off for every Owner with

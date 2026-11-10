@@ -3517,7 +3517,7 @@ export const tl = {
       + "mo pang device at mga connected app.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "Kailangang gumamit ng two-factor authentication ang mga <strong>Owner</strong>. Hanggang sa iyong deadline, may abiso sa itaas ng mga screen ng app pagkatapos mag-sign in na nagpapakita ng petsa at oras kung kailan ito dapat i-set up, kasama ang <strong>I-set up</strong>. Pagkalipas ng deadline, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ang two-factor authentication, tapos bubuksan nito ang page na hiningi mo. I-set up ito bago ang deadline: kapag bumukas ang setup screen, mawawala ang mga pagbabagong hindi pa naka-save sa screen na kinaroroonan mo, at kailangan mo itong ilagay ulit pagkatapos ng setup. Habang kailangan ito, hindi iniaalok ang <strong>I-off</strong>.",
+      "Kailangang gumamit ng two-factor authentication ang mga <strong>Owner</strong>. Hanggang sa iyong deadline, ipinapakita ng <strong>Dashboard</strong> at ng screen na <strong>Account</strong> ang petsa at oras kung kailan ito dapat i-set up, kasama ang <strong>I-set up</strong>. Pagkalipas ng deadline, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ang two-factor authentication, tapos bubuksan nito ang page na hiningi mo. I-set up ito bago ang deadline: kapag bumukas ang setup screen, mawawala ang mga pagbabagong hindi pa naka-save sa screen na kinaroroonan mo, at kailangan mo itong ilagay ulit pagkatapos ng setup. Habang kailangan ito, hindi iniaalok ang <strong>I-off</strong>.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:
@@ -4121,7 +4121,7 @@ export const tl = {
       "Pag-sign in gamit ang iyong password at pangalawang patunay mula sa iyong phone: isang code mula sa "
       + "iyong authenticator app, o isang recovery code kung wala ang phone. I-on ito sa Account › Seguridad, "
       + "gamit ang I-set up. Kapag in-on ito, masa-sign out ang iba mo pang device at mga connected app."
-      + " Kailangan itong i-on ng bawat Owner bago ang isang deadline. Pagkalipas nito, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ito.",
+      + " Kailangan itong i-on ng bawat Owner bago ang isang deadline, na ipinapakita ng Dashboard at ng screen na Account. Pagkalipas nito, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ito.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
       "Ang app sa iyong phone na nagpapakita ng bagong 6-digit na code bawat 30 segundo. Lumalabas dito ang "

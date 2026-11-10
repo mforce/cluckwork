@@ -3396,7 +3396,7 @@ export const es = {
       + "aplicaciones conectadas.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, un aviso en la parte superior de las pantallas de la aplicación, después de iniciar sesión, muestra la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Configúrela antes de la fecha límite: cuando se abre la pantalla de configuración, se pierden los cambios aún no guardados en la pantalla donde estaba, y debe ingresarlos de nuevo después de la configuración. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
+      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, el <strong>Panel</strong> y la pantalla <strong>Cuenta</strong> muestran la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Configúrela antes de la fecha límite: cuando se abre la pantalla de configuración, se pierden los cambios aún no guardados en la pantalla donde estaba, y debe ingresarlos de nuevo después de la configuración. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:
@@ -3980,7 +3980,7 @@ export const es = {
       "Iniciar sesión con su contraseña y una segunda prueba de su teléfono: un código de su aplicación de "
       + "autenticación, o un código de recuperación sin el teléfono. Actívela en Cuenta › Seguridad, con "
       + "Configurar. Al activarla se cierra la sesión en sus otros dispositivos y aplicaciones conectadas."
-      + " Todo propietario debe activarla antes de una fecha límite. Después, Cluckwork muestra solo la pantalla de configuración hasta que esté activada.",
+      + " Todo propietario debe activarla antes de una fecha límite, que el Panel y la pantalla Cuenta muestran. Después, Cluckwork muestra solo la pantalla de configuración hasta que esté activada.",
     glossaryAuthenticatorAppTerm: "Aplicación de autenticación",
     glossaryAuthenticatorAppDef:
       "La aplicación de su teléfono que muestra un código nuevo de 6 dígitos cada 30 segundos. Cluckwork aparece "

@@ -4106,7 +4106,7 @@ export const en = {
       + "other devices and connected apps.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "<strong>Owners</strong> must use two-factor authentication. Until your deadline, a notice at the top of the app's screens after sign-in shows the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. Set it up before the deadline: when the set-up screen opens, changes not yet saved on the screen you were on are lost, and you enter them again after set-up. While it is required, <strong>Turn off</strong> is not offered.",
+      "<strong>Owners</strong> must use two-factor authentication. Until your deadline, the <strong>Dashboard</strong> and the <strong>Account</strong> screen show the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. Set it up before the deadline: when the set-up screen opens, changes not yet saved on the screen you were on are lost, and you enter them again after set-up. While it is required, <strong>Turn off</strong> is not offered.",
 
     // Install on a phone
     installHeading: "Install on a phone",
@@ -4639,7 +4639,7 @@ export const en = {
       "Signing in with your password and a second proof from your phone: a code from your authenticator app, "
       + "or a recovery code without the phone. Turn it on in Account › Security, with Set up. Turning it on signs "
       + "out your other devices and connected apps."
-      + " Every Owner must turn it on by a deadline. After it, Cluckwork shows only the set-up screen until it is on.",
+      + " Every Owner must turn it on by a deadline, which the Dashboard and the Account screen show. After it, Cluckwork shows only the set-up screen until it is on.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
       "The app on your phone that shows a new 6-digit code every 30 seconds. Cluckwork appears in it with your "
