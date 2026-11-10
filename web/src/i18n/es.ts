@@ -344,7 +344,7 @@ export const es = {
     farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
   },
   errors: {
-    "Auth.OwnerCannotTurnOffTwoFactor": "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puede desactivarla.",
+    "Auth.OwnerCannotTurnOffTwoFactor": "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puedes desactivarla.",
     "Identity.StepUpRequired": "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual y, si usas la autenticación en dos pasos, un código nuevo.",
     "Auth.Forbidden": "No tienes permiso para hacer esto.",
     "Users.CannotResetOwnTwoFactor": "No puedes restablecer tu propia autenticación en dos pasos. Pide a otro propietario.",
@@ -3396,7 +3396,7 @@ export const es = {
       + "aplicaciones conectadas.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, cada pantalla muestra la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
+      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, las pantallas de Cluckwork muestran la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Configúrela antes de la fecha límite para que ningún registro se interrumpa: un registro que estaba guardando cuando pasó la fecha límite no se conserva, y debe ingresarlo de nuevo. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:

@@ -3517,7 +3517,7 @@ export const tl = {
       + "mo pang device at mga connected app.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "Kailangang gumamit ng two-factor authentication ang mga <strong>Owner</strong>. Hanggang sa iyong deadline, ipinapakita ng bawat screen ang petsa at oras kung kailan ito dapat i-set up, kasama ang <strong>I-set up</strong>. Pagkalipas ng deadline, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ang two-factor authentication, tapos bubuksan nito ang page na hiningi mo. Habang kailangan ito, hindi iniaalok ang <strong>I-off</strong>.",
+      "Kailangang gumamit ng two-factor authentication ang mga <strong>Owner</strong>. Hanggang sa iyong deadline, ipinapakita ng mga screen sa loob ng Cluckwork ang petsa at oras kung kailan ito dapat i-set up, kasama ang <strong>I-set up</strong>. Pagkalipas ng deadline, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ang two-factor authentication, tapos bubuksan nito ang page na hiningi mo. I-set up ito bago ang deadline para walang entry na maaantala: hindi itatago ang entry na sine-save mo nang lumampas ang deadline, at kailangan mo itong ilagay ulit. Habang kailangan ito, hindi iniaalok ang <strong>I-off</strong>.",
 
     installHeading: "Pag-install sa Telepono",
     installIntro:
