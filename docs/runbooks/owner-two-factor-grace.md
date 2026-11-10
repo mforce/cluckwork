@@ -20,6 +20,8 @@
 
 While the requirement is on ([step 4](#4-switch-the-requirement-off)), each Owner's grace starts at their first signed-in request after #1281, or, for a user who was never an Owner, at their first request after a promotion to Owner. It is stored in `AspNetUsers`. A former Owner who is promoted again keeps the old start. It lasts `TwoFactor:OwnerGraceDays` days, 14 when the setting is unset. Until then the app refuses nothing. After it, an Owner without two-factor reaches only the password change, the two-factor setup and sign-out, and every other request, connected apps included, answers 403 `Auth.TwoFactorEnrolmentRequired`.
 
+Each Owner has their own deadline. An Owner who is added, or a user promoted to Owner for the first time, gets a full grace from their first request, even when an Owner without two-factor added them.
+
 The value is a whole number from 1 to 365. Any other value stops the API from starting. The API reads it at startup, so a change needs a restart.
 
 The start never moves, so raising the setting cannot help an Owner whose start is more than 365 days old. A two-factor reset and [`recover-admin`](break-glass-account-recovery.md) keep the start too. While a fault blocks enrolment, another Owner who is not gated (enrolled, or still in their own grace) can change that Owner's role to Manager, which lifts the gate, and change it back once enrolment works. A farm whose Owners are all gated has no such Owner, the same as a farm with one gated Owner. It waits for the fault to be fixed, or you roll the API back to an image older than #1281, which runs no gate; read [step 2](#2-after-a-rollback-raise-it-before-you-redeploy) before you deploy the gated image again.

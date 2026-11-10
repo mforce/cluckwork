@@ -488,6 +488,8 @@ Before the deadline, which is the start plus the days, the gate refuses nothing,
 
 No per-user setting, flag or seed exempts a user from the gate. The only exceptions are two global settings, each of which acts on every Owner at once: the days, which move every deadline, and the requirement switch, which turns the requirement off. The simulation app service has no `env_file:`, and its `environment:` block sets neither `TwoFactor__OwnerGraceDays` nor `TwoFactor__RequireForOwners`, so the simulation stack runs 14 days with the requirement on and no env file can change either (G6.8). A second simulation Owner, `twoFactorOwner` in `.sim-cast.json`, enrols through the API in `reset.sh`. The main simulation Owner stays unenrolled and passes the gate only during its grace period, which every `reset.sh` starts afresh (decided by the maintainer on 2026-11-08: "Second enrolled Owner (Recommended)").
 
+**A new Owner's own grace.** The grace is per Owner. An Owner who is added, or a user promoted to Owner for the first time, gets their own grace from their first request, even when an unenrolled Owner added them. So the gate does not stop a farm that keeps adding Owners before each deadline. That fresh grace is not an exemption. It is the same clock every Owner gets, and nothing lengthens it for one person. An attacker gains nothing new, because a stolen unenrolled Owner password already lets them add an Owner and enrol it. Decided by the maintainer on 2026-11-10: "Accept, state it (Recommended)", over "Inherit the creator's start" and "Block until enrolled".
+
 The gate never runs at the password step. If it did, `reset.sh:130` could not provision a stack.
 
 #### 19. Audit vocabulary
