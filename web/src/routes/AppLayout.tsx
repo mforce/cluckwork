@@ -170,6 +170,8 @@ export function AppLayout() {
             place in that net. */}
         <p className="sr-only" aria-live="assertive" aria-atomic="true">{missedFarmWarning}</p>
 
+        <TwoFactorDeadlineBanner />
+
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a
             farm the pickers silently follow the DEVICE's day and the screen
@@ -180,8 +182,6 @@ export function AppLayout() {
             then a re-read failed -> what is on screen is what a save was meant
             to replace, so a new timezone silently does not apply (round 2:
             codex + pi). */}
-        <TwoFactorDeadlineBanner />
-
         {farmWarning !== null && (
           <Alert severity="warning" className="farm-warning"
             action={<Button color="inherit" size="small" onClick={() => void refresh()}>{t("tryAgain")}</Button>}>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useLocation } from "react-router";
 import type { FormEvent } from "react";
+import { useLocation } from "react-router";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown, Plug } from "lucide-react";
 import {

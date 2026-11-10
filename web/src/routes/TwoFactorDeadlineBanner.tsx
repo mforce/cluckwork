@@ -21,8 +21,7 @@ export function TwoFactorDeadlineBanner() {
   const { settled } = useRecoveryCodesSlot();
   const status = useLatestLoad([settled], getTwoFactorStatus);
   const state = status.data;
-  const deadline = state && !state.enabled && state.requiredBy ? new Date(state.requiredBy) : null;
-  const ms = deadline?.getTime() ?? NaN;
+  const ms = state && !state.enabled && state.requiredBy ? Date.parse(state.requiredBy) : NaN;
   const passed = ms <= Date.now();
 
   useEffect(() => {
