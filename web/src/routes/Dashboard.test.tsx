@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router";
 import { Dashboard } from "./Dashboard";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { AuthContext } from "../auth/AuthContext";
+import { RecoveryCodesProvider } from "./account/recoveryCodes";
 import type { Role } from "../auth/claims";
 import {
   getProductionReport, getStock, listDailyEntries, listFlocks, listOrders,
@@ -32,7 +33,8 @@ function AuthOverride({ role, children }: { role: Role; children: ReactNode }) {
       role, userId: "u1", mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, unauthenticatedReason: null,
       login: async () => ({ kind: "signedIn" as const }), completeSecondFactor: async () => {}, logout: async () => {},
     }}>
-      {children}
+      {/* As in App: the slot sits above every route, and the Dashboard's status read follows it (#1281). */}
+      <RecoveryCodesProvider>{children}</RecoveryCodesProvider>
     </AuthContext.Provider>
   );
 }

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { Route, Routes, useNavigate } from "react-router";
+import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { AppLayout } from "./AppLayout";
 import { Dashboard } from "./Dashboard";
@@ -29,6 +29,9 @@ const inZone = (iso: string, language = "en") =>
 
 let status: Record<string, unknown>;
 let requests: string[];
+// Requests whose answers the test hands out itself, by key.
+let held: Map<string, ((res: Response) => void)[]>;
+let holding: Set<string>;
 
 function answer(key: string): Response {
   if (key === "GET /auth/two-factor") return json(status);
@@ -49,11 +52,14 @@ function answer(key: string): Response {
   return json([]);
 }
 
-// The browser's history buttons, and a history state this tab did not make.
+// The browser's history buttons, a link home, a history state this tab did
+// not make, and the current history entry, which in-place work keeps.
 function History() {
   const navigate = useNavigate();
   return (
     <>
+      <output data-testid="entry">{useLocation().key}</output>
+      <button type="button" onClick={() => void navigate("/")}>go dashboard</button>
       <button type="button" onClick={() => void navigate(-1)}>back</button>
       <button type="button" onClick={() => void navigate(1)}>forward</button>
       <button type="button" onClick={() => void navigate("/account", { state: { setUpTwoFactor: crypto.randomUUID() } })}>
@@ -90,6 +96,11 @@ const statusRead = async () => {
   await waitFor(() => expect(requests).toContain("GET /auth/two-factor"));
   await settle();
 };
+const sent = (key: string) => waitFor(() => expect(held.get(key)).toBeDefined());
+const answerHeld = (key: string) => act(async () => {
+  holding.delete(key);
+  for (const resolve of held.get(key)!) resolve(answer(key));
+});
 const openSetUp = async () => {
   await waitFor(() => expect(banner()).not.toBeNull());
   await press(t("setUpButton"), banner()!);
@@ -107,11 +118,14 @@ afterAll(() => {
 
 beforeEach(() => {
   requests = [];
+  held = new Map();
+  holding = new Set();
   status = { enabled: false, recoveryCodesLeft: 0, requiredBy: new Date(Date.now() + 5 * DAY).toISOString() };
   vi.stubGlobal("fetch", vi.fn((url: string, init: RequestInit = {}) => {
     const key = `${init.method ?? "GET"} ${url.replace(/^\/api\/v1/, "")}`;
     requests.push(key);
-    return Promise.resolve(answer(key));
+    if (!holding.has(key)) return Promise.resolve(answer(key));
+    return new Promise<Response>((resolve) => { held.set(key, [...(held.get(key) ?? []), resolve]); });
   }));
 });
 
@@ -157,8 +171,8 @@ describe("the two-factor deadline banner", () => {
 
   // #1274 decision 18: routing reads requiredBy, never the role or the
   // two_factor claim.
-  it("follows the status route whatever the role and the two_factor claim say", async () => {
-    render("/account", { ...OWNER, role: "Manager", two_factor: "true" });
+  it.each([["the Dashboard", "/"], ["Account", "/account"]])("follows the status route on %s whatever the role and the two_factor claim say", async (_, route) => {
+    render(route, { ...OWNER, role: "Manager", two_factor: "true" });
     await waitFor(() => expect(banner()).toHaveTextContent(inZone(status.requiredBy as string)));
   });
 
@@ -168,10 +182,23 @@ describe("the two-factor deadline banner", () => {
     expect(await screen.findByRole("heading", { level: 1, name: t("enrolHeading") })).toBeInTheDocument();
   });
 
-  it("opens the setup in place on Account", async () => {
+  it("opens the setup in place on Account, with no navigation", async () => {
     render("/account");
+    await waitFor(() => expect(banner()).not.toBeNull());
+    const entry = screen.getByTestId("entry").textContent;
     await openSetUp();
-    expect(screen.getByRole("heading", { name: t("twoFactorHeading"), hidden: true })).toBeInTheDocument();
+    expect(screen.getByTestId("entry")).toHaveTextContent(entry!);
+  });
+
+  it("does not hold up the Dashboard while the status read is out", async () => {
+    holding.add("GET /auth/two-factor");
+    render("/");
+    await sent("GET /auth/two-factor");
+    await waitFor(() => expect(screen.queryByText(i18n.t("common:loading"))).not.toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: i18n.t("dashboard:title") })).toBeInTheDocument();
+
+    await answerHeld("GET /auth/two-factor");
+    await waitFor(() => expect(banner()).not.toBeNull());
   });
 
   it("opens the setup on Account from the Dashboard, and Back then Forward does not open it again", async () => {
@@ -194,6 +221,28 @@ describe("the two-factor deadline banner", () => {
     await screen.findByRole("heading", { name: t("twoFactorHeading") });
     await settle();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("goes from the Dashboard when a confirm sent from Account lands after the user went there", async () => {
+    render("/account");
+    const proof = await openSetUp();
+    fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: `Aa1!${crypto.randomUUID()}` } });
+    await press(t("continueButton"), proof);
+    await screen.findByRole("heading", { name: t("scanHeading") });
+    fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });
+    holding.add("POST /auth/two-factor/confirm");
+    await press(t("confirmButton"));
+    await sent("POST /auth/two-factor/confirm");
+
+    await press("go dashboard");
+    await screen.findByRole("heading", { name: i18n.t("dashboard:title") });
+    await waitFor(() => expect(banner()).not.toBeNull());
+
+    await answerHeld("POST /auth/two-factor/confirm");
+    const codes = await screen.findByRole("dialog", { name: t("codesHeading") });
+    fireEvent.click(within(codes).getByRole("checkbox"));
+    await press(t("doneButton"), codes);
+    await waitFor(() => expect(banner()).toBeNull());
   });
 
   it("goes once the user turns two-factor on through Account in the same session", async () => {

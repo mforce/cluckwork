@@ -26,6 +26,7 @@ import { splitProductionReport } from "../lib/productionReportSplit";
 import i18n from "../i18n";
 import { drainPages } from "./dashboard/drainPages";
 import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
+import { useRecoveryCodesSlot } from "./account/recoveryCodes";
 import { MorningBrief } from "./dashboard/MorningBrief";
 import { CollectionPanel } from "./dashboard/CollectionPanel";
 import { StockPanel } from "./dashboard/StockPanel";
@@ -48,7 +49,10 @@ export const DASHBOARD_DELTA_CLASSES = ["trend-delta", "trend-delta is-down", "t
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
 export function Dashboard() {
-  const twoFactorStatus = useLatestLoad([], getTwoFactorStatus);
+  // Reread when a code-issuing request settles, as Account's read is: a
+  // confirm sent from Account can land after the user came here.
+  const { settled } = useRecoveryCodesSlot();
+  const twoFactorStatus = useLatestLoad([settled], getTwoFactorStatus);
   const { t } = useTranslation("dashboard");
   const fmt = useFormat();
   const { farm } = useFarm();
