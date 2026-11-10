@@ -4106,7 +4106,7 @@ export const en = {
       + "other devices and connected apps.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "<strong>Owners</strong> must use two-factor authentication. Until your deadline, the screens inside Cluckwork show the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. Set it up before the deadline so that no entry is interrupted: an entry you were saving when the deadline passed is not kept, and you enter it again. While it is required, <strong>Turn off</strong> is not offered.",
+      "<strong>Owners</strong> must use two-factor authentication. Until your deadline, a notice at the top of the app's screens after sign-in shows the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. Set it up before the deadline: when the set-up screen opens, changes not yet saved on the screen you were on are lost, and you enter them again after set-up. While it is required, <strong>Turn off</strong> is not offered.",
 
     // Install on a phone
     installHeading: "Install on a phone",

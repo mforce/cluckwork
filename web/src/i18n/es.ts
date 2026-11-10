@@ -3396,7 +3396,7 @@ export const es = {
       + "aplicaciones conectadas.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
-      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, las pantallas de Cluckwork muestran la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Configúrela antes de la fecha límite para que ningún registro se interrumpa: un registro que estaba guardando cuando pasó la fecha límite no se conserva, y debe ingresarlo de nuevo. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
+      "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, un aviso en la parte superior de las pantallas de la aplicación, después de iniciar sesión, muestra la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Configúrela antes de la fecha límite: cuando se abre la pantalla de configuración, se pierden los cambios aún no guardados en la pantalla donde estaba, y debe ingresarlos de nuevo después de la configuración. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
 
     installHeading: "Instalar en un teléfono",
     installIntro:
