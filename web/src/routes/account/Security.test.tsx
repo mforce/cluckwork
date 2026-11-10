@@ -12,6 +12,7 @@ import { RecoveryCodesProvider } from "./recoveryCodes";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
+import { parseError } from "../../api/errors";
 import i18n from "../../i18n";
 
 // #1277 — the Account page's Security section. The network is mocked at the
@@ -424,5 +425,32 @@ describe("the step-up proof", () => {
     await press(t("turnOffButton"));
     expect(passwordField()).toHaveValue("");
     expect(codeField()).toHaveValue("");
+  });
+});
+
+// #1281 — while the status route sends requiredBy (an Owner, with the
+// requirement on), Turn off is not offered. The role is not read: this user
+// is a Worker by token.
+describe("Turn off while two-factor is required", () => {
+  const REQUIRED = { ...ON, requiredBy: new Date(Date.now() - 86_400_000).toISOString() };
+
+  it("is not offered while the status route sends requiredBy, and says why", async () => {
+    await renderAccount(REQUIRED);
+    expect(screen.queryByRole("button", { name: t("turnOffButton") })).not.toBeInTheDocument();
+    expect(screen.getByText(t("turnOffRequired"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("replaceButton") })).toBeInTheDocument();
+  });
+
+  it("shows the Owner refusal, not a generic error, when the screen was stale", async () => {
+    await renderAccount(ON);
+    mockTurnOff.mockRejectedValueOnce(await parseError(new Response(
+      JSON.stringify({ title: "Auth.OwnerCannotTurnOffTwoFactor", detail: crypto.randomUUID() }),
+      { status: 403, headers: { "Content-Type": "application/problem+json" } },
+    )));
+    await press(t("turnOffButton"));
+    prove(true);
+    await press(t("turnOffButton"), dialog());
+    expect(await within(dialog()).findByText(t("turnOffRequired"))).toBeInTheDocument();
   });
 });
