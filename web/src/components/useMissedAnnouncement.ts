@@ -33,22 +33,20 @@ import { anyDialogOpen, onModalStateChange } from "./Dialog";
  *
  * Pass `null` when there is nothing to say.
  *
- * `saidAtMount` (#1398) also owes a message that is already there when the
- * region mounts: a notice posted on a screen without its strip is inserted
- * with its text, which is not reliably announced (ARIA22, above).
+ * `owed` (#1398) treats every message as missed, for a caller that passes
+ * only messages its visible region cannot announce: a notice the shell's
+ * strip mounts with is inserted with its text, which is not reliably
+ * announced (ARIA22, above).
  */
-export function useMissedAnnouncement(message: string | null, saidAtMount = false): string {
+export function useMissedAnnouncement(message: string | null, owed = false): string {
   const [blocked, setBlocked] = useState(anyDialogOpen);
   useEffect(() => onModalStateChange(setBlocked), []);
 
   // The message the visible region could not speak for itself.
   const [missed, setMissed] = useState<string | null>(null);
   const previous = useRef<string | null>(null);
-  const mounting = useRef(true);
 
   useEffect(() => {
-    const atMount = mounting.current;
-    mounting.current = false;
     if (message === previous.current) return;
     const before = previous.current;
     previous.current = message;
@@ -67,7 +65,7 @@ export function useMissedAnnouncement(message: string | null, saidAtMount = fals
     //
     // So take the debt if the page was inert on EITHER side of the commit: the
     // mirror as it stood going in, or the stack once it has settled.
-    const owedGoingIn = blocked || anyDialogOpen() || (atMount && saidAtMount);
+    const owedGoingIn = blocked || anyDialogOpen() || owed;
     let cancelled = false;
     let delivered = false;
     queueMicrotask(() => {
@@ -98,11 +96,9 @@ export function useMissedAnnouncement(message: string | null, saidAtMount = fals
     // development) leaves the message undecided, so the next run decides it.
     return () => {
       cancelled = true;
-      if (delivered) return;
-      previous.current = before;
-      mounting.current = atMount;
+      if (!delivered) previous.current = before;
     };
-  }, [message, blocked, saidAtMount]);
+  }, [message, blocked, owed]);
 
   const [shown, setShown] = useState("");
   useEffect(() => {

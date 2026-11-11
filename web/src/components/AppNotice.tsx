@@ -14,11 +14,11 @@ import { useMissedAnnouncement } from "./useMissedAnnouncement";
 // tint; anything else is a status said politely, in the accent tint.
 //
 // The offscreen region is always mounted, and carries `spoken` (the message
-// by default) only when a dialog had the page inert as it arrived (#485), or,
-// with saidAtMount, when the strip mounts with it already there. It holds no
+// by default) only when a dialog had the page inert as it arrived (#485), or
+// always when the caller says it is owed. It holds no
 // live ROLE: the E2E suite reads a hidden alert or status as "nothing is
 // wrong", so a permanent one would answer every such query.
-export function ShellNotice({ message, severity, action, onClose, alertRef, spoken = message, saidAtMount = false }: {
+export function ShellNotice({ message, severity, action, onClose, alertRef, spoken = message, owed = false }: {
   message: string | null;
   severity: AlertColor;
   action?: ReactNode;
@@ -26,10 +26,10 @@ export function ShellNotice({ message, severity, action, onClose, alertRef, spok
   // Makes the strip a focus target that is not a tab stop.
   alertRef?: Ref<HTMLDivElement>;
   spoken?: string | null;
-  saidAtMount?: boolean;
+  owed?: boolean;
 }) {
   const { t } = useTranslation("common");
-  const missed = useMissedAnnouncement(spoken, saidAtMount);
+  const missed = useMissedAnnouncement(spoken, owed);
   const urgent = severity === "warning" || severity === "error";
   return (
     <>
@@ -112,6 +112,6 @@ export function PostedNotice() {
   };
   return (
     <ShellNotice message={notice?.message ?? null} severity="info" alertRef={alert}
-      spoken={notice !== null && notice === mountedWith ? notice.message : null} saidAtMount onClose={close} />
+      spoken={notice !== null && notice === mountedWith ? notice.message : null} owed onClose={close} />
   );
 }
