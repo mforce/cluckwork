@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { SECURITY_SUMMARY_ID } from "./recoveryCodes";
 import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { setStoredToken } from "../../test/jwt";
 import { getAccessToken } from "../../auth/tokenStore";
@@ -51,8 +50,36 @@ describe("a sign-in or sign-out in another tab", () => {
     expect(screen.queryByText("Login page")).toBeNull();
     expect(getAccessToken()).not.toBeNull();
     expect(logout).not.toHaveBeenCalled();
-    await frames(3);
-    expect(document.activeElement).toBe(document.getElementById(SECURITY_SUMMARY_ID));
+  });
+
+  // Review r2: the Security section sits low on Account, so the notice at the
+  // top would be off screen. Focus goes to it once every dialog is gone, which
+  // scrolls it into view (in a browser) and has a screen reader read it.
+  it("moves focus to the notice once the dialogs are gone, and the offscreen region stays quiet", async () => {
+    const answer = await confirmPending();
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await screen.findByRole("dialog", { name: t("codesHeading") });
+
+    await otherTabSignals();
+
+    await waitFor(() => expect(document.activeElement).toBe(droppedNotice()));
+    expect(droppedNotice()).toHaveAttribute("tabindex", "-1");
+    expect(politeRegion()).toHaveTextContent("");
+  });
+
+  // Review r2, finding 8: the signal can land while the step-up dialog of a
+  // regenerate is still closing; focus must not fall to the page's body.
+  it("still moves focus to the notice when the signal lands as the step-up dialog closes", async () => {
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+    await screen.findByRole("dialog", { name: t("codesHeading"), hidden: true });
+
+    await otherTabSignals();
+
+    await waitFor(() => expect(document.activeElement).toBe(droppedNotice()));
+    await frames(20);
+    expect(document.activeElement).toBe(droppedNotice());
   });
 
   it("says in the shell strip that the codes were removed and Regenerate gives a new set", async () => {
@@ -64,11 +91,8 @@ describe("a sign-in or sign-out in another tab", () => {
 
     await otherTabSignals();
 
-    expect(droppedNotice()).toHaveTextContent(t("codesDroppedNotice"));
+    await waitFor(() => expect(droppedNotice()).toHaveTextContent(t("codesDroppedNotice")));
     expect(droppedNotice()).toHaveTextContent(t("regenerateButton"));
-    // The codes dialog had the page inert when the notice arrived, so the
-    // offscreen region says it once the dialog is gone.
-    await waitFor(() => expect(politeRegion()).toHaveTextContent(t("codesDroppedNotice")));
 
     await leave("a nav click");
     expect(droppedNotice()).not.toBeNull();

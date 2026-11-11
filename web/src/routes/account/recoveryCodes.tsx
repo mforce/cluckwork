@@ -5,8 +5,8 @@ import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, T
 import { currentSessionGeneration, isSignedOut } from "../../api/client";
 import { onSessionChangeElsewhere } from "../../auth/sessionSignal";
 import { useAuth } from "../../auth/useAuth";
-import { useAppNotice } from "../../components/AppNotice";
-import { Dialog } from "../../components/Dialog";
+import { APP_NOTICE_ID, useAppNotice } from "../../components/AppNotice";
+import { anyDialogOpen, Dialog, onModalStateChange } from "../../components/Dialog";
 import { useCopy } from "../../components/useCopy";
 import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { saveBlob } from "../../lib/saveBlob";
@@ -49,6 +49,18 @@ interface Slot {
 }
 
 const RecoveryCodesContext = createContext<Slot | null>(null);
+
+function whenNoDialogOpen(run: () => void) {
+  if (!anyDialogOpen()) {
+    run();
+    return;
+  }
+  const stop = onModalStateChange((open) => {
+    if (open) return;
+    stop();
+    run();
+  });
+}
 
 // Here rather than in SecurityPanel: this module is in the main bundle, and
 // importing it from the lazy Account chunk is the only direction that keeps
@@ -127,17 +139,27 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
     requestAnimationFrame(() => (document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
   }, []);
 
-  // #1398 — a sign-in or sign-out in another tab drops a held set, as Done
-  // does, and the shell's strip says so. With nothing held it does nothing,
-  // so focus stays where it is. Only the set: this tab's session, its request
-  // and its page stay.
+  // #1398 — a sign-in or sign-out in another tab drops a held set, and the
+  // shell's strip says so. With nothing held it does nothing, so focus stays
+  // where it is. Only the set: this tab's session, its request and its page
+  // stay. The notice is posted, and focused, once every dialog is gone (this
+  // one, and a step-up still closing): focus brings the strip at the top of
+  // the page into view and has a screen reader read it, and no closing dialog
+  // takes it back. Where there is no strip (the forced setup screen), focus
+  // goes where Done sends it.
   const { show } = useAppNotice();
   const { t } = useTranslation("account");
   useEffect(() => onSessionChangeElsewhere(() => {
     if (!heldRef.current) return;
-    done();
-    show(t("codesDroppedNotice"));
-  }), [done, show, t]);
+    put(null);
+    const generation = currentSessionGeneration();
+    whenNoDialogOpen(() => {
+      if (generation !== currentSessionGeneration()) return;
+      show(t("codesDroppedNotice"));
+      requestAnimationFrame(() => (document.getElementById(APP_NOTICE_ID)
+        ?? document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
+    });
+  }), [show, t]);
 
   const slot = useMemo(() => ({ busy: pending !== null || held !== null, settled, expect }), [pending, held, settled, expect]);
   return (
