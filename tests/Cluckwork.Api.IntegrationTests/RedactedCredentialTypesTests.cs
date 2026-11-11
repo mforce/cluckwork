@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Reflection;
 using System.Text.Json;
 using Cluckwork.Api.Configuration;
@@ -135,6 +136,21 @@ public sealed class RedactedCredentialTypesTests
         public string ToString(string? format, IFormatProvider? formatProvider) => Password ?? "";
     }
 
+    // Loggers enumerate a sequence and never call its ToString.
+    private sealed class CodeSet(IReadOnlyList<string> recoveryCodes) : IEnumerable<string>
+    {
+        public IReadOnlyList<string> RecoveryCodes { get; } = recoveryCodes;
+        public IEnumerator<string> GetEnumerator() => RecoveryCodes.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    private sealed record RedactedCodeSet(IReadOnlyList<string> RecoveryCodes) : IEnumerable<string>
+    {
+        public override string ToString() => "[redacted]";
+        public IEnumerator<string> GetEnumerator() => RecoveryCodes.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
     // The acceptance cases: each new type joins the walk with no row anywhere
     // and fails the check.
     [Theory]
@@ -148,6 +164,8 @@ public sealed class RedactedCredentialTypesTests
     [InlineData(typeof(PrintsTheHash))]
     [InlineData(typeof(CapturesAKey))]
     [InlineData(typeof(FormatsItsPassword))]
+    [InlineData(typeof(CodeSet))]
+    [InlineData(typeof(RedactedCodeSet))]
     public void ANewCredentialType_IsFound_AndFailsUntilItRedacts(Type type)
     {
         Assert.Contains(type, CredentialTypes.Find([typeof(RedactedCredentialTypesTests).Assembly]));
