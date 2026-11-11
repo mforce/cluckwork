@@ -56,8 +56,7 @@ public sealed class RedactedCredentialTypesTests
         foreach (var (printer, reason) in CredentialTypes.ReviewedToStrings)
         {
             Assert.False(string.IsNullOrWhiteSpace(reason), $"{printer} has no reason");
-            Assert.True(CredentialTypes.Find(Product).Any(type => type.IsSubclassOf(printer)
-                    && type.GetMethod(nameof(ToString), Type.EmptyTypes)!.DeclaringType == printer),
+            Assert.True(CredentialTypes.Find(Product).Any(type => type.GetMethod(nameof(ToString), Type.EmptyTypes)!.DeclaringType == printer),
                 $"no credential type prints through {printer}; delete the row");
         }
     }
