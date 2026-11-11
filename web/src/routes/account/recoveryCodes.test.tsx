@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { AccountPage } from "../AccountPage";
 import { AppLayout } from "../AppLayout";
@@ -393,10 +393,12 @@ describe("a sign-in or sign-out in another tab", () => {
   });
 
   // Probe P11: a provider that is gone no longer listens.
+  // Unmounted while a set is held, so a listener left behind would still act.
   it("stops listening once the provider is gone", async () => {
-    const view = renderApp("/form", false);
-    await screen.findByLabelText("Notes");
-    view.unmount();
+    const answer = await confirmPending();
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await screen.findByRole("dialog", { name: t("codesHeading") });
+    cleanup();
     const main = document.createElement("main");
     main.id = MAIN_CONTENT_ID;
     main.tabIndex = -1;
