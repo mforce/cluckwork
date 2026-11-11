@@ -345,7 +345,7 @@ export const es = {
   },
   errors: {
     "Auth.OwnerCannotTurnOffTwoFactor": "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puedes desactivarla.",
-    "Identity.StepUpRequired": "Tu confirmación ya no es válida. Vuelve a ingresar tu contraseña actual y, si usas la autenticación en dos pasos, un código nuevo.",
+    "Identity.StepUpRequired": "Su confirmación ya no es válida. Vuelva a ingresar su contraseña actual y, si usa la autenticación en dos pasos, un código nuevo.",
     "Auth.Forbidden": "No tienes permiso para hacer esto.",
     "Users.CannotResetOwnTwoFactor": "No puedes restablecer tu propia autenticación en dos pasos. Pide a otro propietario.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
@@ -1731,7 +1731,7 @@ export const es = {
     createUserButton: "Crear usuario",
 
     // #308/#360 — re-confirmación de contraseña (machine-drafted, pending native review)
-    stepUpFieldLabel: "Tu contraseña actual *",
+    stepUpFieldLabel: "Su contraseña actual *",
     // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
     // label does not fit there at 390px. The field adds its own asterisk.
     stepUpCodeFieldLabel: "Código de la app o de recuperación",
@@ -1832,7 +1832,7 @@ export const es = {
       "Su aplicación de autenticación y sus códigos de recuperación dejan de funcionar, y se cierra su "
       + "sesión en todos los dispositivos y apps conectadas. En su próximo inicio de sesión usará solo "
       + "su contraseña y podrá volver a configurar la autenticación en dos pasos.",
-    confirmItsYouHeading: "Confirma que eres tú",
+    confirmItsYouHeading: "Confirme que es usted",
     signedInAsCaption: "Sesión iniciada como {{email}}",
     twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
     resetTwoFactorNotFoundError: "No se encontró este usuario. Recarga la página.",
