@@ -17,7 +17,7 @@ public sealed class RedactedCredentialTypesTests
 {
     // The exact size of the found set. A drop means a type or a word left the
     // walk; lowering this is a reviewed change.
-    private const int Floor = 0;
+    private const int Floor = 56;
 
     private static readonly Assembly[] Product =
     [

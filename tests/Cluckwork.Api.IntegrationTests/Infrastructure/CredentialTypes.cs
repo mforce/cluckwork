@@ -77,10 +77,20 @@ internal static partial class CredentialTypes
 
     // Every type the walk reads: not an interface, not abstract (an abstract
     // type's members print through its concrete subtypes, which are walked),
-    // and not compiler-generated. Open generic types are kept.
+    // and not compiler-generated or nested in a compiler-generated type (a
+    // lambda's async state machine sits in its closure class and carries no
+    // attribute itself). Open generic types are kept.
     public static IEnumerable<Type> Walk(IEnumerable<Assembly> assemblies) =>
         assemblies.SelectMany(assembly => assembly.GetTypes())
-            .Where(type => !type.IsInterface && !type.IsAbstract && !type.IsDefined(typeof(CompilerGeneratedAttribute), false));
+            .Where(type => !type.IsInterface && !type.IsAbstract && !CompilerGenerated(type));
+
+    private static bool CompilerGenerated(Type type)
+    {
+        for (var current = type; current is not null; current = current.DeclaringType)
+            if (current.IsDefined(typeof(CompilerGeneratedAttribute), false))
+                return true;
+        return false;
+    }
 
     public static List<Type> Find(IEnumerable<Assembly> assemblies) =>
         [.. Walk(assemblies).Where(IsCredentialType)];
