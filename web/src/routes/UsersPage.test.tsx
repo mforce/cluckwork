@@ -4224,6 +4224,26 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
     expect(label).toBe(i18n.t("users:stepUpCodeFieldLabel"));
   });
 
+  // #1398 — the lab's proof(): who confirms, as the signed-in user and never
+  // the target, and a hint that names the code only when one is asked for.
+  const proofCopy = [
+    ["off", ADMIN, "account:proofHintPassword", "account:proofHint"],
+    ["on", { ...ADMIN, two_factor: "true" }, "account:proofHint", "account:proofHintPassword"],
+  ] as const;
+  it.each(table.flatMap(([name, c]) => proofCopy.map((copy) => [name, copy[0], c, copy] as const)))(
+    "%s heads the proof with the signed-in user and a hint that matches two-factor %s",
+    async (_, _state, { open }, [, token, hint, other]) => {
+      await renderReady(token);
+      await open();
+
+      const proof = within(dialog());
+      expect(proof.getByRole("heading", { name: i18n.t("users:confirmItsYouHeading") })).toBeInTheDocument();
+      expect(proof.getByText(i18n.t("users:signedInAsCaption", { email: "test@farm.local" }))).toBeInTheDocument();
+      expect(proof.getByText(i18n.t(hint))).toBeInTheDocument();
+      expect(proof.queryByText(i18n.t(other))).not.toBeInTheDocument();
+    },
+  );
+
   // The flock buttons are not the form's submit, so `required` cannot hold them.
   it("keeps the flock buttons off until the code is typed too", async () => {
     await renderReady({ ...ADMIN, two_factor: "true" });

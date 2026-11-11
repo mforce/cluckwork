@@ -9,6 +9,7 @@ import { freshCode } from "../test/codes";
 import { useLatestLoad } from "../components/useLatestLoad";
 import { apiGet } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { SESSION_CHANNEL } from "../auth/sessionSignal";
 import i18n from "../i18n";
 
 // #1281 — an Owner past the grace deadline. The API answers 403
@@ -229,6 +230,30 @@ describe("the forced two-factor setup screen", () => {
     expect(await screen.findByText(recoveryCodes[0]!)).toBeInTheDocument();
     expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
     expect(requests.filter((r) => !ALLOWED.has(r))).toEqual(["GET /reports/summary", "GET /reports/summary"]);
+  });
+
+  // #1398 — the status read after the confirm is held, so the codes show over
+  // this screen; the other tab's signal takes them, and nothing else.
+  it("drops the unsaved codes on another tab's sign-in or sign-out, and still lets the user go", async () => {
+    render("/reports");
+    holding.add("GET /auth/two-factor");
+    await enrol();
+    await screen.findByText(recoveryCodes[0]!);
+    const setUpBehind = () => screen.getByRole("heading", { name: t("enrolHeading"), hidden: true });
+    expect(setUpBehind()).toBeInTheDocument();
+
+    const otherTab = new BroadcastChannel(SESSION_CHANNEL);
+    otherTab.postMessage(null);
+    otherTab.close();
+
+    await waitFor(() => expect(screen.queryByText(recoveryCodes[0]!)).not.toBeInTheDocument());
+    expect(document.body.innerHTML).not.toContain(recoveryCodes[1]!);
+    expect(setUpShown()).toBe(true);
+    expect(requests).not.toContain("POST /auth/logout");
+
+    holding.delete("GET /auth/two-factor");
+    await act(async () => { for (const resolve of held.get("GET /auth/two-factor") ?? []) resolve(answer("GET /auth/two-factor")); });
+    expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
   });
 
   it("follows a 403 that arrives mid-session, after the screen had loaded", async () => {

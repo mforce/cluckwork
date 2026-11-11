@@ -12,6 +12,7 @@ import { makeToken, setStoredToken } from "../../test/jwt";
 import { getAccessToken } from "../../auth/tokenStore";
 import { AuthProvider } from "../../auth/AuthContext";
 import { useAuth } from "../../auth/useAuth";
+import { SESSION_CHANNEL } from "../../auth/sessionSignal";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
@@ -305,6 +306,28 @@ describe("when the session ends", () => {
     await screen.findByText("Login page");
     expect(codesDialog()).toBeNull();
     expectNoCodesAnywhere(codes);
+  });
+});
+
+// #1398 — the other tab's channel, as a tab that signs in or out posts on it.
+describe("a sign-in or sign-out in another tab", () => {
+  it("drops the unsaved codes, and leaves this tab's session and page alone", async () => {
+    const answer = await confirmPending();
+    const codes = freshCodes();
+    await act(async () => { answer.resolve({ recoveryCodes: codes }); });
+    await codesShown(codes);
+
+    const otherTab = new BroadcastChannel(SESSION_CHANNEL);
+    otherTab.postMessage(null);
+    otherTab.close();
+
+    await waitFor(() => expect(codesDialog()).toBeNull());
+    for (const code of codes) expect(document.body.innerHTML).not.toContain(code);
+    expect(tabCloseAsks()).toBe(false);
+    expect(screen.getByRole("heading", { name: t("twoFactorHeading") })).toBeInTheDocument();
+    expect(screen.queryByText("Login page")).toBeNull();
+    expect(getAccessToken()).not.toBeNull();
+    expect(logout).not.toHaveBeenCalled();
   });
 });
 
