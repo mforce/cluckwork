@@ -128,7 +128,7 @@ internal static partial class CredentialTypes
 
     public static bool NamesACredential(string name) =>
         WordPattern().Matches(name).Any(word => Words.Contains(word.Value)
-            || word.Value.EndsWith('s') && Words.Contains(word.Value[..^1]));
+            || word.Value.EndsWith("s", StringComparison.OrdinalIgnoreCase) && Words.Contains(word.Value[..^1]));
 
     // An open generic type is checked closed over object: the IL is the
     // definition's, and the runtime call needs an instance.

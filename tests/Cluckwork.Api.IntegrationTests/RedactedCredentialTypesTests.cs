@@ -148,6 +148,8 @@ public sealed class RedactedCredentialTypesTests
 
     private sealed record AllCaps(string JWT);
 
+    private sealed record UppercaseTokens(string TOKENS);
+
     private sealed class LowercaseField(string value)
     {
         private readonly string token = value;
@@ -207,6 +209,7 @@ public sealed class RedactedCredentialTypesTests
     [InlineData(typeof(NamedCode))]
     [InlineData(typeof(AcronymKey))]
     [InlineData(typeof(AllCaps))]
+    [InlineData(typeof(UppercaseTokens))]
     [InlineData(typeof(LowercaseField))]
     [InlineData(typeof(TokenProblem))]
     [InlineData(typeof(InheritsAPrinter))]
@@ -246,6 +249,8 @@ public sealed class RedactedCredentialTypesTests
     [InlineData("RecoveryCodes")]
     [InlineData("APIKey")]
     [InlineData("JWT")]
+    [InlineData("TOKENS")]
+    [InlineData("PASSWORDS")]
     [InlineData("token")]
     [InlineData("<signingKey>P")]
     public void TheNameMatcher_ReadsEachWord(string name) =>
