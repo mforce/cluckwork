@@ -144,6 +144,6 @@ internal static partial class CredentialTypes
             RedactedToString.AssertConstant(closed);
     }
 
-    [GeneratedRegex("[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+")]
+    [GeneratedRegex("[A-Z]+s?(?![a-z])|[A-Z]?[a-z]+|[0-9]+")]
     private static partial Regex WordPattern();
 }
