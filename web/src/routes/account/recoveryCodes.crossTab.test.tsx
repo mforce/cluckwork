@@ -7,6 +7,7 @@ import { otherTabSignals } from "../../test/otherTab";
 import { getTwoFactorStatus, regenerateRecoveryCodes } from "../../api/cluckwork";
 import { logout, setOnTokensChanged } from "../../api/client";
 import { t, freshCodes, codesDialog, renderApp, proveAndSubmit, confirmPending, regenerateOpen, leave, codesShown, frames, droppedNotice, politeRegion, tabCloseAsks, setUpRecoveryCodesApp } from "../../test/recoveryCodesApp";
+import i18n from "../../i18n";
 
 // #1398 — split from recoveryCodes.test.tsx. #1277 (maintainer, 2026-11-05: "Keep codes above pages"): unsaved
 // recovery codes, and the answer of a confirm or regenerate still in flight,
@@ -80,6 +81,77 @@ describe("a sign-in or sign-out in another tab", () => {
     await waitFor(() => expect(document.activeElement).toBe(droppedNotice()));
     await frames(20);
     expect(document.activeElement).toBe(droppedNotice());
+  });
+
+  // Review r3, probe T1: a browser can run a frame callback before React has
+  // rendered what the same task posted. Nothing waits on a frame any more:
+  // the strip focuses itself from an effect, after it has rendered.
+  it("focuses the notice also when frame callbacks run at once", async () => {
+    const answer = await confirmPending();
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await screen.findByRole("dialog", { name: t("codesHeading") });
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => { cb(0); return 0; });
+
+    await otherTabSignals();
+
+    await waitFor(() => expect(document.activeElement).toBe(droppedNotice()));
+  });
+
+  // Review r3, the reader's probe: the notice is posted at the drop, in the
+  // dropping user's session, so another user's tokens before the last dialog
+  // closes take it away, and nothing is focused for them.
+  it("never shows the next user the earlier user's notice, when the user changes before the last dialog closes", async () => {
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+    await screen.findByRole("dialog", { name: t("codesHeading"), hidden: true });
+    await otherTabSignals();
+
+    setStoredToken({ sub: "u2", role: "Worker", two_factor: "true" });
+    await act(async () => { vi.mocked(setOnTokensChanged).mock.calls.at(-1)?.[0]?.(); });
+    await frames(20);
+
+    expect(droppedNotice()).toBeNull();
+    expect(politeRegion()).toHaveTextContent("");
+  });
+
+  // Review r3, probe T3 in the new shape: nothing waits to be posted, so a
+  // sign-out in this tab while the dialog closes simply takes the notice away.
+  it("leaves no notice when this tab signs out while the dialog still closes", async () => {
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+    await screen.findByRole("dialog", { name: t("codesHeading"), hidden: true });
+    await otherTabSignals();
+
+    await act(async () => { fireEvent.click(screen.getAllByRole("button", { name: i18n.t("nav:signOut"), hidden: true })[0]!); });
+    await screen.findByText("Login page");
+    await frames(20);
+
+    expect(droppedNotice()).toBeNull();
+  });
+
+  // Review r3, probe T2: the app gone while a dialog still closes takes the
+  // pending focus move with it.
+  it("moves no focus after the app is gone, when the drop came as a dialog closed", async () => {
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    await regenerateOpen();
+    await proveAndSubmit(t("regenerateButton"), true);
+    await screen.findByRole("dialog", { name: t("codesHeading"), hidden: true });
+    await otherTabSignals();
+    cleanup();
+    const main = document.createElement("main");
+    main.id = MAIN_CONTENT_ID;
+    main.tabIndex = -1;
+    const input = document.createElement("input");
+    main.append(input);
+    document.body.append(main);
+    input.focus();
+
+    await frames(20);
+
+    expect(document.activeElement).toBe(input);
+    main.remove();
   });
 
   it("says in the shell strip that the codes were removed and Regenerate gives a new set", async () => {

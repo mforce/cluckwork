@@ -5,8 +5,8 @@ import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, T
 import { currentSessionGeneration, isSignedOut } from "../../api/client";
 import { onSessionChangeElsewhere } from "../../auth/sessionSignal";
 import { useAuth } from "../../auth/useAuth";
-import { APP_NOTICE_ID, useAppNotice } from "../../components/AppNotice";
-import { anyDialogOpen, Dialog, onModalStateChange } from "../../components/Dialog";
+import { useAppNotice } from "../../components/AppNotice";
+import { Dialog } from "../../components/Dialog";
 import { useCopy } from "../../components/useCopy";
 import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { saveBlob } from "../../lib/saveBlob";
@@ -49,18 +49,6 @@ interface Slot {
 }
 
 const RecoveryCodesContext = createContext<Slot | null>(null);
-
-function whenNoDialogOpen(run: () => void) {
-  if (!anyDialogOpen()) {
-    run();
-    return;
-  }
-  const stop = onModalStateChange((open) => {
-    if (open) return;
-    stop();
-    run();
-  });
-}
 
 // Here rather than in SecurityPanel: this module is in the main bundle, and
 // importing it from the lazy Account chunk is the only direction that keeps
@@ -140,23 +128,16 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // #1398 — a sign-in or sign-out in another tab drops a held set (only the
-  // set) and the shell's strip says so; with nothing held it does nothing.
-  // The notice is posted and focused once every dialog is gone, so a closing
-  // step-up cannot take focus back; focus brings the strip into view and is
-  // its announcement. Without a strip, focus goes where Done sends it. Only in
-  // the session the drop happened in.
+  // set) and posts the notice that says so, in the same step; with nothing
+  // held it does nothing. Focus is the strip's to move (PostedNotice), so this
+  // moves none: without a strip (the forced setup screen) Done's targets are
+  // not on the page either.
   const { show } = useAppNotice();
   const { t } = useTranslation("account");
   useEffect(() => onSessionChangeElsewhere(() => {
     if (!heldRef.current) return;
     put(null);
-    const generation = currentSessionGeneration();
-    whenNoDialogOpen(() => {
-      if (generation !== currentSessionGeneration()) return;
-      show(t("codesDroppedNotice"));
-      requestAnimationFrame(() => (document.getElementById(APP_NOTICE_ID)
-        ?? document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
-    });
+    show(t("codesDroppedNotice"));
   }), [show, t]);
 
   const slot = useMemo(() => ({ busy: pending !== null || held !== null, settled, expect }), [pending, held, settled, expect]);

@@ -265,6 +265,9 @@ describe("the forced two-factor setup screen", () => {
     // Review r2, item 4: the strip mounted with the notice in it, so its
     // offscreen region says it.
     await waitFor(() => expect(document.querySelector(".sr-only[aria-live='polite']")).toHaveTextContent(t("codesDroppedNotice")));
+    // Review r3: the strip mounted with it, so it leaves focus where entering
+    // the app put it.
+    expect(document.activeElement).not.toBe(document.querySelector(".shell-notice"));
   });
 
   it("follows a 403 that arrives mid-session, after the screen had loaded", async () => {

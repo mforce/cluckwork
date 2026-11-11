@@ -50,6 +50,7 @@ export function useMissedAnnouncement(message: string | null, saidAtMount = fals
     const atMount = mounting.current;
     mounting.current = false;
     if (message === previous.current) return;
+    const before = previous.current;
     previous.current = message;
 
     // Neither reading of "was the page inert" is sufficient alone, because a
@@ -68,8 +69,10 @@ export function useMissedAnnouncement(message: string | null, saidAtMount = fals
     // mirror as it stood going in, or the stack once it has settled.
     const owedGoingIn = blocked || anyDialogOpen() || (atMount && saidAtMount);
     let cancelled = false;
+    let delivered = false;
     queueMicrotask(() => {
       if (cancelled) return;
+      delivered = true;
       // Every change reassigns the debt from scratch rather than only ever
       // taking one on. A change the visible region CAN announce for itself
       // cancels whatever was owed; only one it cannot becomes the new debt.
@@ -91,7 +94,14 @@ export function useMissedAnnouncement(message: string | null, saidAtMount = fals
       // bad, so this errs toward saying it twice.
       setMissed(message !== null && (owedGoingIn || anyDialogOpen()) ? message : null);
     });
-    return () => { cancelled = true; };
+    // #1398 — a run cancelled before it delivered (StrictMode's replay in
+    // development) leaves the message undecided, so the next run decides it.
+    return () => {
+      cancelled = true;
+      if (delivered) return;
+      previous.current = before;
+      mounting.current = atMount;
+    };
   }, [message, blocked, saidAtMount]);
 
   const [shown, setShown] = useState("");

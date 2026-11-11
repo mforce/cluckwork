@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -8,6 +8,7 @@ import { useAuth } from "../auth/useAuth";
 import i18n from "../i18n";
 import { MAIN_CONTENT_ID } from "../lib/mainContent";
 import { PostedNotice, useAppNotice } from "./AppNotice";
+import { Dialog } from "./Dialog";
 
 // #1398 — the app's one notice: any screen or provider posts it, the shell
 // strip shows it until it is closed, and it belongs to the signed-in user.
@@ -19,11 +20,16 @@ function Poster({ strip = true }: { strip?: boolean }) {
   const { notice, show, dismiss } = useAppNotice();
   const { logout } = useAuth();
   const [shell, setShell] = useState(strip);
+  const [dialog, setDialog] = useState(false);
+  const [renders, setRenders] = useState(0);
   post = show;
   return (
-    <main id={MAIN_CONTENT_ID} tabIndex={-1}>
+    <main id={MAIN_CONTENT_ID} tabIndex={-1} data-renders={renders}>
       {shell && <PostedNotice />}
-      <p data-testid="notice">{notice ?? ""}</p>
+      <p data-testid="notice">{notice?.message ?? ""}</p>
+      <button type="button" onClick={() => setRenders((n) => n + 1)}>render again</button>
+      <button type="button" onClick={() => setDialog(true)}>open a dialog</button>
+      <Dialog open={dialog} title="Edit" onClose={() => setDialog(false)}><input aria-label="Name" /></Dialog>
       <button type="button" onClick={() => show("Codes removed.")}>post</button>
       <button type="button" onClick={() => show("Something else.")}>post another</button>
       <button type="button" onClick={dismiss}>dismiss</button>
@@ -100,15 +106,57 @@ describe("the app notice", () => {
     expect(document.activeElement).toBe(document.getElementById(MAIN_CONTENT_ID));
   });
 
-  it("does not take focus when the strip shows a notice", async () => {
+  // Review r3: the strip owns the focus move. A notice that arrives while it
+  // is up takes focus once, which brings it into view and has a screen reader
+  // read it; the offscreen region then stays quiet.
+  it("focuses a notice that arrives while the strip is up, once, and not again on a re-render", async () => {
     renderWithProviders(<Poster />, { token: OWNER });
     const notes = screen.getByLabelText("Notes");
     notes.focus();
 
     await act(async () => { post("Codes removed."); });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Codes removed.");
+    expect(document.activeElement).toBe(screen.getByRole("status"));
+    expect(region()).toHaveTextContent("");
+    notes.focus();
+    await press("render again");
     expect(document.activeElement).toBe(notes);
+  });
+
+  it("waits for an open dialog to close before it focuses the notice, and a later dialog does not pull focus back", async () => {
+    renderWithProviders(<Poster />, { token: OWNER });
+    await press("open a dialog");
+    const name = await screen.findByLabelText("Name");
+    name.focus();
+
+    await act(async () => { post("Codes removed."); });
+    expect(document.activeElement).toBe(name);
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Close" })); });
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole("status")));
+    expect(region()).toHaveTextContent("");
+
+    screen.getByLabelText("Notes").focus();
+    await press("open a dialog");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Close" })); });
+    await vi.waitFor(() => expect(screen.queryByLabelText("Name")).toBeNull());
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    expect(document.activeElement).not.toBe(screen.getByRole("status"));
+  });
+
+  it("does not focus a notice when the app shell is gone before it would", async () => {
+    const view = renderWithProviders(<Poster />, { token: OWNER });
+    await press("open a dialog");
+    await act(async () => { post("Codes removed."); });
+    view.unmount();
+    const input = document.createElement("input");
+    document.body.append(input);
+    input.focus();
+
+    await act(async () => { await new Promise((r) => setTimeout(r, 300)); });
+
+    expect(document.activeElement).toBe(input);
+    input.remove();
   });
 
   // Review r2, probe R2: posted where there is no strip (the forced setup
@@ -118,9 +166,24 @@ describe("the app notice", () => {
     await press("post");
     expect(region()).toBeNull();
 
+    const notes = screen.getByLabelText("Notes");
+    notes.focus();
     await press("enter the shell");
 
     expect(screen.getByRole("status")).toHaveTextContent("Codes removed.");
+    await vi.waitFor(() => expect(region()).toHaveTextContent("Codes removed."));
+    // Entering the app moves focus as it does; the strip does not take it.
+    expect(document.activeElement).not.toBe(screen.getByRole("status"));
+  });
+
+  // Review r3, item 2: the app mounts under StrictMode, which replays effects
+  // in development; the announcement must survive the replay.
+  it("says a notice the strip mounts with under StrictMode too", async () => {
+    renderWithProviders(<StrictMode><Poster strip={false} /></StrictMode>, { token: OWNER });
+    await press("post");
+
+    await press("enter the shell");
+
     await vi.waitFor(() => expect(region()).toHaveTextContent("Codes removed."));
   });
 
