@@ -125,9 +125,10 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
     requestAnimationFrame(() => (document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
   }, []);
 
-  // #1398 — a sign-in or sign-out in another tab drops the set, as Done does.
+  // #1398 — a sign-in or sign-out in another tab drops a held set, as Done
+  // does. With nothing held it does nothing, so focus stays where it is.
   // Only the set: this tab's session, its request and its page stay.
-  useEffect(() => onSessionChangeElsewhere(done), [done]);
+  useEffect(() => onSessionChangeElsewhere(() => { if (heldRef.current) done(); }), [done]);
 
   const slot = useMemo(() => ({ busy: pending !== null || held !== null, settled, expect }), [pending, held, settled, expect]);
   return (

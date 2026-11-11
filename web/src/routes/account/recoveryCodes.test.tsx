@@ -5,7 +5,8 @@ import { BrowserRouter, Route, Routes, useLocation } from "react-router";
 import { AccountPage } from "../AccountPage";
 import { AppLayout } from "../AppLayout";
 import { ProtectedRoute } from "../ProtectedRoute";
-import { RecoveryCodesProvider } from "./recoveryCodes";
+import { RecoveryCodesProvider, SECURITY_SUMMARY_ID } from "./recoveryCodes";
+import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { farmState } from "../../test/fixtures";
 import { freshCode } from "../../test/codes";
 import { makeToken, setStoredToken } from "../../test/jwt";
@@ -199,6 +200,12 @@ function expectNoCodesAnywhere(codes: string[]) {
   for (const code of codes) expect(readable).not.toContain(code);
 }
 
+// Focus moves on the next frame (done in recoveryCodes.tsx), so a check of
+// where it rests waits a few frames.
+const frames = (n: number) => act(async () => {
+  for (let i = 0; i < n; i++) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+});
+
 const tabCloseAsks = () => {
   const event = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(event);
@@ -326,6 +333,83 @@ describe("a sign-in or sign-out in another tab", () => {
     expect(screen.queryByText("Login page")).toBeNull();
     expect(getAccessToken()).not.toBeNull();
     expect(logout).not.toHaveBeenCalled();
+    await frames(3);
+    expect(document.activeElement).toBe(document.getElementById(SECURITY_SUMMARY_ID));
+  });
+
+  // Review r1, probes P1 and P1b: with no codes held there is nothing to do,
+  // so focus stays where the user is typing, however many signals arrive.
+  it("leaves focus in the field the user is typing in when no codes are held", async () => {
+    renderApp("/form", false);
+    const notes = await screen.findByLabelText("Notes");
+    notes.focus();
+
+    await otherTabSignals();
+    await otherTabSignals();
+    await frames(3);
+
+    expect(document.activeElement).toBe(notes);
+  });
+
+  it("leaves focus inside an open step-up dialog when no codes are held", async () => {
+    await regenerateOpen();
+    const password = within(await screen.findByRole("dialog")).getByLabelText(/Your current password/);
+    password.focus();
+
+    await otherTabSignals();
+    await frames(3);
+
+    expect(document.activeElement).toBe(password);
+  });
+
+  // Probe P7: only the held set goes, never this tab's own request.
+  it("leaves a code-issuing request alone, so its codes still arrive", async () => {
+    const answer = await confirmPending();
+    const codes = freshCodes();
+
+    await otherTabSignals();
+    await act(async () => { answer.resolve({ recoveryCodes: codes }); });
+
+    await codesShown(codes);
+  });
+
+  // Probe P9: the listener hears every signal, not only the first.
+  it("drops a second set on a second signal", async () => {
+    const answer = await confirmPending();
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    await otherTabSignals();
+    expect(codesDialog()).toBeNull();
+
+    vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+    vi.mocked(regenerateRecoveryCodes).mockResolvedValue({ recoveryCodes: freshCodes() });
+    setStoredToken({ sub: "u1", role: "Worker", two_factor: "true" });
+    await act(async () => { vi.mocked(setOnTokensChanged).mock.calls.at(-1)?.[0]?.(); });
+    await act(async () => { fireEvent.click(await screen.findByRole("button", { name: t("regenerateButton") }, { timeout: 3000 })); });
+    await proveAndSubmit(t("regenerateButton"), true);
+    await screen.findByRole("dialog", { name: t("codesHeading") });
+
+    await otherTabSignals();
+    expect(codesDialog()).toBeNull();
+  });
+
+  // Probe P11: a provider that is gone no longer listens.
+  it("stops listening once the provider is gone", async () => {
+    const view = renderApp("/form", false);
+    await screen.findByLabelText("Notes");
+    view.unmount();
+    const main = document.createElement("main");
+    main.id = MAIN_CONTENT_ID;
+    main.tabIndex = -1;
+    const input = document.createElement("input");
+    main.append(input);
+    document.body.append(main);
+    input.focus();
+
+    await otherTabSignals();
+    await frames(3);
+
+    expect(document.activeElement).toBe(input);
+    main.remove();
   });
 });
 
