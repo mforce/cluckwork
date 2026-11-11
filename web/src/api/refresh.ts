@@ -1,5 +1,6 @@
 import { getAccessToken, setAccessToken, clearAccessToken, bindAccount, getBoundAccountId } from "../auth/tokenStore";
 import { accountIdFromToken } from "../auth/claims";
+import { announceSessionChange } from "../auth/sessionSignal";
 import type { AccessTokenResponse } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
@@ -334,9 +335,12 @@ export async function apiFetch<T>(
 const TWO_FACTOR_ENROLMENT_REQUIRED = "Auth.TwoFactorEnrolmentRequired";
 
 // Clears this tab's session, tells the app why, and rethrows the 401 that
-// showed it was over.
+// showed it was over. #1398 — the other tabs hear it only when this tab held
+// a session: a refused first refresh at load ended nothing.
 function endSession(err: ApiError): never {
+  const held = getAccessToken() !== null;
   clearAccessToken();
+  if (held) announceSessionChange();
   onUnauthenticated?.(err.title);
   throw err;
 }
