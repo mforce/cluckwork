@@ -50,7 +50,7 @@ export const es = {
     loginNextHeading: "Siguiente: aprobar {{app}}",
     loginNextHeadingUnnamed: "Siguiente: aprobar una aplicación",
     loginNextHeadingVerified: "Siguiente: aprobar {{app}} de {{domain}}",
-    loginNextBody: "Después de iniciar sesión, verás lo que pide y decidirás si lo permites.",
+    loginNextBody: "Después de iniciar sesión, verá lo que pide y decidirá si lo permite.",
     title: "Cluckwork",
     shellEyebrow: "Gestión de granjas avícolas",
     shellTagline: "Registro diario · Existencias · Ventas",
@@ -66,8 +66,8 @@ export const es = {
       "Esto elimina {{farmCode}} de las granjas recientes en este dispositivo. No cambia su cuenta ni otras preferencias del dispositivo.",
     forgetFarmConfirm: "Olvidar granja",
     farmFromLink: "Iniciando sesión en la granja: {{farmCode}}",
-    unknownFarmCode: "No se reconoce ese código de granja. Verifícalo e inténtalo de nuevo.",
-    farmSuspended: "Esta granja está suspendida. Contacta a tu administrador.",
+    unknownFarmCode: "No se reconoce ese código de granja. Verifíquelo e inténtelo de nuevo.",
+    farmSuspended: "Esta granja está suspendida. Contacte a su administrador.",
     email: "Correo electrónico",
     password: "Contraseña",
     signIn: "Iniciar sesión",
@@ -132,7 +132,7 @@ export const es = {
     setPasswordTooShortError: "La nueva contraseña debe tener al menos {{min}} caracteres.",
   },
   connect: {
-    title: "¿Dejar que {{app}} actúe como tú?",
+    title: "¿Dejar que {{app}} actúe como usted?",
     titleMore: "¿Dejar que {{app}} haga más?",
     titleReconnect: "¿Volver a conectar {{app}}?",
     unnamedApp: "Una aplicación sin nombre",
@@ -150,39 +150,39 @@ export const es = {
     scopeOperations: "Anotar operaciones de la granja",
     scopeOperationsLine: "Uso de alimento, uso de agua y compras de inventario",
     scopeExpenses: "Anotar gastos",
-    scopeBlocked: "Tu rol no lo permite",
+    scopeBlocked: "Su rol no lo permite",
     scopeNew: "Nuevo",
     scopeHad: "Ya permitido",
-    chooseScopes: "Desmarca los permisos que no quieras permitir.",
-    noSelection: "No hay nada marcado. Elige {{cancel}} para volver a la aplicación sin conectarla.",
-    acts: "Actúa como tú, solo con tu acceso",
-    roleSr: "Tu rol:",
-    password: "Tu contraseña actual",
+    chooseScopes: "Desmarque los permisos que no quiera permitir.",
+    noSelection: "No hay nada marcado. Elija {{cancel}} para volver a la aplicación sin conectarla.",
+    acts: "Actúa como usted, solo con su acceso",
+    roleSr: "Su rol:",
+    password: "Su contraseña actual",
     allow: "Permitir",
     cancel: "Cancelar",
     wrongPassword: "Contraseña incorrecta. No se conectó nada.",
-    tooManyAttempts: "Demasiados intentos. Espera unos minutos y vuelve a intentarlo.",
-    failed: "Algo salió mal y no se conectó nada. Vuelve a intentarlo.",
-    undo: "Las conexiones que permitiste antes conservan su acceso hasta que elijas Desconectar en Cuenta › Aplicaciones conectadas.",
+    tooManyAttempts: "Demasiados intentos. Espere unos minutos y vuelva a intentarlo.",
+    failed: "Algo salió mal y no se conectó nada. Vuelva a intentarlo.",
+    undo: "Las conexiones que permitió antes conservan su acceso hasta que elija Desconectar en Cuenta › Aplicaciones conectadas.",
     details: "Detalles",
-    detailsActs: "Actúa como tú, así que nunca puede hacer más que tú.",
+    detailsActs: "Actúa como usted, así que nunca puede hacer más que usted.",
     detailsReadAll: "Puede leer los datos de la granja de todos los lotes.",
-    detailsReadSome: "Solo puede leer los datos de la granja de los lotes que tienes asignados: {{flocks}}.",
+    detailsReadSome: "Solo puede leer los datos de la granja de los lotes que tiene asignados: {{flocks}}.",
     detailsWriteAll: "Puede anotar para cualquier lote.",
-    detailsWriteSome: "Solo puede anotar para los lotes que tienes asignados: {{flocks}}.",
+    detailsWriteSome: "Solo puede anotar para los lotes que tiene asignados: {{flocks}}.",
     detailsPurchases: "Las compras de inventario no dependen de un lote: se suman al inventario de toda la granja.",
     detailsAtOnce: "{{permissions}}: lo que anote cuenta al instante, igual que en Cluckwork. Un Administrador o Gerente lo corrige en Cluckwork.",
-    detailsName: "{{app}} eligió su propio nombre. Cluckwork no lo comprueba, así que permítela solo si acabas de empezar a conectar {{app}}.",
-    detailsNameVerified: "Cluckwork obtuvo los datos de esta aplicación directamente de {{url}}, así que vienen de quien controla esa dirección en {{domain}}. El nombre {{app}} sigue siendo elección de la aplicación, así que permítela solo si acabas de empezar a conectar {{app}}.",
-    detailsReturnHere: "Después, tu navegador vuelve a {{host}}, una dirección de este equipo.",
-    detailsReturnTo: "Después, tu navegador va a {{host}}.",
+    detailsName: "{{app}} eligió su propio nombre. Cluckwork no lo comprueba, así que permítala solo si acaba de empezar a conectar {{app}}.",
+    detailsNameVerified: "Cluckwork obtuvo los datos de esta aplicación directamente de {{url}}, así que vienen de quien controla esa dirección en {{domain}}. El nombre {{app}} sigue siendo elección de la aplicación, así que permítala solo si acaba de empezar a conectar {{app}}.",
+    detailsReturnHere: "Después, su navegador vuelve a {{host}}, una dirección de este equipo.",
+    detailsReturnTo: "Después, su navegador va a {{host}}.",
     detailsLoopbackVerified: "{{domain}} no puede garantizar qué programa de este equipo la recibe.",
     detailsScopes: "Leer incluye lotes, existencias, registros diarios, clientes, pedidos y pagos.",
-    notYou: "¿No eres tú? Cerrar sesión",
+    notYou: "¿No es usted? Cerrar sesión",
     refusedTitle: "No hay nada que aprobar",
     offTitle: "Las aplicaciones conectadas están desactivadas",
-    offBody: "Esta granja no permite aplicaciones conectadas. Pídeselo a un propietario.",
-    refusedBody: "Esta solicitud venció o no es válida, así que no se conectó nada. Empieza de nuevo desde la aplicación.",
+    offBody: "Esta granja no permite aplicaciones conectadas. Pídaselo a un propietario.",
+    refusedBody: "Esta solicitud venció o no es válida, así que no se conectó nada. Empiece de nuevo desde la aplicación.",
     refusedButton: "Ir a Cluckwork",
     loading: "Cargando la solicitud…",
     leaving: "Volviendo a la aplicación…",
@@ -306,11 +306,11 @@ export const es = {
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
     heading: "Aplicaciones conectadas",
-    hint: "Aplicaciones que permitiste actuar como tú. Cada una solo puede hacer lo que tú puedes.",
-    count: "{{count}} aplicaciones conectadas pueden actuar como tú.",
-    count_one: "{{count}} aplicación conectada puede actuar como tú.",
-    empty: "No hay aplicaciones conectadas. Una aplicación que permitas actuar como tú aparece aquí.",
-    nudge: "{{app}} no se ha usado en {{days}} días. Desconéctala si ya no la usas.",
+    hint: "Aplicaciones que permitió actuar como usted. Cada una solo puede hacer lo que usted puede.",
+    count: "{{count}} aplicaciones conectadas pueden actuar como usted.",
+    count_one: "{{count}} aplicación conectada puede actuar como usted.",
+    empty: "No hay aplicaciones conectadas. Una aplicación que permita actuar como usted aparece aquí.",
+    nudge: "{{app}} no se ha usado en {{days}} días. Desconéctela si ya no la usa.",
     inUse: "En uso",
     notUsedYet: "Aún sin usar",
     idle: "Sin usar desde hace {{days}} días",
@@ -321,11 +321,11 @@ export const es = {
     disconnectApp: "Desconectar {{app}}",
     disconnectPersonApp: "Desconectar {{app}} de {{person}}",
     confirmTitle: "¿Desconectar {{app}}?",
-    confirmBody: "{{app}} deja de funcionar en su próxima solicitud. Para volver a usarla, conéctala de nuevo con tu contraseña.",
+    confirmBody: "{{app}} deja de funcionar en su próxima solicitud. Para volver a usarla, conéctela de nuevo con su contraseña.",
     confirmBodyOwner: "{{app}} deja de funcionar para {{person}} en su próxima solicitud. {{person}} conserva su acceso y puede volver a conectarla.",
     disconnected: "{{app}} está desconectada. Deja de funcionar en su próxima solicitud.",
-    failed: "No se desconectó {{app}}. Vuelve a intentarlo.",
-    loadFailed: "No se pudieron cargar las aplicaciones conectadas. Recarga la página para intentarlo de nuevo.",
+    failed: "No se desconectó {{app}}. Vuelva a intentarlo.",
+    loadFailed: "No se pudieron cargar las aplicaciones conectadas. Recargue la página para intentarlo de nuevo.",
     farmEyebrow: "Toda la granja",
     farmHint: "Todas las aplicaciones que alguien de esta granja ha conectado. Desconectar una hace menos que desactivar a la persona, que conserva su acceso y puede volver a conectarla.",
     person: "Persona",
@@ -340,17 +340,17 @@ export const es = {
     allowHint: "Desactivado: se rechazan las conexiones nuevas y las aplicaciones conectadas se detienen en su próxima solicitud.",
     allowOn: "Las aplicaciones conectadas están activadas.",
     allowOff: "Las aplicaciones conectadas están desactivadas.",
-    allowFailed: "No se pudo cambiar. Inténtalo de nuevo.",
+    allowFailed: "No se pudo cambiar. Inténtelo de nuevo.",
     farmEmpty: "Nadie de esta granja ha conectado una aplicación.",
   },
   errors: {
-    "Auth.OwnerCannotTurnOffTwoFactor": "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puedes desactivarla.",
+    "Auth.OwnerCannotTurnOffTwoFactor": "Todo propietario debe mantener activada la autenticación en dos pasos, así que no puede desactivarla.",
     "Identity.StepUpRequired": "Su confirmación ya no es válida. Vuelva a ingresar su contraseña actual y, si usa la autenticación en dos pasos, un código nuevo.",
-    "Auth.Forbidden": "No tienes permiso para hacer esto.",
-    "Users.CannotResetOwnTwoFactor": "No puedes restablecer tu propia autenticación en dos pasos. Pide a otro propietario.",
+    "Auth.Forbidden": "No tiene permiso para hacer esto.",
+    "Users.CannotResetOwnTwoFactor": "No puede restablecer su propia autenticación en dos pasos. Pida a otro propietario.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
-      "Tus parvadas asignadas no tienen suficiente stock para esta venta. Un "
+      "Sus parvadas asignadas no tienen suficiente stock para esta venta. Un "
       + "propietario puede habilitar la venta desde otras parvadas "
       + "en Configuración de la granja.",
     // #721
@@ -651,8 +651,8 @@ export const es = {
     filterCustomerUnavailable: "Este cliente ya no está disponible.",
     // #612
     farmWideAllocationNotice:
-      "Este ajuste de la granja permite que tus confirmaciones de venta "
-      + "tomen stock de fuera de tus parvadas asignadas.",
+      "Este ajuste de la granja permite que sus confirmaciones de venta tomen stock de fuera de sus "
+      + "parvadas asignadas.",
     // #727
     discountCeilingNotice:
       "Esta granja limita su descuento a un {{percent}}% sobre el precio de lista en "
@@ -1791,7 +1791,7 @@ export const es = {
     roleDialogHint:
       "Cambiar el rol de alguien cierra su sesión en todos los "
       + "dispositivos. No se puede degradar al último propietario de la "
-      + "cuenta, y no puedes cambiar tu propio rol — pide a otro propietario.",
+      + "cuenta, y no puede cambiar su propio rol — pida a otro propietario.",
 
     changeEmailTitle: "Cambiar correo — {{email}}",
     changeEmailHint:
@@ -1809,7 +1809,7 @@ export const es = {
     enableSubmitButton: "Habilitar",
     disableWarningBody:
       "Se cerrará su sesión en todos los dispositivos de inmediato y no "
-      + "podrá volver a iniciar sesión hasta que lo vuelvas a habilitar.",
+      + "podrá volver a iniciar sesión hasta que usted lo vuelva a habilitar.",
     disableReasonFieldLabel: "Motivo (opcional)",
 
     // Imperative messages
@@ -1835,7 +1835,7 @@ export const es = {
     confirmItsYouHeading: "Confirme que es usted",
     signedInAsCaption: "Sesión iniciada como {{email}}",
     twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
-    resetTwoFactorNotFoundError: "No se encontró este usuario. Recarga la página.",
+    resetTwoFactorNotFoundError: "No se encontró este usuario. Recargue la página.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -2634,95 +2634,101 @@ export const es = {
       + "<strong>Reemplazar aplicación de autenticación</strong>, <strong>Regenerar</strong> y "
       + "<strong>Desactivar</strong> piden su contraseña y un código.",
     signingInAppAddress:
-      "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, agrega "
-      + "Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre Cluckwork en "
-      + "tu navegador; inicia sesión si te lo pide. Revisa lo que pide, escribe <strong>Tu contraseña "
-      + "actual</strong> y elige <strong>Permitir</strong>. Cluckwork no te da ningún ID de cliente ni secreto que "
-      + "copiar, porque las aplicaciones compatibles configuran su propio inicio de sesión. Una aplicación que "
-      + "exige un secreto de cliente no puede conectarse.",
+      "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, "
+      + "agregue Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre "
+      + "Cluckwork en su navegador; inicie sesión si se lo pide. Revise lo que pide, escriba <strong>Su "
+      + "contraseña actual</strong> y elija <strong>Permitir</strong>. Cluckwork no le da ningún ID de "
+      + "cliente ni secreto que copiar, porque las aplicaciones compatibles configuran su propio inicio de "
+      + "sesión. Una aplicación que exige un secreto de cliente no puede conectarse.",
     signingInAppClaude:
-      "<strong>Claude</strong> (claude.ai y la aplicación de escritorio de Claude). Ve a <strong>Customize › "
-      + "Connectors</strong>, elige <strong>Add custom connector</strong>, pega la dirección y elige "
-      + "<strong>Add</strong>. En un plan Team o Enterprise, un Owner de la organización de Claude lo agrega en "
-      + "<strong>Organization settings › Connectors</strong>, y tú eliges <strong>Connect</strong> en él dentro de "
-      + "<strong>Customize › Connectors</strong>. El plan Free permite un conector personalizado. Claude se "
-      + "conecta desde los servidores de Anthropic, así que esta dirección debe ser accesible desde internet.",
+      "<strong>Claude</strong> (claude.ai y la aplicación de escritorio de Claude). Vaya a "
+      + "<strong>Customize › Connectors</strong>, elija <strong>Add custom connector</strong>, pegue la "
+      + "dirección y elija <strong>Add</strong>. En un plan Team o Enterprise, un Owner de la organización de "
+      + "Claude lo agrega en <strong>Organization settings › Connectors</strong>, y usted elige "
+      + "<strong>Connect</strong> en él dentro de <strong>Customize › Connectors</strong>. El plan Free "
+      + "permite un conector personalizado. Claude se conecta desde los servidores de Anthropic, así que esta "
+      + "dirección debe ser accesible desde internet.",
     signingInAppClaudeCode:
-      "<strong>Claude Code.</strong> Ejecuta <code>claude mcp add --transport http cluckwork {{address}}</code>, "
-      + "luego ejecuta <code>claude mcp login cluckwork</code>, o escribe <code>/mcp</code> en Claude Code, e "
-      + "inicia sesión en el navegador que se abre. Claude Code se ejecuta en tu computadora, así que basta con que la dirección sea "
-      + "accesible desde ella.",
+      "<strong>Claude Code.</strong> Ejecute <code>claude mcp add --transport http cluckwork "
+      + "{{address}}</code>, luego ejecute <code>claude mcp login cluckwork</code>, o escriba "
+      + "<code>/mcp</code> en Claude Code, e inicie sesión en el navegador que se abre. Claude Code se "
+      + "ejecuta en su computadora, así que basta con que la dirección sea accesible desde ella.",
     signingInConnectApp:
-      "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede pedir "
-      + "actuar como tú. Cluckwork muestra lo que pide, entre <strong>Leer datos de la granja</strong>, "
-      + "<strong>Anotar registros diarios</strong>, <strong>Enviar registros diarios</strong>, <strong>Anotar "
-      + "operaciones de la granja</strong> y <strong>Anotar gastos</strong>, cada uno con una casilla. Desmarca "
-      + "los que no quieras permitir, incluido <strong>Leer datos de la granja</strong>, y elige "
-      + "<strong>Permitir</strong> después de escribir <strong>Tu contraseña actual</strong>. Sin nada marcado, "
-      + "solo queda <strong>Cancelar</strong>. Nunca puede hacer más que tu propio rol: un permiso que tu rol no "
-      + "puede usar aparece como <strong>Tu rol no lo permite</strong> y no tiene casilla. Cuando una aplicación "
-      + "se conecta otra vez, lo que permitiste antes aparece marcado y el resto como <strong>Nuevo</strong>, y "
-      + "siempre se pide tu contraseña. Desmarcar un permiso no lo quita de una conexión anterior: para quitarlo, "
-      + "elige <strong>Desconectar</strong> en <strong>Cuenta</strong> › <strong>Aplicaciones conectadas</strong> "
-      + "y vuelve a conectar la aplicación. La aplicación eligió su propio nombre, así "
-      + "que permítela solo si acabas de empezar a conectarla. <strong>Detalles</strong> tiene la explicación "
-      + "completa.",
+      "<strong>Conectar una aplicación.</strong> Una aplicación externa, como un asistente de IA, puede "
+      + "pedir actuar como usted. Cluckwork muestra lo que pide, entre <strong>Leer datos de la "
+      + "granja</strong>, <strong>Anotar registros diarios</strong>, <strong>Enviar registros "
+      + "diarios</strong>, <strong>Anotar operaciones de la granja</strong> y <strong>Anotar gastos</strong>, "
+      + "cada uno con una casilla. Desmarque los que no quiera permitir, incluido <strong>Leer datos de la "
+      + "granja</strong>, y elija <strong>Permitir</strong> después de escribir <strong>Su contraseña "
+      + "actual</strong>. Sin nada marcado, solo queda <strong>Cancelar</strong>. Nunca puede hacer más que "
+      + "su propio rol: un permiso que su rol no puede usar aparece como <strong>Su rol no lo "
+      + "permite</strong> y no tiene casilla. Cuando una aplicación se conecta otra vez, lo que permitió "
+      + "antes aparece marcado y el resto como <strong>Nuevo</strong>, y siempre se pide su contraseña. "
+      + "Desmarcar un permiso no lo quita de una conexión anterior: para quitarlo, elija "
+      + "<strong>Desconectar</strong> en <strong>Cuenta</strong> › <strong>Aplicaciones conectadas</strong> y "
+      + "vuelva a conectar la aplicación. La aplicación eligió su propio nombre, así que permítala solo si "
+      + "acaba de empezar a conectarla. <strong>Detalles</strong> tiene la explicación completa.",
     // #799 — control names match the connectedApps and nav catalogs (#688).
     signingInConnectedApps:
-      "<strong>Aplicaciones conectadas.</strong> <strong>Cuenta</strong> muestra cada aplicación que permitiste "
-      + "actuar como tú, con lo que puede hacer, cuándo se conectó y su último uso. <strong>Desconectar</strong> la "
-      + "detiene en su próxima solicitud, en todas las conexiones que le aprobaste; para volver a usarla, conéctala "
-      + "de nuevo con tu contraseña. Lo que puede hacer reúne todas esas conexiones, así que conectarla otra vez "
-      + "con menos permisos no lo reduce. Se marca la "
-      + "aplicación que no se usa en 30 días. El propietario ve todas las aplicaciones de la granja en "
+      "<strong>Aplicaciones conectadas.</strong> <strong>Cuenta</strong> muestra cada aplicación que "
+      + "permitió actuar como usted, con lo que puede hacer, cuándo se conectó y su último uso. "
+      + "<strong>Desconectar</strong> la detiene en su próxima solicitud, en todas las conexiones que le "
+      + "aprobó; para volver a usarla, conéctela de nuevo con su contraseña. Lo que puede hacer reúne todas "
+      + "esas conexiones, así que conectarla otra vez con menos permisos no lo reduce. Se marca la aplicación "
+      + "que no se usa en 30 días. El propietario ve todas las aplicaciones de la granja en "
       + "<strong>Configuración</strong> › <strong>Aplicaciones conectadas</strong>, puede filtrar por "
-      + "<strong>Persona</strong> y puede desconectar cualquiera, lo que hace menos que desactivar a la persona. "
-      + "Desactivar <strong>Permitir aplicaciones conectadas</strong>, arriba en esa página, detiene todas las "
-      + "aplicaciones y toda conexión nueva hasta que el propietario lo vuelva a activar; no se desconecta nada.",
+      + "<strong>Persona</strong> y puede desconectar cualquiera, lo que hace menos que desactivar a la "
+      + "persona. Desactivar <strong>Permitir aplicaciones conectadas</strong>, arriba en esa página, detiene "
+      + "todas las aplicaciones y toda conexión nueva hasta que el propietario lo vuelva a activar; no se "
+      + "desconecta nada.",
     signingInAppTools:
-      "<strong>Qué puede hacer una aplicación de IA conectada.</strong> Puede hacer solo lo que permiten a la "
-      + "vez tu rol y tus permisos. Con <strong>Leer datos de la granja</strong>, todos los roles pueden leer "
-      + "lotes, existencias, lotes de huevos y sus movimientos, y entradas diarias "
+      "<strong>Qué puede hacer una aplicación de IA conectada.</strong> Puede hacer solo lo que permiten a "
+      + "la vez su rol y sus permisos. Con <strong>Leer datos de la granja</strong>, todos los roles pueden "
+      + "leer lotes, existencias, lotes de huevos y sus movimientos, y entradas diarias "
       + "(<code>cluckwork_list_flocks</code>, <code>cluckwork_read_stock</code>, "
       + "<code>cluckwork_list_egg_lots</code>, <code>cluckwork_list_egg_lot_movements</code>, "
-      + "<code>cluckwork_list_daily_entries</code>). Todos los roles menos <strong>Solo lectura</strong> pueden "
-      + "leer clientes y pedidos de venta (<code>cluckwork_list_customers</code>, "
-      + "<code>cluckwork_list_sales_orders</code>). Solo <strong>Administrador</strong>, <strong>Gerente</strong> "
-      + "y <strong>Ventas</strong> ven lo que se debe y se pagó (<code>cluckwork_list_order_payments</code>, "
-      + "<code>cluckwork_list_customer_balances</code>). Con <strong>Anotar registros diarios</strong>, "
-      + "<strong>Administrador</strong>, <strong>Gerente</strong> y <strong>Trabajador</strong> pueden anotar el "
-      + "día de un lote (<code>cluckwork_record_daily_entry</code>). Con <strong>Enviar registros "
-      + "diarios</strong>, los mismos roles pueden enviar un borrador, lo que pasa sus huevos a existencias "
-      + "(<code>cluckwork_submit_daily_entry</code>). Con <strong>Anotar operaciones de la granja</strong>, pueden "
-      + "anotar uso de alimento, uso de agua y compras de inventario (<code>cluckwork_record_feed_usage</code>, "
-      + "<code>cluckwork_record_water_usage</code>, <code>cluckwork_record_inventory_purchase</code>). Con "
-      + "<strong>Anotar gastos</strong>, solo <strong>Administrador</strong> y <strong>Gerente</strong> pueden "
-      + "anotar un gasto (<code>cluckwork_record_expense</code>). Un trabajador con lotes asignados solo recibe "
-      + "esos lotes.",
+      + "<code>cluckwork_list_daily_entries</code>). Todos los roles menos <strong>Solo lectura</strong> "
+      + "pueden leer clientes y pedidos de venta (<code>cluckwork_list_customers</code>, "
+      + "<code>cluckwork_list_sales_orders</code>). Solo <strong>Administrador</strong>, "
+      + "<strong>Gerente</strong> y <strong>Ventas</strong> ven lo que se debe y se pagó "
+      + "(<code>cluckwork_list_order_payments</code>, <code>cluckwork_list_customer_balances</code>). Con "
+      + "<strong>Anotar registros diarios</strong>, <strong>Administrador</strong>, <strong>Gerente</strong> "
+      + "y <strong>Trabajador</strong> pueden anotar el día de un lote "
+      + "(<code>cluckwork_record_daily_entry</code>). Con <strong>Enviar registros diarios</strong>, los "
+      + "mismos roles pueden enviar un borrador, lo que pasa sus huevos a existencias "
+      + "(<code>cluckwork_submit_daily_entry</code>). Con <strong>Anotar operaciones de la granja</strong>, "
+      + "pueden anotar uso de alimento, uso de agua y compras de inventario "
+      + "(<code>cluckwork_record_feed_usage</code>, <code>cluckwork_record_water_usage</code>, "
+      + "<code>cluckwork_record_inventory_purchase</code>). Con <strong>Anotar gastos</strong>, solo "
+      + "<strong>Administrador</strong> y <strong>Gerente</strong> pueden anotar un gasto "
+      + "(<code>cluckwork_record_expense</code>). Un trabajador con lotes asignados solo recibe esos lotes.",
     signingInAppLimits:
-      "<strong>Qué anota y qué ve una aplicación de IA.</strong> Una entrada hecha por una aplicación empieza "
-      + "como <strong>Borrador</strong>. Sus huevos entran en existencias cuando una persona la abre en "
-      + "<strong>Registro diario</strong> y pulsa <strong>Enviar día</strong>, o cuando la envía una aplicación "
-      + "con permiso para <strong>Enviar registros diarios</strong>. Anotar otra vez el mismo lote y día cambia el "
-      + "borrador. El uso de alimento y de agua, las compras y los gastos no tienen borrador: cuentan al instante, "
-      + "igual que en la aplicación. La aplicación recibe dónde se corrige cada uno. Un "
-      + "<strong>Administrador</strong> o <strong>Gerente</strong> usa <strong>Corregir existencias</strong> en "
-      + "<strong>Inventario</strong> para el alimento y las compras, <strong>corregir</strong> en "
-      + "<strong>Agua</strong> o <strong>Gastos</strong>, y <strong>ajustar</strong> o <strong>anular</strong> en "
-      + "<strong>Historial</strong> para una entrada enviada. Cada anotación lleva una clave de idempotencia, una "
-      + "etiqueta que elige la aplicación, así que reenviarla en las 48 horas tras su éxito no guarda nada dos "
-      + "veces. Un reenvío posterior se ejecuta de nuevo, así que revisa antes el registro. La aplicación lee como "
-      + "máximo 100 filas a la vez. Nunca ve notas de texto libre, descripciones, referencias de pago, motivos "
-      + "escritos ni datos de contacto, porque cualquiera podría escribir ahí instrucciones para una IA. Las notas "
-      + "y descripciones que envía se guardan, pero nunca se le muestran.",
+      "<strong>Qué anota y qué ve una aplicación de IA.</strong> Una entrada hecha por una aplicación "
+      + "empieza como <strong>Borrador</strong>. Sus huevos entran en existencias cuando una persona la abre "
+      + "en <strong>Registro diario</strong> y pulsa <strong>Enviar día</strong>, o cuando la envía una "
+      + "aplicación con permiso para <strong>Enviar registros diarios</strong>. Anotar otra vez el mismo lote "
+      + "y día cambia el borrador. El uso de alimento y de agua, las compras y los gastos no tienen borrador: "
+      + "cuentan al instante, igual que en la aplicación. La aplicación recibe dónde se corrige cada uno. Un "
+      + "<strong>Administrador</strong> o <strong>Gerente</strong> usa <strong>Corregir existencias</strong> "
+      + "en <strong>Inventario</strong> para el alimento y las compras, <strong>corregir</strong> en "
+      + "<strong>Agua</strong> o <strong>Gastos</strong>, y <strong>ajustar</strong> o "
+      + "<strong>anular</strong> en <strong>Historial</strong> para una entrada enviada. Cada anotación lleva "
+      + "una clave de idempotencia, una etiqueta que elige la aplicación, así que reenviarla en las 48 horas "
+      + "tras su éxito no guarda nada dos veces. Un reenvío posterior se ejecuta de nuevo, así que revise "
+      + "antes el registro. La aplicación lee como máximo 100 filas a la vez. Nunca ve notas de texto libre, "
+      + "descripciones, referencias de pago, motivos escritos ni datos de contacto, porque cualquiera podría "
+      + "escribir ahí instrucciones para una IA. Las notas y descripciones que envía se guardan, pero nunca "
+      + "se le muestran.",
     signingInAppRefused:
       "<strong>Cuando se rechaza una aplicación de IA.</strong> Mientras <strong>Permitir aplicaciones "
-      + "conectadas</strong> está desactivado, las aplicaciones reciben <strong>Las aplicaciones conectadas están "
-      + "desactivadas</strong> y vuelven a funcionar cuando se activa. Después de <strong>Desconectar</strong>, de "
-      + "cambiar o restablecer tu contraseña, o de un cambio de tu correo o tu rol, la aplicación sale de "
-      + "<strong>Aplicaciones conectadas</strong> y debe conectarse de nuevo con tu contraseña. Una herramienta que tu "
-      + "rol no permite queda oculta. Para un permiso que no diste, como <strong>Enviar registros diarios</strong>, "
-      + "conéctala de nuevo y márcalo; aparece marcado como <strong>Nuevo</strong>. Claude Code pide todos los permisos que ofrece Cluckwork al conectarse de nuevo, así que no hay que cambiar su configuración.",
+      + "conectadas</strong> está desactivado, las aplicaciones reciben <strong>Las aplicaciones conectadas "
+      + "están desactivadas</strong> y vuelven a funcionar cuando se activa. Después de "
+      + "<strong>Desconectar</strong>, de cambiar o restablecer su contraseña, o de un cambio de su correo o "
+      + "su rol, la aplicación sale de <strong>Aplicaciones conectadas</strong> y debe conectarse de nuevo "
+      + "con su contraseña. Una herramienta que su rol no permite queda oculta. Para un permiso que no dio, "
+      + "como <strong>Enviar registros diarios</strong>, conéctela de nuevo y márquelo; aparece marcado como "
+      + "<strong>Nuevo</strong>. Claude Code pide todos los permisos que ofrece Cluckwork al conectarse de "
+      + "nuevo, así que no hay que cambiar su configuración.",
     signingInCredentialEpoch:
       "Cuando un administrador restablece una contraseña, su sesión actual puede invalidarse inmediatamente. Si "
       + "ve un mensaje indicando que sus credenciales cambiaron, inicie sesión de nuevo con su contraseña actual.",
@@ -3238,18 +3244,17 @@ export const es = {
       + "similar — más limitado a propósito: solo se registran contra el lote mismo las bajas y los "
       + "reconteos manuales, así que esto muestra eso, no la historia completa del lote.",
     auditRecordHistorySubmit:
-      "Guardar un registro diario y enviarlo es un solo acto, no un cambio. Si haces ambas cosas tú, la "
-      + "columna Historial te muestra como creador y no señala ningún cambio. Si otra persona envía tu "
-      + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los "
-      + "números del día. En ambos casos la columna indica CUÁNDO se envió, porque ese es el momento en que "
-      + "los huevos entraron en existencias. Confirmar un pedido de venta funciona igual y muestra cuándo "
-      + "se asignaron las existencias. Corregir un registro ya bloqueado siempre se muestra, aunque tú lo "
-      + "hayas creado, y cancelar tu propio pedido en borrador también. Editar tu propio borrador antes de "
-      + "enviarlo queda oculto, porque eso es escribirlo. Si otra persona edita tu borrador, su cambio sí "
-      + "se muestra, para que nunca sea invisible quien puso los números que entraron en existencias. A "
-      + "partir de ese momento también se muestran tus propias ediciones posteriores. Si dejas los números "
-      + "como querías, la columna te nombra a ti y marca la hora en que lo hiciste, no la edición que "
-      + "reemplazaste.",
+      "Guardar un registro diario y enviarlo es un solo acto, no un cambio. Si hace ambas cosas usted, la "
+      + "columna Historial lo muestra como creador y no señala ningún cambio. Si otra persona envía su "
+      + "borrador, ese envío aparece como el último cambio, así siempre se sabe quién oficializó los números "
+      + "del día. En ambos casos la columna indica CUÁNDO se envió, porque ese es el momento en que los "
+      + "huevos entraron en existencias. Confirmar un pedido de venta funciona igual y muestra cuándo se "
+      + "asignaron las existencias. Corregir un registro ya bloqueado siempre se muestra, aunque usted lo "
+      + "haya creado, y cancelar su propio pedido en borrador también. Editar su propio borrador antes de "
+      + "enviarlo queda oculto, porque eso es escribirlo. Si otra persona edita su borrador, su cambio sí se "
+      + "muestra, para que nunca sea invisible quien puso los números que entraron en existencias. A partir "
+      + "de ese momento también se muestran sus propias ediciones posteriores. Si deja los números como "
+      + "quería, la columna lo nombra a usted y marca la hora en que lo hizo, no la edición que reemplazaste.",
     auditSystemActors:
       "Algunas entradas las hace el sistema y no una persona, y muestran un nombre entre paréntesis en "
       + "lugar de un correo. \"(bootstrap-admin)\" es el comando que creó su primera cuenta de propietario, "
@@ -3349,15 +3354,15 @@ export const es = {
 
     farmPaletteHeading: "Paleta de la granja",
     farmPaletteIntro:
-      "La configuración de la granja permite a un propietario elegir el color de acento usado en toda "
-      + "la aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. Al seleccionar una paleta, "
-      + "se ve una vista previa en toda su aplicación sin guardarla. Seleccione Guardar configuración para "
-      + "conservarla para todos; al salir o si falla el guardado, vuelve la paleta guardada."
-      + " Cada dispositivo también recuerda la paleta de cada granja, por lo que el color propio de una "
-      + "granja puede aparecer en la pantalla de inicio de sesión antes de que alguien inicie sesión: al "
-      + "abrir el enlace de esa granja, o cuando el dispositivo recuerda exactamente una granja. Un "
-      + "dispositivo que recuerda varias granjas muestra el color predeterminado hasta que inicies sesión, "
-      + "y Olvidar esta granja elimina el color recordado de esa granja junto con su código.",
+      "La configuración de la granja permite a un propietario elegir el color de acento usado en toda la "
+      + "aplicación para todos en la granja: Berenjena, Bosque, Pizarra o Terracota. Al seleccionar una "
+      + "paleta, se ve una vista previa en toda su aplicación sin guardarla. Seleccione Guardar configuración "
+      + "para conservarla para todos; al salir o si falla el guardado, vuelve la paleta guardada. Cada "
+      + "dispositivo también recuerda la paleta de cada granja, por lo que el color propio de una granja "
+      + "puede aparecer en la pantalla de inicio de sesión antes de que alguien inicie sesión: al abrir el "
+      + "enlace de esa granja, o cuando el dispositivo recuerda exactamente una granja. Un dispositivo que "
+      + "recuerda varias granjas muestra el color predeterminado hasta que inicie sesión, y Olvidar esta "
+      + "granja elimina el color recordado de esa granja junto con su código.",
     farmPaletteLightNight:
       "El modo claro y nocturno son independientes y personales. Cada persona elige el suyo con el "
       + "interruptor en la barra lateral, en cada dispositivo, y la paleta de la granja nunca lo anula — "
@@ -3602,12 +3607,17 @@ export const es = {
     // #308/#356/#360 (machine-drafted, pending native review)
     glossaryAppConsentTerm: "Conectar una aplicación",
     glossaryAppConsentDef:
-      "Aprobar que una aplicación externa, como un asistente de IA, actúe como tú. Ves lo que pide, desmarcas lo que no "
-      + "quieres y permites el resto con tu contraseña actual; nunca puede hacer más que tu rol. Cada conexión pide "
-      + "la contraseña, y desmarcarlo todo es lo mismo que <strong>Cancelar</strong>. Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la "
-      + "pantalla muestra <strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice "
-      + "<strong>Aplicación no verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos a una aplicación, vuelve a conectarla y márcalos: cada permiso nuevo aparece marcado como <strong>Nuevo</strong>, y uno que tu rol no puede usar, como <strong>Tu rol no lo permite</strong>, sin casilla. Para quitar un permiso, desconecta la aplicación y vuelve a conectarla. "
-      + "Con la autenticación en dos pasos activada, la pantalla de conexión también pide un código de tu aplicación de autenticación o un código de recuperación.",
+      "Aprobar que una aplicación externa, como un asistente de IA, actúe como usted. Ve lo que pide, "
+      + "desmarca lo que no quiere y permite el resto con su contraseña actual; nunca puede hacer más que su "
+      + "rol. Cada conexión pide la contraseña, y desmarcarlo todo es lo mismo que <strong>Cancelar</strong>. "
+      + "Si Cluckwork pudo obtener los datos de la aplicación de su propio sitio web, la pantalla muestra "
+      + "<strong>Dominio verificado</strong> y la dirección de ese sitio; si no, dice <strong>Aplicación no "
+      + "verificada</strong>. En ambos casos, la aplicación eligió su propio nombre. Para dar nuevos permisos "
+      + "a una aplicación, vuelva a conectarla y márquelos: cada permiso nuevo aparece marcado como "
+      + "<strong>Nuevo</strong>, y uno que su rol no puede usar, como <strong>Su rol no lo permite</strong>, "
+      + "sin casilla. Para quitar un permiso, desconecte la aplicación y vuelva a conectarla. Con la "
+      + "autenticación en dos pasos activada, la pantalla de conexión también pide un código de su aplicación "
+      + "de autenticación o un código de recuperación.",
     glossaryStepUpAuthTerm: "Autenticación reforzada (step-up)",
     glossaryStepUpAuthDef:
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
@@ -3867,7 +3877,15 @@ export const es = {
       "Una aplicación externa, como un asistente de IA, que una persona de la granja autorizó a actuar por "
       + "ella. Solo puede hacer lo que esa persona puede hacer. El registro de auditoría nombra a la persona, "
       + "añade la aplicación en la línea de abajo y puede mostrar solo las acciones mediante aplicaciones "
-      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en Cuenta las tuyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene una aplicación en su próxima solicitud, en todas las conexiones que la persona le aprobó. Cambiar o restablecer la contraseña, o cambiar el correo o el rol de la persona, desconecta todas sus aplicaciones. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork seguida de /mcp. Sus entradas diarias quedan como borrador hasta que las envía una persona o una aplicación con permiso para enviarlas. El uso de alimento y de agua, las compras y los gastos que anota cuentan al instante. Nunca ve notas de texto libre ni motivos escritos.",
+      + "conectadas. Aplicaciones conectadas muestra las aplicaciones que pueden actuar como una persona: en "
+      + "Cuenta las suyas y en Configuración, para el propietario, las de toda la granja. Desconectar detiene "
+      + "una aplicación en su próxima solicitud, en todas las conexiones que la persona le aprobó. Cambiar o "
+      + "restablecer la contraseña, o cambiar el correo o el rol de la persona, desconecta todas sus "
+      + "aplicaciones. Permitir aplicaciones conectadas, en la página Aplicaciones conectadas del "
+      + "propietario, las desactiva todas. Una aplicación de IA se conecta en la dirección de Cluckwork "
+      + "seguida de /mcp. Sus entradas diarias quedan como borrador hasta que las envía una persona o una "
+      + "aplicación con permiso para enviarlas. El uso de alimento y de agua, las compras y los gastos que "
+      + "anota cuentan al instante. Nunca ve notas de texto libre ni motivos escritos.",
     glossaryRolesTerm: "Roles",
     glossaryRolesDef:
       "Admin (propietario), Gerente, Trabajador, Ventas, Solo lectura — vea \"Quién puede hacer qué\". Los "
