@@ -3,6 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { AppLayout } from "./AppLayout";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { makeToken } from "../test/jwt";
 import { freshCode } from "../test/codes";
@@ -145,6 +146,16 @@ const tree = () => (
     </Route>
   </Routes>
 );
+// The same routes inside the app shell, whose strip shows a posted notice.
+const shellTree = () => (
+  <Routes>
+    <Route element={<ProtectedRoute />}>
+      <Route element={<AppLayout />}>
+        <Route path="/reports" element={<Reports />} />
+      </Route>
+    </Route>
+  </Routes>
+);
 const OWNER = { sub: "u1", role: "Admin", account_id: ACCOUNT, credential_epoch: "1" };
 const render = (route: string, token: Record<string, unknown> = OWNER) => renderWithProviders(tree(), { route, token, me: null });
 
@@ -234,8 +245,8 @@ describe("the forced two-factor setup screen", () => {
 
   // #1398 — the status read after the confirm is held, so the codes show over
   // this screen; the other tab's signal takes them, and nothing else.
-  it("drops the unsaved codes on another tab's sign-in or sign-out, and still lets the user go", async () => {
-    render("/reports");
+  it("drops the unsaved codes on another tab's sign-in or sign-out, lets the user go, and the shell says why", async () => {
+    renderWithProviders(shellTree(), { route: "/reports", token: OWNER, me: null });
     holding.add("GET /auth/two-factor");
     await enrol();
     await screen.findByText(recoveryCodes[0]!);
@@ -250,6 +261,7 @@ describe("the forced two-factor setup screen", () => {
     holding.delete("GET /auth/two-factor");
     await act(async () => { for (const resolve of held.get("GET /auth/two-factor") ?? []) resolve(answer("GET /auth/two-factor")); });
     expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
+    expect(document.querySelector(".shell-notice")).toHaveTextContent(t("codesDroppedNotice"));
   });
 
   it("follows a 403 that arrives mid-session, after the screen had loaded", async () => {

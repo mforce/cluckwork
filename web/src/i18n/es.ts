@@ -297,6 +297,7 @@ export const es = {
     codesLockedHint: "Guarde los códigos y luego marque la casilla para terminar.",
     savedCheckbox: "Guardé mis códigos de recuperación en un lugar seguro.",
     doneButton: "Listo",
+    codesDroppedNotice: "Se quitaron sus códigos de recuperación porque la sesión cambió en otra pestaña. Use Regenerar en la pantalla Cuenta para obtener un juego nuevo.",
     replacedMessage: "Su nueva aplicación de autenticación está configurada. La anterior ya no funciona.",
     turnedOffMessage: "La autenticación en dos pasos está desactivada.",
     codesMissing: "Algo salió mal y no llegaron códigos de recuperación. Regenérelos para obtener un juego nuevo.",

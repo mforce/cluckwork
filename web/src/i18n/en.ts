@@ -366,6 +366,7 @@ export const en = {
     codesLockedHint: "Save the codes, then tick the box to finish.",
     savedCheckbox: "I saved my recovery codes somewhere safe.",
     doneButton: "Done",
+    codesDroppedNotice: "Your recovery codes were removed because the session changed in another tab. Use Regenerate on the Account screen for a new set.",
     replacedMessage: "Your new authenticator app is set up. The old one no longer works.",
     turnedOffMessage: "Two-factor authentication is off.",
     codesMissing: "Something went wrong, and no recovery codes arrived. Regenerate them to get a new set.",

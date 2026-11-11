@@ -6,6 +6,7 @@ import { AccountPage } from "../AccountPage";
 import { AppLayout } from "../AppLayout";
 import { ProtectedRoute } from "../ProtectedRoute";
 import { RecoveryCodesProvider, SECURITY_SUMMARY_ID } from "./recoveryCodes";
+import { AppNoticeProvider } from "../../components/AppNotice";
 import { MAIN_CONTENT_ID } from "../../lib/mainContent";
 import { farmState } from "../../test/fixtures";
 import { freshCode } from "../../test/codes";
@@ -87,6 +88,7 @@ function renderApp(path: string, enrolled: boolean) {
   setStoredToken({ sub: "u1", role: "Worker", ...(enrolled && { two_factor: "true" }) });
   return render(
     <AuthProvider>
+      <AppNoticeProvider>
       <RecoveryCodesProvider>
         <BrowserRouter>
           <MeContext.Provider value={{ id: "u1", email: EMAIL, name: null, role: "Worker", language: null, preferredStepperUnit: null }}>
@@ -106,6 +108,7 @@ function renderApp(path: string, enrolled: boolean) {
           </MeContext.Provider>
         </BrowserRouter>
       </RecoveryCodesProvider>
+      </AppNoticeProvider>
     </AuthProvider>,
   );
 }
@@ -205,6 +208,10 @@ function expectNoCodesAnywhere(codes: string[]) {
 const frames = (n: number) => act(async () => {
   for (let i = 0; i < n; i++) await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 });
+
+// #1398 — the shell strip's notice after a drop, and its offscreen region.
+const droppedNotice = () => document.querySelector<HTMLElement>(".shell-notice");
+const politeRegion = () => document.querySelector<HTMLElement>(".sr-only[aria-live='polite']");
 
 const tabCloseAsks = () => {
   const event = new Event("beforeunload", { cancelable: true });
@@ -337,6 +344,37 @@ describe("a sign-in or sign-out in another tab", () => {
     expect(document.activeElement).toBe(document.getElementById(SECURITY_SUMMARY_ID));
   });
 
+  it("says in the shell strip that the codes were removed and Regenerate gives a new set", async () => {
+    const answer = await confirmPending();
+    const codes = freshCodes();
+    await act(async () => { answer.resolve({ recoveryCodes: codes }); });
+    await codesShown(codes);
+    expect(droppedNotice()).toBeNull();
+
+    await otherTabSignals();
+
+    expect(droppedNotice()).toHaveTextContent(t("codesDroppedNotice"));
+    expect(droppedNotice()).toHaveTextContent(t("regenerateButton"));
+    // The codes dialog had the page inert when the notice arrived, so the
+    // offscreen region says it once the dialog is gone.
+    await waitFor(() => expect(politeRegion()).toHaveTextContent(t("codesDroppedNotice")));
+
+    await leave("a nav click");
+    expect(droppedNotice()).not.toBeNull();
+  });
+
+  it("posts no notice after Done, nor for a later signal", async () => {
+    const answer = await confirmPending();
+    await act(async () => { answer.resolve({ recoveryCodes: freshCodes() }); });
+    const dialog = await screen.findByRole("dialog", { name: t("codesHeading") });
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: t("savedCheckbox") }));
+    await act(async () => { fireEvent.click(within(dialog).getByRole("button", { name: t("doneButton") })); });
+
+    await otherTabSignals();
+
+    expect(droppedNotice()).toBeNull();
+  });
+
   // Review r1, probes P1 and P1b: with no codes held there is nothing to do,
   // so focus stays where the user is typing, however many signals arrive.
   it("leaves focus in the field the user is typing in when no codes are held", async () => {
@@ -349,6 +387,7 @@ describe("a sign-in or sign-out in another tab", () => {
     await frames(3);
 
     expect(document.activeElement).toBe(notes);
+    expect(droppedNotice()).toBeNull();
   });
 
   it("leaves focus inside an open step-up dialog when no codes are held", async () => {
