@@ -114,6 +114,13 @@ public sealed class RedactedCredentialTypesTests
         public override string ToString() => signingKey;
     }
 
+    // Keeps object's ToString, but interpolation calls the format method.
+    private sealed class FormatsItsPassword : IFormattable
+    {
+        public string? Password { get; init; }
+        public string ToString(string? format, IFormatProvider? formatProvider) => Password ?? "";
+    }
+
     // The acceptance cases: each new type joins the walk with no row anywhere
     // and fails the check.
     [Theory]
@@ -126,6 +133,7 @@ public sealed class RedactedCredentialTypesTests
     [InlineData(typeof(MarkedDerived))]
     [InlineData(typeof(PrintsTheHash))]
     [InlineData(typeof(CapturesAKey))]
+    [InlineData(typeof(FormatsItsPassword))]
     public void ANewCredentialType_IsFound_AndFailsUntilItRedacts(Type type)
     {
         Assert.Contains(type, CredentialTypes.Find([typeof(RedactedCredentialTypesTests).Assembly]));
