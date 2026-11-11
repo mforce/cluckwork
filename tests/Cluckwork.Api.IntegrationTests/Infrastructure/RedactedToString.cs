@@ -29,11 +29,14 @@ internal static class RedactedToString
     private static readonly HashSet<short> Allowed =
         [OpCodes.Nop.Value, OpCodes.Ldstr.Value, OpCodes.Stloc_0.Value, OpCodes.Br_S.Value, OpCodes.Ldloc_0.Value, OpCodes.Ret.Value];
 
-    public static void AssertConstant(Type type)
-    {
+    public static void AssertDoesNotFormat(Type type) =>
         Assert.False(typeof(IFormattable).IsAssignableFrom(type) || typeof(ISpanFormattable).IsAssignableFrom(type)
             || typeof(IUtf8SpanFormattable).IsAssignableFrom(type) || typeof(IConvertible).IsAssignableFrom(type),
             $"{type} formats itself, so it can print its members past ToString");
+
+    public static void AssertConstant(Type type)
+    {
+        AssertDoesNotFormat(type);
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
         // Only for the message: the IL check below also fails an inherited object.ToString.
         Assert.True(toString.DeclaringType != typeof(object) && toString.DeclaringType != typeof(ValueType),
