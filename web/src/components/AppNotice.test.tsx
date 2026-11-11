@@ -66,7 +66,16 @@ describe("the app notice", () => {
     expect(strip).toHaveTextContent("Codes removed.");
     expect(strip).toHaveClass("shell-notice");
 
-    await act(async () => { fireEvent.click(within(strip).getByRole("button", { name: i18n.t("common:close") })); });
+    // The close button's name comes from the catalog, not MUI's English default.
+    const close = i18n.getResource("en", "common", "close") as string;
+    i18n.addResource("en", "common", "close", "CLOSE-MARKER");
+    try {
+      await press("post another");
+      await press("post");
+      await act(async () => { fireEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "CLOSE-MARKER" })); });
+    } finally {
+      i18n.addResource("en", "common", "close", close);
+    }
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(notice()).toBe("");
   });
