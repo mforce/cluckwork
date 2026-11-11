@@ -18,6 +18,11 @@
 # INERT UNTIL MERGED: workflow_run always runs the default-branch copy, so this
 # does nothing until it lands on main; and it fails closed until the two
 # LOCKFIX_APP_* secrets exist in the `app-token` environment (#1131).
+#
+# SIDE EFFECT: these commits make Dependabot refuse @dependabot rebase on the PR
+# for its lifetime (the branch counts as hand-edited). A PR that later conflicts
+# with main is unstuck with @dependabot recreate, never a rebase. Runbook:
+# .github/AGENTS.md (#1410).
 
 name: Dependabot lockfix
 
