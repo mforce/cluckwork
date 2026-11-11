@@ -123,6 +123,34 @@ describe("the session signal", () => {
     expect(await other.heardSoFar()).toEqual([null]);
   });
 
+  it("tells another tab once when three requests are refused together", async () => {
+    serve("/auth/refresh", () => json({ title: "Auth.SessionChanged" }, 401));
+    const { refresh, tokens, signal } = await fresh();
+    const other = otherTab(signal.SESSION_CHANNEL);
+    holdSession(tokens);
+
+    await Promise.allSettled([refresh.apiGet("/a"), refresh.apiGet("/b"), refresh.apiGet("/c")]);
+
+    expect(tokens.getAccessToken()).toBeNull();
+    expect(await other.heardSoFar()).toEqual([null]);
+  });
+
+  // Review r2, probes Q1 and Q2: the server ended no session, so the other
+  // tabs keep their codes. This tab still ends its own (client.test.ts).
+  it.each([
+    ["answers 500", () => json({ title: "Server error" }, 500)],
+    ["fails on the network", () => { throw new TypeError("Failed to fetch"); }],
+  ])("sends nothing when the refresh after a 401 %s", async (_, answer) => {
+    serve("/auth/refresh", answer);
+    const { refresh, tokens, signal } = await fresh();
+    const other = otherTab(signal.SESSION_CHANNEL);
+    holdSession(tokens);
+
+    await expect(refresh.apiGet("/flocks")).rejects.toThrow();
+
+    expect(await other.heardSoFar()).toEqual([]);
+  });
+
   it("sends nothing from a tab that held no session, when its first refresh is refused", async () => {
     serve("/auth/refresh", () => json({ title: "Auth.SessionChanged" }, 401));
     const { refresh, signal } = await fresh();
