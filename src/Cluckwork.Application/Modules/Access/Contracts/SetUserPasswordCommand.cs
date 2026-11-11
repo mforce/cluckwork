@@ -6,4 +6,8 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 //
 // #308/#360 — StepUpToken is the caller's proof-of-recent-auth grant, required
 // for every administrative reset regardless of the target's current role.
-public sealed record SetUserPasswordCommand(Guid UserId, string NewPassword, string? StepUpToken = null);
+// The password and the step-up token are credentials, so the record never prints them.
+public sealed record SetUserPasswordCommand(Guid UserId, string NewPassword, string? StepUpToken = null)
+{
+    public override string ToString() => "[redacted]";
+}

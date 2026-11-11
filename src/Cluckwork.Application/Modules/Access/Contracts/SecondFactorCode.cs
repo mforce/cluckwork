@@ -1,9 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
+using Cluckwork.Application.Common;
 
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
 // #1274 "Types": parsed once, after the challenge is read; after that a code is
 // never a string. ToString is sealed so no derived record prints its member.
+// [Credential]: the code sits in Value and Normalized, names that G3.29's walk
+// does not read as a credential.
+[Credential]
 public abstract record SecondFactorCode
 {
     // Identity's recovery-code alphabet (UserManager.cs:2513-2515): no vowels,

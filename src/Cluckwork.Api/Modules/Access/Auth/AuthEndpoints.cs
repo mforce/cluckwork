@@ -212,7 +212,11 @@ public sealed record ChangeOwnPasswordRequest(string CurrentPassword, string New
 
 // #145 — the refresh token is delivered as a cookie, so the body returns only
 // the access token and its expiry.
-public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiry);
+// The access token is a credential, so the record never prints it.
+public sealed record AccessTokenResponse(string AccessToken, DateTimeOffset AccessTokenExpiry)
+{
+    public override string ToString() => "[redacted]";
+}
 
 // Code is an authenticator or recovery code, which an enrolled user must send.
 // Both members are credentials, so the record never prints them.
@@ -221,4 +225,8 @@ public sealed record StepUpRequest(string Password, string? Code = null)
     public override string ToString() => "[redacted]";
 }
 
-public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt);
+// The step-up token is a credential, so the record never prints it.
+public sealed record StepUpResponse(string Token, DateTimeOffset ExpiresAt)
+{
+    public override string ToString() => "[redacted]";
+}

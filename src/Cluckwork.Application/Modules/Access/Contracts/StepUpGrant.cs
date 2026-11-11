@@ -1,3 +1,7 @@
 namespace Cluckwork.Application.Modules.Access.Contracts;
 
-public sealed record StepUpGrant(string Token, DateTimeOffset ExpiresAt);
+// The step-up token is a credential, so the record never prints it.
+public sealed record StepUpGrant(string Token, DateTimeOffset ExpiresAt)
+{
+    public override string ToString() => "[redacted]";
+}

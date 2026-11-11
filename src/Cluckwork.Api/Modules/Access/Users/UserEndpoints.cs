@@ -457,11 +457,19 @@ public static partial class UserEndpoints
     }
 }
 
-public sealed record CreateUserRequest(string Email, string Password, string Role, string? Name = null);
+// The password is a credential, so the record never prints it.
+public sealed record CreateUserRequest(string Email, string Password, string Role, string? Name = null)
+{
+    public override string ToString() => "[redacted]";
+}
 
 public sealed record UpdateUserRequest(string? Name);
 
-public sealed record SetUserPasswordRequest(string NewPassword);
+// The new password is a credential, so the record never prints it.
+public sealed record SetUserPasswordRequest(string NewPassword)
+{
+    public override string ToString() => "[redacted]";
+}
 
 public sealed record ChangeUserRoleRequest(string Role);
 
