@@ -75,6 +75,13 @@ describe("HelpPage", () => {
     expect(farmCodeDef?.querySelector("code")).toBeNull();
   });
 
+  // #1281 — every Owner must use two-factor authentication.
+  it("explains the Owner two-factor requirement under Account", () => {
+    render(<HelpPage />);
+    const text = en.help.accountOwnerTwoFactor.replace(/<\/?strong>/g, "");
+    expect(screen.getAllByRole("listitem").some((item) => item.textContent === text)).toBe(true);
+  });
+
   it("documents Owner-only farm settings, the currency lock and the logo (#123/#729)", () => {
     render(<HelpPage />);
     expect(screen.getByRole("heading", { name: "Farm settings (owner only)", level: 3 })).toBeInTheDocument();

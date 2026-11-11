@@ -1,9 +1,10 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "../auth/useAuth";
 import { SetPasswordPage } from "./SetPasswordPage";
+import { TwoFactorEnrolmentPage } from "./TwoFactorEnrolmentPage";
 
 export function ProtectedRoute() {
-  const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
+  const { isAuthenticated, isLoading, mustChangePassword, mustEnrolTwoFactor } = useAuth();
   const location = useLocation();
 
   // Hold rendering while the load-time silent refresh runs (#145) so we don't
@@ -23,6 +24,11 @@ export function ProtectedRoute() {
   // renders the Outlet on the next render.
   if (mustChangePassword) {
     return <SetPasswordPage />;
+  }
+  // #1281 — after the password screen, which the Owner gate lets through. The
+  // location stays, so the Owner lands where they asked once enrolled.
+  if (mustEnrolTwoFactor) {
+    return <TwoFactorEnrolmentPage />;
   }
   return <Outlet />;
 }

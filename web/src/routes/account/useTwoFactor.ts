@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { EnrolmentStart } from "../../api/cluckwork";
@@ -8,6 +8,7 @@ import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
 import i18n from "../../i18n";
+import { newId } from "../../lib/ids";
 import { useMe } from "../../session/SessionContext";
 import { useRecoveryCodesSlot } from "./recoveryCodes";
 import type { Delivery } from "./recoveryCodes";
@@ -31,6 +32,20 @@ export type Flow =
 
 const SUMMARY: Flow = { step: "summary" };
 
+// #1281 — the deadline banner's Set up opens the setup dialog on Account. One
+// shot, as AuditPage's pivot focus is: a reload or Back does not open it again.
+let pendingSetUp: string | null = null;
+export function requestSetUp(): { setUpTwoFactor: string } {
+  pendingSetUp = newId();
+  return { setUpTwoFactor: pendingSetUp };
+}
+export function takeSetUpRequest(state: unknown): boolean {
+  const id = (state as { setUpTwoFactor?: unknown } | null)?.setUpTwoFactor;
+  if (id === undefined || id !== pendingSetUp) return false;
+  pendingSetUp = null;
+  return true;
+}
+
 const isProblem = (err: unknown, status: number, title: string): err is ApiError =>
   err instanceof ApiError && err.status === status && err.title === title;
 
@@ -41,7 +56,10 @@ function stale(err: unknown): unknown {
 }
 
 export function useTwoFactor() {
-  const { isAuthenticated, twoFactor: enrolled } = useAuth();
+  // #1281 — credentialKey: a new user or new credentials (a role change)
+  // can mean the gate no longer refuses this user, so the status is read
+  // again. A refresh keeps it, so a refresh alone reads nothing.
+  const { isAuthenticated, twoFactor: enrolled, credentialKey } = useAuth();
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
   const [flow, setFlow] = useState<Flow>(SUMMARY);
@@ -55,7 +73,11 @@ export function useTwoFactor() {
   // answers after the user came back), so a page mounted since still shows
   // what the server now holds. Both triggers stay: a Turn off is not a slot
   // request, and a regenerate changes no claim.
-  const status = useLatestLoad([slot.settled, enrolled], getTwoFactorStatus);
+  const status = useLatestLoad([slot.settled, enrolled, credentialKey], getTwoFactorStatus);
+  // #1281 — counts returns to the summary with no dialog to take focus (a
+  // Cancel, or a Replace that issues no codes), so the screen can move focus
+  // to where the user goes back to.
+  const [backToSummary, setBackToSummary] = useState(0);
   const email = useMe()?.email ?? "";
 
   // #308 — a proof, a code, a key or a recovery code never outlives the session.
@@ -69,11 +91,11 @@ export function useTwoFactor() {
   }, [isAuthenticated, dismissDialog]);
 
   // Every way out clears the proof (cancel, send, logout), so opening does not.
-  function openProof(next: ProofAction) {
+  const openProof = useCallback((next: ProofAction) => {
     openDialog(next);
     setMessage(null);
     setAction(next);
-  }
+  }, [openDialog]);
 
   function closeProof() {
     setProof(NO_PROOF);
@@ -198,18 +220,21 @@ export function useTwoFactor() {
     if (isCodeSet(recoveryCodes)) delivery.deliver(recoveryCodes, { regenerated: false, email });
     if (!current()) return;
     setFlow(SUMMARY);
-    if (!isCodeSet(recoveryCodes)) setMessage(i18n.t("account:replacedMessage"));
+    if (isCodeSet(recoveryCodes)) return;
+    setMessage(i18n.t("account:replacedMessage"));
+    setBackToSummary((n) => n + 1);
   }
 
   function leaveFlow() {
     dismissDialog("confirm");
     setCode("");
     setFlow(SUMMARY);
+    setBackToSummary((n) => n + 1);
   }
 
   return {
     status, flow, action, proof, setProof, code, setCode, message, dialog,
-    openProof, closeProof, onProof, onConfirm, leaveFlow,
+    openProof, closeProof, onProof, onConfirm, leaveFlow, backToSummary,
   };
 }
 

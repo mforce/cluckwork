@@ -8,10 +8,11 @@ import { freshCode } from "../../test/codes";
 import { AuthContext } from "../../auth/AuthContext";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
-import { RecoveryCodesProvider } from "./recoveryCodes";
+import { RecoveryCodesProvider, SECURITY_SUMMARY_ID } from "./recoveryCodes";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
+import { parseError } from "../../api/errors";
 import i18n from "../../i18n";
 
 // #1277 — the Account page's Security section. The network is mocked at the
@@ -389,7 +390,7 @@ describe("the step-up proof", () => {
       <MemoryRouter>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
-          mustChangePassword: false, twoFactor: true, unauthenticatedReason: null,
+          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}>
           <RecoveryCodesProvider>
@@ -424,5 +425,78 @@ describe("the step-up proof", () => {
     await press(t("turnOffButton"));
     expect(passwordField()).toHaveValue("");
     expect(codeField()).toHaveValue("");
+  });
+});
+
+// #1281 — while the status route sends requiredBy (an Owner, with the
+// requirement on), Turn off is not offered. The role is not read: this user
+// is a Worker by token.
+describe("Turn off while two-factor is required", () => {
+  const REQUIRED = { ...ON, requiredBy: new Date(Date.now() - 86_400_000).toISOString() };
+
+  it("is not offered while the status route sends requiredBy, and says why", async () => {
+    await renderAccount(REQUIRED);
+    expect(screen.queryByRole("button", { name: t("turnOffButton") })).not.toBeInTheDocument();
+    expect(screen.getByText(t("turnOffRequired"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("regenerateButton") })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("replaceButton") })).toBeInTheDocument();
+  });
+
+  it("shows the Owner refusal, not a generic error, when the screen was stale", async () => {
+    await renderAccount(ON);
+    mockTurnOff.mockRejectedValueOnce(await parseError(new Response(
+      JSON.stringify({ title: "Auth.OwnerCannotTurnOffTwoFactor", detail: crypto.randomUUID() }),
+      { status: 403, headers: { "Content-Type": "application/problem+json" } },
+    )));
+    await press(t("turnOffButton"));
+    prove(true);
+    await press(t("turnOffButton"), dialog());
+    expect(await within(dialog()).findByText(t("turnOffRequired"))).toBeInTheDocument();
+  });
+});
+
+// #1281 — the scan step replaces the page, so the control that opened it is
+// gone. Focus goes to the step's heading, and on Cancel to the Security
+// section's heading (the maintainer, 2026-11-10: "Fix both here (Recommended)").
+describe("focus around the scan step", () => {
+  it("moves to the scan step's heading when the proof dialog closes into it", async () => {
+    await renderAccount(OFF);
+    await enrol();
+    await waitFor(() => expect(screen.getByRole("heading", { name: t("enrolHeading") })).toHaveFocus());
+  });
+
+  it("moves to the Security section's heading when the user cancels the scan step", async () => {
+    await renderAccount(OFF);
+    await enrol();
+    await press(i18n.t("common:cancel"));
+    await waitFor(() => expect(document.getElementById(SECURITY_SUMMARY_ID)).toHaveFocus());
+
+    // Only the Cancel moves it: typing afterwards keeps focus where it is.
+    const current = screen.getByLabelText(new RegExp(t("currentPasswordLabel")));
+    act(() => current.focus());
+    fireEvent.change(current, { target: { value: password() } });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(current).toHaveFocus();
+  });
+
+  it("moves no focus when the page first renders", async () => {
+    await renderAccount(OFF);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(document.getElementById(SECURITY_SUMMARY_ID)).not.toHaveFocus();
+  });
+
+  it("moves to the Security section's heading after a Replace that issues no codes", async () => {
+    await renderAccount(ON);
+    mockStart.mockResolvedValueOnce(enrolmentFor());
+    await press(t("replaceButton"));
+    prove(true);
+    await press(t("continueButton"), dialog());
+    await screen.findByRole("heading", { name: t("replaceHeading") });
+    mockConfirm.mockResolvedValueOnce({ recoveryCodes: undefined });
+    typeCode();
+    await press(t("confirmButton"));
+
+    await screen.findByText(t("replacedMessage"));
+    await waitFor(() => expect(document.getElementById(SECURITY_SUMMARY_ID)).toHaveFocus());
   });
 });

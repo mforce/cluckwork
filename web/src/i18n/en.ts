@@ -312,6 +312,12 @@ export const en = {
     replaceButton: "Replace authenticator app",
     turnOffHint: "Remove the extra code at sign-in.",
     turnOffButton: "Turn off",
+    // #1281 — every Owner must use two-factor authentication: the setup screen
+    // past the deadline, the deadline banner, and Turn off while it is required.
+    requiredBody: "Every Owner must use two-factor authentication. Set it up now to keep using Cluckwork. You need your password and an authenticator app on your phone.",
+    requiredSignOut: "Sign out",
+    deadlineBanner: "Every Owner must use two-factor authentication. Set it up by {{deadline}}.",
+    turnOffRequired: "Every Owner must keep two-factor authentication on, so you can't turn it off.",
     setUpTitle: "Set up two-factor authentication",
     setUpBody: "You add Cluckwork to an authenticator app on your phone, then confirm a code from it.",
     replaceTitle: "Replace your authenticator app?",
@@ -410,6 +416,7 @@ export const en = {
   // (e.g. "Me.Language.Format"). With keySeparator:false (see init) these are
   // literal flat keys, not nested paths. Filled in Task 4.
   errors: {
+    "Auth.OwnerCannotTurnOffTwoFactor": "Every Owner must keep two-factor authentication on, so you can't turn it off.",
     // #1280 — step-up and Owner refusals shared by the Users routes, and the
     // two-factor reset's own self-target refusal.
     "Identity.StepUpRequired": "Your confirmation is no longer valid. Enter your current password again, and a new code if you use two-factor authentication.",
@@ -4097,6 +4104,9 @@ export const en = {
       + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
       + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "
       + "other devices and connected apps.",
+    // #1281 — every Owner must use two-factor authentication.
+    accountOwnerTwoFactor:
+      "<strong>Owners</strong> must use two-factor authentication. Until your deadline, the <strong>Dashboard</strong> and the <strong>Account</strong> screen show the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. Set it up before the deadline: when the set-up screen opens, changes not yet saved on the screen you were on are lost, and you enter them again after set-up. While it is required, <strong>Turn off</strong> is not offered.",
 
     // Install on a phone
     installHeading: "Install on a phone",
@@ -4628,7 +4638,8 @@ export const en = {
     glossaryTwoFactorAuthDef:
       "Signing in with your password and a second proof from your phone: a code from your authenticator app, "
       + "or a recovery code without the phone. Turn it on in Account › Security, with Set up. Turning it on signs "
-      + "out your other devices and connected apps.",
+      + "out your other devices and connected apps."
+      + " Every Owner must turn it on by a deadline, which the Dashboard and the Account screen show. After it, Cluckwork shows only the set-up screen until it is on.",
     glossaryAuthenticatorAppTerm: "Authenticator app",
     glossaryAuthenticatorAppDef:
       "The app on your phone that shows a new 6-digit code every 30 seconds. Cluckwork appears in it with your "
@@ -4645,7 +4656,8 @@ export const en = {
     glossaryTurnOffTwoFactorDef:
       "Removing your own second factor, with Turn off in Account › Security. Your authenticator app and recovery "
       + "codes stop working, your other devices and connected apps are signed out, and you sign in with your "
-      + "password only.",
+      + "password only."
+      + " An Owner can't turn it off while two-factor authentication is required.",
 
     // #1280
     glossaryResetTwoFactorTerm: "Reset two-factor authentication",

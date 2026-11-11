@@ -3,12 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Container, Typography, useMediaQuery } from "@mui/material";
 import {
-  getProductionReport, getStock, listDailyEntries, listFlocks,
+  getProductionReport, getStock, getTwoFactorStatus, listDailyEntries, listFlocks,
 } from "../api/cluckwork";
 import type { DailyEntry, Flock, ProductionReport, StockRow } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import { useFormat } from "../farm/useFormat";
 import { FarmDate } from "../components/FarmDate";
+import { useLatestLoad } from "../components/useLatestLoad";
 import { ExpandedLayRate } from "../components/ExpandedLayRate";
 import { useAuth } from "../auth/useAuth";
 import { useFarm, useFarmToday } from "../farm/useFarm";
@@ -24,6 +25,8 @@ import { readAccountScoped, writeAccountScoped } from "../lib/accountStorage";
 import { splitProductionReport } from "../lib/productionReportSplit";
 import i18n from "../i18n";
 import { drainPages } from "./dashboard/drainPages";
+import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
+import { useRecoveryCodesSlot } from "./account/recoveryCodes";
 import { MorningBrief } from "./dashboard/MorningBrief";
 import { CollectionPanel } from "./dashboard/CollectionPanel";
 import { StockPanel } from "./dashboard/StockPanel";
@@ -46,6 +49,10 @@ export const DASHBOARD_DELTA_CLASSES = ["trend-delta", "trend-delta is-down", "t
 // Six parallel reads; failed panels degrade independently. The server owns
 // the hen-day calculation for each seven-day reporting window.
 export function Dashboard() {
+  // Reread when a code-issuing request settles, as Account's read is: a
+  // confirm sent from Account can land after the user came here.
+  const { settled } = useRecoveryCodesSlot();
+  const twoFactorStatus = useLatestLoad([settled], getTwoFactorStatus);
   const { t } = useTranslation("dashboard");
   const fmt = useFormat();
   const { farm } = useFarm();
@@ -327,9 +334,12 @@ export function Dashboard() {
     return () => { cancelled = true; };
   }, [today]);
 
+  // #1281 — the Owner's two-factor deadline, in every state of this screen.
+  const deadline = <TwoFactorDeadlineBanner status={twoFactorStatus.data} />;
   if (loading) {
     return (
       <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120 }}>
+        {deadline}
         <Typography variant="h2">{t("title")}</Typography>
         <Typography className="muted">{tc("loading")}</Typography>
       </Container>
@@ -338,6 +348,7 @@ export function Dashboard() {
   if (errorMessage !== null) {
     return (
       <Container maxWidth={false} disableGutters sx={{ maxWidth: 1120 }}>
+        {deadline}
         <Typography variant="h2">{t("title")}</Typography>
         <Alert severity="error" className="error">{errorMessage}</Alert>
       </Container>
@@ -405,6 +416,7 @@ export function Dashboard() {
       maxWidth: 1120, py: { xs: 2.5, md: 3 },
       "& a": { minHeight: { xs: 44, md: "auto" }, display: "inline-flex", alignItems: "center" },
     }}>
+      {deadline}
       <Box component="header" sx={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 2, mb: 2.5 }}>
         <Box>
           <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600 }}>{farm?.name ?? t("title")}</Typography>

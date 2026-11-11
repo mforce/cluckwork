@@ -7,6 +7,9 @@ import { apiGet, apiPost, STEP_UP_HEADER } from "../client";
 export interface TwoFactorStatus {
   enabled: boolean;
   recoveryCodesLeft: number;
+  // #1281 — an Owner's grace deadline (ISO 8601), sent only while
+  // TwoFactor:RequireForOwners is on, and still sent once two-factor is on.
+  requiredBy?: string;
 }
 
 // The key and the URI are credentials: the enrolment screen shows them and

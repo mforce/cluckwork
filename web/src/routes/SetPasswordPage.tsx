@@ -35,6 +35,7 @@ export function SetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
+  const { busy: signingOut, run: signOut } = usePendingAction();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -101,7 +102,7 @@ export function SetPasswordPage() {
         {/* Escape hatch: a gated user must always be able to sign out rather
             than being stuck on this screen (mirrors the API allowlist —
             auth/logout stays reachable while must_change_password is set). */}
-        <button type="button" className="link" onClick={() => void logout()}>
+        <button type="button" className="link" disabled={signingOut} onClick={() => void signOut("sign-out", logout)}>
           {t("setPasswordSignOut")}
         </button>
       </Stack>

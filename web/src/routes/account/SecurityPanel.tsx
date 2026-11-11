@@ -65,8 +65,9 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
               <Row action={<Button variant="outlined" disabled={busy} onClick={() => openProof("start")}>{t("replaceButton")}</Button>}>
                 <Typography variant="body2" color="text.secondary">{t("replaceHint")}</Typography>
               </Row>
-              <Row action={<Button color="error" disabled={busy} onClick={() => openProof("turn-off")}>{t("turnOffButton")}</Button>}>
-                <Typography variant="body2" color="text.secondary">{t("turnOffHint")}</Typography>
+              {/* #1281 — requiredBy comes only to an Owner while the requirement is on. */}
+              <Row action={!state.requiredBy && <Button color="error" disabled={busy} onClick={() => openProof("turn-off")}>{t("turnOffButton")}</Button>}>
+                <Typography variant="body2" color="text.secondary">{t(state.requiredBy ? "turnOffRequired" : "turnOffHint")}</Typography>
               </Row>
             </>
           )}

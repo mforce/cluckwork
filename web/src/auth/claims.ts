@@ -90,3 +90,11 @@ export function currentUserHasTwoFactor(): boolean {
   const payload = decodedPayload() as { two_factor?: string } | null;
   return payload?.two_factor === "true";
 }
+
+// #1281 — whom the token is for and the credentials it was issued against:
+// "sub" and "credential_epoch". A refresh keeps both. Another user, or a
+// role, password or two-factor change, which bumps the epoch, does not.
+export function currentCredentialKey(): string | null {
+  const payload = decodedPayload() as { sub?: unknown; credential_epoch?: unknown } | null;
+  return payload ? `${String(payload.sub)}:${String(payload.credential_epoch)}` : null;
+}

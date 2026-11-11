@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useLocation } from "react-router";
 import { Trans, useTranslation } from "react-i18next";
 import { ChevronDown, Plug } from "lucide-react";
 import {
@@ -22,7 +23,9 @@ import { roleLabel } from "../i18n/enums";
 import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
 import { TwoFactorFlow } from "./account/TwoFactorFlow";
-import { useTwoFactor } from "./account/useTwoFactor";
+import { takeSetUpRequest, useTwoFactor } from "./account/useTwoFactor";
+import { SECURITY_SUMMARY_ID } from "./account/recoveryCodes";
+import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
 
 const MIN_LENGTH = 12;
 
@@ -42,6 +45,16 @@ export function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
   const twoFactorSection = useTwoFactor();
+  const setUpRequest = useLocation().state as unknown;
+  const { openProof, backToSummary } = twoFactorSection;
+  useEffect(() => {
+    if (takeSetUpRequest(setUpRequest)) openProof("start");
+  }, [setUpRequest, openProof]);
+  // #1281 — back from the scan step (a Cancel, or a Replace), the control
+  // that opened it was unmounted, so the Security section's heading takes focus.
+  useEffect(() => {
+    if (backToSummary > 0) document.getElementById(SECURITY_SUMMARY_ID)?.focus();
+  }, [backToSummary]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -87,6 +100,7 @@ export function AccountPage() {
 
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
+      <TwoFactorDeadlineBanner status={twoFactorSection.status.data} onSetUp={() => openProof("start")} />
       <Typography variant="overline" color="text.secondary" component="p" sx={{ m: 0 }}>
         {t("eyebrow")}
       </Typography>

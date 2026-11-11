@@ -1303,6 +1303,8 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
           twoFactor: false,
+          mustEnrolTwoFactor: false,
+          setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -3099,6 +3101,8 @@ describe("UsersPage step-up authentication (#308)", () => {
           // first-run set-password gate.
           mustChangePassword: false,
           twoFactor: false,
+          mustEnrolTwoFactor: false,
+          setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -3666,6 +3670,8 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false,
           twoFactor: false,
+          mustEnrolTwoFactor: false,
+          setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
@@ -4161,7 +4167,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
       <MemoryRouter initialEntries={["/"]}>
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
-          mustChangePassword: false, twoFactor: true, unauthenticatedReason: null,
+          mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
           login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
         }}
         >

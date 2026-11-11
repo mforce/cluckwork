@@ -7,6 +7,7 @@ import { bindAccount, bindFarm, clearAccessToken, clearBoundAccount, farmBinding
 import {
   completeSecondFactor as apiCompleteSecondFactor, login as apiLogin, logout as apiLogout, restoreSession, setOnTokensChanged,
   setOnUnauthenticated,
+  setOnTwoFactorEnrolmentRequired,
 } from "../api/client";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 
@@ -21,17 +22,21 @@ vi.mock("../api/client", () => ({
   restoreSession: vi.fn().mockResolvedValue(false),
   setOnTokensChanged: vi.fn(),
   setOnUnauthenticated: vi.fn(),
+  setOnTwoFactorEnrolmentRequired: vi.fn(),
 }));
 
+// Made at run time: no credential literal, even in a test.
+const PASSWORD = crypto.randomUUID();
 const mockApiLogin = vi.mocked(apiLogin);
 const mockApiCompleteSecondFactor = vi.mocked(apiCompleteSecondFactor);
 const mockApiLogout = vi.mocked(apiLogout);
 const mockSetOnTokensChanged = vi.mocked(setOnTokensChanged);
 const mockSetOnUnauthenticated = vi.mocked(setOnUnauthenticated);
 const mockRestoreSession = vi.mocked(restoreSession);
+const mockSetOnEnrolmentRequired = vi.mocked(setOnTwoFactorEnrolmentRequired);
 
 function Probe() {
-  const { role, isAdmin, isAuthenticated, mustChangePassword, twoFactor, userId, login, completeSecondFactor, logout } = useAuth();
+  const { role, isAdmin, isAuthenticated, mustChangePassword, twoFactor, mustEnrolTwoFactor, userId, login, completeSecondFactor, logout } = useAuth();
   return (
     <div>
       <span data-testid="role">{role}</span>
@@ -39,8 +44,9 @@ function Probe() {
       <span data-testid="auth">{String(isAuthenticated)}</span>
       <span data-testid="pending-pw">{String(mustChangePassword)}</span>
       <span data-testid="two-factor">{String(twoFactor)}</span>
+      <span data-testid="must-enrol">{String(mustEnrolTwoFactor)}</span>
       <span data-testid="user-id">{userId ?? "null"}</span>
-      <button onClick={() => void login("default-farm", "a@b.co", "pw")}>login</button>
+      <button onClick={() => void login("default-farm", "a@b.co", PASSWORD)}>login</button>
       <button onClick={() => void completeSecondFactor("default-farm", "challenge", "code")}>second factor</button>
       <button onClick={() => void logout()}>logout</button>
     </div>
@@ -87,7 +93,7 @@ describe("AuthProvider lifecycle", () => {
     expect(mockApiLogin).toHaveBeenCalledWith({
       farmCode: "default-farm",
       email: "a@b.co",
-      password: "pw",
+      password: PASSWORD,
     });
     expect(screen.getByTestId("role")).toHaveTextContent("Sales");
     expect(screen.getByTestId("admin")).toHaveTextContent("false");
@@ -391,6 +397,26 @@ describe("AuthProvider lifecycle", () => {
     expect(screen.getByTestId("two-factor")).toHaveTextContent("false");
   });
 
+  // #1281 — the Owner gate's 403 sets the flag; it ends with the session, so
+  // the next sign-in in this tab starts without the setup screen.
+  it.each([
+    ["logout", async () => { fireEvent.click(screen.getByText("logout")); }],
+    ["a refresh that ends the session", async () => { mockSetOnUnauthenticated.mock.calls.at(-1)![0]!(); }],
+    ["a new sign-in", async () => { fireEvent.click(screen.getByText("login")); }],
+  ])("sets mustEnrolTwoFactor on the gate's 403 and clears it on %s", async (_, end) => {
+    setStoredToken({ sub: "u1", role: "Admin" });
+    mockApiLogout.mockImplementation(async () => clearAccessToken());
+    mockApiLogin.mockResolvedValue({ kind: "signedIn" });
+    renderAuth();
+    expect(screen.getByTestId("must-enrol")).toHaveTextContent("false");
+
+    await act(async () => { mockSetOnEnrolmentRequired.mock.calls.at(-1)![0]!(); });
+    expect(screen.getByTestId("must-enrol")).toHaveTextContent("true");
+
+    await act(end);
+    expect(screen.getByTestId("must-enrol")).toHaveTextContent("false");
+  });
+
   it("logout clears twoFactor back to false", async () => {
     setStoredToken({ sub: "u1", role: "Admin", two_factor: "true" });
     mockApiLogout.mockImplementation(async () => clearAccessToken());
@@ -487,7 +513,7 @@ describe("AuthProvider lifecycle", () => {
 // login screen can offer it later. Remembered only after apiLogin resolves.
 function MixedProbe() {
   const { login } = useAuth();
-  return <button onClick={() => void login("Sunny-Acres", "a@b.co", "pw")}>mixed login</button>;
+  return <button onClick={() => void login("Sunny-Acres", "a@b.co", PASSWORD)}>mixed login</button>;
 }
 
 // A probe that catches the login rejection the way an application boundary would,
@@ -497,7 +523,7 @@ function GuardedLoginProbe() {
   return (
     <button
       onClick={() => {
-        void login("default-farm", "a@b.co", "pw").catch(() => {});
+        void login("default-farm", "a@b.co", PASSWORD).catch(() => {});
       }}
     >
       guarded login
