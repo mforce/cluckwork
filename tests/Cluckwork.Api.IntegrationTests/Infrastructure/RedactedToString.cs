@@ -8,8 +8,8 @@ namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 // "[redacted]" and nothing else. That is read from the method's IL, so no
 // state of any member can make it print a secret. It proves the constant only:
 // another print path, such as serializing the record, is not covered. A type
-// that formats or converts itself is refused, because interpolation,
-// string.Format, Convert and the logger formatter can call that instead.
+// that formats, converts or enumerates itself is refused, because
+// interpolation, string.Format, Convert and the loggers call that instead.
 internal static class RedactedToString
 {
     private const string Redacted = "[redacted]";
@@ -29,11 +29,15 @@ internal static class RedactedToString
     private static readonly HashSet<short> Allowed =
         [OpCodes.Nop.Value, OpCodes.Ldstr.Value, OpCodes.Stloc_0.Value, OpCodes.Br_S.Value, OpCodes.Ldloc_0.Value, OpCodes.Ret.Value];
 
+    public static void AssertDoesNotFormat(Type type) =>
+        Assert.False(typeof(IFormattable).IsAssignableFrom(type) || typeof(ISpanFormattable).IsAssignableFrom(type)
+            || typeof(IUtf8SpanFormattable).IsAssignableFrom(type) || typeof(IConvertible).IsAssignableFrom(type)
+            || typeof(System.Collections.IEnumerable).IsAssignableFrom(type),
+            $"{type} formats or enumerates itself, so it can print its members past ToString");
+
     public static void AssertConstant(Type type)
     {
-        Assert.False(typeof(IFormattable).IsAssignableFrom(type) || typeof(ISpanFormattable).IsAssignableFrom(type)
-            || typeof(IUtf8SpanFormattable).IsAssignableFrom(type) || typeof(IConvertible).IsAssignableFrom(type),
-            $"{type} formats itself, so it can print its members past ToString");
+        AssertDoesNotFormat(type);
         var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes)!;
         // Only for the message: the IL check below also fails an inherited object.ToString.
         Assert.True(toString.DeclaringType != typeof(object) && toString.DeclaringType != typeof(ValueType),

@@ -1,3 +1,4 @@
+using Cluckwork.Application.Common;
 using OpenTelemetry.Exporter;
 
 namespace Cluckwork.Api.Configuration;
@@ -20,6 +21,8 @@ namespace Cluckwork.Api.Configuration;
 // on a dev box, or the sim harness's otel-collector sidecar on its own compose
 // network (#243). A real deploy never sets it. Same shape either way:
 // allow-list not deny-list, fail closed, one explicitly named opt-out.
+// [Credential]: Headers holds the collector's credentials (G3.29).
+[Credential]
 public sealed class OtlpOptions
 {
     public const string SectionName = "Otlp";

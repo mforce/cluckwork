@@ -1,3 +1,5 @@
+using Cluckwork.Application.Common;
+
 namespace Cluckwork.Infrastructure.Jobs;
 
 // #271 — the outcome of one leadership-acquisition attempt. A first-class result
@@ -45,4 +47,9 @@ public sealed class AlwaysLeaderLease : ILeaderLease
 // Hands the normalised, TLS-floor-validated connection string to PostgresLeaderLease.
 // Sourced from ConnectionStrings:LeaderLease when configured (#556), otherwise from
 // ConnectionStrings:Default. A typed wrapper so DI injects the right string.
-public sealed record LeaderLeaseConnectionString(string Value);
+// The string carries the database password, so the record never prints it.
+[Credential]
+public sealed record LeaderLeaseConnectionString(string Value)
+{
+    public override string ToString() => "[redacted]";
+}

@@ -4,9 +4,13 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // for every interactive user creation regardless of Role. It rides a header,
 // never the request body proper, but the command carries it alongside the rest
 // of the form data the handler needs.
+// The password and the step-up token are credentials, so the record never prints them.
 public sealed record CreateUserCommand(
     string Email,
     string Password,
     string Role,
     string? Name = null,
-    string? StepUpToken = null);
+    string? StepUpToken = null)
+{
+    public override string ToString() => "[redacted]";
+}
