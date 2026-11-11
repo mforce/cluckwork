@@ -139,16 +139,12 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
     requestAnimationFrame(() => (document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
   }, []);
 
-  // #1398 — a sign-in or sign-out in another tab drops a held set, and the
-  // shell's strip says so. With nothing held it does nothing, so focus stays
-  // where it is. Only the set: this tab's session, its request and its page
-  // stay. The notice is posted, and focused, once every dialog is gone (this
-  // one, and a step-up still closing): focus brings the strip at the top of
-  // the page into view and has a screen reader read it, and no closing dialog
-  // takes it back. Where there is no strip (the forced setup screen), focus
-  // goes where Done sends it. A session that changes in the wait posts
-  // nothing: AppNoticeProvider would clear the notice too, but only if the
-  // dialog count settles before the next sign-in.
+  // #1398 — a sign-in or sign-out in another tab drops a held set (only the
+  // set) and the shell's strip says so; with nothing held it does nothing.
+  // The notice is posted and focused once every dialog is gone, so a closing
+  // step-up cannot take focus back; focus brings the strip into view and is
+  // its announcement. Without a strip, focus goes where Done sends it. Only in
+  // the session the drop happened in.
   const { show } = useAppNotice();
   const { t } = useTranslation("account");
   useEffect(() => onSessionChangeElsewhere(() => {
