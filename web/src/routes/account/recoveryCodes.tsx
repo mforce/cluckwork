@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Checkbox, DialogActions, FormControlLabel, Stack, Typography } from "@mui/material";
 import { currentSessionGeneration, isSignedOut } from "../../api/client";
+import { onSessionChangeElsewhere } from "../../auth/sessionSignal";
 import { useAuth } from "../../auth/useAuth";
 import { Dialog } from "../../components/Dialog";
 import { useCopy } from "../../components/useCopy";
@@ -13,9 +14,8 @@ import { saveBlob } from "../../lib/saveBlob";
 // that are shown once live here, above the routes, until the user saves them,
 // and so does the request that will hand them out. A confirm or regenerate
 // that settles after its page is gone still lands here, and no navigation drops
-// the set: only Done, or the end of this tab's session. Another tab's sign-out
-// does not reach it (a known limit, as on every other screen). In memory
-// only: never in storage, a URL or a log.
+// the set: only Done, the end of this tab's session, or a sign-in or sign-out
+// in another tab (#1398). In memory only: never in storage, a URL or a log.
 interface HeldRecoveryCodes {
   // Keys the dialog, so a new set never shows the last set's notes.
   id: number;
@@ -120,10 +120,14 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
 
   // The trigger that opened the dialog is gone by now, so focus goes to the
   // Security section if it is on screen, else to the page's content.
-  const done = () => {
+  const done = useCallback(() => {
     put(null);
     requestAnimationFrame(() => (document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
-  };
+  }, []);
+
+  // #1398 — a sign-in or sign-out in another tab drops the set, as Done does.
+  // Only the set: this tab's session, its request and its page stay.
+  useEffect(() => onSessionChangeElsewhere(done), [done]);
 
   const slot = useMemo(() => ({ busy: pending !== null || held !== null, settled, expect }), [pending, held, settled, expect]);
   return (

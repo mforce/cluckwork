@@ -6,6 +6,7 @@
 // message to force-logout every tab and strip the client half of the guard.
 import { clearAccessToken, getAccessToken, setAccessToken, bindAccount, clearBoundAccount, getBoundAccountId } from "../auth/tokenStore";
 import { accountIdFromToken } from "../auth/claims";
+import { announceSessionChange } from "../auth/sessionSignal";
 import { newId } from "../lib/ids";
 import type { AccessTokenResponse, LoginRequest } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER, STEP_UP_HEADER } from "./request";
@@ -223,10 +224,9 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
   // carries no usable account claim: the next refresh then fails closed on the
   // unattributable-token rule instead of trusting a fresh farm.
   bindAccount(accountIdFromToken(res.accessToken));
-  // #532 — no cross-tab announcement: a login now writes only its own
-  // farm's cookie, so the other tabs' cookies are untouched and their
-  // sessions remain valid. (The round-6 BroadcastChannel bootstrap is
-  // deleted — see the import comment at the top of this file.)
+  // #532 — the other tabs' sessions stay valid: a login writes only its own
+  // farm's cookie. #1398 — they hear only that a session here changed.
+  announceSessionChange();
   onTokensChanged?.();
 }
 
@@ -409,6 +409,7 @@ export async function logout(): Promise<void> {
   // #532 — explicit logout is the user ending the session: the binding is
   // cleared with the token, and the next login rebinds.
   clearBoundAccount();
+  announceSessionChange();
   // Cookie-authenticated: the HttpOnly refresh cookie rides along and the CSRF
   // header satisfies the check. Always fires — JS can't read the HttpOnly
   // cookie to know whether a session exists, so we always ask the server to
