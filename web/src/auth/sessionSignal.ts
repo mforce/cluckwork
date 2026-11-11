@@ -17,7 +17,6 @@ export function announceSessionChange(): void {
 export function onSessionChangeElsewhere(listener: () => void): () => void {
   const tab = open();
   if (!tab) return () => undefined;
-  const heard = () => listener();
-  tab.addEventListener("message", heard);
-  return () => tab.removeEventListener("message", heard);
+  tab.addEventListener("message", listener);
+  return () => tab.removeEventListener("message", listener);
 }
