@@ -12,7 +12,7 @@ import { makeToken, setStoredToken } from "../../test/jwt";
 import { getAccessToken } from "../../auth/tokenStore";
 import { AuthProvider } from "../../auth/AuthContext";
 import { useAuth } from "../../auth/useAuth";
-import { SESSION_CHANNEL } from "../../auth/sessionSignal";
+import { otherTabSignals } from "../../test/otherTab";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
 import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
@@ -317,11 +317,9 @@ describe("a sign-in or sign-out in another tab", () => {
     await act(async () => { answer.resolve({ recoveryCodes: codes }); });
     await codesShown(codes);
 
-    const otherTab = new BroadcastChannel(SESSION_CHANNEL);
-    otherTab.postMessage(null);
-    otherTab.close();
+    await otherTabSignals();
 
-    await waitFor(() => expect(codesDialog()).toBeNull());
+    expect(codesDialog()).toBeNull();
     for (const code of codes) expect(document.body.innerHTML).not.toContain(code);
     expect(tabCloseAsks()).toBe(false);
     expect(screen.getByRole("heading", { name: t("twoFactorHeading") })).toBeInTheDocument();

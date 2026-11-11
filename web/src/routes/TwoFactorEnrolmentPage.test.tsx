@@ -9,7 +9,7 @@ import { freshCode } from "../test/codes";
 import { useLatestLoad } from "../components/useLatestLoad";
 import { apiGet } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import { SESSION_CHANNEL } from "../auth/sessionSignal";
+import { otherTabSignals } from "../test/otherTab";
 import i18n from "../i18n";
 
 // #1281 — an Owner past the grace deadline. The API answers 403
@@ -239,15 +239,11 @@ describe("the forced two-factor setup screen", () => {
     holding.add("GET /auth/two-factor");
     await enrol();
     await screen.findByText(recoveryCodes[0]!);
-    const setUpBehind = () => screen.getByRole("heading", { name: t("enrolHeading"), hidden: true });
-    expect(setUpBehind()).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: t("enrolHeading"), hidden: true })).toBeInTheDocument();
 
-    const otherTab = new BroadcastChannel(SESSION_CHANNEL);
-    otherTab.postMessage(null);
-    otherTab.close();
+    await otherTabSignals();
 
-    await waitFor(() => expect(screen.queryByText(recoveryCodes[0]!)).not.toBeInTheDocument());
-    expect(document.body.innerHTML).not.toContain(recoveryCodes[1]!);
+    for (const code of recoveryCodes) expect(document.body.innerHTML).not.toContain(code);
     expect(setUpShown()).toBe(true);
     expect(requests).not.toContain("POST /auth/logout");
 
