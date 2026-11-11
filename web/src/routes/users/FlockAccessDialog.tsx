@@ -183,7 +183,10 @@ export function FlockAccessDialog({
         ) : (
           <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
         )}
-        <ConfirmItsYou value={flockStepUpProof} onChange={setFlockStepUpProof} />
+        {/* Nothing to assign or remove means nothing to confirm. */}
+        {(openUserIsWorker || assignments.length > 0) && (
+          <ConfirmItsYou value={flockStepUpProof} onChange={setFlockStepUpProof} />
+        )}
         <DialogError errors={errors} scope="flock-access" />
       </Stack>
     </Dialog>

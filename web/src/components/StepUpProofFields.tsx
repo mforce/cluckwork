@@ -11,10 +11,13 @@ import { SecondFactorCodeField } from "./SecondFactorCodeField";
 // to enter, and who is signed in, above the fields. The hint reads the
 // session's two_factor claim, the same fact the code field reads, so the
 // words and the fields always agree.
-export function ConfirmItsYou({ value, onChange, disabled = false }: {
+export function ConfirmItsYou({ value, onChange, disabled = false, ruled = true }: {
   value: StepUpProof;
   onChange: Dispatch<SetStateAction<StepUpProof>>;
   disabled?: boolean;
+  // The rule sets the block apart from what sits above it; with nothing
+  // above, it would only underline the dialog's title.
+  ruled?: boolean;
 }) {
   const { t } = useTranslation("users");
   const { t: ta } = useTranslation("account");
@@ -22,7 +25,7 @@ export function ConfirmItsYou({ value, onChange, disabled = false }: {
   const me = useMe();
   return (
     <>
-      <Divider />
+      {ruled && <Divider />}
       <Typography component="h3" variant="h3">{t("confirmItsYouHeading")}</Typography>
       <p className="muted">{ta(twoFactor ? "proofHint" : "proofHintPassword")}</p>
       {me && (

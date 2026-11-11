@@ -93,7 +93,7 @@ export function DisableEnableDialog({
             />
           </>
         )}
-        <ConfirmItsYou value={stepUpProof} onChange={setStepUpProof} />
+        <ConfirmItsYou value={stepUpProof} onChange={setStepUpProof} ruled={stepUpMode === "disable"} />
         <DialogError errors={errors} scope="disable-enable" />
       </Stack>
     </Dialog>
