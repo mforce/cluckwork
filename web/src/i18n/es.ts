@@ -1735,14 +1735,6 @@ export const es = {
     // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
     // label does not fit there at 390px. The field adds its own asterisk.
     stepUpCodeFieldLabel: "Código de la app o de recuperación",
-    stepUpCreateHint: "Crear cualquier usuario requiere volver a ingresar tu contraseña actual.",
-    stepUpResetHint: "Restablecer la contraseña de cualquier usuario requiere volver a ingresar tu contraseña actual.",
-    stepUpRoleHint: "Cambiar el rol de cualquier usuario requiere volver a ingresar tu contraseña actual.",
-    stepUpEmailHint: "Cambiar un correo de inicio de sesión requiere volver a ingresar tu contraseña actual.",
-    // #356 — re-confirmación incondicional (machine-drafted, pending native review)
-    stepUpDisableHint: "Deshabilitar a un usuario requiere volver a ingresar tu contraseña actual.",
-    stepUpEnableHint: "Volver a habilitar a un usuario requiere volver a ingresar tu contraseña actual.",
-    stepUpFlockHint: "Asignar o quitar un lote requiere volver a ingresar tu contraseña actual.",
 
     // Users table
     emailColumnHeader: "Correo electrónico",
@@ -1842,7 +1834,6 @@ export const es = {
       + "su contraseña y podrá volver a configurar la autenticación en dos pasos.",
     confirmItsYouHeading: "Confirma que eres tú",
     signedInAsCaption: "Sesión iniciada como {{email}}",
-    stepUpResetTwoFactorHint: "Restablecer la autenticación en dos pasos requiere volver a ingresar tu contraseña actual.",
     twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
     resetTwoFactorNotFoundError: "No se encontró este usuario. Recarga la página.",
   },

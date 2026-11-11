@@ -8,7 +8,7 @@ import { CONSOLE_LINK_SX } from "../../components/FieldConsole";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
 import { FlockPicker } from "../../components/FlockPicker";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import { useAuth } from "../../auth/useAuth";
 import type { PickerSnapshot } from "../../components/NamedEntityPicker";
 import type { DialogErrors } from "../../components/useDialogErrors";
@@ -183,13 +183,7 @@ export function FlockAccessDialog({
         ) : (
           <p className="hint">{t("assignmentsWorkerOnlyHint")}</p>
         )}
-        <p className="muted">{t("stepUpFlockHint")}</p>
-        <StepUpProofFields
-          label={t("stepUpFieldLabel")}
-          codeLabel={t("stepUpCodeFieldLabel")}
-          value={flockStepUpProof}
-          onChange={setFlockStepUpProof}
-        />
+        <ConfirmItsYou value={flockStepUpProof} onChange={setFlockStepUpProof} />
         <DialogError errors={errors} scope="flock-access" />
       </Stack>
     </Dialog>

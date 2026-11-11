@@ -1796,14 +1796,6 @@ export const tl = {
     // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
     // label does not fit there at 390px. The field adds its own asterisk.
     stepUpCodeFieldLabel: "Authenticator o recovery code",
-    stepUpCreateHint: "Ang paggawa ng kahit anong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpResetHint: "Ang pag-reset ng password ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpRoleHint: "Ang pagpapalit ng tungkulin ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpEmailHint: "Ang pagpapalit ng email sa pag-sign in ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
-    stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpFlockHint: "Ang pag-assign o pag-alis ng kawan ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1905,7 +1897,6 @@ export const tl = {
       + "nila, at puwede nilang i-set up ulit ang two-factor authentication.",
     confirmItsYouHeading: "Kumpirmahin na ikaw ito",
     signedInAsCaption: "Naka-sign in bilang {{email}}",
-    stepUpResetTwoFactorHint: "Ang pag-reset ng two-factor authentication ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     twoFactorResetMessage: "Na-reset ang two-factor authentication ni {{email}}.",
     resetTwoFactorNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
   },

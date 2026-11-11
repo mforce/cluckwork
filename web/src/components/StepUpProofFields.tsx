@@ -1,9 +1,45 @@
 import type { Dispatch, SetStateAction } from "react";
-import { TextField } from "@mui/material";
+import { useTranslation } from "react-i18next";
+import { Divider, TextField, Typography } from "@mui/material";
 import type { TextFieldProps } from "@mui/material";
 import type { StepUpProof } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { useMe } from "../session/SessionContext";
 import { SecondFactorCodeField } from "./SecondFactorCodeField";
+
+// #1398 — the lab's proof() in every step-up dialog: "Confirm it's you", what
+// to enter, and who is signed in, above the fields. The hint reads the
+// session's two_factor claim, the same fact the code field reads, so the
+// words and the fields always agree.
+export function ConfirmItsYou({ value, onChange, disabled = false }: {
+  value: StepUpProof;
+  onChange: Dispatch<SetStateAction<StepUpProof>>;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation("users");
+  const { t: ta } = useTranslation("account");
+  const { twoFactor } = useAuth();
+  const me = useMe();
+  return (
+    <>
+      <Divider />
+      <Typography component="h3" variant="h3">{t("confirmItsYouHeading")}</Typography>
+      <p className="muted">{ta(twoFactor ? "proofHint" : "proofHintPassword")}</p>
+      {me && (
+        <Typography variant="caption" sx={{ overflowWrap: "anywhere" }}>
+          {t("signedInAsCaption", { email: me.email })}
+        </Typography>
+      )}
+      <StepUpProofFields
+        label={t("stepUpFieldLabel")}
+        codeLabel={t("stepUpCodeFieldLabel")}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+      />
+    </>
+  );
+}
 
 // #308/#798 — the current-password field every step-up uses, and for a user
 // with two-factor authentication on, the code field too (#1279). The proof

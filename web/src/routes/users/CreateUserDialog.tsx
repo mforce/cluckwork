@@ -5,7 +5,7 @@ import type { StepUpProof } from "../../api/client";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 import { ROLE_VALUES, roleLabel } from "../../i18n/enums";
 
@@ -94,13 +94,7 @@ export function CreateUserDialog({
             </option>
           ))}
         </TextField>
-        <p className="muted">{t("stepUpCreateHint")}</p>
-        <StepUpProofFields
-          label={t("stepUpFieldLabel")}
-          codeLabel={t("stepUpCodeFieldLabel")}
-          value={createStepUpProof}
-          onChange={setCreateStepUpProof}
-        />
+        <ConfirmItsYou value={createStepUpProof} onChange={setCreateStepUpProof} />
         <DialogError errors={errors} scope="create" />
       </Stack>
     </Dialog>

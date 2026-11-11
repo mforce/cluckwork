@@ -2758,7 +2758,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
   });
 
   it("reads the flock step-up hint from the catalog, not a hardcoded literal", async () => {
-    await withOverride("users", "stepUpFlockHint", "FLOCK-STEPUP-MARKER", async () => {
+    await withOverride("account", "proofHintPassword", "FLOCK-STEPUP-MARKER", async () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
       await act(async () => {

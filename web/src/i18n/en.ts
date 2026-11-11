@@ -2252,23 +2252,11 @@ export const en = {
     createUserButton: "Create user",
 
     // #308/#360 — step-up re-confirmation for every durable user-access
-    // mutation. Shared field label; distinct hints explain each action.
+    // mutation. Every dialog shows ConfirmItsYou's shared hint (#1398).
     stepUpFieldLabel: "Your current password *",
     // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
     // label does not fit there at 390px. The field adds its own asterisk.
     stepUpCodeFieldLabel: "Authenticator or recovery code",
-    stepUpCreateHint: "Creating any user needs your current password again.",
-    stepUpResetHint: "Resetting any user's password needs your current password again.",
-    stepUpRoleHint: "Changing any user's role needs your current password again.",
-    stepUpEmailHint: "Changing a login email needs your current password again.",
-    // #356 — disable/enable's step-up is UNCONDITIONAL (every disable/enable
-    // needs it, not just an Owner target), so these hints are shown every time
-    // rather than only once a sensitive role is picked.
-    stepUpDisableHint: "Disabling a user needs your current password again.",
-    stepUpEnableHint: "Re-enabling a user needs your current password again.",
-    // #606 — assigning or removing a flock changes durable account access,
-    // same as the other step-up sites above.
-    stepUpFlockHint: "Assigning or removing a flock needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -2392,7 +2380,6 @@ export const en = {
     confirmItsYouHeading: "Confirm it's you",
     // {{email}} is the signed-in Owner's, DATA.
     signedInAsCaption: "Signed in as {{email}}",
-    stepUpResetTwoFactorHint: "Resetting two-factor authentication needs your current password again.",
     twoFactorResetMessage: "Two-factor authentication was reset for {{email}}.",
     resetTwoFactorNotFoundError: "This user was not found. Reload the page.",
   },

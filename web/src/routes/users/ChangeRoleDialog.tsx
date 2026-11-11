@@ -6,7 +6,7 @@ import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 import { ROLE_VALUES, roleLabel } from "../../i18n/enums";
 
@@ -69,13 +69,7 @@ export function ChangeRoleDialog({
             </option>
           ))}
         </TextField>
-        <p className="muted">{t("stepUpRoleHint")}</p>
-        <StepUpProofFields
-          label={t("stepUpFieldLabel")}
-          codeLabel={t("stepUpCodeFieldLabel")}
-          value={roleStepUpProof}
-          onChange={setRoleStepUpProof}
-        />
+        <ConfirmItsYou value={roleStepUpProof} onChange={setRoleStepUpProof} />
         <DialogError errors={errors} scope="change-role" />
       </Stack>
     </Dialog>
