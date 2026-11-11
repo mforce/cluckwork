@@ -65,10 +65,10 @@ public sealed class RedactedCredentialTypesTests
         Assert.Equal(CredentialTypes.Excused.Length, CredentialTypes.Excused.DistinctBy(excuse => (excuse.On, excuse.Member, excuse.Holds)).Count());
         foreach (var excuse in CredentialTypes.Excused)
         {
-            Assert.False(string.IsNullOrWhiteSpace(excuse.Reason), $"{excuse.On}.{excuse.Member} has no reason");
+            Assert.False(string.IsNullOrWhiteSpace(excuse.Reason), $"{excuse.On}.{excuse.Member} as {excuse.Holds} has no reason");
             Assert.True(walked.Any(type => CredentialTypes.Members(type).Any(member =>
                     CredentialTypes.NamesACredential(member.Name) && excuse.Covers(type, member))),
-                $"{excuse.On}.{excuse.Member} excuses no member the walk sees; delete the row");
+                $"{excuse.On}.{excuse.Member} as {excuse.Holds} excuses no member the walk sees; delete the row");
         }
         foreach (var (printer, reason) in CredentialTypes.ReviewedToStrings)
         {
