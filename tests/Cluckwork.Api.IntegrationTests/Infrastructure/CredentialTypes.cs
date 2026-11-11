@@ -127,7 +127,7 @@ internal static partial class CredentialTypes
     }
 
     public static bool NamesACredential(string name) =>
-        WordPattern().Matches(name).Any(word => Words.Contains(word.Value)
+        WordPattern().Matches(name).Concat(AcronymPluralPattern().Matches(name)).Any(word => Words.Contains(word.Value)
             || word.Value.EndsWith("s", StringComparison.OrdinalIgnoreCase) && Words.Contains(word.Value[..^1]));
 
     // An open generic type is checked closed over object: the IL is the
@@ -144,6 +144,11 @@ internal static partial class CredentialTypes
             RedactedToString.AssertConstant(closed);
     }
 
-    [GeneratedRegex("[A-Z]+s?(?![a-z])|[A-Z]?[a-z]+|[0-9]+")]
+    // A name matches when a word from either pattern does: the second only adds
+    // an acronym's plural (JWTs), so every word the first yields is still read.
+    [GeneratedRegex("[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+")]
     private static partial Regex WordPattern();
+
+    [GeneratedRegex("[A-Z]+s(?![a-z])")]
+    private static partial Regex AcronymPluralPattern();
 }

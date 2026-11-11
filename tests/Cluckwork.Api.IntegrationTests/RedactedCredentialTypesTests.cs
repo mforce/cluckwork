@@ -254,6 +254,8 @@ public sealed class RedactedCredentialTypesTests
     [InlineData("JWTs")]
     [InlineData("OTPs")]
     [InlineData("KEYs")]
+    [InlineData("OTPIsRequired")]
+    [InlineData("JWTAsText")]
     [InlineData("token")]
     [InlineData("<signingKey>P")]
     public void TheNameMatcher_ReadsEachWord(string name) =>
