@@ -3255,7 +3255,7 @@ export const es = {
       + "enviarlo queda oculto, porque eso es escribirlo. Si otra persona edita su borrador, su cambio sí se "
       + "muestra, para que nunca sea invisible quien puso los números que entraron en existencias. A partir "
       + "de ese momento también se muestran sus propias ediciones posteriores. Si deja los números como "
-      + "quería, la columna lo nombra a usted y marca la hora en que lo hizo, no la edición que reemplazaste.",
+      + "quería, la columna lo nombra a usted y marca la hora en que lo hizo, no la edición que reemplazó.",
     auditSystemActors:
       "Algunas entradas las hace el sistema y no una persona, y muestran un nombre entre paréntesis en "
       + "lugar de un correo. \"(bootstrap-admin)\" es el comando que creó su primera cuenta de propietario, "
