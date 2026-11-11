@@ -5,6 +5,7 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // path, so all its fields are non-null, whereas AlreadyProvisioned() here returns
 // a value with nothing populated. Copying its non-nullable `string Slug` across
 // would make the idempotent branch unrepresentable.
+// The temporary password is a credential, so the record never prints it.
 public sealed record FirstRunAdminOutcome(
     bool WasAlreadyProvisioned,
     string? Email,
@@ -12,6 +13,8 @@ public sealed record FirstRunAdminOutcome(
     string? Slug,
     string? TemporaryPassword)
 {
+    public override string ToString() => "[redacted]";
+
     public static FirstRunAdminOutcome AlreadyProvisioned() => new(true, null, null, null, null);
 
     public static FirstRunAdminOutcome Provisioned(
@@ -26,7 +29,11 @@ public sealed record FirstRunAdminOutcome(
 // is populated and none are nullable. The slug is read off `lockedAccount`
 // (already loaded FOR UPDATE in the transaction, no new query) and printed by
 // recover-admin because #532 made the farm code a required login input.
-public sealed record AdminRecoveryResult(string Email, Guid AccountId, string Slug, string TemporaryPassword);
+// The temporary password is a credential, so the record never prints it.
+public sealed record AdminRecoveryResult(string Email, Guid AccountId, string Slug, string TemporaryPassword)
+{
+    public override string ToString() => "[redacted]";
+}
 
 // Changed = "this command transitioned the farm", so a verb can report a no-op
 // re-run without going back to the database to work out what it did.
@@ -36,8 +43,12 @@ public sealed record AccountLifecycleOutcome(bool Changed);
 // re-run was a no-op without re-reading the database. Deliberately NOT "the farm is fine".
 public sealed record AccountRenameOutcome(bool Changed);
 
+// The temporary password is a credential, so the record never prints it.
 public sealed record AccountProvisionOutcome(
     Guid AccountId,
     string Slug,
     string OwnerEmail,
-    string TemporaryPassword);
+    string TemporaryPassword)
+{
+    public override string ToString() => "[redacted]";
+}

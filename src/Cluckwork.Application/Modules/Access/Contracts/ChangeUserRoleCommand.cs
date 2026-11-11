@@ -5,4 +5,8 @@ namespace Cluckwork.Application.Modules.Access.Contracts;
 // Role is non-nullable — the caller always states an
 // explicit target, using the same "Worker" sentinel CreateUserValidator
 // defines rather than null (matching CreateUserCommand's own shape).
-public sealed record ChangeUserRoleCommand(Guid UserId, string Role, string? StepUpToken = null);
+// The step-up token is a credential, so the record never prints it.
+public sealed record ChangeUserRoleCommand(Guid UserId, string Role, string? StepUpToken = null)
+{
+    public override string ToString() => "[redacted]";
+}
