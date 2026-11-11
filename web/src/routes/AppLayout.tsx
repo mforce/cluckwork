@@ -3,12 +3,12 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { LogOut, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
-  Alert, Box, Button, Drawer, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography,
+  Box, Button, Drawer, List, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Typography,
 } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { BottomNav } from "../components/BottomNav";
-import { useMissedAnnouncement } from "../components/useMissedAnnouncement";
+import { PostedNotice, ShellNotice } from "../components/AppNotice";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { MAIN_CONTENT_ID } from "../lib/mainContent";
@@ -48,14 +48,9 @@ export function AppLayout() {
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
 
-  // #485 — the banner below is a role="alert" and announces itself, except
-  // when a dialog has it inert. A read that fails while the user is mid-dialog
-  // is exactly when that bites: the warning is on screen the moment they close
-  // it, but nothing would ever have said so.
   const farmWarning = loadFailed
     ? (farm === null ? t("farmLoadFailedNeverLoaded") : t("farmLoadFailedStale"))
     : null;
-  const missedFarmWarning = useMissedAnnouncement(farmWarning);
 
   // Per-page document.title: the active nav entry's translated label + the
   // shared suffix (e.g. "Dashboard — Cluckwork"), so the browser tab/history
@@ -155,36 +150,19 @@ export function AppLayout() {
       </Drawer>
 
       <Box component="main" className="content" id={MAIN_CONTENT_ID} tabIndex={-1} sx={{ flexGrow: 1, minWidth: 0 }}>
-        {/* Carries the warning the banner below could not announce because a
-            dialog had it inert (#485), and stays empty otherwise so the two
-            never say the same thing twice.
-
-            `aria-live="assertive"` + `aria-atomic` rather than `role="alert"`,
-            which is shorthand for exactly that pair. The distinction matters
-            because this element is always mounted, and `role="alert"` is how
-            ~20 error banners across the app mark themselves — the E2E suite
-            reads "no alert on screen" as "nothing has gone wrong", so a
-            permanent one would answer every such query and quietly retire the
-            check. The CONDITIONAL banner below keeps the role, and with it its
-            place in that net. */}
-        <p className="sr-only" aria-live="assertive" aria-atomic="true">{missedFarmWarning}</p>
-
         {/* A farm we never got is not a cosmetic loss: §4.5 formatting and —
             since #123 — every date field's ceiling come from it, so without a
             farm the pickers silently follow the DEVICE's day and the screen
             looks perfectly healthy while being a day out. Say so, and offer the
             read again, rather than degrade in silence (codex review of #123).
-            The wording is picked above, where the offscreen region reads it
-            too: never got one -> the pickers follow the DEVICE's day; got one
-            then a re-read failed -> what is on screen is what a save was meant
-            to replace, so a new timezone silently does not apply (round 2:
-            codex + pi). */}
-        {farmWarning !== null && (
-          <Alert severity="warning" className="farm-warning"
-            action={<Button color="inherit" size="small" onClick={() => void refresh()}>{t("tryAgain")}</Button>}>
-            {farmWarning}
-          </Alert>
-        )}
+            The wording is picked above: never got one -> the pickers follow
+            the DEVICE's day; got one then a re-read failed -> what is on screen
+            is what a save was meant to replace, so a new timezone silently does
+            not apply (round 2: codex + pi). The strip and its offscreen region
+            for #485 are ShellNotice's. */}
+        <ShellNotice message={farmWarning} severity="warning"
+          action={<Button color="inherit" size="small" onClick={() => void refresh()}>{t("tryAgain")}</Button>} />
+        <PostedNotice />
 
         {/* Contain a routed screen's render throw to this pane — the sidebar and
             tab bar stay usable (#140). Keyed by location.key so every navigation

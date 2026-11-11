@@ -10,6 +10,7 @@ import { farmState } from "./fixtures";
 import { setStoredToken } from "./jwt";
 import { clearAccessToken } from "../auth/tokenStore";
 import { RecoveryCodesProvider } from "../routes/account/recoveryCodes";
+import { AppNoticeProvider } from "../components/AppNotice";
 
 // The default signed-in user for screen tests that don't care who is logged
 // in. A test that DOES care passes `me: <fixture>`; one that cares the identity
@@ -63,11 +64,13 @@ export function renderWithProviders(
   return render(
     <MemoryRouter initialEntries={[opts.route ?? "/"]}>
       <AuthProvider>
+        <AppNoticeProvider>
         <RecoveryCodesProvider>
         <LiveMe initial={opts.me === undefined ? DEFAULT_ME : opts.me}>
           <FarmContext.Provider value={farmValue}>{ui}</FarmContext.Provider>
         </LiveMe>
         </RecoveryCodesProvider>
+        </AppNoticeProvider>
       </AuthProvider>
     </MemoryRouter>,
   );

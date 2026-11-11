@@ -8,6 +8,15 @@
   font-size: 0.9rem;
 }
 
+/* #1398 — a posted notice in the same strip: the same shape, the accent tint. */
+.shell-notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--r-panel);
+  background: var(--tint-accent);
+  font-size: 0.9rem;
+}
+
 .farm-warning button.link {
   font-size: 0.9rem;
 }
