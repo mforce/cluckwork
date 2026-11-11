@@ -16,7 +16,8 @@ import { saveBlob } from "../../lib/saveBlob";
 // and so does the request that will hand them out. A confirm or regenerate
 // that settles after its page is gone still lands here, and no navigation drops
 // the set: only Done, the end of this tab's session, or a sign-in or sign-out
-// in another tab (#1398), which the shell's notice strip then reports. In memory only: never in storage, a URL or a log.
+// in another tab (#1398), which the shell's notice strip then reports. In
+// memory only: never in storage, a URL or a log.
 interface HeldRecoveryCodes {
   // Keys the dialog, so a new set never shows the last set's notes.
   id: number;

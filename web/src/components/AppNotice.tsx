@@ -37,7 +37,7 @@ export function ShellNotice({ message, severity, action, onClose }: {
   );
 }
 
-export interface Notice {
+interface Notice {
   message: string;
   severity: AlertColor;
 }
