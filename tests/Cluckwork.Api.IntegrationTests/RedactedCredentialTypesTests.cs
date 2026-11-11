@@ -216,7 +216,8 @@ public sealed class RedactedCredentialTypesTests
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => CredentialTypes.AssertRedacted(type));
     }
 
-    // One name per word, each matched by that word alone, and names no word matches.
+    // One name per word, each matched by that word alone, then the plural,
+    // acronym, lowercase and captured-parameter forms.
     [Theory]
     [InlineData("NewPassword")]
     [InlineData("AccessToken")]
