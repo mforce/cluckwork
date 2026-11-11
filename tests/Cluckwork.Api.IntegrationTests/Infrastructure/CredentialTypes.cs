@@ -5,11 +5,16 @@ using Cluckwork.Api.Middleware;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Domain.Modules.Commerce.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
 using Cluckwork.Domain.Modules.Farm.Media;
+using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
 using Cluckwork.Infrastructure.RateLimiting;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using OpenIddict.EntityFrameworkCore.Models;
 
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
 
@@ -30,36 +35,46 @@ internal static partial class CredentialTypes
     // A member that matches a word but holds no credential. On names the type
     // the row applies to, with its subtypes; a null On applies to the member
     // name on every type, so the name itself must say what the value is.
-    internal sealed record Excuse(Type? On, string Member, string Reason)
+    // Holds is the member's type, nullable unwrapped, that the reason depends
+    // on: the row excuses nothing else, so a count's name cannot excuse a list
+    // of codes. A string row excuses any string under that name.
+    internal sealed record Excuse(Type? On, string Member, Type Holds, string Reason)
     {
         public bool Covers(Type type, MemberInfo member) =>
-            member.Name == Member && (On is null || On.IsAssignableFrom(type));
+            member.Name == Member && (On is null || On.IsAssignableFrom(type)) && TypeOf(member) == Holds;
+
+        private static Type TypeOf(MemberInfo member)
+        {
+            var type = member is PropertyInfo property ? property.PropertyType : ((FieldInfo)member).FieldType;
+            return Nullable.GetUnderlyingType(type) ?? type;
+        }
     }
 
     internal static readonly Excuse[] Excused =
     [
-        new(null, "CurrencyCode", "an ISO 4217 currency code"),
-        new(null, "DefaultCostCurrencyCode", "an ISO 4217 currency code"),
-        new(null, "UnitCostCurrencyCode", "an ISO 4217 currency code"),
-        new(null, "UnitCode", "the code of an egg unit"),
-        new(null, "DiscountReasonCode", "the code of a discount reason"),
-        new(null, "StatusCode", "an HTTP status code"),
-        new(null, "RecoveryCodesLeft", "a count of recovery codes, not the codes"),
-        new(null, "MustChangePassword", "a flag"),
-        new(null, "ConcurrencyStamp", "an optimistic-concurrency value"),
-        new(null, "GrantTypes", "names of OAuth grant types from client metadata"),
-        new(null, "TokenEndpointAuthMethod", "the name of an OAuth client auth method"),
-        new(typeof(Error), nameof(Error.Code), "a public error code"),
-        new(typeof(CurrencyInfo), nameof(CurrencyInfo.Code), "an ISO 4217 currency code"),
-        new(typeof(ImageSanitizer.ImageAssetKind), nameof(ImageSanitizer.ImageAssetKind.Code), "the code of an image kind"),
-        new(typeof(OAuthPurgeResult), nameof(OAuthPurgeResult.Tokens), "a count of purged tokens"),
-        new(typeof(AppDbContext), nameof(AppDbContext.RefreshTokens), "a query root, not a value"),
-        new(typeof(AppDbContext), nameof(AppDbContext.OAuthTokens), "a query root, not a value"),
-        new(typeof(AppDbContext), nameof(AppDbContext.UserTokens), "a query root, not a value"),
-        new(typeof(AppDbContext), nameof(AppDbContext.DataProtectionKeys), "a query root, not a value"),
-        new(typeof(SlotGrant), nameof(SlotGrant.Key), "the rate-limit slot's lease key"),
-        new(typeof(IdempotencyScope), nameof(IdempotencyScope.KeyHash), "a hash of the Idempotency-Key header"),
-        new(OpenApiResponseComment, "Code", "the HTTP status of a response, read from XML docs by the OpenAPI source generator"),
+        new(null, "CurrencyCode", typeof(string), "an ISO 4217 currency code"),
+        new(null, "DefaultCostCurrencyCode", typeof(string), "an ISO 4217 currency code"),
+        new(null, "UnitCostCurrencyCode", typeof(string), "an ISO 4217 currency code"),
+        new(null, "UnitCode", typeof(string), "the code of an egg unit"),
+        new(null, "UnitCode", typeof(EggUnit), "an egg unit"),
+        new(null, "DiscountReasonCode", typeof(string), "the code of a discount reason"),
+        new(null, "DiscountReasonCode", typeof(DiscountReasonCode), "a discount reason"),
+        new(null, "StatusCode", typeof(int), "an HTTP status code"),
+        new(null, "RecoveryCodesLeft", typeof(int), "a count of recovery codes, not the codes"),
+        new(null, "ConcurrencyStamp", typeof(string), "an optimistic-concurrency value"),
+        new(null, "GrantTypes", typeof(string[]), "names of OAuth grant types from client metadata"),
+        new(null, "TokenEndpointAuthMethod", typeof(string), "the name of an OAuth client auth method"),
+        new(typeof(Error), nameof(Error.Code), typeof(string), "a public error code"),
+        new(typeof(CurrencyInfo), nameof(CurrencyInfo.Code), typeof(string), "an ISO 4217 currency code"),
+        new(typeof(ImageSanitizer.ImageAssetKind), nameof(ImageSanitizer.ImageAssetKind.Code), typeof(string), "the code of an image kind"),
+        new(typeof(OAuthPurgeResult), nameof(OAuthPurgeResult.Tokens), typeof(long), "a count of purged tokens"),
+        new(typeof(AppDbContext), nameof(AppDbContext.RefreshTokens), typeof(DbSet<RefreshToken>), "a query root, not a value"),
+        new(typeof(AppDbContext), nameof(AppDbContext.OAuthTokens), typeof(DbSet<OpenIddictEntityFrameworkCoreToken<Guid>>), "a query root, not a value"),
+        new(typeof(AppDbContext), nameof(AppDbContext.UserTokens), typeof(DbSet<IdentityUserToken<Guid>>), "a query root, not a value"),
+        new(typeof(AppDbContext), nameof(AppDbContext.DataProtectionKeys), typeof(DbSet<DataProtectionKey>), "a query root, not a value"),
+        new(typeof(SlotGrant), nameof(SlotGrant.Key), typeof(string), "the rate-limit slot's lease key"),
+        new(typeof(IdempotencyScope), nameof(IdempotencyScope.KeyHash), typeof(string), "a hash of the Idempotency-Key header"),
+        new(OpenApiResponseComment, "Code", typeof(string), "the HTTP status of a response, read from XML docs by the OpenAPI source generator"),
     ];
 
     // A file-local record the Microsoft.AspNetCore.OpenApi source generator

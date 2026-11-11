@@ -61,7 +61,7 @@ public sealed class RedactedCredentialTypesTests
     {
         var walked = CredentialTypes.Walk(Product).ToList();
 
-        Assert.Equal(CredentialTypes.Excused.Length, CredentialTypes.Excused.DistinctBy(excuse => (excuse.On, excuse.Member)).Count());
+        Assert.Equal(CredentialTypes.Excused.Length, CredentialTypes.Excused.DistinctBy(excuse => (excuse.On, excuse.Member, excuse.Holds)).Count());
         foreach (var excuse in CredentialTypes.Excused)
         {
             Assert.False(string.IsNullOrWhiteSpace(excuse.Reason), $"{excuse.On}.{excuse.Member} has no reason");
@@ -136,6 +136,9 @@ public sealed class RedactedCredentialTypesTests
         public string ToString(string? format, IFormatProvider? formatProvider) => Password ?? "";
     }
 
+    // An excused name holding something other than what its row says.
+    private sealed record Leftovers(IReadOnlyList<string> RecoveryCodesLeft);
+
     // Loggers enumerate a sequence and never call its ToString.
     private sealed class CodeSet(IReadOnlyList<string> recoveryCodes) : IEnumerable<string>
     {
@@ -166,6 +169,7 @@ public sealed class RedactedCredentialTypesTests
     [InlineData(typeof(FormatsItsPassword))]
     [InlineData(typeof(CodeSet))]
     [InlineData(typeof(RedactedCodeSet))]
+    [InlineData(typeof(Leftovers))]
     public void ANewCredentialType_IsFound_AndFailsUntilItRedacts(Type type)
     {
         Assert.Contains(type, CredentialTypes.Find([typeof(RedactedCredentialTypesTests).Assembly]));
