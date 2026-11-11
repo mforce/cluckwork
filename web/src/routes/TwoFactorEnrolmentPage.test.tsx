@@ -262,6 +262,9 @@ describe("the forced two-factor setup screen", () => {
     await act(async () => { for (const resolve of held.get("GET /auth/two-factor") ?? []) resolve(answer("GET /auth/two-factor")); });
     expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
     expect(document.querySelector(".shell-notice")).toHaveTextContent(t("codesDroppedNotice"));
+    // Review r2, item 4: the strip mounted with the notice in it, so its
+    // offscreen region says it.
+    await waitFor(() => expect(document.querySelector(".sr-only[aria-live='polite']")).toHaveTextContent(t("codesDroppedNotice")));
   });
 
   it("follows a 403 that arrives mid-session, after the screen had loaded", async () => {

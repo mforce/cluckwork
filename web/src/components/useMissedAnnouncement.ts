@@ -32,16 +32,23 @@ import { anyDialogOpen, onModalStateChange } from "./Dialog";
  *   opening and closing over an unchanged message says nothing a second time.
  *
  * Pass `null` when there is nothing to say.
+ *
+ * `saidAtMount` (#1398) also owes a message that is already there when the
+ * region mounts: a notice posted on a screen without its strip is inserted
+ * with its text, which is not reliably announced (ARIA22, above).
  */
-export function useMissedAnnouncement(message: string | null): string {
+export function useMissedAnnouncement(message: string | null, saidAtMount = false): string {
   const [blocked, setBlocked] = useState(anyDialogOpen);
   useEffect(() => onModalStateChange(setBlocked), []);
 
   // The message the visible region could not speak for itself.
   const [missed, setMissed] = useState<string | null>(null);
   const previous = useRef<string | null>(null);
+  const mounting = useRef(true);
 
   useEffect(() => {
+    const atMount = mounting.current;
+    mounting.current = false;
     if (message === previous.current) return;
     previous.current = message;
 
@@ -59,7 +66,7 @@ export function useMissedAnnouncement(message: string | null): string {
     //
     // So take the debt if the page was inert on EITHER side of the commit: the
     // mirror as it stood going in, or the stack once it has settled.
-    const inertGoingIn = blocked || anyDialogOpen();
+    const owedGoingIn = blocked || anyDialogOpen() || (atMount && saidAtMount);
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -82,10 +89,10 @@ export function useMissedAnnouncement(message: string | null): string {
       // Guessing "it managed" costs a screen-reader user the notification
       // entirely; guessing "it did not" costs a repeat. Those are not equally
       // bad, so this errs toward saying it twice.
-      setMissed(message !== null && (inertGoingIn || anyDialogOpen()) ? message : null);
+      setMissed(message !== null && (owedGoingIn || anyDialogOpen()) ? message : null);
     });
     return () => { cancelled = true; };
-  }, [message, blocked]);
+  }, [message, blocked, saidAtMount]);
 
   const [shown, setShown] = useState("");
   useEffect(() => {
