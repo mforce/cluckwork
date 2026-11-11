@@ -146,14 +146,17 @@ export function RecoveryCodesProvider({ children }: { children: ReactNode }) {
   // one, and a step-up still closing): focus brings the strip at the top of
   // the page into view and has a screen reader read it, and no closing dialog
   // takes it back. Where there is no strip (the forced setup screen), focus
-  // goes where Done sends it. A session that ends in the wait takes the
-  // notice with it (AppNoticeProvider).
+  // goes where Done sends it. A session that changes in the wait posts
+  // nothing: AppNoticeProvider would clear the notice too, but only if the
+  // dialog count settles before the next sign-in.
   const { show } = useAppNotice();
   const { t } = useTranslation("account");
   useEffect(() => onSessionChangeElsewhere(() => {
     if (!heldRef.current) return;
     put(null);
+    const generation = currentSessionGeneration();
     whenNoDialogOpen(() => {
+      if (generation !== currentSessionGeneration()) return;
       show(t("codesDroppedNotice"));
       requestAnimationFrame(() => (document.getElementById(APP_NOTICE_ID)
         ?? document.getElementById(SECURITY_SUMMARY_ID) ?? document.getElementById(MAIN_CONTENT_ID))?.focus());
