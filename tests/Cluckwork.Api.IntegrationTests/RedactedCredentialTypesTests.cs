@@ -146,6 +146,14 @@ public sealed class RedactedCredentialTypesTests
 
     private sealed record AcronymKey(string APIKey);
 
+    private sealed record AllCaps(string JWT);
+
+    private sealed class LowercaseField(string value)
+    {
+        private readonly string token = value;
+        public override string ToString() => token;
+    }
+
     // A framework ToString that is not reviewed.
     private sealed class TokenProblem(string token) : Exception(token)
     {
@@ -198,6 +206,8 @@ public sealed class RedactedCredentialTypesTests
     [InlineData(typeof(NamedKey))]
     [InlineData(typeof(NamedCode))]
     [InlineData(typeof(AcronymKey))]
+    [InlineData(typeof(AllCaps))]
+    [InlineData(typeof(LowercaseField))]
     [InlineData(typeof(TokenProblem))]
     [InlineData(typeof(InheritsAPrinter))]
     public void ANewCredentialType_IsFound_AndFailsUntilItRedacts(Type type)
@@ -234,6 +244,8 @@ public sealed class RedactedCredentialTypesTests
     [InlineData("Jwt")]
     [InlineData("RecoveryCodes")]
     [InlineData("APIKey")]
+    [InlineData("JWT")]
+    [InlineData("token")]
     [InlineData("<signingKey>P")]
     public void TheNameMatcher_ReadsEachWord(string name) =>
         Assert.True(CredentialTypes.NamesACredential(name), name);
