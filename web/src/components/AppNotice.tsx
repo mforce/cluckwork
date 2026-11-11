@@ -15,9 +15,9 @@ import { useMissedAnnouncement } from "./useMissedAnnouncement";
 //
 // The offscreen region is always mounted, and carries `spoken` (the message
 // by default) only when a dialog had the page inert as it arrived (#485), or
-// always when the caller says it is owed. It holds no
-// live ROLE: the E2E suite reads a hidden alert or status as "nothing is
-// wrong", so a permanent one would answer every such query.
+// always when the caller says it is owed. It holds no live ROLE: the E2E
+// suite reads a hidden alert or status as "nothing is wrong", so a permanent
+// one would answer every such query.
 export function ShellNotice({ message, severity, action, onClose, alertRef, spoken = message, owed = false }: {
   message: string | null;
   severity: AlertColor;
