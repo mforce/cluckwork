@@ -18,9 +18,10 @@ namespace Cluckwork.Api.IntegrationTests;
 // them from what each type declares, so a new one joins the walk by itself.
 public sealed class RedactedCredentialTypesTests
 {
-    // The exact size of the found set. A drop means a type or a word left the
-    // walk; lowering this is a reviewed change.
-    private const int Floor = 56;
+    // A lower bound, the size of the found set when it was last measured. An
+    // unrelated new match adds slack, so a lost word or marker is pinned by a
+    // named type or a fixture below, not by this number.
+    private const int Floor = 59;
 
     private static readonly Assembly[] Product =
     [
@@ -136,6 +137,29 @@ public sealed class RedactedCredentialTypesTests
         public string ToString(string? format, IFormatProvider? formatProvider) => Password ?? "";
     }
 
+    // Each found by one rule the floor alone would not pin.
+    private sealed record NamedChallenge(string Challenge);
+
+    private sealed record NamedKey(string Key);
+
+    private sealed record NamedCode(string Code);
+
+    private sealed record AcronymKey(string APIKey);
+
+    // A framework ToString that is not reviewed.
+    private sealed class TokenProblem(string token) : Exception(token)
+    {
+        public string Token { get; } = token;
+    }
+
+    // An inherited ToString gets the IL check too.
+    private abstract record PrintingBase(string Token)
+    {
+        public sealed override string ToString() => Token;
+    }
+
+    private sealed record InheritsAPrinter(string Token) : PrintingBase(Token);
+
     // An excused name holding something other than what its row says.
     private sealed record Leftovers(IReadOnlyList<string> RecoveryCodesLeft);
 
@@ -170,11 +194,57 @@ public sealed class RedactedCredentialTypesTests
     [InlineData(typeof(CodeSet))]
     [InlineData(typeof(RedactedCodeSet))]
     [InlineData(typeof(Leftovers))]
+    [InlineData(typeof(NamedChallenge))]
+    [InlineData(typeof(NamedKey))]
+    [InlineData(typeof(NamedCode))]
+    [InlineData(typeof(AcronymKey))]
+    [InlineData(typeof(TokenProblem))]
+    [InlineData(typeof(InheritsAPrinter))]
     public void ANewCredentialType_IsFound_AndFailsUntilItRedacts(Type type)
     {
         Assert.Contains(type, CredentialTypes.Find([typeof(RedactedCredentialTypesTests).Assembly]));
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => CredentialTypes.AssertRedacted(type));
     }
+
+    // One name per word, each matched by that word alone, and names no word matches.
+    [Theory]
+    [InlineData("NewPassword")]
+    [InlineData("AccessToken")]
+    [InlineData("ClientSecret")]
+    [InlineData("Challenge")]
+    [InlineData("Grant")]
+    [InlineData("ApiKey")]
+    [InlineData("AuthCode")]
+    [InlineData("SecurityStamp")]
+    [InlineData("PrivatePem")]
+    [InlineData("OtpValue")]
+    [InlineData("TotpSeed")]
+    [InlineData("Verifier")]
+    [InlineData("Nonce")]
+    [InlineData("Signature")]
+    [InlineData("SessionCookie")]
+    [InlineData("Credential")]
+    [InlineData("Proof")]
+    [InlineData("DbPwd")]
+    [InlineData("Bearer")]
+    [InlineData("Passphrase")]
+    [InlineData("Passcode")]
+    [InlineData("Pin")]
+    [InlineData("Salt")]
+    [InlineData("Jwt")]
+    [InlineData("RecoveryCodes")]
+    [InlineData("APIKey")]
+    [InlineData("<signingKey>P")]
+    public void TheNameMatcher_ReadsEachWord(string name) =>
+        Assert.True(CredentialTypes.NamesACredential(name), name);
+
+    [Theory]
+    [InlineData("DisplayName")]
+    [InlineData("Pinned")]
+    [InlineData("Saltwater")]
+    [InlineData("Codename")]
+    public void TheNameMatcher_ReadsWholeWordsOnly(string name) =>
+        Assert.False(CredentialTypes.NamesACredential(name), name);
 
     // A redacted record and a class that keeps object's ToString pass.
     private sealed record Redacted(string Password)
@@ -196,18 +266,22 @@ public sealed class RedactedCredentialTypesTests
         CredentialTypes.AssertRedacted(type);
     }
 
-    // The override changes ToString only: the step-up response still
-    // serializes its token and expiry under the same names.
+    // The override changes ToString only: the step-up and access-token
+    // responses still serialize their token and expiry under the same names.
     [Fact]
     public void ARedactedResponse_SerializesAsBefore()
     {
         var token = Guid.NewGuid().ToString("N");
         var expiresAt = DateTimeOffset.UtcNow;
 
-        using var json = JsonDocument.Parse(JsonSerializer.Serialize(new StepUpResponse(token, expiresAt), JsonSerializerOptions.Web));
+        using var stepUp = JsonDocument.Parse(JsonSerializer.Serialize(new StepUpResponse(token, expiresAt), JsonSerializerOptions.Web));
+        using var access = JsonDocument.Parse(JsonSerializer.Serialize(new AccessTokenResponse(token, expiresAt), JsonSerializerOptions.Web));
 
-        Assert.Equal(["token", "expiresAt"], json.RootElement.EnumerateObject().Select(property => property.Name));
-        Assert.Equal(token, json.RootElement.GetProperty("token").GetString());
-        Assert.Equal(expiresAt, json.RootElement.GetProperty("expiresAt").GetDateTimeOffset());
+        Assert.Equal(["token", "expiresAt"], stepUp.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(token, stepUp.RootElement.GetProperty("token").GetString());
+        Assert.Equal(expiresAt, stepUp.RootElement.GetProperty("expiresAt").GetDateTimeOffset());
+        Assert.Equal(["accessToken", "accessTokenExpiry"], access.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(token, access.RootElement.GetProperty("accessToken").GetString());
+        Assert.Equal(expiresAt, access.RootElement.GetProperty("accessTokenExpiry").GetDateTimeOffset());
     }
 }

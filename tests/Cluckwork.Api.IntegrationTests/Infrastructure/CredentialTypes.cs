@@ -30,6 +30,7 @@ internal static partial class CredentialTypes
     {
         "Password", "Token", "Secret", "Challenge", "Grant", "Key", "Code", "Stamp", "Pem",
         "Otp", "Totp", "Verifier", "Nonce", "Signature", "Cookie", "Credential", "Proof",
+        "Pwd", "Bearer", "Passphrase", "Passcode", "Pin", "Salt", "Jwt",
     };
 
     // A member that matches a word but holds no credential. On names the type
