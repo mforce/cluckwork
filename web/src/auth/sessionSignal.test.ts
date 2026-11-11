@@ -135,6 +135,18 @@ describe("the session signal", () => {
     expect(await other.heardSoFar()).toEqual([null]);
   });
 
+  it("tells another tab when the refresh after a 401 is refused with a plain 401", async () => {
+    serve("/auth/refresh", () => json({ title: "Unauthorized" }, 401));
+    const { refresh, tokens, signal } = await fresh();
+    const other = otherTab(signal.SESSION_CHANNEL);
+    holdSession(tokens);
+
+    await expect(refresh.apiGet("/flocks")).rejects.toThrow();
+
+    expect(tokens.getAccessToken()).toBeNull();
+    expect(await other.heardSoFar()).toEqual([null]);
+  });
+
   // Review r2, probes Q1 and Q2: the server ended no session, so the other
   // tabs keep their codes. This tab still ends its own (client.test.ts).
   it.each([
