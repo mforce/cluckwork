@@ -1,10 +1,12 @@
 using System.Reflection;
 using System.Text.Json;
+using Cluckwork.Api.Configuration;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Modules.Access.Auth;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
+using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Microsoft.AspNetCore.Identity;
 
@@ -38,6 +40,19 @@ public sealed class RedactedCredentialTypesTests
             .Select(result => $"{result.type}: {result.error!.Message}")
             .ToList();
         Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    // The types only the [Credential] marker finds, named, so the floor's slack
+    // cannot hide a lost marker.
+    [Fact]
+    public void EveryMarkedType_IsFound()
+    {
+        var found = CredentialTypes.Find(Product);
+
+        Assert.Contains(typeof(SecondFactorCode.Totp), found);
+        Assert.Contains(typeof(SecondFactorCode.Recovery), found);
+        Assert.Contains(typeof(LeaderLeaseConnectionString), found);
+        Assert.Contains(typeof(OtlpOptions), found);
     }
 
     [Fact]
