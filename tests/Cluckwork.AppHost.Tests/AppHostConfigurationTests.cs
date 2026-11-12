@@ -118,10 +118,21 @@ public sealed class AppHostConfigurationTests
             sdks.Any(sdk => sdk.Name == "Aspire.AppHost.Sdk"),
             "No project in Cluckwork.slnx declares Sdk=\"Aspire.AppHost.Sdk/<version>\" on its <Project> element.");
 
+        // The guard reads only versions written inline. A version moved to
+        // global.json or a <Version> child would otherwise compare null to null.
+        var unread = sdks
+            .Where(sdk => string.IsNullOrWhiteSpace(sdk.Version))
+            .Select(sdk => $"{sdk.Project} names {sdk.Name} with no inline version, so this guard cannot read it.")
+            .Concat(pins
+                .Where(pin => string.IsNullOrWhiteSpace(pin.Version))
+                .Select(pin => $"Directory.Packages.props pins {pin.Name} with no Version attribute, so this guard cannot read it."))
+            .ToArray();
+        Assert.True(unread.Length == 0, string.Join(Environment.NewLine, unread));
+
         var drift = sdks
             .SelectMany(sdk => pins
                 .Where(pin => pin.Version != sdk.Version)
-                .Select(pin => $"{sdk.Project} uses {sdk.Name}/{sdk.Version ?? "<no version>"}, but Directory.Packages.props pins {pin.Name} at {pin.Version ?? "<no version>"}."))
+                .Select(pin => $"{sdk.Project} uses {sdk.Name}/{sdk.Version}, but Directory.Packages.props pins {pin.Name} at {pin.Version}."))
             .ToArray();
         Assert.True(
             drift.Length == 0,
