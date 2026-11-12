@@ -95,11 +95,10 @@ internal static class CluckworkPlatformServiceCollectionExtensions
             "DataProtection:CertificatePem and DataProtection:PrivateKeyPem are", "DataProtection:PrivateKeyPem");
     }
 
-    // #1338 — certificates the ring was encrypted with before the current one, so a planned
-    // change keeps stored keys readable. The framework decrypts with them and never encrypts.
-    // A leaked certificate never belongs here: that revokes the ring (794). Outside Production
-    // a list with no current certificate is harmless: it only reads, and new keys stay plaintext
-    // as they already do there.
+    // #1338 — certificates the ring used before the current one; the framework decrypts with
+    // them and never encrypts. A leaked certificate never belongs here: that revokes the ring
+    // (794). Outside Production a list with no current certificate is harmless: it only reads,
+    // and keys there are stored in plaintext anyway.
     private static X509Certificate2[] EnsurePreviousCertificates(
         IConfiguration configuration, X509Certificate2? current) =>
     [
