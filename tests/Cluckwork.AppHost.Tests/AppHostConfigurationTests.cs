@@ -15,13 +15,13 @@ namespace Cluckwork.AppHost.Tests;
 public sealed class AppHostConfigurationTests
 {
     private static readonly string[] LocalPortKeys = ["Postgres", "Redis", "Api", "Web"];
+    private static readonly JsonDocumentOptions JsonOptions =
+        new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
     [Fact]
     public void Committed_appsettings_pins_every_local_port_to_a_usable_value()
     {
-        using var document = JsonDocument.Parse(
-            File.ReadAllText(AppSettingsPath()),
-            new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+        using var document = JsonDocument.Parse(File.ReadAllText(AppSettingsPath()), JsonOptions);
 
         Assert.Equal(
             ["LocalPorts"],
@@ -89,13 +89,47 @@ public sealed class AppHostConfigurationTests
             $"appsettings.json must be copied to the output directory, but CopyToOutputDirectory was '{copyToOutput ?? "<unset>"}'.");
     }
 
+    // Dependabot writes an MSBuild SDK version only into global.json
+    // msbuild-sdks, never into a project file, and a stale SDK pulls in its own
+    // older Aspire.Hosting.AppHost (#1404, #1409). So the version lives in
+    // global.json, where Dependabot moves it with the Aspire packages.
     [Fact]
-    public void Aspire_sdk_versions_match_every_Aspire_package_pin()
+    public void No_project_pins_an_Aspire_sdk_version_inline()
     {
-        // Dependabot bumps the PackageVersion pins but has never moved a
-        // project's Sdk="Aspire.AppHost.Sdk/x" attribute, and a stale SDK pulls
-        // in its own older Aspire.Hosting.AppHost (#1404, #1409).
+        var sdks = AspireSdkDeclarations(RepositoryRoot());
+        Assert.True(
+            sdks.Any(sdk => string.Equals(sdk.Name, "Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase)),
+            "No project in Cluckwork.slnx declares the Aspire.AppHost.Sdk SDK.");
+
+        var inline = sdks
+            .Where(sdk => !string.IsNullOrWhiteSpace(sdk.Version))
+            .Select(sdk => $"{sdk.Project} pins {sdk.Name} {sdk.Version} in its {sdk.Form}.")
+            .ToArray();
+        Assert.True(
+            inline.Length == 0,
+            string.Join(Environment.NewLine, inline)
+            + Environment.NewLine
+            + "Remove the version from the project file and keep it only in global.json under msbuild-sdks, where Dependabot updates it with the Aspire packages.");
+    }
+
+    [Fact]
+    public void Global_json_Aspire_sdk_versions_match_every_Aspire_package_pin()
+    {
         var root = RepositoryRoot();
+
+        var globalJsonPath = Path.Combine(root, "global.json");
+        Assert.True(File.Exists(globalJsonPath), "global.json is missing. The Aspire SDK version lives there under msbuild-sdks.");
+        using var globalJson = JsonDocument.Parse(File.ReadAllText(globalJsonPath), JsonOptions);
+        (string Name, string? Version)[] sdks =
+            globalJson.RootElement.TryGetProperty("msbuild-sdks", out var msbuildSdks) && msbuildSdks.ValueKind == JsonValueKind.Object
+                ? msbuildSdks.EnumerateObject()
+                    .Where(sdk => sdk.Name.StartsWith("Aspire.", StringComparison.OrdinalIgnoreCase))
+                    .Select(sdk => (sdk.Name, sdk.Value.ValueKind == JsonValueKind.String ? sdk.Value.GetString() : null))
+                    .ToArray()
+                : [];
+        Assert.True(
+            sdks.Any(sdk => string.Equals(sdk.Name, "Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase)),
+            "global.json has no msbuild-sdks entry for Aspire.AppHost.Sdk.");
 
         var pins = XDocument.Load(Path.Combine(root, "Directory.Packages.props"))
             .Descendants()
@@ -105,9 +139,32 @@ public sealed class AppHostConfigurationTests
             .ToArray();
         Assert.True(pins.Length > 0, "Directory.Packages.props pins no Aspire.* package.");
 
-        // MSBuild takes an SDK from the <Project Sdk="Name/Version"> attribute,
-        // an <Sdk Name Version> element, or an <Import Sdk Version> element.
-        var sdks = XDocument.Load(Path.Combine(root, "Cluckwork.slnx"))
+        // An unread version on both sides would otherwise compare null to null.
+        var unread = sdks
+            .Where(sdk => string.IsNullOrWhiteSpace(sdk.Version))
+            .Select(sdk => $"global.json msbuild-sdks gives {sdk.Name} no version string, so this guard cannot read it.")
+            .Concat(pins
+                .Where(pin => string.IsNullOrWhiteSpace(pin.Version))
+                .Select(pin => $"Directory.Packages.props pins {pin.Name} with no Version attribute, so this guard cannot read it."))
+            .ToArray();
+        Assert.True(unread.Length == 0, string.Join(Environment.NewLine, unread));
+
+        var drift = sdks
+            .SelectMany(sdk => pins
+                .Where(pin => !string.Equals(pin.Version, sdk.Version, StringComparison.OrdinalIgnoreCase))
+                .Select(pin => $"global.json msbuild-sdks pins {sdk.Name} at {sdk.Version}, but Directory.Packages.props pins {pin.Name} at {pin.Version}."))
+            .ToArray();
+        Assert.True(
+            drift.Length == 0,
+            string.Join(Environment.NewLine, drift)
+            + Environment.NewLine
+            + "Set the Aspire SDK versions in global.json and the Aspire package pins in Directory.Packages.props to one version, in the same PR. If no Aspire.AppHost.Sdk of that version is published, decide by hand whether to pin the packages back or accept the gap.");
+    }
+
+    // MSBuild takes an SDK from the <Project Sdk="Name/Version"> attribute, an
+    // <Sdk Name Version> element, or an <Import Sdk Version> element.
+    private static (string Project, string Form, string Name, string? Version)[] AspireSdkDeclarations(string root) =>
+        XDocument.Load(Path.Combine(root, "Cluckwork.slnx"))
             .Descendants("Project")
             .Select(project => project.Attribute("Path")!.Value.Replace('\\', '/'))
             .SelectMany(path =>
@@ -127,32 +184,6 @@ public sealed class AppHostConfigurationTests
             })
             .Where(sdk => sdk.Name.StartsWith("Aspire.", StringComparison.OrdinalIgnoreCase))
             .ToArray();
-        Assert.True(
-            sdks.Any(sdk => string.Equals(sdk.Name, "Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase)),
-            "No project in Cluckwork.slnx declares the Aspire.AppHost.Sdk SDK.");
-
-        // The guard reads only versions written inline. A version moved to
-        // global.json or a <Version> child would otherwise compare null to null.
-        var unread = sdks
-            .Where(sdk => string.IsNullOrWhiteSpace(sdk.Version))
-            .Select(sdk => $"{sdk.Project} names {sdk.Name} in its {sdk.Form} with no inline version, so this guard cannot read it.")
-            .Concat(pins
-                .Where(pin => string.IsNullOrWhiteSpace(pin.Version))
-                .Select(pin => $"Directory.Packages.props pins {pin.Name} with no Version attribute, so this guard cannot read it."))
-            .ToArray();
-        Assert.True(unread.Length == 0, string.Join(Environment.NewLine, unread));
-
-        var drift = sdks
-            .SelectMany(sdk => pins
-                .Where(pin => !string.Equals(pin.Version, sdk.Version, StringComparison.OrdinalIgnoreCase))
-                .Select(pin => $"{sdk.Project} uses {sdk.Name} {sdk.Version} in its {sdk.Form}, but Directory.Packages.props pins {pin.Name} at {pin.Version}."))
-            .ToArray();
-        Assert.True(
-            drift.Length == 0,
-            string.Join(Environment.NewLine, drift)
-            + Environment.NewLine
-            + "Update each reported Aspire SDK declaration to the matching package version, in the same PR. Dependabot updates the pins but not the SDK declarations. If no Aspire.AppHost.Sdk of that version is published, decide by hand whether to pin the packages back or accept the gap.");
-    }
 
     [Fact]
     public async Task Committed_appsettings_is_a_live_configuration_source()
