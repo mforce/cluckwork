@@ -129,7 +129,7 @@ public sealed class AppHostConfigurationTests
             .ToArray();
         Assert.True(
             sdks.Any(sdk => string.Equals(sdk.Name, "Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase)),
-            "No project in Cluckwork.slnx declares Sdk=\"Aspire.AppHost.Sdk/<version>\" on its <Project> element.");
+            "No project in Cluckwork.slnx declares the Aspire.AppHost.Sdk SDK.");
 
         // The guard reads only versions written inline. A version moved to
         // global.json or a <Version> child would otherwise compare null to null.
