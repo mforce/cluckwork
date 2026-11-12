@@ -113,7 +113,7 @@ const LOCK = LOCK_FILES[0];
 // Runs lockfix-apply.sh in a scratch workspace laid out like the commit job:
 // trusted/ scripts, a pr/ checkout of a pushed branch, and an artifact of new
 // locks. `tamper(pr, commit, scripts)` shapes the workspace before the run.
-function runApply(tamper = () => {}) {
+function runApply(tamper = () => {}, env = {}) {
   const dir = mkdtempSync(join(scratch, "apply-"));
   const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
   const scripts = join(dir, "trusted/.github/scripts");
@@ -141,7 +141,7 @@ function runApply(tamper = () => {}) {
   const run = spawnSync("bash", [join(scripts, "lockfix-apply.sh")], {
     cwd: dir,
     encoding: "utf8",
-    env: { ...process.env, ARTIFACT_DIR: join(dir, "art"), HEAD_BRANCH: "pr" },
+    env: { ...process.env, ARTIFACT_DIR: join(dir, "art"), HEAD_BRANCH: "pr", ...env },
   });
   const pushed = spawnSync("git", ["-C", join(dir, "remote.git"), "show", `pr:${LOCK}`], { encoding: "utf8" });
   return { run, pushed: pushed.stdout, applyScript: readFileSync(join(scripts, "lockfix-apply.sh"), "utf8") };
@@ -200,11 +200,26 @@ test("apply: a directory committed at a lock path -> abort", () => {
   assert.equal(pushed, "");
 });
 
+// The untracked files overflow the pipe, so git status dies of SIGPIPE (141)
+// on every run once the empty classifier exits unread. The refusal must still
+// name the classifier's own exit, not git's (#1408).
 test("apply: a classifier that exits 0 without classifying -> refuse", () => {
-  const { run, pushed } = runApply((_pr, _commit, scripts) => {
+  const { run, pushed } = runApply((pr, _commit, scripts) => {
     writeFileSync(join(scripts, "lockfix.mjs"), "");
+    for (let i = 0; i < 1000; i++) writeFileSync(join(pr, `untracked-${i}-${"x".repeat(200)}`), "");
   });
   assert.notEqual(run.status, 0);
   assert.match(run.stdout, /Classifier refused \(exit 0\)/);
+  assert.equal(pushed, "");
+});
+
+// A `git` first on PATH that runs the real one, then fails `git status` after
+// printing it, so the classifier sees a lock-only diff and answers commit.
+test("apply: git status fails after printing a lock-only diff -> refuse", () => {
+  const bin = mkdtempSync(join(scratch, "bin-"));
+  writeFileSync(join(bin, "git"), '#!/bin/sh\nPATH=${PATH#*:}\ngit "$@" || exit\n[ "$1" != status ] || exit 128\n', { mode: 0o755 });
+  const { run, pushed } = runApply(undefined, { PATH: `${bin}:${process.env.PATH}` });
+  assert.notEqual(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /git status failed \(exit 128\)/);
   assert.equal(pushed, "");
 });
