@@ -1,4 +1,6 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+<Project Sdk="Aspire.AppHost.Sdk">
+  <!-- The SDK version lives in global.json (msbuild-sdks), where Dependabot
+       can update it. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>

@@ -14,6 +14,7 @@ import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
 import { parseError } from "../../api/errors";
 import i18n from "../../i18n";
+import { freshPassword } from "../../test/passwords";
 
 // #1277 — the Account page's Security section. The network is mocked at the
 // API seam; ApiError stays real, because the section branches on it.
@@ -52,7 +53,6 @@ const freshKey = () => crypto.randomUUID().replace(/-/g, "").toUpperCase().slice
 const enrolmentFor = (key = freshKey()) => ({ key, otpauthUri: `otpauth://totp/Cluckwork:${EMAIL}?secret=${key}&issuer=Cluckwork` });
 const freshCodes = () => Array.from({ length: 10 }, () => crypto.randomUUID().slice(0, 19));
 const grant = () => ({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
-const password = () => `Aa1!${crypto.randomUUID()}`;
 
 const t = (key: string, options: Record<string, unknown> = {}): string => i18n.t(`account:${key}` as "account:heading", options);
 const dialog = () => screen.getByRole("dialog");
@@ -62,7 +62,7 @@ const press = async (name: string | RegExp, within_: HTMLElement = document.body
 const passwordField = () => within(dialog()).getByLabelText(/Your current password/);
 const codeField = () => within(dialog()).queryByLabelText(/Authenticator or recovery code/);
 const prove = (enrolled: boolean) => {
-  const proof = { password: password(), ...(enrolled && { code: freshCode() }) };
+  const proof = { password: freshPassword(), ...(enrolled && { code: freshCode() }) };
   fireEvent.change(passwordField(), { target: { value: proof.password } });
   if (proof.code) fireEvent.change(codeField()!, { target: { value: proof.code } });
   return proof;
@@ -474,7 +474,7 @@ describe("focus around the scan step", () => {
     // Only the Cancel moves it: typing afterwards keeps focus where it is.
     const current = screen.getByLabelText(new RegExp(t("currentPasswordLabel")));
     act(() => current.focus());
-    fireEvent.change(current, { target: { value: password() } });
+    fireEvent.change(current, { target: { value: freshPassword() } });
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
     expect(current).toHaveFocus();
   });

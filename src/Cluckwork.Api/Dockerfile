@@ -33,11 +33,13 @@ WORKDIR /src
 # Directory.Packages.props carries every package VERSION (#684, Central Package
 # Management), so both must precede restore — without the second the csproj
 # files reference packages with no version and the restore fails (NU1010).
+# global.json holds only the AppHost's Aspire SDK version (#1409). The API does
+# not use that SDK, but it is a restore input, so it goes in with the other two.
 # Only the SERVING projects are restored here (not the test projects),
 # so only their four lock files are needed, plus the module-edge analyzer
 # they all reference (#859). Copying just these inputs (not the
 # full source tree) keeps the restore layer cached across source-only changes.
-COPY Directory.Build.props Directory.Packages.props ./
+COPY Directory.Build.props Directory.Packages.props global.json ./
 COPY src/Cluckwork.Domain/Cluckwork.Domain.csproj src/Cluckwork.Domain/packages.lock.json src/Cluckwork.Domain/
 COPY src/Cluckwork.Application/Cluckwork.Application.csproj src/Cluckwork.Application/packages.lock.json src/Cluckwork.Application/
 COPY src/Cluckwork.Infrastructure/Cluckwork.Infrastructure.csproj src/Cluckwork.Infrastructure/packages.lock.json src/Cluckwork.Infrastructure/

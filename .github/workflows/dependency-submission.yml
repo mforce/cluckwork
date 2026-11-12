@@ -36,6 +36,7 @@ on:
       - "**/packages.lock.json"
       - "**/Directory.Build.props"
       - "Directory.Packages.props"
+      - "global.json"
       - "Cluckwork.slnx"
       - ".github/workflows/dependency-submission.yml"
   workflow_dispatch:
