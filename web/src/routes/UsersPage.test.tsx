@@ -25,6 +25,7 @@ import { getAccessToken } from "../auth/tokenStore";
 import i18n from "../i18n";
 import { freshCode } from "../test/codes";
 import { productionStepUpCallSites } from "../test/stepUpCallers";
+import { freshPassword } from "../test/passwords";
 
 // Runtime-generated, with NO static substring — GitGuardian's scanner
 // flagged an earlier version of this line even though it was already
@@ -347,7 +348,7 @@ describe("UsersPage create", () => {
     openCreate();
 
     // Runtime-generated credential — no literal secret in source (GitGuardian).
-    const password = `pw-${crypto.randomUUID()}`;
+    const password = freshPassword();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "  New@Farm.test  " } });
     // #360 — two password fields now coexist (the new user's and the
     // caller's current one); the first is the new account's.
@@ -387,7 +388,7 @@ describe("UsersPage create", () => {
     // With a name.
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "named@farm.test" } });
-    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], { target: { value: freshPassword() } });
     fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "  Ada Lovelace  " } });
     // #360 — the proof field is present for every creation; a grant is spent
     // on the write.
@@ -401,7 +402,7 @@ describe("UsersPage create", () => {
     // proof cleared before awaiting), so retype it.
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "anon@farm.test" } });
-    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(within(dialog()).getAllByLabelText(/Password/)[0], { target: { value: freshPassword() } });
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
     expect(mockCreateUser.mock.calls[1][0].name).toBeUndefined();
@@ -425,7 +426,7 @@ describe("UsersPage create", () => {
     // the proof field is required on every attempt; production clears the
     // typed proof before awaiting, so it must be retyped per attempt.
     fireEvent.change(emailInput(), { target: { value: "one@farm.test" } });
-    fireEvent.change(pwInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(pwInput(), { target: { value: freshPassword() } });
     fireEvent.change(proofInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(submit()); });
     // A failure keeps the dialog up with the error inside it.
@@ -440,7 +441,7 @@ describe("UsersPage create", () => {
     // refill the same email → fresh key. Proof retyped again.
     openCreate();
     fireEvent.change(emailInput(), { target: { value: "one@farm.test" } });
-    fireEvent.change(pwInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(pwInput(), { target: { value: freshPassword() } });
     fireEvent.change(proofInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(submit()); });
 
@@ -532,9 +533,6 @@ describe("UsersPage edit name (#163)", () => {
 describe("UsersPage set password (#165)", () => {
   const openPw = (rowName: RegExp) =>
     fireEvent.click(userActions(screen.getByRole("row", { name: rowName, hidden: true })).getByRole("button", { name: "password", hidden: true }));
-
-  // Runtime-generated so no literal secret lands in source (GitGuardian).
-  const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
 
   it("sets a user's password from the inspector action, sending id + password + a key", async () => {
     mockSetUserPassword.mockResolvedValue(undefined);
@@ -1742,7 +1740,7 @@ describe("UsersPage dialog dismissal", () => {
   // Runtime-generated so no literal secret lands in source (GitGuardian).
   const typeCreatePassword = () => {
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "leaky@farm.test" } });
-    fireEvent.change(passwordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(passwordInput(), { target: { value: freshPassword() } });
   };
 
   it("clears the typed password on Cancel, so reopening the dialog shows it empty (#314)", async () => {
@@ -2615,7 +2613,7 @@ describe("UsersPage pending states (#236)", () => {
     await renderReady(ADMIN);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "held@farm.test" } });
-    fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: freshPassword() } });
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
       target: { value: OWNER_STEP_UP_PASSWORD },
     });
@@ -2818,7 +2816,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
         await renderReady(ADMIN);
         openCreate();
         fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "ro@farm.test" } });
-        fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: `pw-${crypto.randomUUID()}` } });
+        fireEvent.change(within(dialog()).getByLabelText(/Password/), { target: { value: freshPassword() } });
         fireEvent.change(within(dialog()).getByLabelText("Role"), { target: { value: "ReadOnly" } });
         fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
           target: { value: OWNER_STEP_UP_PASSWORD },
@@ -2863,7 +2861,7 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
         await renderReady(ADMIN);
         const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
         fireEvent.click(userActions(workerRow).getByRole("button", { name: "password" }));
-        const password = `pw-${crypto.randomUUID()}`;
+        const password = freshPassword();
         fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: password } });
         fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: password } });
         fireEvent.change(within(dialog()).getByLabelText(/Your current password/), {
@@ -2958,7 +2956,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     openCreate();
 
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss@farm.test" } });
-    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(createPasswordInput(), { target: { value: freshPassword() } });
     selectAdminRole();
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
@@ -2975,7 +2973,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     await renderReady(ADMIN);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss2@farm.test" } });
-    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(createPasswordInput(), { target: { value: freshPassword() } });
     selectAdminRole();
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: "Create user" })); });
@@ -2992,7 +2990,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     await renderReady(ADMIN);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "worker@farm.test" } });
-    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(createPasswordInput(), { target: { value: freshPassword() } });
 
     // Pick Owner, type the step-up password, then change your mind.
     selectAdminRole();
@@ -3031,7 +3029,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     await renderReady(ADMIN);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss3@farm.test" } });
-    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(createPasswordInput(), { target: { value: freshPassword() } });
     selectAdminRole();
     fireEvent.change(ownerPasswordInput(), { target: { value: "wrong-password" } });
 
@@ -3050,7 +3048,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     await renderReady(ADMIN);
     openCreate();
     fireEvent.change(within(dialog()).getByLabelText("Email *"), { target: { value: "boss4@farm.test" } });
-    fireEvent.change(createPasswordInput(), { target: { value: `pw-${crypto.randomUUID()}` } });
+    fireEvent.change(createPasswordInput(), { target: { value: freshPassword() } });
     selectAdminRole();
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
 
@@ -3076,7 +3074,7 @@ describe("UsersPage step-up authentication (#308)", () => {
     openPwFor(/boss@farm.test/);
     expect(ownerPasswordInput()).toBeInTheDocument();
 
-    const newPw = `Aa1!${crypto.randomUUID()}`;
+    const newPw = freshPassword();
     fireEvent.change(within(dialog()).getByLabelText(/New password/), { target: { value: newPw } });
     fireEvent.change(within(dialog()).getByLabelText(/Confirm new password/), { target: { value: newPw } });
     fireEvent.change(ownerPasswordInput(), { target: { value: OWNER_STEP_UP_PASSWORD } });
@@ -4059,7 +4057,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   const press = (name: string) => act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name })); });
   const passwordField = () => within(dialog()).getByLabelText(/Your current password/);
   const codeField = () => within(dialog()).getByLabelText(/Authenticator or recovery code/);
-  const newPassword = `Aa1!${crypto.randomUUID()}`;
+  const newPassword = freshPassword();
 
   // `site` is the function that calls stepUp(), as test/stepUpCallers.ts names
   // it. `open` opens the dialog and fills what the action needs besides the

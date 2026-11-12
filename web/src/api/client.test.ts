@@ -23,6 +23,7 @@ import {
 import { getAccessToken, setAccessToken, clearAccessToken } from "../auth/tokenStore";
 import { bindAccount, clearBoundAccount, getBoundAccountId } from "../auth/tokenStore";
 import i18n from "../i18n";
+import { freshPassword } from "../test/passwords";
 
 // The fetch client owns the SPA's session lifecycle: bearer-attach, one
 // transparent refresh-and-retry on 401, single-flight refresh, and fail-closed
@@ -1280,11 +1281,6 @@ describe("changePassword (#165)", () => {
 
   it("posts to /auth/change-password and swaps in the returned access token", async () => {
     fetchMock.mockResolvedValueOnce(accessResponse("at-after-change"));
-    // Runtime-generated so no literal secret lands in source. Built through a
-    // helper rather than inline: a password-shaped literal sitting directly on a
-    // `currentPassword = ...` line trips secret scanners even when the value is
-    // a fresh UUID (GitGuardian flagged exactly this on PR #183).
-    const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
     const currentPassword = freshPassword();
     const newPassword = freshPassword();
 
@@ -1378,7 +1374,7 @@ describe("sentAuthenticatorCode on a refused code", () => {
 describe("stepUp (#308)", () => {
   it("posts the password to /auth/step-up as an authenticated write and returns the grant", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ token: "grant-abc", expiresAt: FUTURE }));
-    const password = `Aa1!${crypto.randomUUID()}`;
+    const password = freshPassword();
 
     const grant = await stepUp({ password });
 
@@ -1702,7 +1698,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // #438 — login now queues behind the in-flight auth-cookie operation, so
     // it is started (bumping the session generation synchronously) and awaited
     // AFTER the parked operation is released, not before.
-    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: freshPassword() });
     await drain();
     otherTab.resolve();
     await otherTabHold;
@@ -1730,7 +1726,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // The form is already inside the cookie lock, obtaining an access token.
     // A newer login must prevent that old form from borrowing the new bearer
     // when the now-stale refresh finishes.
-    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: freshPassword() });
     await drain();
     refreshGate.resolve(accessResponse(claimfulToken("stale-refresh-token")));
     await loggingIn;
@@ -1762,7 +1758,7 @@ describe("cross-tab refresh coordination (#169)", () => {
     // Supersede the form while its first request is already on the wire, then
     // make that old request answer 401. Generic apiFetch behavior would refresh
     // the newer session and resend the old form body against it.
-    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: `pw-${crypto.randomUUID()}` });
+    const loggingIn = login({ farmCode: "default-farm", email: "new@session.test", password: freshPassword() });
     await drain();
     firstChange.resolve(jsonResponse({ title: "Unauthorized" }, 401));
     await loggingIn;

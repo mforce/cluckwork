@@ -5,6 +5,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { changePassword, ApiError } from "../api/client";
 import i18n from "../i18n";
 import { freshCode } from "../test/codes";
+import { freshPassword } from "../test/passwords";
 
 // Keep the real ApiError (errText branches on `instanceof`); stub the network
 // and the AuthProvider's registration hooks.
@@ -20,9 +21,6 @@ vi.mock("../api/client", async (importOriginal) => {
 });
 
 const mockChangePassword = vi.mocked(changePassword);
-
-// Runtime-generated, policy-shaped — never a literal secret in source.
-const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
 
 const WORKER = { sub: "u1", role: "Worker" };
 
@@ -91,7 +89,8 @@ describe("AccountPage (#165 self-service password change)", () => {
   it("refuses a too-short new password client-side", async () => {
     renderWithProviders(<AccountPage />, { token: WORKER });
 
-    fill(freshPassword(), "Aa1!short", "Aa1!short"); // 9 chars
+    const short = freshPassword().slice(0, 9); // 9 chars
+    fill(freshPassword(), short, short);
     await act(async () => { submit(); });
 
     expect(mockChangePassword).not.toHaveBeenCalled();
@@ -259,7 +258,8 @@ describe("AccountPage i18n wiring (#182, Task 25)", () => {
   it("interpolates {{min}} into the too-short error from the catalog", async () => {
     await withOverride("passwordTooShortError", "TOO-SHORT-MARKER {{min}} MARKER-END", async () => {
       renderWithProviders(<AccountPage />, { token: WORKER });
-      fill(freshPassword(), "Aa1!short", "Aa1!short"); // 9 chars, under MIN_LENGTH (12)
+      const short = freshPassword().slice(0, 9); // 9 chars, under MIN_LENGTH (12)
+      fill(freshPassword(), short, short);
       await act(async () => { submit(); });
       expect(screen.getByText("TOO-SHORT-MARKER 12 MARKER-END")).toBeInTheDocument();
       expect(screen.queryByText(/at least 12 characters/)).not.toBeInTheDocument();

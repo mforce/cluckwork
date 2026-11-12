@@ -12,6 +12,7 @@ import { apiGet } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { otherTabSignals } from "../test/otherTab";
 import i18n from "../i18n";
+import { freshPassword } from "../test/passwords";
 
 // #1281 — an Owner past the grace deadline. The API answers 403
 // Auth.TwoFactorEnrolmentRequired to everything but the steps of enrolment,
@@ -179,7 +180,7 @@ const sent = (key: string) => waitFor(() => expect(held.get(key)).toBeDefined())
 async function toScanStep() {
   await press(t("setUpButton"), (await setUpScreen()).closest("main")!);
   const proof = screen.getByRole("dialog");
-  fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: `Aa1!${crypto.randomUUID()}` } });
+  fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
   await press(t("continueButton"), proof);
   await screen.findByRole("heading", { name: t("scanHeading") });
 }
@@ -308,7 +309,7 @@ describe("the forced two-factor setup screen", () => {
     expect(screen.getByRole("heading", { name: i18n.t("auth:setPasswordHeading") })).toBeInTheDocument();
     expect(setUpShown()).toBe(false);
 
-    const next = `Aa1!${crypto.randomUUID()}`;
+    const next = freshPassword();
     fireEvent.change(screen.getByLabelText(new RegExp(i18n.t("auth:temporaryPasswordLabel"))), { target: { value: crypto.randomUUID() } });
     fireEvent.change(screen.getByLabelText(/New password/), { target: { value: next } });
     fireEvent.change(screen.getByLabelText(new RegExp(i18n.t("auth:setPasswordConfirmLabel"))), { target: { value: next } });
