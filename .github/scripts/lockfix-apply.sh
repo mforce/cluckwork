@@ -42,14 +42,18 @@ done
 cd pr
 
 # Classify with the TRUSTED classifier (../trusted/...), not any copy on the PR.
+# Read each side's own status: under pipefail $? is the last non-zero one, so
+# the classifier's 3 or 4 would hide a failed git status, and a classifier that
+# exits unread would be blamed for git's SIGPIPE (141).
 set +e
 git status --porcelain -z | node ../trusted/.github/scripts/lockfix.mjs
-verdict=$?
+read -r status verdict <<<"${PIPESTATUS[*]}"
 set -e
 
-case "$verdict" in
-  3) echo "No lock changes after restore — nothing to do."; exit 0 ;;
-  4) : ;;  # commit below
+case "$status:$verdict" in
+  0:3) echo "No lock changes after restore — nothing to do."; exit 0 ;;
+  0:4) : ;;  # commit below
+  *:[34]) echo "git status failed (exit $status) — not committing."; exit 1 ;;
   *) echo "Classifier refused (exit $verdict) — not committing."; exit 1 ;;
 esac
 
