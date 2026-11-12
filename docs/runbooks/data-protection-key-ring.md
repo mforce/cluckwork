@@ -242,8 +242,9 @@ certificate, so there is no safe point at which to retire an old certificate whi
 users remain enrolled.
 
 Removing an entry does not revoke its certificate. The keys it encrypted stay in the table
-and in backups, so keep its private key as protected as a listed one until procedure C
-deletes those rows. If it leaks, follow procedure C.
+and in backups. Keep any retained private key as protected as a listed one while keys it
+encrypted remain in the database or any backup. Procedure C deletes the live rows; its
+backup precautions still apply. If the key leaks, follow procedure C.
 
 ## Verify
 
