@@ -109,7 +109,7 @@ public sealed class AppHostConfigurationTests
         // an <Sdk Name Version> element, or an <Import Sdk Version> element.
         var sdks = XDocument.Load(Path.Combine(root, "Cluckwork.slnx"))
             .Descendants("Project")
-            .Select(project => project.Attribute("Path")!.Value)
+            .Select(project => project.Attribute("Path")!.Value.Replace('\\', '/'))
             .SelectMany(path =>
             {
                 var project = XDocument.Load(Path.Combine(root, path)).Root!;
