@@ -65,7 +65,7 @@ public sealed class RewrapKeyRingCliCommand : ICliCommand
                 if (plan.NewXml is not null)
                     row.Xml = plan.NewXml;
             }
-            if (PlaintextDataProtectionKeyGuard.PlaintextKeyIds(rows.Select(r => r.Xml)).Count > 0)
+            if (PlaintextDataProtectionKeyGuard.PlaintextKeyIds(plans.Select(p => p.Plan.NewXml)).Count > 0)
                 throw new InvalidOperationException("a re-wrapped key would be stored unencrypted. No row was written.");
             await db.SaveChangesAsync();
 

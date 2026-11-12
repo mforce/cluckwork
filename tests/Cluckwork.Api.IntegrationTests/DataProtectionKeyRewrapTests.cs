@@ -166,6 +166,8 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
     [Theory]
     [InlineData("unknown decryptor type")]
     [InlineData("plaintext key")]
+    [InlineData("plaintext key beside a current secret")]
+    [InlineData("two recipients")]
     [InlineData("key without encryptedSecret")]
     [InlineData("unknown root")]
     [InlineData("empty Xml")]
@@ -181,6 +183,8 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
                 "<key id=\"00000000-0000-0000-0000-000000001420\" version=\"1\"><descriptor><descriptor>"
                 + "<masterKey p4:requiresEncryption=\"true\" xmlns:p4=\"http://schemas.asp.net/2015/03/dataProtection\">"
                 + "<value>not-a-real-key</value></masterKey></descriptor></descriptor></key>",
+            "plaintext key beside a current secret" => WithClearMasterKey(KeysUnder(B, 1)[0].Xml),
+            "two recipients" => WithSecondRecipient(odd),
             "key without encryptedSecret" => WithoutSecrets(odd),
             "unknown root" => "<repository version=\"1\" />",
             "empty Xml" => "",
@@ -305,6 +309,23 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
     {
         var copy = new XElement(key);
         copy.Descendants(Dp + "encryptedSecret").Single().SetAttributeValue("decryptorType", decryptorType);
+        return copy.ToString(SaveOptions.DisableFormatting);
+    }
+
+    private static string WithClearMasterKey(XElement key)
+    {
+        var copy = new XElement(key);
+        copy.Element("descriptor")!.Element("descriptor")!.Add(
+            new XElement("masterKey", new XElement("value", "not-a-real-key")));
+        return copy.ToString(SaveOptions.DisableFormatting);
+    }
+
+    // A second EncryptedKey could name a recipient the configuration never sees.
+    private static string WithSecondRecipient(XElement key)
+    {
+        var copy = new XElement(key);
+        var encryptedKey = copy.Descendants(Xenc + "EncryptedKey").Single();
+        encryptedKey.AddAfterSelf(new XElement(encryptedKey));
         return copy.ToString(SaveOptions.DisableFormatting);
     }
 
