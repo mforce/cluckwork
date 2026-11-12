@@ -11,6 +11,7 @@ import { makeToken } from "../test/jwt";
 import { freshCode } from "../test/codes";
 import { apiGet } from "../api/client";
 import i18n from "../i18n";
+import { freshPassword } from "../test/passwords";
 
 // #1281 — the Owner's grace deadline, from requiredBy on the status route,
 // in the browser's time zone and the user's language. The maintainer chose
@@ -235,7 +236,7 @@ describe("the two-factor deadline banner", () => {
   it("goes from the Dashboard when a confirm sent from Account lands after the user went there", async () => {
     render("/account");
     const proof = await openSetUp();
-    fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: `Aa1!${crypto.randomUUID()}` } });
+    fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
     await press(t("continueButton"), proof);
     await screen.findByRole("heading", { name: t("scanHeading") });
     fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });
@@ -271,7 +272,7 @@ describe("the two-factor deadline banner", () => {
   it("goes once the user turns two-factor on through Account in the same session", async () => {
     render("/account");
     const proof = await openSetUp();
-    fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: `Aa1!${crypto.randomUUID()}` } });
+    fireEvent.change(within(proof).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
     await press(t("continueButton"), proof);
     await screen.findByRole("heading", { name: t("scanHeading") });
     fireEvent.change(screen.getByLabelText(new RegExp(t("codeLabel"))), { target: { value: freshCode() } });

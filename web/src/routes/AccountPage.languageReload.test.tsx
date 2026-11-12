@@ -4,6 +4,7 @@ import { AccountPage } from "./AccountPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { putMeLanguage } from "../api/cluckwork";
 import { LAZY_PACKS } from "../i18n";
+import { freshPassword } from "../test/passwords";
 
 vi.mock("../api/cluckwork", async (io) => ({
   ...(await io<typeof import("../api/cluckwork")>()),
@@ -19,7 +20,7 @@ describe("AccountPage when a language pack fails online (#1149)", () => {
     vi.stubGlobal("location", { reload: vi.fn() });
     renderWithProviders(<AccountPage />, { token: { sub: "u1", role: "Worker" } });
 
-    const draft = `Aa1!${crypto.randomUUID()}`;
+    const draft = freshPassword();
     for (const label of [/Current password/, /New password/, /Confirm new password/])
       fireEvent.change(screen.getByLabelText(label), { target: { value: draft } });
     fireEvent.change(screen.getByRole("combobox", { name: "Language" }), { target: { value: "es" } });

@@ -4,6 +4,7 @@ import { SetPasswordPage } from "./SetPasswordPage";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { changePassword, logout, ApiError } from "../api/client";
 import i18n from "../i18n";
+import { freshPassword } from "../test/passwords";
 
 // Keep the real ApiError (errText branches on `instanceof`); stub the network
 // and the AuthProvider's registration hooks — same pattern as AccountPage.test.tsx.
@@ -20,9 +21,6 @@ vi.mock("../api/client", async (importOriginal) => {
 
 const mockChangePassword = vi.mocked(changePassword);
 const mockLogout = vi.mocked(logout);
-
-// Runtime-generated, policy-shaped — never a literal secret in source.
-const freshPassword = () => `Aa1!${crypto.randomUUID()}`;
 
 // #283 — the claim SetPasswordPage itself doesn't read (ProtectedRoute does,
 // separately), but a real first-run session always carries it; the page's own
@@ -66,7 +64,8 @@ describe("SetPasswordPage (#283 first-run set-your-password screen)", () => {
   it("refuses a too-short new password client-side", async () => {
     renderWithProviders(<SetPasswordPage />, { token: PENDING_ADMIN });
 
-    fill(freshPassword(), "Aa1!short", "Aa1!short"); // 9 chars, under the 12-char floor
+    const short = freshPassword().slice(0, 9); // 9 chars, under the 12-char floor
+    fill(freshPassword(), short, short);
     await act(async () => { submit(); });
 
     expect(mockChangePassword).not.toHaveBeenCalled();
