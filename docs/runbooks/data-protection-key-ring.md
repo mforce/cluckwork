@@ -3,7 +3,8 @@
 **When to use this:** installing the key-encryption certificate on a new deployment;
 changing the certificate as planned (procedure D); a Production serving process refuses
 to start with `Production found N Data Protection key(s) stored without encryption`; or
-the certificate's private key has leaked.
+the private key of the current certificate, or of any listed previous certificate, has
+leaked (procedure C).
 
 **Not this runbook:** a boot that fails with `DataProtection:CertificatePem and
 DataProtection:PrivateKeyPem are not configured` or `are not a usable certificate` is
@@ -138,10 +139,12 @@ If the boot refuses again, it names the remaining key ids; repeat from step 1 wi
 
 ## C. The private key leaked: revoke the whole ring
 
-Anyone holding the leaked private key and a copy of the database (or any backup of it)
-can decrypt every stored key and forge payloads that validate. Revoke all of them. Do
-not keep the old certificate configured for reading, and never list it as a previous
-certificate: procedure D is for a planned change only.
+Use this when the private key of the current certificate, or of any certificate listed in
+`DataProtection__PreviousCertificates__*`, has leaked. Anyone holding a leaked private key
+and a copy of the database (or any backup of it) can decrypt every stored key it
+encrypted and forge payloads that validate. Revoke all of them. Do not keep the leaked
+certificate configured for reading, and never list it as a previous certificate:
+procedure D is for a planned change only.
 
 ### 1. Issue a new certificate on a new key pair
 
@@ -164,8 +167,9 @@ DELETE FROM "DataProtectionKeys";
 ### 4. Replace the secrets and start
 
 Supply the new certificate and key (A.2), remove the leaked ones from every place they
-were stored, and start the instances. Remove every `DataProtection__PreviousCertificates__*`
-entry too: step 3 deleted every key they could read. Verify the fingerprint line (A.3)
+were stored, and start the instances. Delete every `DataProtection__PreviousCertificates__*`
+variable too, because step 3 deleted every key they could read. Delete the variables
+rather than blanking them: a blank entry stops the boot. Verify the fingerprint line (A.3)
 names the new certificate and that no "previous certificate" line follows it.
 
 ### 5. Treat old backups as compromised
@@ -201,7 +205,7 @@ DataProtection__PreviousCertificates__0__PrivateKeyPem=<its private key>
 Then put the new certificate and key in `DataProtection__CertificatePem` and
 `DataProtection__PrivateKeyPem` (A.2). An expired previous certificate is accepted.
 
-### 3. Restart the serving instance
+### 3. Stop every serving instance, then start them again
 
 The boot refuses a previous entry that does not parse, has no matching private key, is not
 RSA, or is the current certificate; the message names the entry. Each start logs the
@@ -214,11 +218,14 @@ Data Protection key ring also reads keys encrypted with the previous certificate
 ### 4. Keep each previous certificate listed
 
 Keep an entry for as long as any key it encrypted protects data still in use. Two-factor
-authenticator keys are encrypted once, at enrolment, and are read at every sign-in. An entry can therefore be needed for as long as any user who
-enrolled under it keeps that authenticator, which can be indefinitely. Removing an entry
-costs what a change without procedure D costs: see the blast radius above. No step yet
-re-encrypts stored keys under the new certificate, so there is no safe point at which to
-retire an old certificate while those users remain enrolled.
+authenticator keys are encrypted once, at enrolment, and are read at every sign-in. An
+entry is therefore needed for as long as any user keeps an authenticator key protected by
+a key that certificate encrypted. That includes users who enrolled up to about 90 days
+after the change, because the ring keeps using its current key until the next one takes
+over. It can be indefinitely. Removing an entry costs what a change without procedure D
+costs: see the blast radius above. No step yet re-encrypts stored keys under the new
+certificate, so there is no safe point at which to retire an old certificate while those
+users remain enrolled.
 
 ## Verify
 

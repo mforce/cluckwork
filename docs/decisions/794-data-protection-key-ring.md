@@ -97,9 +97,11 @@ a planned certificate change costs users nothing.
 - **Not for a leaked key.** A leak still revokes the whole ring, and the leaked
   certificate is never listed.
 - **Retiring a previous certificate.** Two-factor authenticator keys are encrypted once,
-  at enrolment, so a previous certificate stays needed for as long as any user enrolled
-  under it keeps that authenticator. Nothing re-encrypts stored keys under the new
-  certificate yet. Removing an entry costs what an unplanned change costs.
+  at enrolment. A previous certificate therefore stays needed for as long as any user
+  keeps an authenticator key protected by a key that certificate encrypted. That includes
+  users who enrolled up to about 90 days after the change, because the ring keeps using
+  its current key until the next one takes over. Nothing re-encrypts stored keys under the
+  new certificate yet. Removing an entry costs what an unplanned change costs.
 
 ## What counts as plaintext
 
@@ -123,14 +125,16 @@ has the SQL and the checks.
 
 ## Revoking the ring when the private key leaks
 
-Anyone holding the private key and any copy of the database can decrypt every stored key.
-Revoke the whole ring. Never keep reading with the old certificate.
+This applies to the private key of the current certificate or of any listed previous
+certificate. Anyone holding it and any copy of the database can decrypt every stored key it
+encrypted. Revoke the whole ring. Never keep reading with the leaked certificate.
 
 1. Issue a new certificate on a new key pair.
 2. Stop every serving instance, so none writes a key with the leaked certificate.
 3. Delete every row in `DataProtectionKeys`.
 4. Supply the new certificate and key as secrets through configuration, remove the leaked
-   ones, and start. The startup log line names the new certificate's SHA-256 fingerprint.
+   ones, delete every previous-certificate entry (a blanked entry stops the boot), and
+   start. The startup log line names the new certificate's SHA-256 fingerprint.
 5. Treat backups taken before step 3 as compromised. Restoring one brings the revoked keys
    back, so repeat step 3 after any such restore.
 
@@ -172,9 +176,12 @@ yet; the runbook records when it is.
 - `DataProtectionCertificateExpiryTests` pins the two certificate findings above.
 - `DataProtectionPreviousCertificateTests` stores a key under an expired certificate A,
   then starts a host with certificate B current and A listed. That host unprotects A's
-  payload and encrypts a new key with B and not A. A host without A cannot read the
-  payload. `ProcessRoleGuardTests` has four more serving-only rows, one for each refusal
-  of a previous entry, with a blank key separate from an unparseable certificate. Every
+  payload and encrypts a new key with B and not A. A host with C current, A at index 0
+  and B at index 2 reads payloads under both. A renewal on A's key pair boots with A
+  listed and reads A's payload. A host without A cannot read the payload.
+  `ProcessRoleGuardTests` has five more serving-only rows, one for each refusal of a
+  previous entry: an unparseable certificate, a blank key, a mismatched key, a non-RSA
+  key, and the current certificate. Every
   other row runs with a valid expired previous certificate listed, the plaintext-key row
   included. `ServingGuardCoverageTests` maps them to `EnsureUsableCertificate` and
   `EnsurePreviousCertificates`.
