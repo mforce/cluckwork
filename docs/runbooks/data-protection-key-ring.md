@@ -92,7 +92,8 @@ Data Protection key ring encrypted with the certificate whose SHA-256 fingerprin
 ```
 
 It must equal the `openssl x509 -fingerprint -sha256` output from step 1, without the
-colons.
+colons. Production logs compact JSON, so the line shows as this message template, with the
+fingerprint in the `CertificateSha256` property: compare that value.
 
 ## B. Production refuses to start: plaintext keys
 
@@ -221,6 +222,12 @@ current fingerprint, then one line per previous certificate:
 ```
 Data Protection key ring also reads keys encrypted with the previous certificate whose SHA-256 fingerprint is <FINGERPRINT>
 ```
+
+Production logs compact JSON, so the lines show as these message templates, with the
+fingerprints in the `CertificateSha256` and `PreviousCertificateSha256` properties.
+`CertificateSha256` must equal the new certificate's `openssl x509 -fingerprint -sha256`
+output from step 1, and each `PreviousCertificateSha256` the same output for a listed old
+certificate, all without the colons.
 
 ### 4. Keep each previous certificate listed
 
