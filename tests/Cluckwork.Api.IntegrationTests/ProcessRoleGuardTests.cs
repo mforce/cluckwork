@@ -321,6 +321,13 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
             Satisfy: SatisfyPreviousCertificate,
             FailureFamily: "#1338 previous unusable"),
 
+        // The likeliest slip when two pairs are moved by hand: one certificate, the other's key.
+        new("#1338 previous key mismatched", "DataProtection:PreviousCertificates:0 is not a usable certificate and matching private key",
+            Violate: psi => SetPreviousCertificate(psi,
+                TestDataProtectionCertificate.PreviousCertificatePem, TestDataProtectionCertificate.PrivateKeyPem),
+            Satisfy: SatisfyPreviousCertificate,
+            FailureFamily: "#1338 previous unusable"),
+
         new("#1338 previous not RSA", "DataProtection:PreviousCertificates:0 is not an RSA key",
             Violate: psi => SetPreviousCertificate(psi,
                 TestDataProtectionCertificate.EcdsaCertificatePem, TestDataProtectionCertificate.EcdsaPrivateKeyPem),
