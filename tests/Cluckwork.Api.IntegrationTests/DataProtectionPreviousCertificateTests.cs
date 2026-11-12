@@ -31,7 +31,8 @@ public sealed class DataProtectionPreviousCertificateTests(
     [Fact]
     public async Task A_key_encrypted_with_the_previous_certificate_still_unprotects_and_new_keys_use_the_current_one()
     {
-        Assert.True(Certificate(A.Certificate).NotAfter < DateTime.Now, "certificate A must already be expired");
+        using (var a = Certificate(A.Certificate))
+            Assert.True(a.NotAfter < DateTime.Now, "certificate A must already be expired");
         var payload = Protect(factory);
         await using var rotated = Host(B, (0, A));
 
@@ -52,7 +53,7 @@ public sealed class DataProtectionPreviousCertificateTests(
         await using var withB = Host(B, (0, A));
         var payloadB = Protect(withB);
         Assert.Equal(keyB, new Guid(WebEncoders.Base64UrlDecode(payloadB).AsSpan(4, 16)));
-        var c = NewPair();
+        var c = TestDataProtectionCertificate.Generate(RSA.Create(2048));
         await using var withC = Host(c, (0, A), (2, B));
 
         Assert.Equal("authenticator-key", Unprotect(withC, payloadA));
@@ -68,8 +69,10 @@ public sealed class DataProtectionPreviousCertificateTests(
         var payload = Protect(factory);
         using var rsa = RSA.Create();
         rsa.ImportFromPem(PemKey.Normalize(A.Key));
-        var renewed = (Certificate: SelfSigned(rsa).ExportCertificatePem().ReplaceLineEndings("\\n"), A.Key);
-        await using var host = Host(renewed, (0, A));
+        using var renewal = new CertificateRequest(
+                "CN=cluckwork-test-data-protection", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
+            .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+        await using var host = Host((renewal.ExportCertificatePem().ReplaceLineEndings("\\n"), A.Key), (0, A));
 
         Assert.Equal("authenticator-key", Unprotect(host, payload));
     }
@@ -114,22 +117,13 @@ public sealed class DataProtectionPreviousCertificateTests(
         var stored = await scope.ServiceProvider.GetRequiredService<AppDbContext>().DataProtectionKeys
             .Select(k => k.Xml!).ToListAsync();
         var xml = Assert.Single(stored, x => x.Contains(key.KeyId.ToString(), StringComparison.Ordinal));
-        Assert.Contains(Convert.ToBase64String(Certificate(expected.Certificate).RawData), xml, StringComparison.Ordinal);
-        Assert.DoesNotContain(Convert.ToBase64String(Certificate(notWith.Certificate).RawData), xml, StringComparison.Ordinal);
+        using var expectedCertificate = Certificate(expected.Certificate);
+        using var otherCertificate = Certificate(notWith.Certificate);
+        Assert.Contains(Convert.ToBase64String(expectedCertificate.RawData), xml, StringComparison.Ordinal);
+        Assert.DoesNotContain(Convert.ToBase64String(otherCertificate.RawData), xml, StringComparison.Ordinal);
     }
 
     private static X509Certificate2 Certificate(string pem) => X509Certificate2.CreateFromPem(PemKey.Normalize(pem));
-
-    private static X509Certificate2 SelfSigned(RSA rsa) =>
-        new CertificateRequest("CN=cluckwork-test-data-protection", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)
-            .CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
-
-    private static (string Certificate, string Key) NewPair()
-    {
-        using var rsa = RSA.Create(2048);
-        using var certificate = SelfSigned(rsa);
-        return (certificate.ExportCertificatePem().ReplaceLineEndings("\\n"), rsa.ExportPkcs8PrivateKeyPem().ReplaceLineEndings("\\n"));
-    }
 
     public sealed class CertificateAFactory : CluckworkWebApplicationFactory
     {

@@ -169,7 +169,7 @@ internal static class TestDataProtectionCertificate
 
     public static string PreviousPrivateKeyPem => PreviousPair.Value.PrivateKeyPem;
 
-    private static (string CertificatePem, string PrivateKeyPem) Generate(
+    internal static (string CertificatePem, string PrivateKeyPem) Generate(
         AsymmetricAlgorithm key, DateTimeOffset? notAfter = null)
     {
         var expires = notAfter ?? DateTimeOffset.UtcNow.AddYears(1);
