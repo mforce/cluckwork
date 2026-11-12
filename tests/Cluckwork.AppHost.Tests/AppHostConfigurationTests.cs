@@ -9,7 +9,8 @@ namespace Cluckwork.AppHost.Tests;
 /// Guards the committed AppHost <c>appsettings.json</c>. It pins the
 /// <c>LocalPorts</c> defaults every clone gets, so the values have to stay
 /// parseable, mutually distinct, and clear of the ports
-/// <c>deploy/docker-compose.dev.yml</c> already publishes.
+/// <c>deploy/docker-compose.dev.yml</c> already publishes. It also guards the
+/// AppHost's build files.
 /// </summary>
 public sealed class AppHostConfigurationTests
 {
@@ -86,6 +87,47 @@ public sealed class AppHostConfigurationTests
         Assert.True(
             copyToOutput is "PreserveNewest" or "Always",
             $"appsettings.json must be copied to the output directory, but CopyToOutputDirectory was '{copyToOutput ?? "<unset>"}'.");
+    }
+
+    [Fact]
+    public void Aspire_sdk_versions_match_every_Aspire_package_pin()
+    {
+        // Dependabot bumps the PackageVersion pins but has never moved a
+        // project's Sdk="Aspire.AppHost.Sdk/x" attribute, and a stale SDK pulls
+        // in its own older Aspire.Hosting.AppHost (#1404, #1409).
+        var root = RepositoryRoot();
+
+        var pins = XDocument.Load(Path.Combine(root, "Directory.Packages.props"))
+            .Descendants()
+            .Where(element => element.Name.LocalName == "PackageVersion")
+            .Select(element => (Name: element.Attribute("Include")?.Value ?? "", Version: element.Attribute("Version")?.Value))
+            .Where(pin => pin.Name.StartsWith("Aspire.", StringComparison.Ordinal))
+            .ToArray();
+        Assert.True(pins.Length > 0, "Directory.Packages.props pins no Aspire.* package.");
+
+        var sdks = XDocument.Load(Path.Combine(root, "Cluckwork.slnx"))
+            .Descendants("Project")
+            .Select(project => project.Attribute("Path")!.Value)
+            .SelectMany(path => (XDocument.Load(Path.Combine(root, path)).Root!.Attribute("Sdk")?.Value ?? "")
+                .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Select(sdk => sdk.Split('/', 2))
+                .Select(parts => (Project: path, Name: parts[0], Version: parts.ElementAtOrDefault(1))))
+            .Where(sdk => sdk.Name.StartsWith("Aspire.", StringComparison.Ordinal))
+            .ToArray();
+        Assert.True(
+            sdks.Any(sdk => sdk.Name == "Aspire.AppHost.Sdk"),
+            "No project in Cluckwork.slnx declares Sdk=\"Aspire.AppHost.Sdk/<version>\" on its <Project> element.");
+
+        var drift = sdks
+            .SelectMany(sdk => pins
+                .Where(pin => pin.Version != sdk.Version)
+                .Select(pin => $"{sdk.Project} uses {sdk.Name}/{sdk.Version ?? "<no version>"}, but Directory.Packages.props pins {pin.Name} at {pin.Version ?? "<no version>"}."))
+            .ToArray();
+        Assert.True(
+            drift.Length == 0,
+            string.Join(Environment.NewLine, drift)
+            + Environment.NewLine
+            + "Set the Sdk version on the project's first line to the Aspire package version in the same PR. Dependabot updates the pins but not the Sdk attribute.");
     }
 
     [Fact]
