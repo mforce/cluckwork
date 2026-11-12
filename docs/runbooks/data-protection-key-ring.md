@@ -38,8 +38,13 @@ and start every serving instance, and SQL access to the Production database.
 container with the API running in Production: procedure A (certificate issued with the
 command below, fingerprint matched) and procedure B, steps 1 to 4, against a plaintext
 row with single-quoted attributes, spaces around `=` and no `requiresEncryption` marker,
-stored beside a real encrypted key and a revocation record. Procedures C and D: not
-recorded.
+stored beside a real encrypted key and a revocation record. Procedure D: 2026-11-12 by
+the #1338 implementer at commit `c401267e`, the same way. Certificate A was issued with
+the A.1 command and an Owner enrolled in two-factor. Certificate B was then issued and A
+moved to `DataProtection__PreviousCertificates__0__*` as D.2 says. After the restart, both
+fingerprint lines matched the `openssl` output and the Owner signed in with an
+authenticator code. With A removed from the list, the same sign-in was refused with
+`Auth.SecondFactorKeyUnavailable`. Procedure C: not recorded.
 
 Background and the reasons behind each rule:
 [`794-data-protection-key-ring.md`](../decisions/794-data-protection-key-ring.md).
@@ -143,9 +148,9 @@ Use this when the private key of any certificate that encrypted a key still in t
 in a backup has leaked: the current certificate, one listed in
 `DataProtection__PreviousCertificates__*`, or one removed from that list. Anyone holding a
 leaked private key and a copy of the database (or any backup of it) can decrypt every
-stored key it encrypted and forge payloads that validate. Revoke all of them. Do not keep the leaked
-certificate configured for reading, and never list it as a previous certificate:
-procedure D is for a planned change only.
+stored key it encrypted and forge payloads that validate. Revoke all of them. Do not keep
+the leaked certificate configured for reading, and never list it as a previous
+certificate: procedure D is for a planned change only.
 
 ### 1. Issue a new certificate on a new key pair
 
@@ -230,8 +235,8 @@ certificate, so there is no safe point at which to retire an old certificate whi
 users remain enrolled.
 
 Removing an entry does not revoke its certificate. The keys it encrypted stay in the table
-and in backups, so keep its private key as protected as a listed one until those rows are
-gone. If it leaks, follow procedure C.
+and in backups, so keep its private key as protected as a listed one until procedure C
+deletes those rows. If it leaks, follow procedure C.
 
 ## Verify
 
