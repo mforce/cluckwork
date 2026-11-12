@@ -151,7 +151,7 @@ public sealed class AppHostConfigurationTests
             drift.Length == 0,
             string.Join(Environment.NewLine, drift)
             + Environment.NewLine
-            + "Set the Sdk version on the project's first line to the Aspire package version in the same PR. Dependabot updates the pins but not the Sdk attribute.");
+            + "Set the Sdk version on the project's first line to the Aspire package version in the same PR. Dependabot updates the pins but not the Sdk attribute. If no Aspire.AppHost.Sdk of that version is published, decide by hand whether to pin the packages back or accept the gap.");
     }
 
     [Fact]
