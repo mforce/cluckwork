@@ -526,7 +526,7 @@ New events in `SecurityEvents` (`SecurityEvents.cs:23-88`), each with a row in `
 
 #### 21. The SPA draws the QR code with `uqr`
 
-The enrolment screen draws the `otpauth://` URI with `uqr` (MIT, no dependencies, 11,651 bytes minified) as a React `<svg>` path from its module matrix, shows the key as text, and makes the URI a link on a phone. The lazy chunk is still precached (`web/scripts/verify-sw.mjs:294-299`) against the 1,600 KiB ceiling (`:452-458`), so #1277 reports the measured size.
+The enrolment screen draws the `otpauth://` URI with `uqr` (MIT, no dependencies, 11,651 bytes minified) as a React `<svg>` path from its module matrix, shows the key as text, and makes the URI a link on a phone. The lazy chunk is still precached (`web/scripts/verify-sw.mjs:294-299`) against the 1,700 KiB ceiling (`:452-464`), so #1277 reports the measured size.
 
 It is the smallest of the three measured, and `jsqr` decoded its output. Rejected: drawing on the server, which needs an image endpoint carrying the secret or a `data:` URI that the CSP forbids (`SecurityHeaders.cs:63`). `qrcode-generator` is the fallback if `uqr` fails #146's audit gate.
 
