@@ -101,21 +101,34 @@ public sealed class AppHostConfigurationTests
             .Descendants()
             .Where(element => element.Name.LocalName == "PackageVersion")
             .Select(element => (Name: element.Attribute("Include")?.Value ?? "", Version: element.Attribute("Version")?.Value))
-            .Where(pin => pin.Name.StartsWith("Aspire.", StringComparison.Ordinal))
+            .Where(pin => pin.Name.StartsWith("Aspire.", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Assert.True(pins.Length > 0, "Directory.Packages.props pins no Aspire.* package.");
 
+        // MSBuild takes an SDK from the <Project Sdk="Name/Version"> attribute,
+        // an <Sdk Name Version> element, or an <Import Sdk Version> element.
         var sdks = XDocument.Load(Path.Combine(root, "Cluckwork.slnx"))
             .Descendants("Project")
             .Select(project => project.Attribute("Path")!.Value)
-            .SelectMany(path => (XDocument.Load(Path.Combine(root, path)).Root!.Attribute("Sdk")?.Value ?? "")
-                .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Select(sdk => sdk.Split('/', 2))
-                .Select(parts => (Project: path, Name: parts[0], Version: parts.ElementAtOrDefault(1))))
-            .Where(sdk => sdk.Name.StartsWith("Aspire.", StringComparison.Ordinal))
+            .SelectMany(path =>
+            {
+                var project = XDocument.Load(Path.Combine(root, path)).Root!;
+                return (project.Attribute("Sdk")?.Value ?? "")
+                    .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(sdk => sdk.Split('/', 2))
+                    .Select(parts => (Name: parts[0], Version: parts.ElementAtOrDefault(1)))
+                    .Concat(project.Descendants()
+                        .Where(element => element.Name.LocalName == "Sdk")
+                        .Select(element => (Name: element.Attribute("Name")?.Value ?? "", Version: element.Attribute("Version")?.Value)))
+                    .Concat(project.Descendants()
+                        .Where(element => element.Name.LocalName == "Import" && element.Attribute("Sdk") is not null)
+                        .Select(element => (Name: element.Attribute("Sdk")!.Value, Version: element.Attribute("Version")?.Value)))
+                    .Select(sdk => (Project: path, sdk.Name, sdk.Version));
+            })
+            .Where(sdk => sdk.Name.StartsWith("Aspire.", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         Assert.True(
-            sdks.Any(sdk => sdk.Name == "Aspire.AppHost.Sdk"),
+            sdks.Any(sdk => string.Equals(sdk.Name, "Aspire.AppHost.Sdk", StringComparison.OrdinalIgnoreCase)),
             "No project in Cluckwork.slnx declares Sdk=\"Aspire.AppHost.Sdk/<version>\" on its <Project> element.");
 
         // The guard reads only versions written inline. A version moved to
@@ -131,7 +144,7 @@ public sealed class AppHostConfigurationTests
 
         var drift = sdks
             .SelectMany(sdk => pins
-                .Where(pin => pin.Version != sdk.Version)
+                .Where(pin => !string.Equals(pin.Version, sdk.Version, StringComparison.OrdinalIgnoreCase))
                 .Select(pin => $"{sdk.Project} uses {sdk.Name}/{sdk.Version}, but Directory.Packages.props pins {pin.Name} at {pin.Version}."))
             .ToArray();
         Assert.True(
