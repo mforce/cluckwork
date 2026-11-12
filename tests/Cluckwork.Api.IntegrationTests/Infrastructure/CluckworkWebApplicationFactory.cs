@@ -153,6 +153,10 @@ internal static class TestDataProtectionCertificate
     private static readonly Lazy<(string CertificatePem, string PrivateKeyPem)> EcdsaPair =
         new(() => Generate(ECDsa.Create(ECCurve.NamedCurves.nistP256)));
 
+    // #1338 — a replaced certificate, already past NotAfter as a retired one often is.
+    private static readonly Lazy<(string CertificatePem, string PrivateKeyPem)> PreviousPair =
+        new(() => Generate(RSA.Create(2048), notAfter: DateTimeOffset.UtcNow.AddDays(-1)));
+
     public static string CertificatePem => RsaPair.Value.CertificatePem;
 
     public static string PrivateKeyPem => RsaPair.Value.PrivateKeyPem;
@@ -161,8 +165,14 @@ internal static class TestDataProtectionCertificate
 
     public static string EcdsaPrivateKeyPem => EcdsaPair.Value.PrivateKeyPem;
 
-    private static (string CertificatePem, string PrivateKeyPem) Generate(AsymmetricAlgorithm key)
+    public static string PreviousCertificatePem => PreviousPair.Value.CertificatePem;
+
+    public static string PreviousPrivateKeyPem => PreviousPair.Value.PrivateKeyPem;
+
+    internal static (string CertificatePem, string PrivateKeyPem) Generate(
+        AsymmetricAlgorithm key, DateTimeOffset? notAfter = null)
     {
+        var expires = notAfter ?? DateTimeOffset.UtcNow.AddYears(1);
         using (key)
         {
             var request = key switch
@@ -173,8 +183,7 @@ internal static class TestDataProtectionCertificate
                     "CN=cluckwork-test-data-protection", ecdsa, HashAlgorithmName.SHA256),
                 _ => throw new ArgumentOutOfRangeException(nameof(key)),
             };
-            using var certificate = request.CreateSelfSigned(
-                DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
+            using var certificate = request.CreateSelfSigned(expires.AddYears(-2), expires);
             return (
                 certificate.ExportCertificatePem().ReplaceLineEndings("\\n"),
                 key.ExportPkcs8PrivateKeyPem().ReplaceLineEndings("\\n"));

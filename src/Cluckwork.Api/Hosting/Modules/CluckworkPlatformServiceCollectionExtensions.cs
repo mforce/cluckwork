@@ -56,7 +56,7 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         if (role is not ProcessRole.Serving)
         {
             dataProtection.UseEphemeralDataProtectionProvider();
-            return new(CertificateSha256: null);
+            return new(CertificateSha256: null, PreviousCertificateSha256s: []);
         }
 
         dataProtection.PersistKeysToDbContext<AppDbContext>();
@@ -65,8 +65,12 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         var certificate = EnsureKeyEncryptionCertificate(configuration, environment);
         if (certificate is not null)
             dataProtection.ProtectKeysWithCertificate(certificate);
+        var previous = EnsurePreviousCertificates(configuration, certificate);
+        dataProtection.UnprotectKeysWithAnyCertificate(previous);
 
-        return new(certificate?.GetCertHashString(HashAlgorithmName.SHA256));
+        return new(
+            certificate?.GetCertHashString(HashAlgorithmName.SHA256),
+            [.. previous.Select(c => c.GetCertHashString(HashAlgorithmName.SHA256))]);
     }
 
     // Production refuses to store the key ring in plaintext: anyone holding a database
@@ -86,6 +90,36 @@ internal static class CluckworkPlatformServiceCollectionExtensions
             return null;
         }
 
+        return EnsureUsableCertificate(
+            certificatePem, privateKeyPem,
+            "DataProtection:CertificatePem and DataProtection:PrivateKeyPem are", "DataProtection:PrivateKeyPem");
+    }
+
+    // #1338 — certificates the ring used before the current one; the framework decrypts with
+    // them and never encrypts. A leaked certificate never belongs here: that revokes the ring
+    // (794). Outside Production a list with no current certificate is harmless: it only reads,
+    // and keys there are stored in plaintext anyway.
+    private static X509Certificate2[] EnsurePreviousCertificates(
+        IConfiguration configuration, X509Certificate2? current) =>
+    [
+        .. configuration.GetSection("DataProtection:PreviousCertificates").GetChildren().Select(entry =>
+        {
+            var certificate = EnsureUsableCertificate(
+                entry["CertificatePem"], entry["PrivateKeyPem"], $"{entry.Path} is", entry.Path);
+            // Thumbprint only: a renewal on the same key pair is a different certificate and boots.
+            if (current is not null && certificate.Thumbprint == current.Thumbprint)
+                throw new InvalidOperationException(
+                    $"{entry.Path} is the current certificate. List only certificates the key ring "
+                    + "used before the current one.");
+            return certificate;
+        }),
+    ];
+
+    // The framework skips a decryption certificate with no private key, so a certificate
+    // alone would boot and then fail every read: CreateFromPem refuses it here.
+    private static X509Certificate2 EnsureUsableCertificate(
+        string? certificatePem, string? privateKeyPem, string pairSubject, string keySubject)
+    {
         X509Certificate2 certificate;
         try
         {
@@ -96,20 +130,34 @@ internal static class CluckworkPlatformServiceCollectionExtensions
         catch (Exception ex) when (ex is CryptographicException or ArgumentException)
         {
             throw new InvalidOperationException(
-                "DataProtection:CertificatePem and DataProtection:PrivateKeyPem are not a usable "
-                + "certificate and matching private key.", ex);
+                $"{pairSubject} not a usable certificate and matching private key.", ex);
         }
 
         // The key ring's XML encryption supports RSA only; an EC key would boot and then
-        // fail the first time a key is written.
+        // fail the first time a key is written, or, as a previous certificate, every read.
         if (certificate.GetRSAPrivateKey() is null)
             throw new InvalidOperationException(
-                "DataProtection:PrivateKeyPem is not an RSA key. The key ring's XML encryption "
-                + "needs an RSA certificate.");
+                $"{keySubject} is not an RSA key. The key ring's XML encryption needs an RSA certificate.");
 
         return certificate;
     }
 }
 
-// Registration runs before a logger exists, so Program logs the fingerprint after Build().
-internal sealed record CluckworkDataProtectionRegistration(string? CertificateSha256);
+// Registration runs before a logger exists, so Program logs the fingerprints after Build().
+internal sealed record CluckworkDataProtectionRegistration(
+    string? CertificateSha256, IReadOnlyList<string> PreviousCertificateSha256s)
+{
+    // #794 — which certificates the key ring uses, so an operator can match them to the
+    // ones they issued. The fingerprints only; never the PEM or the key.
+    public void LogFingerprints(ILogger logger)
+    {
+        if (CertificateSha256 is not null)
+            logger.LogInformation(
+                "Data Protection key ring encrypted with the certificate whose SHA-256 fingerprint is {CertificateSha256}",
+                CertificateSha256);
+        foreach (var previousSha256 in PreviousCertificateSha256s)
+            logger.LogInformation(
+                "Data Protection key ring also reads keys encrypted with the previous certificate whose SHA-256 fingerprint is {PreviousCertificateSha256}",
+                previousSha256);
+    }
+}

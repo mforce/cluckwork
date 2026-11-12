@@ -305,6 +305,39 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
             },
             Satisfy: SatisfyDataProtectionCertificate),
 
+        // #1338 — satisfied by a usable previous certificate that has already expired, so every
+        // other row, the plaintext-key row included, runs with one configured. A certificate
+        // without its key would boot and then be skipped by every read, so a blank key is its
+        // own row beside the unparseable certificate.
+        new("#1338 previous unusable", "DataProtection:PreviousCertificates:0 is not a usable certificate and matching private key",
+            Violate: psi => SetPreviousCertificate(psi,
+                "-----BEGIN CERTIFICATE-----\\nnot-base64\\n-----END CERTIFICATE-----",
+                TestDataProtectionCertificate.PreviousPrivateKeyPem),
+            Satisfy: SatisfyPreviousCertificate,
+            FailureFamily: "#1338 previous unusable"),
+
+        new("#1338 previous key missing", "DataProtection:PreviousCertificates:0 is not a usable certificate and matching private key",
+            Violate: psi => SetPreviousCertificate(psi, TestDataProtectionCertificate.PreviousCertificatePem, "   "),
+            Satisfy: SatisfyPreviousCertificate,
+            FailureFamily: "#1338 previous unusable"),
+
+        // The likeliest slip when two pairs are moved by hand: one certificate, the other's key.
+        new("#1338 previous key mismatched", "DataProtection:PreviousCertificates:0 is not a usable certificate and matching private key",
+            Violate: psi => SetPreviousCertificate(psi,
+                TestDataProtectionCertificate.PreviousCertificatePem, TestDataProtectionCertificate.PrivateKeyPem),
+            Satisfy: SatisfyPreviousCertificate,
+            FailureFamily: "#1338 previous unusable"),
+
+        new("#1338 previous not RSA", "DataProtection:PreviousCertificates:0 is not an RSA key",
+            Violate: psi => SetPreviousCertificate(psi,
+                TestDataProtectionCertificate.EcdsaCertificatePem, TestDataProtectionCertificate.EcdsaPrivateKeyPem),
+            Satisfy: SatisfyPreviousCertificate),
+
+        new("#1338 previous is current", "DataProtection:PreviousCertificates:0 is the current certificate",
+            Violate: psi => SetPreviousCertificate(psi,
+                TestDataProtectionCertificate.CertificatePem, TestDataProtectionCertificate.PrivateKeyPem),
+            Satisfy: SatisfyPreviousCertificate),
+
         // #794 — the only row that needs a database. It runs at host start, after every other
         // guard including ValidateOnStart, so every other row's boot dies before reaching it.
         new("#794 plaintext key", "Data Protection key(s) stored without encryption (key id: 00000000-0000-0000-0000-000000000794)",
@@ -400,6 +433,15 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
     {
         psi.Environment["DataProtection__CertificatePem"] = TestDataProtectionCertificate.CertificatePem;
         psi.Environment["DataProtection__PrivateKeyPem"] = TestDataProtectionCertificate.PrivateKeyPem;
+    }
+
+    private static void SatisfyPreviousCertificate(ProcessStartInfo psi) => SetPreviousCertificate(psi,
+        TestDataProtectionCertificate.PreviousCertificatePem, TestDataProtectionCertificate.PreviousPrivateKeyPem);
+
+    private static void SetPreviousCertificate(ProcessStartInfo psi, string certificatePem, string privateKeyPem)
+    {
+        psi.Environment["DataProtection__PreviousCertificates__0__CertificatePem"] = certificatePem;
+        psi.Environment["DataProtection__PreviousCertificates__0__PrivateKeyPem"] = privateKeyPem;
     }
 
     private static void RemoveCanonicalOtlpTransport(ProcessStartInfo psi)
