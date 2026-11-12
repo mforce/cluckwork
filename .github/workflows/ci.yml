@@ -222,6 +222,7 @@ jobs:
           cache-dependency-path: |
             **/*.csproj
             Directory.Packages.props
+            global.json
 
       - name: Restore dependencies
         run: dotnet restore Cluckwork.slnx --locked-mode
@@ -296,6 +297,7 @@ jobs:
           cache-dependency-path: |
             **/*.csproj
             Directory.Packages.props
+            global.json
 
       # --locked-mode: restore must match the committed packages.lock.json
       # exactly, so a dependency can't float to a different resolved version
@@ -600,9 +602,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: /tmp/.buildx-cache
-          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', '.dockerignore') }}-${{ github.sha }}
+          key: ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'global.json', '.dockerignore') }}-${{ github.sha }}
           restore-keys: |
-            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', '.dockerignore') }}-
+            ${{ matrix.cache_prefix }}${{ hashFiles('src/Cluckwork.Api/Dockerfile', '**/packages.lock.json', 'web/package-lock.json', 'Directory.Build.props', 'Directory.Packages.props', 'global.json', '.dockerignore') }}-
             ${{ matrix.cache_prefix }}
 
       # Build the exact image the container ships: the multi-stage Dockerfile
