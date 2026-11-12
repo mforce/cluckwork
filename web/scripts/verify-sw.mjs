@@ -455,7 +455,13 @@ check(missingJs.length === 0, `emitted JavaScript missing from precache: ${missi
 // this branch measures 1,526.93 KiB. The limit stays at 1,600 KiB so Help and
 // glossary additions and dependency bumps fit without a raise per PR. Raising
 // it above 1,600 KiB still needs a maintainer decision.
-const PRECACHE_CEILING_KIB = 1600;
+//
+// 2026-11-12, raised to 1,700 KiB by the maintainer (#1407): `main` measured
+// 1,598.25 KiB at 276241bb after the two-factor slices. The fixed 1,600 KiB
+// limit left about 73 KiB of headroom and lasted about four weeks; 1,700 KiB
+// gives about the same room again. Raising it above 1,700 KiB needs a
+// maintainer decision.
+const PRECACHE_CEILING_KIB = 1700;
 let precacheBytes = 0;
 const missingOnDisk = [];
 for (const url of precached) {
