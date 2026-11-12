@@ -7,6 +7,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-06, amended 2026-10-07 (plaintext-key refusal, certificate expiry, revocation)
+and 2026-11-12 (previous certificates, #1338)
 
 ## What happened
 
@@ -33,7 +34,8 @@ Production it refuses to start unless `DataProtection:CertificatePem` and
 to start while the table holds any key stored without encryption. Production uses its own
 database. One-shot verbs use an in-memory ring and never read or write the table. Dropping
 the persistence brings back the restart and replica failure. Dropping either Production
-guard lets anyone with a database backup forge every token the ring protects.
+guard lets anyone with a database backup forge every token the ring protects. A serving
+process may also list previous certificates, which only decrypt (#1338).
 
 ## Why not the obvious alternative
 
@@ -68,12 +70,36 @@ Measured by `DataProtectionCertificateExpiryTests`, against the framework direct
   keys and decrypts stored ones. Nothing checks its chain or dates. Its lifetime is not a
   deadline.
 - **Reissuing on the same key pair is a rotation.** The reissued certificate cannot read keys
-  the original encrypted (`Unable to retrieve the decryption key.`). Any certificate change
-  makes every stored key unreadable. Outstanding tokens then fail closed and the framework
-  creates a new key.
+  the original encrypted (`Unable to retrieve the decryption key.`). A certificate change
+  that does not list the old certificate makes every stored key unreadable. Outstanding
+  tokens then fail closed and the framework creates a new key.
 
-There is no setting for a previous certificate yet, so a planned replacement costs the
-same outstanding tokens as an emergency one.
+## Previous certificates (#1338)
+
+`DataProtection:PreviousCertificates` lists the certificates the ring used before the
+current one, each as a `CertificatePem` and `PrivateKeyPem` pair. A serving process passes
+them to `UnprotectKeysWithAnyCertificate`. The framework (ASP.NET Core 10 source) adds
+them to its decryption options only. It matches a stored key to a certificate by
+thumbprint and needs that certificate's private key. It checks no dates. Only
+`ProtectKeysWithCertificate` sets the encryptor, so a listed certificate never encrypts.
+The maintainer chose this on 2026-11-12 ("Ok start 1338 with your recommendations"), so
+a planned certificate change costs users nothing.
+
+- **A list, not one pair.** Until stored keys can be re-encrypted, a second change still
+  needs the first certificate.
+- **Boot refusals.** A serving start refuses an entry that does not parse, has no
+  matching private key, is not RSA, or has the current certificate's thumbprint. The
+  framework silently skips a certificate without its key, so that entry would boot and
+  then fail every read. A renewal on the same key pair has a different thumbprint and
+  boots. An expired entry boots, because the framework does not check dates.
+- **Outside Production** a list with no current certificate is accepted. It only reads,
+  and new keys there are stored in plaintext anyway.
+- **Not for a leaked key.** A leak still revokes the whole ring, and the leaked
+  certificate is never listed.
+- **Retiring a previous certificate.** Two-factor authenticator keys are encrypted once,
+  at enrolment, so a previous certificate stays needed for as long as any user enrolled
+  under it keeps that authenticator. Nothing re-encrypts stored keys under the new
+  certificate yet. Removing an entry costs what an unplanned change costs.
 
 ## What counts as plaintext
 
@@ -113,8 +139,9 @@ yet; the runbook records when it is.
 
 ## What this does NOT cover
 
-- **Planned rotation with an overlap window.** Supporting the previous certificate for
-  decryption (`UnprotectKeysWithAnyCertificate`) is a follow-up.
+- **Re-encrypting stored keys under a new certificate.** Previous certificates (#1338)
+  keep old keys readable, but no step rewrites them, so an old certificate cannot be
+  retired while any key it encrypted is still in use.
 - **A key written into the Production database after startup.** The plaintext check runs at
   host start only. A non-Production host writing into the Production database is caught at
   the next start, which is why Production must use its own database.
@@ -128,8 +155,8 @@ yet; the runbook records when it is.
 
 - `ProcessRoleGuardTests` has four serving-only rows: certificate missing, unparseable, a
   parseable non-RSA key, and a stored plaintext key. Each fails a Production serving boot and
-  leaves `migrate` running. `ServingGuardCoverageTests` maps `EnsureKeyEncryptionCertificate`
-  and `EnsureNoPlaintextDataProtectionKeysAsync` to those rows.
+  leaves `migrate` running. `ServingGuardCoverageTests` maps `EnsureKeyEncryptionCertificate`,
+  `EnsureUsableCertificate` and `EnsureNoPlaintextDataProtectionKeysAsync` to those rows.
 - `DataProtectionKeyRingTests` protects a payload on one host and unprotects it on a second
   host in the same process, with its own service provider and a different default
   discriminator. It asserts the single stored key is encrypted and that the plaintext check
@@ -143,6 +170,14 @@ yet; the runbook records when it is.
 - `MigrateOnStartupDisabledTests` boots Production against an unmigrated database, which
   covers the plaintext check's missing-table skip.
 - `DataProtectionCertificateExpiryTests` pins the two certificate findings above.
+- `DataProtectionPreviousCertificateTests` stores a key under an expired certificate A,
+  then starts a host with certificate B current and A listed. That host unprotects A's
+  payload and encrypts a new key with B and not A. A host without A cannot read the
+  payload. `ProcessRoleGuardTests` has four more serving-only rows, one for each refusal
+  of a previous entry, with a blank key separate from an unparseable certificate. Every
+  other row runs with a valid expired previous certificate listed, the plaintext-key row
+  included. `ServingGuardCoverageTests` maps them to `EnsureUsableCertificate` and
+  `EnsurePreviousCertificates`.
 - `TableOwnerRealModelTests` requires the Platform row in `TableOwnerOverrides`, and
   `TenantBypassDiscoveryTests` pins `DataProtectionKey` in the filter-free set. The
   plaintext check's two queries carry `BypassAllowList` and `FilterFreeSetSites` rows.

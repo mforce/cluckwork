@@ -1,24 +1,28 @@
 # Runbook: the Data Protection key ring (#794)
 
 **When to use this:** installing the key-encryption certificate on a new deployment;
-a Production serving process refuses to start with `Production found N Data Protection
-key(s) stored without encryption`; or the certificate's private key has leaked.
+changing the certificate as planned (procedure D); a Production serving process refuses
+to start with `Production found N Data Protection key(s) stored without encryption`; or
+the certificate's private key has leaked.
 
 **Not this runbook:** a boot that fails with `DataProtection:CertificatePem and
 DataProtection:PrivateKeyPem are not configured` or `are not a usable certificate` is
-a configuration error. Fix the two values (procedure A). Nothing in the database needs
-changing.
+a configuration error. Fix the two values (procedure A). A boot that names
+`DataProtection:PreviousCertificates:<n>` is the same kind of error in a previous
+certificate (procedure D). Nothing in the database needs changing.
 
 **Blast radius:** every token a deleted or unreadable key protected stops validating:
 password-reset tokens, and the authorization codes and access tokens of connected apps
 (#795). Procedure B deletes only the plaintext keys it names, so only tokens protected by
-those keys fail. Procedure C, and any certificate replacement, loses every key: every
-connected app on every farm is refused on its next request and has to send its user
-through authorization again; see
+those keys fail. Procedure C, and a certificate change that does not keep the old
+certificate listed as in procedure D, loses every key: every connected app on every farm
+is refused on its next request and has to send its user through authorization again; see
 [`oauth-authorization-server.md`](oauth-authorization-server.md#d-after-the-key-ring-is-replaced-or-lost).
-Signed-in sessions are not affected; they use JWTs.
+Procedure D loses nothing while the old certificate stays listed. Signed-in sessions are
+not affected; they use JWTs.
 
-A certificate change or a ring deletion also makes every two-factor authenticator unreadable
+A certificate change outside procedure D, removing a previous certificate, or a ring
+deletion also makes every two-factor authenticator stored under the lost keys unreadable
 (#1274). Recovery codes do not depend on the ring, but each one works once. To recover alone,
 a signed-out user needs two unused recovery codes: one to sign in, and one for the step-up
 that replacing the authenticator needs. A signed-in user needs one. A user with fewer needs an
@@ -33,7 +37,8 @@ and start every serving instance, and SQL access to the Production database.
 container with the API running in Production: procedure A (certificate issued with the
 command below, fingerprint matched) and procedure B, steps 1 to 4, against a plaintext
 row with single-quoted attributes, spaces around `=` and no `requiresEncryption` marker,
-stored beside a real encrypted key and a revocation record. Procedure C: not recorded.
+stored beside a real encrypted key and a revocation record. Procedures C and D: not
+recorded.
 
 Background and the reasons behind each rule:
 [`794-data-protection-key-ring.md`](../decisions/794-data-protection-key-ring.md).
@@ -62,9 +67,10 @@ lifetime is not a deadline.
 
 **Renewing is a rotation.** A certificate reissued on the same key pair is a different
 certificate, and it cannot read keys the old one encrypted (`Unable to retrieve the
-decryption key.`). Replacing the certificate for any reason makes every stored key
-unreadable, so outstanding tokens fail and the framework creates a new key. Plan a
-replacement like procedure C, without the urgency.
+decryption key.`). Replace the certificate for any reason other than a leak by
+procedure D, which keeps the old one listed so stored keys stay readable. A renewal on
+the same key pair is listed the same way; the boot refuses only the current certificate
+itself, compared by thumbprint.
 
 ### 2. Supply both values to every serving instance
 
@@ -134,7 +140,8 @@ If the boot refuses again, it names the remaining key ids; repeat from step 1 wi
 
 Anyone holding the leaked private key and a copy of the database (or any backup of it)
 can decrypt every stored key and forge payloads that validate. Revoke all of them. Do
-not keep the old certificate configured for reading.
+not keep the old certificate configured for reading, and never list it as a previous
+certificate: procedure D is for a planned change only.
 
 ### 1. Issue a new certificate on a new key pair
 
@@ -157,8 +164,9 @@ DELETE FROM "DataProtectionKeys";
 ### 4. Replace the secrets and start
 
 Supply the new certificate and key (A.2), remove the leaked ones from every place they
-were stored, and start the instances. Verify the fingerprint line (A.3) names the new
-certificate.
+were stored, and start the instances. Remove every `DataProtection__PreviousCertificates__*`
+entry too: step 3 deleted every key they could read. Verify the fingerprint line (A.3)
+names the new certificate and that no "previous certificate" line follows it.
 
 ### 5. Treat old backups as compromised
 
@@ -166,10 +174,57 @@ Backups taken before step 3 still hold keys encrypted with the leaked certificat
 Restoring one brings them back. After any restore of such a backup, repeat step 3
 before starting a serving instance.
 
+## D. Change the certificate as planned
+
+Use this for a renewal, a new key size, or any replacement that is not a leak. Keys
+already stored stay encrypted with the old certificate, so the old certificate stays
+listed for decryption only. New keys are encrypted with the new certificate alone. The
+framework creates a new key about every 90 days; after that, the keys under the old
+certificate protect no new payloads but still read the ones they protected.
+
+### 1. Issue the new certificate
+
+Follow A.1. A new key pair is preferred. A renewal on the same key pair also works,
+because the boot compares certificates by thumbprint, and a reissued certificate has a
+new one.
+
+### 2. Move the current certificate to the previous list
+
+Set the current certificate's two values as the next free entry of the previous list,
+and keep every entry already there. For the first change, that entry is `0`:
+
+```
+DataProtection__PreviousCertificates__0__CertificatePem=<the current certificate>
+DataProtection__PreviousCertificates__0__PrivateKeyPem=<its private key>
+```
+
+Then put the new certificate and key in `DataProtection__CertificatePem` and
+`DataProtection__PrivateKeyPem` (A.2). An expired previous certificate is accepted.
+
+### 3. Restart the serving instance
+
+The boot refuses a previous entry that does not parse, has no matching private key, is not
+RSA, or is the current certificate; the message names the entry. Each start logs the
+current fingerprint, then one line per previous certificate:
+
+```
+Data Protection key ring also reads keys encrypted with the previous certificate whose SHA-256 fingerprint is <FINGERPRINT>
+```
+
+### 4. Keep each previous certificate listed
+
+Keep an entry for as long as any key it encrypted protects data still in use. Two-factor
+authenticator keys are encrypted once, at enrolment, and are read at every sign-in. An entry can therefore be needed for as long as any user who
+enrolled under it keeps that authenticator, which can be indefinitely. Removing an entry
+costs what a change without procedure D costs: see the blast radius above. No step yet
+re-encrypts stored keys under the new certificate, so there is no safe point at which to
+retire an old certificate while those users remain enrolled.
+
 ## Verify
 
-After B or C: the instances start (the guard found no plaintext key), the startup log names
-the expected fingerprint, and `/health/ready` returns 200.
+After B, C or D: the instances start (the guard found no plaintext key), the startup log
+names the expected fingerprints, and `/health/ready` returns 200. After D, a user enrolled
+before the change signs in with an authenticator code.
 
 ## If it fails
 
@@ -179,4 +234,5 @@ the expected fingerprint, and `/health/ready` returns 200.
 - **The boot fails with a database connection error.** The guard reads the key table at
   startup, so a Production serving process needs its database reachable to start.
 - **Tokens issued before the change no longer validate.** That is the expected cost of
-  B and C, not a fault.
+  B and C, not a fault. After D it means the old certificate is not listed, or a different
+  certificate is: compare the "previous certificate" fingerprints with the old certificate's.

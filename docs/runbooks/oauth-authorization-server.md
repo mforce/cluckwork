@@ -117,7 +117,8 @@ request. It can connect again only through the consent screen.
 
 ## D. After the key ring is replaced or lost
 
-Replacing the Data Protection certificate, or deleting every stored key (procedure C of
+Replacing the Data Protection certificate without listing the old one as a previous certificate,
+or deleting every stored key (procedure C of
 [`data-protection-key-ring.md`](data-protection-key-ring.md)), makes every outstanding
 authorization code and access token unreadable. Every connected app on every farm gets
 401 on its next API request. An app that was between authorization and redemption gets
