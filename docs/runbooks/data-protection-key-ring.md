@@ -1,7 +1,8 @@
 # Runbook: the Data Protection key ring (#794)
 
 **When to use this:** installing the key-encryption certificate on a new deployment;
-changing the certificate as planned (procedure D); a Production serving process refuses
+changing the certificate as planned (procedure D); retiring a previous certificate after
+such a change (D.4); a Production serving process refuses
 to start with `Production found N Data Protection key(s) stored without encryption`; or
 the private key of any certificate that encrypted a key still in the table or in a backup
 has leaked, whether it is current, listed as previous, or no longer listed (procedure C).
@@ -19,11 +20,11 @@ those keys fail. Procedure C, and a certificate change that does not keep the ol
 certificate listed as in procedure D, loses every key: every connected app on every farm
 is refused on its next request and has to send its user through authorization again; see
 [`oauth-authorization-server.md`](oauth-authorization-server.md#d-after-the-key-ring-is-replaced-or-lost).
-Procedure D loses nothing while the old certificate stays listed. Signed-in sessions are
-not affected; they use JWTs.
+Procedure D loses nothing: the old certificate stays listed until D.4 has re-encrypted
+every stored key under the new one. Signed-in sessions are not affected; they use JWTs.
 
-A certificate change outside procedure D, removing a previous certificate, or a ring
-deletion also makes every two-factor authenticator stored under the lost keys unreadable
+A certificate change outside procedure D, removing a previous certificate before D.4 has
+re-encrypted the keys it encrypted, or a ring deletion also makes every two-factor authenticator stored under the lost keys unreadable
 (#1274). Recovery codes do not depend on the ring, but each one works once. To recover alone,
 a signed-out user needs two unused recovery codes: one to sign in, and one for the step-up
 that replacing the authenticator needs. A signed-in user needs one. A user with fewer needs an
@@ -32,7 +33,8 @@ Owner to reset their two-factor authentication, and an Owner with fewer needs an
 ([`break-glass-account-recovery.md`](break-glass-account-recovery.md)).
 
 **Prerequisites:** the ability to change the deployment's configuration secrets, to stop
-and start every serving instance, and SQL access to the Production database.
+and start every serving instance, to run a one-shot verb in the serving image, and SQL
+access to the Production database.
 
 **Last drilled:** 2026-10-07 by the #794 implementer, against a scratch PostgreSQL
 container with the API running in Production: procedure A (certificate issued with the
@@ -44,7 +46,8 @@ the A.1 command and an Owner enrolled in two-factor. Certificate B was then issu
 moved to `DataProtection__PreviousCertificates__0__*` as D.2 says. After the restart, both
 fingerprint lines matched the `openssl` output and the Owner signed in with an
 authenticator code. With A removed from the list, the same sign-in was refused with
-`Auth.SecondFactorKeyUnavailable`. Procedure C: not recorded.
+`Auth.SecondFactorKeyUnavailable`. Procedure D.4: not drilled yet. Procedure C: not
+recorded.
 
 Background and the reasons behind each rule:
 [`794-data-protection-key-ring.md`](../decisions/794-data-protection-key-ring.md).
@@ -190,9 +193,10 @@ before starting a serving instance.
 
 Use this for a renewal, a new key size, or any replacement that is not a leak. Keys
 already stored stay encrypted with the old certificate, so the old certificate stays
-listed for decryption only. New keys are encrypted with the new certificate alone. The
-framework creates a new key about every 90 days; after that, the keys under the old
-certificate protect no new payloads but still read the ones they protected.
+listed for decryption only until D.4 re-encrypts them under the new one. New keys are
+encrypted with the new certificate alone. The framework creates a new key about every 90
+days; after that, the keys under the old certificate protect no new payloads but still read
+the ones they protected.
 
 ### 1. Issue the new certificate
 
@@ -229,28 +233,105 @@ fingerprints in the `CertificateSha256` and `PreviousCertificateSha256` properti
 output from step 1, and each `PreviousCertificateSha256` the same output for a listed old
 certificate, all without the colons.
 
-### 4. Keep each previous certificate listed
+### 4. Retire previous certificates
 
-Keep an entry for as long as any key it encrypted protects data still in use. Two-factor
-authenticator keys are encrypted once, at enrolment, and are read at every sign-in. An
-entry is therefore needed for as long as any user keeps an authenticator key protected by
-a key that certificate encrypted. That includes users who enrolled up to about 90 days
-after the change, because the ring keeps using its current key until the next one takes
-over. That can be indefinite. Removing an entry costs what a change without procedure D
-costs: see the blast radius above. No step yet re-encrypts stored keys under the new
-certificate, so there is no safe point at which to retire an old certificate while those
-users remain enrolled.
+`rewrap-key-ring` re-encrypts every stored key under the current certificate: current,
+expired and revoked keys alike. Key ids and key material do not change, so every token
+and authenticator key they protect stays readable, and every previous entry can then
+leave the configuration. Revocation records hold no key and stay as they are.
 
-Removing an entry does not revoke its certificate. The keys it encrypted stay in the table
-and in backups. Keep any retained private key as protected as a listed one while keys it
-encrypted remain in the database or any backup. Procedure C deletes the live rows; its
-backup precautions still apply. If the key leaks, follow procedure C.
+Before step 2, check both:
+
+- D.3 is done: every serving instance runs with the new certificate current.
+- The certificate in the environment the verb gets is the serving one. Its `openssl x509
+  -fingerprint -sha256` output, without the colons, equals `CertificateSha256` in the
+  serving instances' startup log. A wrong certificate here re-encrypts the ring to a key
+  the server does not hold.
+
+Run the verb in the serving image, as the serving user, with the ordinary DML-only runtime
+database credential. It updates rows and runs no DDL. It runs online: a serving instance
+keeps the keys it has already read, and their key material is unchanged.
+
+#### 1. Back up
+
+Take a database backup, and export the key table on its own:
+
+```bash
+pg_dump --data-only --table='"DataProtectionKeys"' "<connection string>" > data-protection-keys.sql
+```
+
+#### 2. Re-encrypt
+
+Run the verb with the serving configuration: the current certificate and every previous
+entry.
+
+```bash
+docker run --rm --env-file <runtime-credential.env> \
+  ghcr.io/mforce/cluckwork@sha256:<digest> \
+  rewrap-key-ring
+```
+
+Expected output, and exit code 0:
+
+```
+current certificate SHA-256 <FINGERPRINT>
+<key id> <every fingerprint the key was encrypted with> <FINGERPRINT>
+<key id> revocation
+rewrapped <N>, already current <M>, revocations <R>
+```
+
+The fields of each row line are separated by tabs. The first line must equal
+`CertificateSha256` from the startup log. Each key row then names its fingerprints before
+and after, comma-separated, never key material. The serving log gets one line
+with the same counts and fingerprints.
+
+The verb writes every row in one transaction, after every check, so a refused run writes
+nothing. It refuses, with exit code 1 and one line per refusal, when:
+
+- no current certificate is configured, in any environment;
+- a previous entry is one a serving start refuses (D.3); the message names the entry;
+- a row is encrypted with a certificate the configuration does not list, or does not
+  decrypt with the one it names; the message gives the row, the key id and that
+  fingerprint;
+- a row holds a key stored without encryption: follow procedure B, never re-encrypt it;
+- a row has a shape the framework does not write: a decryptor other than
+  `EncryptedXmlDecryptor`, more than one recipient, a key with no `encryptedSecret`, an
+  unknown root element, or no XML.
+
+#### 3. Check without the previous certificates
+
+Run the verb again with no `DataProtection__PreviousCertificates__*` variables at all. It
+must exit 0 and print `rewrapped 0`, and its first line must again equal
+`CertificateSha256`. The verb decrypts every row on every run, so this proves the current
+certificate alone reads every stored key. It checks only the rows it read: a key a serving
+instance creates later is already under the current certificate, because D.3 is done.
+
+#### 4. Remove the previous entries
+
+Delete every `DataProtection__PreviousCertificates__*` variable from the serving
+configuration (a blank entry stops the boot), and restart every serving instance. The
+startup log names the current fingerprint and no "previous certificate" line follows it.
+
+#### 5. Verify
+
+A user who enrolled an authenticator before the certificate change signs in with a code.
+
+#### Old backups
+
+Backups taken before step 2 still hold keys encrypted with the old certificates. Keep each
+old private key as protected as the current one until the last such backup is destroyed,
+then destroy it. To restore such a backup, list the old certificate again (D.2 form),
+restart, and repeat D.4.
+
+Re-encrypting does not change key material. A leaked old private key, together with any
+backup taken before step 2, still yields every master key, so a leak still means procedure
+C, never a re-encrypt.
 
 ## Verify
 
 After B, C or D: the instances start (the guard found no plaintext key), the startup log
-names the expected fingerprints, and `/health/ready` returns 200. After D, a user enrolled
-before the change signs in with an authenticator code.
+names the expected fingerprints, and `/health/ready` returns 200. After D, and again after
+D.4, a user enrolled before the change signs in with an authenticator code.
 
 ## If it fails
 
@@ -262,3 +343,14 @@ before the change signs in with an authenticator code.
 - **Tokens issued before the change no longer validate.** That is the expected cost of
   B and C, not a fault. After D it means the old certificate is not listed, or a different
   certificate is: compare the "previous certificate" fingerprints with the old certificate's.
+- **`rewrap-key-ring` refuses or fails (D.4 step 2 or 3).** Keep the configuration as it is
+  and do not go on to step 4. A refused run wrote nothing. If the run lost its database
+  connection while writing, run it again: the write is one transaction, and a second run
+  re-encrypts whatever is still under an old certificate.
+- **Authenticator codes fail after D.4 step 4.** Put the removed entries back (D.2 form)
+  and restart. Then compare the verb's first line with `CertificateSha256`. If the rows went
+  under a wrong certificate, run the verb again with the serving certificate current and the
+  wrong one listed. Never restore the whole database for this: a restore discards every
+  write since step 1.
+- **Rolling back to the old certificate as current after D.4.** It reads nothing unless the
+  new certificate is listed as a previous one.
