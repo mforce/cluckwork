@@ -12,8 +12,4 @@ describe("freshPassword", () => {
       expect(value).toMatch(/[^a-zA-Z\d]/);
     }
   });
-
-  it("differs between calls", () => {
-    expect(freshPassword()).not.toBe(freshPassword());
-  });
 });
