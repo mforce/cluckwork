@@ -125,12 +125,16 @@ has the SQL and the checks.
 
 ## Revoking the ring when the private key leaks
 
-This applies to the private key of the current certificate or of any listed previous
-certificate. Anyone holding it and any copy of the database can decrypt every stored key it
-encrypted. Revoke the whole ring. Never keep reading with the leaked certificate.
+This applies to the private key of any certificate that encrypted a key still in the table
+or in a backup: the current certificate, a listed previous one, or one removed from the
+list. Removing an entry does not revoke its certificate. Anyone holding a leaked key and any
+copy of the database can decrypt every stored key it encrypted. Revoke the whole ring. Never
+keep reading with the leaked certificate.
 
 1. Issue a new certificate on a new key pair.
-2. Stop every serving instance, so none writes a key with the leaked certificate.
+2. Stop every serving instance. A running instance holds the ring in memory: it would keep
+   protecting new payloads with keys that step 3 deletes, and if the current certificate
+   leaked, it could write a new key encrypted with it.
 3. Delete every row in `DataProtectionKeys`.
 4. Supply the new certificate and key as secrets through configuration, remove the leaked
    ones, delete every previous-certificate entry (a blanked entry stops the boot), and
@@ -179,12 +183,11 @@ yet; the runbook records when it is.
   payload and encrypts a new key with B and not A. A host with C current, A at index 0
   and B at index 2 reads payloads under both. A renewal on A's key pair boots with A
   listed and reads A's payload. A host without A cannot read the payload.
-  `ProcessRoleGuardTests` has five more serving-only rows, one for each refusal of a
-  previous entry: an unparseable certificate, a blank key, a mismatched key, a non-RSA
-  key, and the current certificate. Every
-  other row runs with a valid expired previous certificate listed, the plaintext-key row
-  included. `ServingGuardCoverageTests` maps them to `EnsureUsableCertificate` and
-  `EnsurePreviousCertificates`.
+- `ProcessRoleGuardTests` has five more serving-only rows, one for each refusal of a
+  previous entry: an unparseable certificate, a blank key, a mismatched key, a non-RSA key,
+  and the current certificate. Every other row runs with a valid expired previous
+  certificate listed, the plaintext-key row included. `ServingGuardCoverageTests` maps them
+  to `EnsureUsableCertificate` and `EnsurePreviousCertificates`.
 - `TableOwnerRealModelTests` requires the Platform row in `TableOwnerOverrides`, and
   `TenantBypassDiscoveryTests` pins `DataProtectionKey` in the filter-free set. The
   plaintext check's two queries carry `BypassAllowList` and `FilterFreeSetSites` rows.

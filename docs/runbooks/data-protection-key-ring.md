@@ -3,8 +3,8 @@
 **When to use this:** installing the key-encryption certificate on a new deployment;
 changing the certificate as planned (procedure D); a Production serving process refuses
 to start with `Production found N Data Protection key(s) stored without encryption`; or
-the private key of the current certificate, or of any listed previous certificate, has
-leaked (procedure C).
+the private key of any certificate that encrypted a key still in the table or in a backup
+has leaked, whether it is current, listed as previous, or no longer listed (procedure C).
 
 **Not this runbook:** a boot that fails with `DataProtection:CertificatePem and
 DataProtection:PrivateKeyPem are not configured` or `are not a usable certificate` is
@@ -139,10 +139,11 @@ If the boot refuses again, it names the remaining key ids; repeat from step 1 wi
 
 ## C. The private key leaked: revoke the whole ring
 
-Use this when the private key of the current certificate, or of any certificate listed in
-`DataProtection__PreviousCertificates__*`, has leaked. Anyone holding a leaked private key
-and a copy of the database (or any backup of it) can decrypt every stored key it
-encrypted and forge payloads that validate. Revoke all of them. Do not keep the leaked
+Use this when the private key of any certificate that encrypted a key still in the table or
+in a backup has leaked: the current certificate, one listed in
+`DataProtection__PreviousCertificates__*`, or one removed from that list. Anyone holding a
+leaked private key and a copy of the database (or any backup of it) can decrypt every
+stored key it encrypted and forge payloads that validate. Revoke all of them. Do not keep the leaked
 certificate configured for reading, and never list it as a previous certificate:
 procedure D is for a planned change only.
 
@@ -152,8 +153,9 @@ Follow A.1. Never reissue on the leaked key pair.
 
 ### 2. Stop every serving instance
 
-An instance still running with the leaked certificate could write a new key encrypted
-with it.
+A running instance holds the ring in memory. It would keep protecting new payloads with
+keys that step 3 deletes, and if the current certificate leaked, it could write a new key
+encrypted with it.
 
 ### 3. Delete every stored key
 
@@ -222,10 +224,14 @@ authenticator keys are encrypted once, at enrolment, and are read at every sign-
 entry is therefore needed for as long as any user keeps an authenticator key protected by
 a key that certificate encrypted. That includes users who enrolled up to about 90 days
 after the change, because the ring keeps using its current key until the next one takes
-over. It can be indefinitely. Removing an entry costs what a change without procedure D
+over. That can be indefinite. Removing an entry costs what a change without procedure D
 costs: see the blast radius above. No step yet re-encrypts stored keys under the new
 certificate, so there is no safe point at which to retire an old certificate while those
 users remain enrolled.
+
+Removing an entry does not revoke its certificate. The keys it encrypted stay in the table
+and in backups, so keep its private key as protected as a listed one until those rows are
+gone. If it leaks, follow procedure C.
 
 ## Verify
 
