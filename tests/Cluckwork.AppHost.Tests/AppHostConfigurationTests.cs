@@ -116,14 +116,14 @@ public sealed class AppHostConfigurationTests
                 return (project.Attribute("Sdk")?.Value ?? "")
                     .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                     .Select(sdk => sdk.Split('/', 2))
-                    .Select(parts => (Name: parts[0], Version: parts.ElementAtOrDefault(1)))
+                    .Select(parts => (Form: "<Project Sdk> attribute", Name: parts[0], Version: parts.ElementAtOrDefault(1)))
                     .Concat(project.Descendants()
                         .Where(element => element.Name.LocalName == "Sdk")
-                        .Select(element => (Name: element.Attribute("Name")?.Value ?? "", Version: element.Attribute("Version")?.Value)))
+                        .Select(element => (Form: "<Sdk> element", Name: element.Attribute("Name")?.Value ?? "", Version: element.Attribute("Version")?.Value)))
                     .Concat(project.Descendants()
                         .Where(element => element.Name.LocalName == "Import" && element.Attribute("Sdk") is not null)
-                        .Select(element => (Name: element.Attribute("Sdk")!.Value, Version: element.Attribute("Version")?.Value)))
-                    .Select(sdk => (Project: path, sdk.Name, sdk.Version));
+                        .Select(element => (Form: "<Import Sdk> element", Name: element.Attribute("Sdk")!.Value, Version: element.Attribute("Version")?.Value)))
+                    .Select(sdk => (Project: path, sdk.Form, sdk.Name, sdk.Version));
             })
             .Where(sdk => sdk.Name.StartsWith("Aspire.", StringComparison.OrdinalIgnoreCase))
             .ToArray();
@@ -135,7 +135,7 @@ public sealed class AppHostConfigurationTests
         // global.json or a <Version> child would otherwise compare null to null.
         var unread = sdks
             .Where(sdk => string.IsNullOrWhiteSpace(sdk.Version))
-            .Select(sdk => $"{sdk.Project} names {sdk.Name} with no inline version, so this guard cannot read it.")
+            .Select(sdk => $"{sdk.Project} names {sdk.Name} in its {sdk.Form} with no inline version, so this guard cannot read it.")
             .Concat(pins
                 .Where(pin => string.IsNullOrWhiteSpace(pin.Version))
                 .Select(pin => $"Directory.Packages.props pins {pin.Name} with no Version attribute, so this guard cannot read it."))
@@ -145,13 +145,13 @@ public sealed class AppHostConfigurationTests
         var drift = sdks
             .SelectMany(sdk => pins
                 .Where(pin => !string.Equals(pin.Version, sdk.Version, StringComparison.OrdinalIgnoreCase))
-                .Select(pin => $"{sdk.Project} uses {sdk.Name}/{sdk.Version}, but Directory.Packages.props pins {pin.Name} at {pin.Version}."))
+                .Select(pin => $"{sdk.Project} uses {sdk.Name} {sdk.Version} in its {sdk.Form}, but Directory.Packages.props pins {pin.Name} at {pin.Version}."))
             .ToArray();
         Assert.True(
             drift.Length == 0,
             string.Join(Environment.NewLine, drift)
             + Environment.NewLine
-            + "Set the Sdk version on the project's first line to the Aspire package version in the same PR. Dependabot updates the pins but not the Sdk attribute. If no Aspire.AppHost.Sdk of that version is published, decide by hand whether to pin the packages back or accept the gap.");
+            + "Update each reported Aspire SDK declaration to the matching package version, in the same PR. Dependabot updates the pins but not the SDK declarations. If no Aspire.AppHost.Sdk of that version is published, decide by hand whether to pin the packages back or accept the gap.");
     }
 
     [Fact]
