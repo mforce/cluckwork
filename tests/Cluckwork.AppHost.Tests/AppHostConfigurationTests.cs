@@ -92,7 +92,8 @@ public sealed class AppHostConfigurationTests
     // Dependabot writes an MSBuild SDK version only into global.json
     // msbuild-sdks, never into a project file, and a stale SDK pulls in its own
     // older Aspire.Hosting.AppHost (#1404, #1409). So the version lives in
-    // global.json, where Dependabot moves it with the Aspire packages.
+    // global.json, where Dependabot can update it, and the guard fails if it
+    // and the Aspire package pins differ.
     [Fact]
     public void No_project_pins_an_Aspire_sdk_version_inline()
     {
@@ -109,7 +110,7 @@ public sealed class AppHostConfigurationTests
             inline.Length == 0,
             string.Join(Environment.NewLine, inline)
             + Environment.NewLine
-            + "Remove the version from the project file and keep it only in global.json under msbuild-sdks, where Dependabot updates it with the Aspire packages.");
+            + "Remove the version from each reported file and keep it only in global.json under msbuild-sdks, where Dependabot can update it.");
     }
 
     [Fact]

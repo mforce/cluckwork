@@ -1,6 +1,7 @@
 <Project Sdk="Aspire.AppHost.Sdk">
   <!-- The SDK version lives in global.json (msbuild-sdks), where Dependabot
-       updates it with the Aspire packages in Directory.Packages.props. -->
+       can update it. AppHostConfigurationTests fails if it and the Aspire
+       package pins in Directory.Packages.props differ. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsAspireHost>true</IsAspireHost>
