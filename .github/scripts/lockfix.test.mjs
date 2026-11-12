@@ -215,7 +215,6 @@ test("apply: a classifier that exits 0 without classifying -> refuse", () => {
 
 // A `git` first on PATH that runs the real one, then fails `git status` after
 // printing it, so the classifier sees a lock-only diff and answers commit.
-// pipefail alone reports the classifier's non-zero 4 and hides git's failure.
 test("apply: git status fails after printing a lock-only diff -> refuse", () => {
   const bin = mkdtempSync(join(scratch, "bin-"));
   writeFileSync(join(bin, "git"), '#!/bin/sh\nPATH=${PATH#*:}\ngit "$@" || exit\n[ "$1" != status ] || exit 128\n', { mode: 0o755 });
