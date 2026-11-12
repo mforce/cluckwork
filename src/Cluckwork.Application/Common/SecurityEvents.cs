@@ -116,7 +116,8 @@ public static class SecurityEvents
     public const string TwoFactorEnrolled = "Auth.TwoFactorEnrolled";
 
     // Operational, no fields: a stored authenticator key or pending payload no
-    // longer decrypts (a certificate change or a ring deletion, #794).
+    // longer decrypts (a certificate change that did not keep the old certificate
+    // listed, #1338, or a ring deletion, #794).
     public const string SecondFactorKeyUnreadable = "Auth.SecondFactorKeyUnreadable";
 
     // #1281 (#1274 decision 18) — a warning: setting an Owner's grace start

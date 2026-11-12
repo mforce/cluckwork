@@ -337,8 +337,8 @@ internal sealed class TwoFactorCredentials(
 
     // Takes the account, because login reads before the tenant resolves.
     // Null when no row exists. Throws CryptographicException when the key ring
-    // cannot read the value (a certificate change, or a value copied from
-    // another user's row).
+    // cannot read the value (a certificate change that did not keep the old
+    // certificate listed, or a value copied from another user's row).
     internal async Task<string?> ReadProtectedAsync(
         Guid accountId, Guid userId, ProtectedTwoFactorValue slot, CancellationToken ct)
     {
