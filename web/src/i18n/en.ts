@@ -366,6 +366,7 @@ export const en = {
     codesLockedHint: "Save the codes, then tick the box to finish.",
     savedCheckbox: "I saved my recovery codes somewhere safe.",
     doneButton: "Done",
+    codesDroppedNotice: "Your recovery codes were removed because the session changed in another tab. Use Regenerate on the Account screen for a new set.",
     replacedMessage: "Your new authenticator app is set up. The old one no longer works.",
     turnedOffMessage: "Two-factor authentication is off.",
     codesMissing: "Something went wrong, and no recovery codes arrived. Regenerate them to get a new set.",
@@ -2252,23 +2253,11 @@ export const en = {
     createUserButton: "Create user",
 
     // #308/#360 — step-up re-confirmation for every durable user-access
-    // mutation. Shared field label; distinct hints explain each action.
+    // mutation. Every dialog shows ConfirmItsYou's shared hint (#1398).
     stepUpFieldLabel: "Your current password *",
     // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
     // label does not fit there at 390px. The field adds its own asterisk.
     stepUpCodeFieldLabel: "Authenticator or recovery code",
-    stepUpCreateHint: "Creating any user needs your current password again.",
-    stepUpResetHint: "Resetting any user's password needs your current password again.",
-    stepUpRoleHint: "Changing any user's role needs your current password again.",
-    stepUpEmailHint: "Changing a login email needs your current password again.",
-    // #356 — disable/enable's step-up is UNCONDITIONAL (every disable/enable
-    // needs it, not just an Owner target), so these hints are shown every time
-    // rather than only once a sensitive role is picked.
-    stepUpDisableHint: "Disabling a user needs your current password again.",
-    stepUpEnableHint: "Re-enabling a user needs your current password again.",
-    // #606 — assigning or removing a flock changes durable account access,
-    // same as the other step-up sites above.
-    stepUpFlockHint: "Assigning or removing a flock needs your current password again.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -2392,7 +2381,6 @@ export const en = {
     confirmItsYouHeading: "Confirm it's you",
     // {{email}} is the signed-in Owner's, DATA.
     signedInAsCaption: "Signed in as {{email}}",
-    stepUpResetTwoFactorHint: "Resetting two-factor authentication needs your current password again.",
     twoFactorResetMessage: "Two-factor authentication was reset for {{email}}.",
     resetTwoFactorNotFoundError: "This user was not found. Reload the page.",
   },
@@ -4100,6 +4088,8 @@ export const en = {
       "<strong>Security</strong> turns on two-factor authentication with <strong>Set up</strong>: scan the QR "
       + "code with your authenticator app, enter its code, then save the ten recovery codes it shows once. "
       + "They stay on screen, even if you go to another page, until you tick that you saved them. "
+      + "A sign-in or sign-out in another tab, or the end of your session, also removes them, and "
+      + "<strong>Regenerate</strong> then gives you a new set. "
       + "Once it's on, <strong>Regenerate</strong> replaces your recovery codes, <strong>Replace authenticator "
       + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
       + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "

@@ -7,7 +7,7 @@ import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
 // The change-email dialog (#357), moved out of UsersPage (#1215). It renders
@@ -90,14 +90,7 @@ export function ChangeEmailDialog({
             if (emailUser !== null) clearKey(`change-email:${emailUser.id}`);
           }}
         />
-        <p className="muted">{t("stepUpEmailHint")}</p>
-        <StepUpProofFields
-          label={t("stepUpFieldLabel")}
-          codeLabel={t("stepUpCodeFieldLabel")}
-          value={emailStepUpProof}
-          disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)}
-          onChange={setEmailStepUpProof}
-        />
+        <ConfirmItsYou value={emailStepUpProof} onChange={setEmailStepUpProof} disabled={emailUser !== null && isPending(`change-email:${emailUser.id}`)} />
         <DialogError errors={errors} scope="change-email" />
       </Stack>
     </Dialog>

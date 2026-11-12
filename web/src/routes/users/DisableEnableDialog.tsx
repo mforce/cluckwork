@@ -7,7 +7,7 @@ import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
 // The shared disable/enable dialog (#356), moved out of UsersPage (#1215).
@@ -93,15 +93,7 @@ export function DisableEnableDialog({
             />
           </>
         )}
-        <p className="muted">
-          {stepUpMode === "disable" ? t("stepUpDisableHint") : t("stepUpEnableHint")}
-        </p>
-        <StepUpProofFields
-          label={t("stepUpFieldLabel")}
-          codeLabel={t("stepUpCodeFieldLabel")}
-          value={stepUpProof}
-          onChange={setStepUpProof}
-        />
+        <ConfirmItsYou value={stepUpProof} onChange={setStepUpProof} ruled={stepUpMode === "disable"} />
         <DialogError errors={errors} scope="disable-enable" />
       </Stack>
     </Dialog>

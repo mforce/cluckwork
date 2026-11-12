@@ -6,7 +6,7 @@ import type { User } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
 
 // The password-reset dialog (#165), moved out of UsersPage (#1215). It
@@ -73,13 +73,7 @@ export function SetPasswordDialog({
           slotProps={{ htmlInput: { required: true, maxLength: 256, autoComplete: "new-password" } }}
           onChange={(e) => setPwConfirm(e.target.value)}
         />
-        <p className="muted">{t("stepUpResetHint")}</p>
-        <StepUpProofFields
-          label={t("stepUpFieldLabel")}
-          codeLabel={t("stepUpCodeFieldLabel")}
-          value={pwStepUpProof}
-          onChange={setPwStepUpProof}
-        />
+        <ConfirmItsYou value={pwStepUpProof} onChange={setPwStepUpProof} />
         <DialogError errors={errors} scope="set-password" />
       </Stack>
     </Dialog>

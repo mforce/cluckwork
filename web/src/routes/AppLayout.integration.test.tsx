@@ -7,6 +7,8 @@ import { FarmContext } from "../farm/FarmContext";
 import { farmState } from "../test/fixtures";
 import { Dialog } from "../components/Dialog";
 import { AppLayout } from "./AppLayout";
+import { AppNoticeProvider, useAppNotice } from "../components/AppNotice";
+import { setStoredToken } from "../test/jwt";
 
 // #485 — same exposure as the update banner: the farm-load-failed warning sits
 // inside #root, so any open Dialog makes it inert and its own role="alert"
@@ -117,5 +119,43 @@ describe("AppLayout farm warning announcement survives a dialog's inertness (#48
     expect(announcer()).toBeInTheDocument();
     expect(announcer()).not.toHaveAttribute("role");
     expect(announcer()).toHaveAttribute("aria-live", "assertive");
+  });
+});
+
+// #1398 — the farm warning and a posted notice share the strip; both show,
+// the farm warning first.
+describe("AppLayout with a posted notice beside the farm warning", () => {
+  it("shows both, the farm warning first, and closing the notice leaves the warning", async () => {
+    let post: (message: string) => void = () => undefined;
+    function Poster() {
+      post = useAppNotice().show;
+      return null;
+    }
+    setStoredToken({ sub: "u1", role: "Admin" });
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <AuthProvider>
+            <AppNoticeProvider>
+              <FarmContext.Provider value={farmState({ farm: null, loadFailed: true, refresh: async () => true })}>
+                <AppLayout />
+                <Poster />
+              </FarmContext.Provider>
+            </AppNoticeProvider>
+          </AuthProvider>
+        </MemoryRouter>,
+      );
+    });
+
+    await act(async () => { post("Codes removed."); });
+
+    const strips = [...document.querySelectorAll<HTMLElement>(".farm-warning, .shell-notice")];
+    expect(strips.map((s) => s.className.includes("farm-warning") ? "farm" : "notice")).toEqual(["farm", "notice"]);
+    expect(screen.getByRole("alert")).toHaveTextContent(NEVER_LOADED);
+    expect(screen.getByRole("status")).toHaveTextContent("Codes removed.");
+
+    await act(async () => { fireEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "Close" })); });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(NEVER_LOADED);
   });
 });

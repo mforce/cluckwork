@@ -3,12 +3,14 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { Route, Routes, useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { AppLayout } from "./AppLayout";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { makeToken } from "../test/jwt";
 import { freshCode } from "../test/codes";
 import { useLatestLoad } from "../components/useLatestLoad";
 import { apiGet } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { otherTabSignals } from "../test/otherTab";
 import i18n from "../i18n";
 
 // #1281 — an Owner past the grace deadline. The API answers 403
@@ -144,6 +146,16 @@ const tree = () => (
     </Route>
   </Routes>
 );
+// The same routes inside the app shell, whose strip shows a posted notice.
+const shellTree = () => (
+  <Routes>
+    <Route element={<ProtectedRoute />}>
+      <Route element={<AppLayout />}>
+        <Route path="/reports" element={<Reports />} />
+      </Route>
+    </Route>
+  </Routes>
+);
 const OWNER = { sub: "u1", role: "Admin", account_id: ACCOUNT, credential_epoch: "1" };
 const render = (route: string, token: Record<string, unknown> = OWNER) => renderWithProviders(tree(), { route, token, me: null });
 
@@ -229,6 +241,33 @@ describe("the forced two-factor setup screen", () => {
     expect(await screen.findByText(recoveryCodes[0]!)).toBeInTheDocument();
     expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
     expect(requests.filter((r) => !ALLOWED.has(r))).toEqual(["GET /reports/summary", "GET /reports/summary"]);
+  });
+
+  // #1398 — the status read after the confirm is held, so the codes show over
+  // this screen; the other tab's signal takes them, and nothing else.
+  it("drops the unsaved codes on another tab's sign-in or sign-out, lets the user go, and the shell says why", async () => {
+    renderWithProviders(shellTree(), { route: "/reports", token: OWNER, me: null });
+    holding.add("GET /auth/two-factor");
+    await enrol();
+    await screen.findByText(recoveryCodes[0]!);
+    expect(screen.getByRole("heading", { name: t("enrolHeading"), hidden: true })).toBeInTheDocument();
+
+    await otherTabSignals();
+
+    for (const code of recoveryCodes) expect(document.body.innerHTML).not.toContain(code);
+    expect(setUpShown()).toBe(true);
+    expect(requests).not.toContain("POST /auth/logout");
+
+    holding.delete("GET /auth/two-factor");
+    await act(async () => { for (const resolve of held.get("GET /auth/two-factor") ?? []) resolve(answer("GET /auth/two-factor")); });
+    expect(await screen.findByText(/reports page at \/reports loaded/)).toBeInTheDocument();
+    expect(document.querySelector(".shell-notice")).toHaveTextContent(t("codesDroppedNotice"));
+    // Review r2, item 4: the strip mounted with the notice in it, so its
+    // offscreen region says it.
+    await waitFor(() => expect(document.querySelector(".sr-only[aria-live='polite']")).toHaveTextContent(t("codesDroppedNotice")));
+    // Review r3: the strip mounted with it, so it leaves focus where entering
+    // the app put it.
+    expect(document.activeElement).not.toBe(document.querySelector(".shell-notice"));
   });
 
   it("follows a 403 that arrives mid-session, after the screen had loaded", async () => {

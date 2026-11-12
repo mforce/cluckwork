@@ -3,14 +3,13 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, DialogActions, Divider, Stack, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, DialogActions, Stack, Typography,
 } from "@mui/material";
 import { useAuth } from "../../auth/useAuth";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
-import { StepUpProofFields } from "../../components/StepUpProofFields";
-import { useMe } from "../../session/SessionContext";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import { StatusDot } from "../dashboard/StatusDot";
 import { SECURITY_SUMMARY_ID, useRecoveryCodesSlot } from "./recoveryCodes";
 import { LOW_RECOVERY_CODES } from "./useTwoFactor";
@@ -97,18 +96,13 @@ function copyFor(action: ProofAction, enrolled: boolean) {
     : { title: "setUpTitle", body: "setUpBody", submit: "continueButton" } as const;
 }
 
-// The lab's proof(): "Confirm it's you", what to enter and who is signed in,
-// then the password and, once two-factor is on, the code. Start again opens it
-// from the enrolment screen too, so the page renders it outside both. Its copy
-// reads the session's two_factor claim, the same fact StepUpProofFields reads
-// for the code field, so the words and the fields always agree.
+// The action's step-up, with the lab's proof() block. Start again opens it
+// from the enrolment screen too, so the page renders it outside both.
 export function ProofDialog({ twoFactor }: { twoFactor: TwoFactor }) {
   const bodyId = useId();
   const { t } = useTranslation("account");
-  const { t: tu } = useTranslation("users");
   const { t: tc } = useTranslation("common");
   const { twoFactor: enrolled } = useAuth();
-  const me = useMe();
   const { action, proof, setProof, closeProof, onProof, dialog: { busy, isPending, errors } } = twoFactor;
   const copy = action && copyFor(action, enrolled);
   return (
@@ -131,21 +125,7 @@ export function ProofDialog({ twoFactor }: { twoFactor: TwoFactor }) {
     >
       <Stack spacing={2}>
         <Typography id={bodyId} sx={{ lineHeight: 1.55 }}>{copy && t(copy.body)}</Typography>
-        <Divider />
-        <Typography component="h3" variant="h3">{tu("confirmItsYouHeading")}</Typography>
-        <p className="muted">{t(enrolled ? "proofHint" : "proofHintPassword")}</p>
-        {me && (
-          <Typography variant="caption" sx={{ overflowWrap: "anywhere" }}>
-            {tu("signedInAsCaption", { email: me.email })}
-          </Typography>
-        )}
-        <StepUpProofFields
-          label={tu("stepUpFieldLabel")}
-          codeLabel={tu("stepUpCodeFieldLabel")}
-          value={proof}
-          onChange={setProof}
-          disabled={busy}
-        />
+        <ConfirmItsYou value={proof} onChange={setProof} disabled={busy} />
         {action && <DialogError errors={errors} scope={action} />}
       </Stack>
     </Dialog>

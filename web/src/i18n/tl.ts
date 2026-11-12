@@ -306,6 +306,7 @@ export const tl = {
     codesLockedHint: "I-save ang mga code, tapos lagyan ng tsek ang kahon para matapos.",
     savedCheckbox: "Na-save ko ang aking mga recovery code sa ligtas na lugar.",
     doneButton: "Tapos na",
+    codesDroppedNotice: "Inalis ang iyong mga recovery code dahil nagbago ang session sa ibang tab. Gamitin ang Gumawa ulit sa Account screen para sa bagong set.",
     replacedMessage: "Naka-set up na ang bago mong authenticator app. Hindi na gumagana ang luma.",
     turnedOffMessage: "Naka-off na ang two-factor authentication.",
     codesMissing: "May nangyaring mali, at walang dumating na recovery code. Gumawa ulit para makakuha ng bagong set.",
@@ -1796,14 +1797,6 @@ export const tl = {
     // #1279 — the step-up dialogs' code field; the full auth:secondFactorCode
     // label does not fit there at 390px. The field adds its own asterisk.
     stepUpCodeFieldLabel: "Authenticator o recovery code",
-    stepUpCreateHint: "Ang paggawa ng kahit anong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpResetHint: "Ang pag-reset ng password ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpRoleHint: "Ang pagpapalit ng tungkulin ng kahit sinong user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpEmailHint: "Ang pagpapalit ng email sa pag-sign in ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    // #356 — walang kondisyong muling pagkumpirma (machine-drafted, pending native review)
-    stepUpDisableHint: "Ang pag-disable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpEnableHint: "Ang muling pag-enable ng isang user ay nangangailangan muling ilagay ang kasalukuyan mong password.",
-    stepUpFlockHint: "Ang pag-assign o pag-alis ng kawan ay nangangailangan muling ilagay ang kasalukuyan mong password.",
 
     // Users table
     emailColumnHeader: "Email",
@@ -1905,7 +1898,6 @@ export const tl = {
       + "nila, at puwede nilang i-set up ulit ang two-factor authentication.",
     confirmItsYouHeading: "Kumpirmahin na ikaw ito",
     signedInAsCaption: "Naka-sign in bilang {{email}}",
-    stepUpResetTwoFactorHint: "Ang pag-reset ng two-factor authentication ay nangangailangan muling ilagay ang kasalukuyan mong password.",
     twoFactorResetMessage: "Na-reset ang two-factor authentication ni {{email}}.",
     resetTwoFactorNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
   },
@@ -3510,7 +3502,9 @@ export const tl = {
       + "i-scan ang QR code gamit ang iyong authenticator app, ilagay ang code nito, tapos i-save ang sampung "
       + "recovery code na isang beses lang nitong ipapakita. "
       + "Mananatili ang mga ito sa screen, kahit pumunta ka sa ibang page, hanggang lagyan mo ng tsek na na-save "
-      + "mo ang mga ito. Kapag naka-on na, pinapalitan ng <strong>Gumawa "
+      + "mo ang mga ito. Inaalis din ang mga ito kapag nag-sign in o nag-sign out ka sa ibang tab, o kapag "
+      + "natapos ang iyong session, at bibigyan ka ng <strong>Gumawa ulit</strong> ng bagong set. "
+      + "Kapag naka-on na, pinapalitan ng <strong>Gumawa "
       + "ulit</strong> ang iyong mga recovery code, inililipat ng <strong>Palitan ang authenticator app</strong> "
       + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng I-set up "
       + "ang iyong password, at ng tatlo pa ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "

@@ -32,8 +32,13 @@ import { anyDialogOpen, onModalStateChange } from "./Dialog";
  *   opening and closing over an unchanged message says nothing a second time.
  *
  * Pass `null` when there is nothing to say.
+ *
+ * `owed` (#1398) treats every message as missed, for a caller that passes
+ * only messages its visible region cannot announce: a notice the shell's
+ * strip mounts with is inserted with its text, which is not reliably
+ * announced (ARIA22, above).
  */
-export function useMissedAnnouncement(message: string | null): string {
+export function useMissedAnnouncement(message: string | null, owed = false): string {
   const [blocked, setBlocked] = useState(anyDialogOpen);
   useEffect(() => onModalStateChange(setBlocked), []);
 
@@ -43,6 +48,7 @@ export function useMissedAnnouncement(message: string | null): string {
 
   useEffect(() => {
     if (message === previous.current) return;
+    const before = previous.current;
     previous.current = message;
 
     // Neither reading of "was the page inert" is sufficient alone, because a
@@ -59,10 +65,12 @@ export function useMissedAnnouncement(message: string | null): string {
     //
     // So take the debt if the page was inert on EITHER side of the commit: the
     // mirror as it stood going in, or the stack once it has settled.
-    const inertGoingIn = blocked || anyDialogOpen();
+    const owedGoingIn = blocked || anyDialogOpen() || owed;
     let cancelled = false;
+    let delivered = false;
     queueMicrotask(() => {
       if (cancelled) return;
+      delivered = true;
       // Every change reassigns the debt from scratch rather than only ever
       // taking one on. A change the visible region CAN announce for itself
       // cancels whatever was owed; only one it cannot becomes the new debt.
@@ -82,10 +90,15 @@ export function useMissedAnnouncement(message: string | null): string {
       // Guessing "it managed" costs a screen-reader user the notification
       // entirely; guessing "it did not" costs a repeat. Those are not equally
       // bad, so this errs toward saying it twice.
-      setMissed(message !== null && (inertGoingIn || anyDialogOpen()) ? message : null);
+      setMissed(message !== null && (owedGoingIn || anyDialogOpen()) ? message : null);
     });
-    return () => { cancelled = true; };
-  }, [message, blocked]);
+    // #1398 — a run cancelled before it delivered (StrictMode's replay in
+    // development) leaves the message undecided, so the next run decides it.
+    return () => {
+      cancelled = true;
+      if (!delivered) previous.current = before;
+    };
+  }, [message, blocked, owed]);
 
   const [shown, setShown] = useState("");
   useEffect(() => {

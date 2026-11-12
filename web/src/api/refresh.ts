@@ -1,5 +1,6 @@
 import { getAccessToken, setAccessToken, clearAccessToken, bindAccount, getBoundAccountId } from "../auth/tokenStore";
 import { accountIdFromToken } from "../auth/claims";
+import { announceSessionChange } from "../auth/sessionSignal";
 import type { AccessTokenResponse } from "./types";
 import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
 import { ApiError } from "./errors";
@@ -334,9 +335,13 @@ export async function apiFetch<T>(
 const TWO_FACTOR_ENROLMENT_REQUIRED = "Auth.TwoFactorEnrolmentRequired";
 
 // Clears this tab's session, tells the app why, and rethrows the 401 that
-// showed it was over.
-function endSession(err: ApiError): never {
+// showed it was over. #1398 — the other tabs hear it only when the server
+// refused a session this tab held: a refused first refresh at load ended
+// nothing, and a refresh that failed (a 5xx, the network) refused nothing.
+function endSession(err: ApiError, refused = true): never {
+  const held = getAccessToken() !== null;
   clearAccessToken();
+  if (held && refused) announceSessionChange();
   onUnauthenticated?.(err.title);
   throw err;
 }
@@ -386,7 +391,7 @@ async function sendWithRefresh<T>(
         throw err;
       }
       if (isTransientRefreshFailure(refreshErr)) throw refreshErr;
-      endSession(err);
+      endSession(err, refreshErr instanceof ApiError && refreshErr.status === 401);
     }
     // #1277 — the refresh worked, so the resend answers for the request
     // itself: a 4xx, a 5xx or a network error is the caller's to show. Only a

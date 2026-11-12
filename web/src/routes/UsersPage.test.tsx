@@ -1908,6 +1908,22 @@ describe("UsersPage flock scoping", () => {
     expect(within(panel).getByText("Flock assignments only apply to a plain Worker.")).toBeInTheDocument();
   });
 
+  // #1398 review r1 — with nothing to assign or remove, nothing is confirmed,
+  // so the dialog asks for no proof.
+  it("asks no proof of a promoted user's dialog with nothing to remove", async () => {
+    mockListAssignments.mockResolvedValue([]);
+    await renderReady(ADMIN);
+
+    await act(async () => {
+      fireEvent.click(userActions(screen.getByRole("row", { name: /boss@farm.test/ })).getByRole("button", { name: "flocks" }));
+    });
+
+    const panel = await screen.findByRole("dialog", { name: /Flock access — boss@farm.test/ });
+    expect(within(panel).getByText("Flock assignments only apply to a plain Worker.")).toBeInTheDocument();
+    expect(within(panel).queryByRole("heading", { name: i18n.t("users:confirmItsYouHeading") })).not.toBeInTheDocument();
+    expect(within(panel).queryByLabelText(/Your current password/)).not.toBeInTheDocument();
+  });
+
   it("shows the empty-assignments hint (account-wide access) and lists only ACTIVE flocks to assign", async () => {
     setAssignmentsFor("u-w", []);
     await renderReady(ADMIN);
@@ -2757,14 +2773,14 @@ describe("UsersPage i18n wiring (#182, Task 22)", () => {
     });
   });
 
-  it("reads the flock step-up hint from the catalog, not a hardcoded literal", async () => {
-    await withOverride("users", "stepUpFlockHint", "FLOCK-STEPUP-MARKER", async () => {
+  it("reads the shared step-up hint from the catalog in the flock dialog, not a hardcoded literal", async () => {
+    await withOverride("account", "proofHintPassword", "STEPUP-HINT-MARKER", async () => {
       await renderReady(ADMIN);
       const workerRow = screen.getByRole("row", { name: /worker@farm.test/ });
       await act(async () => {
         fireEvent.click(userActions(workerRow).getByRole("button", { name: "flocks" }));
       });
-      expect(await screen.findByText("FLOCK-STEPUP-MARKER")).toBeInTheDocument();
+      expect(await screen.findByText("STEPUP-HINT-MARKER")).toBeInTheDocument();
     });
   });
 
@@ -4222,6 +4238,38 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
 
     const label = (codeField() as HTMLInputElement).labels![0]!.textContent!.replace(/[\s*\u2009]+$/, "");
     expect(label).toBe(i18n.t("users:stepUpCodeFieldLabel"));
+  });
+
+  // #1398 — the lab's proof(): who confirms, as the signed-in user and never
+  // the target, and a hint that names the code only when one is asked for.
+  const proofCopy = [
+    ["off", ADMIN, "account:proofHintPassword", "account:proofHint"],
+    ["on", { ...ADMIN, two_factor: "true" }, "account:proofHint", "account:proofHintPassword"],
+  ] as const;
+  it.each(table.flatMap(([name, c]) => proofCopy.map((copy) => [name, copy[0], c, copy] as const)))(
+    "%s heads the proof with the signed-in user and a hint that matches two-factor %s",
+    async (_, _state, { open }, [, token, hint, other]) => {
+      await renderReady(token);
+      await open();
+
+      const proof = within(dialog());
+      expect(proof.getByRole("heading", { level: 3, name: i18n.t("users:confirmItsYouHeading") })).toBeInTheDocument();
+      expect(proof.getByText(i18n.t("users:signedInAsCaption", { email: "test@farm.local" }))).toBeInTheDocument();
+      expect(proof.getByText(i18n.t(hint))).toBeInTheDocument();
+      expect(proof.queryByText(i18n.t(other))).not.toBeInTheDocument();
+    },
+  );
+
+  // Review r1 — the rule sets the proof apart from what sits above it, so a
+  // dialog with nothing above (Enable) opens without one.
+  it("rules the proof off from the warning in Disable, and draws no rule under Enable's title", async () => {
+    await renderReady(ADMIN);
+    await caller("useDisableEnable.onSubmitStepUp").open();
+    expect(within(dialog()).getByRole("separator")).toBeInTheDocument();
+    fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+
+    inspector(/disabled@farm.test/, "enable");
+    expect(within(await screen.findByRole("dialog")).queryByRole("separator")).not.toBeInTheDocument();
   });
 
   // The flock buttons are not the form's submit, so `required` cannot hold them.
