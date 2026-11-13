@@ -190,11 +190,13 @@ internal sealed class KeyRingRewrap
 
     // The direct envelope CertificateXmlEncryptor writes, one of each element and nothing
     // beside them in either KeyInfo: EncryptedData/KeyInfo/EncryptedKey/KeyInfo/X509Data/
-    // X509Certificate. Any other key reference could reach the OS certificate store.
+    // X509Certificate, with no EncryptedData nested inside and no CipherReference. Decrypting
+    // also decrypts a nested EncryptedData, whose own KeyInfo could reach the OS certificate
+    // store; a CipherReference makes the decrypt resolve a URI.
     private static (XElement Data, string Sha256)? Recipient(XElement secret)
     {
         if (OnlyChild(secret, Xenc + "EncryptedData") is not { } data
-            || data.Descendants(Xenc + "EncryptedKey").Count() != 1
+            || data.Descendants().Any(e => e.Name == Xenc + "EncryptedData" || e.Name == Xenc + "CipherReference")
             || OnlyChild(data.Element(Dsig + "KeyInfo"), Xenc + "EncryptedKey") is not { } encryptedKey
             || OnlyChild(encryptedKey.Element(Dsig + "KeyInfo"), Dsig + "X509Data") is not { } x509Data
             || OnlyChild(x509Data, Dsig + "X509Certificate") is not { } embedded)
