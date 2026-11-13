@@ -243,6 +243,8 @@ leave the configuration. Revocation records hold no key and stay as they are.
 Before step 2, check both:
 
 - D.3 is done: every serving instance runs with the new certificate current.
+- The environment the verb gets names the serving database: the same
+  `ConnectionStrings__Default` the serving instances use.
 - The certificate in the environment the verb gets is the serving one. Its `openssl x509
   -fingerprint -sha256` output, without the colons, equals `CertificateSha256` in the
   serving instances' startup log. A wrong certificate here re-encrypts the ring to a key
@@ -254,16 +256,18 @@ keeps the keys it has already read, and their key material is unchanged.
 
 #### 1. Back up
 
-Take a database backup, and export the key table on its own:
+Take a database backup, and export the key table on its own. Note its row count:
 
 ```bash
 pg_dump --data-only --table='"DataProtectionKeys"' "<connection string>" > data-protection-keys.sql
+psql "<connection string>" -c 'SELECT count(*) FROM "DataProtectionKeys"'
 ```
 
 #### 2. Re-encrypt
 
-Run the verb with the serving configuration: the current certificate and every previous
-entry.
+Run the verb with the serving configuration: the database, the current certificate and every
+previous entry. `docker run --env-file` keeps quotes as part of a value, so write that file
+with one `NAME=value` per line, no quotes, and the PEM values in the escaped `\n` form.
 
 ```bash
 docker run --rm --env-file <runtime-credential.env> \
@@ -280,10 +284,13 @@ current certificate SHA-256 <FINGERPRINT>
 rewrapped <N>, already current <M>, revocations <R>
 ```
 
-The fields of each row line are separated by tabs. The first line must equal
-`CertificateSha256` from the startup log. Each key row then names its fingerprints before
-and after, comma-separated, never key material. The serving log gets one line
-with the same counts and fingerprints.
+The fields of each row line are separated by tabs. The `current certificate SHA-256` line
+must equal `CertificateSha256` from the startup log; in Production, log lines in compact
+JSON can come before it. Each key row then names its fingerprints before and after,
+comma-separated, never key material. The row lines and the counts print only after the
+write succeeds. `rewrapped`, `already current` and `revocations` together must equal the row
+count from step 1, or the verb read another database. The verb's own log, in the same
+output, gets one line with the same counts and fingerprints.
 
 The verb writes every row in one transaction, after every check, so a refused run writes
 nothing. It refuses, with exit code 1 and one line per refusal, when:
@@ -295,15 +302,17 @@ nothing. It refuses, with exit code 1 and one line per refusal, when:
   fingerprint;
 - a row holds a key stored without encryption: follow procedure B, never re-encrypt it;
 - a row has a shape the framework does not write: a decryptor other than
-  `EncryptedXmlDecryptor`, more than one recipient, a key with no `encryptedSecret`, an
-  unknown root element, or no XML.
+  `EncryptedXmlDecryptor` in its own assembly, a recipient anywhere but the direct
+  `KeyInfo` path, a key with no `encryptedSecret`, an unknown root element, XML that is not
+  well formed, or no XML.
 
 #### 3. Check without the previous certificates
 
 Run the verb again with no `DataProtection__PreviousCertificates__*` variables at all. It
-must exit 0 and print `rewrapped 0`, and its first line must again equal
-`CertificateSha256`. The verb decrypts every row on every run, so this proves the current
-certificate alone reads every stored key. It checks only the rows it read: a key a serving
+must exit 0 and print `rewrapped 0`, and its `current certificate SHA-256` line must again
+equal `CertificateSha256`. Its key ids must be the ones step 2 printed, and its `already
+current` must equal step 2's `rewrapped` plus `already current`. The verb decrypts every
+key row on every run, so this proves the current certificate alone reads every stored key. It checks only the rows it read: a key a serving
 instance creates later is already under the current certificate, because D.3 is done.
 
 #### 4. Remove the previous entries
@@ -348,7 +357,7 @@ D.4, a user enrolled before the change signs in with an authenticator code.
   connection while writing, run it again: the write is one transaction, and a second run
   re-encrypts whatever is still under an old certificate.
 - **Authenticator codes fail after D.4 step 4.** Put the removed entries back (D.2 form)
-  and restart. Then compare the verb's first line with `CertificateSha256`. If the rows went
+  and restart. Then compare the verb's `current certificate SHA-256` line with `CertificateSha256`. If the rows went
   under a wrong certificate, run the verb again with the serving certificate current and the
   wrong one listed. Never restore the whole database for this: a restore discards every
   write since step 1.

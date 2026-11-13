@@ -117,17 +117,19 @@ shape on 2026-11-12, and two design reviews tightened it before it was built.
   by id and its repository only inserts rows, so re-encrypting means rewriting the rows.
   The verb never loads the stored ring: it decrypts each element itself, with only the
   configured certificates.
-- **Every row is decrypted on every run.** The embedded certificate decides only whether to
-  write. A run without a certificate listed therefore proves that no row still needs it,
+- **Every key row is decrypted on every run.** The embedded certificate decides only whether
+  to write. A run without a certificate listed therefore proves that no row still needs it,
   which a fingerprint listing cannot: a row can name one certificate and be encrypted to
   another.
 - **Configured recipients only.** `EncryptedXml` falls back to the operating system's
-  certificate store. Before it decrypts, the verb requires the shape the encryptor writes
-  (one `EncryptedKey` for one `X509Certificate`) and a recipient that is the current or a
-  listed certificate.
-- **The decryptor type** is compared by type name, not assembly version, as the framework
-  resolves it: a ring an older framework wrote names another version. Any other type
-  refuses, because the encryptor would then wrap a blob the stored type cannot read.
+  certificate store through any other key reference. Before it decrypts, the verb requires
+  the direct envelope the encryptor writes, with nothing beside it in either `KeyInfo`:
+  `EncryptedData/KeyInfo/EncryptedKey/KeyInfo/X509Data/X509Certificate`. The recipient must
+  be the current or a listed certificate.
+- **The decryptor type** must name `EncryptedXmlDecryptor` and its assembly, at any
+  version, as the framework resolves it: a ring an older framework wrote names another
+  version. Any other type or assembly refuses: the framework could not read that row, and
+  the encryptor would wrap a blob the stored type cannot read.
 - **The server's configuration and refusals.** `EnsureKeyEncryptionCertificate` and
   `EnsurePreviousCertificates` run as at a serving start. A missing current certificate
   refuses in every environment.
@@ -233,15 +235,18 @@ yet; the runbook records when it is.
   certificate listed, the plaintext-key row included. `ServingGuardCoverageTests` maps them
   to `EnsureUsableCertificate` and `EnsurePreviousCertificates`.
 - `DataProtectionKeyRewrapTests` runs `rewrap-key-ring` as an operator does, against
-  Postgres. Five keys under an expired certificate A (current, expired, revoked, one naming
-  `Version=8.0.0.0` types, one with two encrypted elements) and a revocation record are
-  re-wrapped to B. A host with B alone reads every key and an A-era payload, everything
-  outside the ciphertext is unchanged, and no output names `masterKey`. A rerun writes
-  nothing, and a run with no previous certificate passes. A forced failure on the second
-  update leaves every row unchanged. A row under an unlisted certificate, a row that names
-  B but is encrypted to A, a recipient only the certificate store holds, every refused row
+  Postgres. Seven keys under an expired certificate A (current, expired, revoked, one naming
+  `Version=8.0.0.0` types, and three with a second encrypted element: under A, and under B
+  before or after A's) and a revocation record are re-wrapped to B. Every decrypted element
+  is unchanged, a host with B alone reads every key and an A-era payload, everything outside
+  the ciphertext is unchanged, and no output names `masterKey` or carries a master key value.
+  The log line names both fingerprints. A rerun writes nothing, and a run with no previous
+  certificate passes. A forced failure on the second update leaves every row unchanged and
+  prints no row line. A row under an unlisted certificate, a row that names B but is
+  encrypted to A, three recipients only the certificate store resolves, every refused row
   shape, a missing current certificate and a refused previous entry each exit 1 with every
-  row unchanged. The plaintext check on the rewritten XML has no test that reaches it.
+  row unchanged. The plaintext check on the rewritten XML has no test that reaches it, and
+  the store tests rely on .NET's Linux store path under `HOME`.
 - `TableOwnerRealModelTests` requires the Platform row in `TableOwnerOverrides`, and
   `TenantBypassDiscoveryTests` pins `DataProtectionKey` in the filter-free set. The
   plaintext check's two queries carry `BypassAllowList` and `FilterFreeSetSites` rows, and
