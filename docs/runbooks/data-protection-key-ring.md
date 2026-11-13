@@ -51,9 +51,9 @@ commit `74947ddc`, against a scratch PostgreSQL container with the API serving i
 and the verb run from the image built at that commit. Certificate A was issued with the A.1
 command and an Owner enrolled in two-factor, then D.1 to D.3 moved to certificate B with A
 listed. Before any re-wrap, a host with B alone refused that Owner's code with
-`Auth.SecondFactorKeyUnavailable`. D.4 steps 1 to 5 then ran as written: the key-id list,
-`rewrap-key-ring` through `docker run --env-file`, the run with no previous entries, the
-restart with A removed, and the Owner's sign-in with a code, which succeeded. The verb also
+`Auth.SecondFactorKeyUnavailable`. D.4's key-table export and key-id query then ran, followed by
+`rewrap-key-ring` through `docker run --env-file`, the run with no previous entries,
+the restart with A removed, and the Owner's sign-in with a code, which succeeded. The verb also
 re-encrypted the ring under a role with only schema usage, table DML and sequence access,
 and no DDL. Procedure C: not recorded.
 
