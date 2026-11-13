@@ -15,8 +15,8 @@ namespace Cluckwork.Api.Cli;
 // `rewrap-key-ring` (#1420) re-encrypts every stored Data Protection key under the current
 // certificate, keeping key ids and key material, so a previous certificate can leave
 // DataProtection:PreviousCertificates. The one verb that reads the stored ring (794): it
-// rewrites the rows itself and never starts the ring. Every row is decrypted on every run,
-// so a run without a certificate listed is the check that no row still needs it.
+// rewrites the rows itself and never starts the ring. Every key row is decrypted on every
+// run, so a run without a certificate listed is the check that no row still needs it.
 // All or nothing: every refusal comes before the single SaveChanges.
 public sealed class RewrapKeyRingCliCommand : ICliCommand
 {
@@ -43,7 +43,7 @@ public sealed class RewrapKeyRingCliCommand : ICliCommand
 
         try
         {
-            using var rewrap = new KeyRingRewrap(current, previous);
+            var rewrap = new KeyRingRewrap(current, previous);
             using var scope = app.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var rows = await db.DataProtectionKeys.OrderBy(k => k.Id).ToListAsync();
@@ -60,15 +60,14 @@ public sealed class RewrapKeyRingCliCommand : ICliCommand
             }
 
             foreach (var (row, plan) in plans)
-            {
-                await Console.Out.WriteLineAsync(plan.Line);
                 if (plan.NewXml is not null)
                     row.Xml = plan.NewXml;
-            }
             if (PlaintextDataProtectionKeyGuard.PlaintextKeyIds(plans.Select(p => p.Plan.NewXml)).Count > 0)
                 throw new InvalidOperationException("a re-wrapped key would be stored unencrypted. No row was written.");
             await db.SaveChangesAsync();
 
+            foreach (var (_, plan) in plans)
+                await Console.Out.WriteLineAsync(plan.Line);
             var rewrapped = plans.Count(p => p.Plan.Outcome is RowOutcome.Rewrapped);
             var alreadyCurrent = plans.Count(p => p.Plan.Outcome is RowOutcome.Current);
             var revocations = plans.Count(p => p.Plan.Outcome is RowOutcome.Revocation);
@@ -83,7 +82,7 @@ public sealed class RewrapKeyRingCliCommand : ICliCommand
         catch (Exception ex)
         {
             // Every decrypt and parse failure is a refusal inside Plan, so what lands here is the
-            // database or this verb's own check, whose messages carry no key XML.
+            // database, the encryptor or this verb's own check, whose messages carry no key XML.
             await Console.Error.WriteLineAsync($"rewrap-key-ring failed: {ex.GetBaseException().Message}");
             return 1;
         }
@@ -96,17 +95,14 @@ internal sealed record RowPlan(RowOutcome Outcome, string Line, string? NewXml =
 
 // Replaces only the EncryptedData under each encryptedSecret. Everything else in the row,
 // decryptorType included, stays as stored.
-internal sealed class KeyRingRewrap : IDisposable
+internal sealed class KeyRingRewrap
 {
     private static readonly XNamespace Dp = "http://schemas.asp.net/2015/03/dataProtection";
     private static readonly XNamespace Xenc = "http://www.w3.org/2001/04/xmlenc#";
     private static readonly XNamespace Dsig = "http://www.w3.org/2000/09/xmldsig#";
+    private static readonly Type Decryptor = typeof(EncryptedXmlDecryptor);
 
-    // The framework resolves the type by name and ignores the assembly version, so a ring an
-    // older framework wrote names another version.
-    private static readonly string DecryptorTypePrefix = typeof(EncryptedXmlDecryptor).FullName + ",";
-
-    private readonly ServiceProvider _decryption;
+    private readonly EncryptedXmlDecryptor _decryptor;
     private readonly CertificateXmlEncryptor _encryptor;
     private readonly HashSet<string> _configured;
 
@@ -115,9 +111,10 @@ internal sealed class KeyRingRewrap : IDisposable
         CurrentSha256 = Sha256(current);
         PreviousSha256s = [.. previous.Select(Sha256)];
         _configured = [CurrentSha256, .. PreviousSha256s];
-        // XmlKeyDecryptionOptions is internal; the decryptor reads it from these services.
-        _decryption = new ServiceCollection().AddDataProtection()
-            .UnprotectKeysWithAnyCertificate([current, .. previous]).Services.BuildServiceProvider();
+        // XmlKeyDecryptionOptions is internal; the decryptor's constructor reads it from these services.
+        using (var services = new ServiceCollection().AddDataProtection()
+            .UnprotectKeysWithAnyCertificate([current, .. previous]).Services.BuildServiceProvider())
+            _decryptor = new EncryptedXmlDecryptor(services);
         _encryptor = new CertificateXmlEncryptor(current, NullLoggerFactory.Instance);
     }
 
@@ -154,28 +151,28 @@ internal sealed class KeyRingRewrap : IDisposable
         var rewritten = false;
         foreach (var secret in secrets)
         {
-            if (((string?)secret.Attribute("decryptorType"))?.StartsWith(DecryptorTypePrefix, StringComparison.Ordinal) is not true)
+            if (!IsEncryptedXmlDecryptor((string?)secret.Attribute("decryptorType")))
                 return Refuse(row, keyId, "names a decryptor other than EncryptedXmlDecryptor");
-            if (Recipient(secret) is not { } recipient)
-                return Refuse(row, keyId, "is not one EncryptedData with one EncryptedKey for one X509Certificate");
+            if (Recipient(secret) is not ({ } data, { } recipient))
+                return Refuse(row, keyId, "is not in the envelope the framework writes");
             before.Add(recipient);
             // Before the decrypt: EncryptedXml falls back to the OS certificate store, which
             // must not rescue a row no configured certificate can read.
             if (!_configured.Contains(recipient))
                 return Refuse(row, keyId, $"is encrypted with the certificate {recipient}, which is not configured");
+            XElement clear;
             try
             {
-                var encrypted = secret.Elements().Single();
-                var clear = new EncryptedXmlDecryptor(_decryption).Decrypt(encrypted);
-                if (recipient == CurrentSha256)
-                    continue;
-                encrypted.ReplaceWith(_encryptor.Encrypt(clear).EncryptedElement);
-                rewritten = true;
+                clear = _decryptor.Decrypt(data);
             }
             catch (Exception)
             {
                 return Refuse(row, keyId, $"does not decrypt with the certificate {recipient}");
             }
+            if (recipient == CurrentSha256)
+                continue;
+            data.ReplaceWith(_encryptor.Encrypt(clear).EncryptedElement);
+            rewritten = true;
         }
 
         var line = $"{keyId}\t{string.Join(",", before.Distinct())}\t{CurrentSha256}";
@@ -184,30 +181,37 @@ internal sealed class KeyRingRewrap : IDisposable
             : new(RowOutcome.Current, line);
     }
 
-    public void Dispose() => _decryption.Dispose();
+    // The framework resolves the stored type name and ignores the assembly version, so a ring
+    // an older framework wrote names another version. A name it could not resolve refuses.
+    private static bool IsEncryptedXmlDecryptor(string? decryptorType) =>
+        decryptorType?.Split(',', StringSplitOptions.TrimEntries) is [var type, var assembly, ..]
+        && type == Decryptor.FullName
+        && assembly == Decryptor.Assembly.GetName().Name;
 
-    // The shape CertificateXmlEncryptor writes. Anything else could name its key some other
-    // way, through the certificate store.
-    private static string? Recipient(XElement secret)
+    // The direct envelope CertificateXmlEncryptor writes, one of each element and nothing
+    // beside them in either KeyInfo: EncryptedData/KeyInfo/EncryptedKey/KeyInfo/X509Data/
+    // X509Certificate. Any other key reference could reach the OS certificate store.
+    private static (XElement Data, string Sha256)? Recipient(XElement secret)
     {
-        var encrypted = secret.Elements().ToList();
-        if (encrypted is not [{ } data] || data.Name != Xenc + "EncryptedData"
+        if (OnlyChild(secret, Xenc + "EncryptedData") is not { } data
             || data.Descendants(Xenc + "EncryptedKey").Count() != 1
-            || data.Descendants(Dsig + "X509Data").Count() != 1
-            || data.Descendants(Dsig + "X509Certificate").ToList() is not [{ } embedded]
-            || embedded.Parent?.Name != Dsig + "X509Data"
-            || embedded.Parent.Parent?.Parent?.Name != Xenc + "EncryptedKey")
+            || OnlyChild(data.Element(Dsig + "KeyInfo"), Xenc + "EncryptedKey") is not { } encryptedKey
+            || OnlyChild(encryptedKey.Element(Dsig + "KeyInfo"), Dsig + "X509Data") is not { } x509Data
+            || OnlyChild(x509Data, Dsig + "X509Certificate") is not { } embedded)
             return null;
         try
         {
             using var certificate = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(embedded.Value));
-            return Sha256(certificate);
+            return (data, Sha256(certificate));
         }
         catch (Exception)
         {
             return null;
         }
     }
+
+    private static XElement? OnlyChild(XElement? parent, XName name) =>
+        parent?.Elements().ToList() is [{ } child] && child.Name == name ? child : null;
 
     private static string Sha256(X509Certificate2 certificate) => certificate.GetCertHashString(HashAlgorithmName.SHA256);
 
