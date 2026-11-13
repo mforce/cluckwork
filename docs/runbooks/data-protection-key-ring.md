@@ -24,8 +24,8 @@ Procedure D loses nothing: the old certificate stays listed until D.4 has re-enc
 every stored key under the new one. Signed-in sessions are not affected; they use JWTs.
 
 A certificate change outside procedure D, removing a previous certificate before D.4 has
-re-encrypted the keys it encrypted, or a ring deletion also makes every two-factor authenticator stored under the lost keys unreadable
-(#1274). Recovery codes do not depend on the ring, but each one works once. To recover alone,
+re-encrypted the keys it encrypted, or a ring deletion also makes every two-factor
+authenticator stored under the lost keys unreadable (#1274). Recovery codes do not depend on the ring, but each one works once. To recover alone,
 a signed-out user needs two unused recovery codes: one to sign in, and one for the step-up
 that replacing the authenticator needs. A signed-in user needs one. A user with fewer needs an
 Owner to reset their two-factor authentication, and an Owner with fewer needs another Owner or
@@ -46,8 +46,16 @@ the A.1 command and an Owner enrolled in two-factor. Certificate B was then issu
 moved to `DataProtection__PreviousCertificates__0__*` as D.2 says. After the restart, both
 fingerprint lines matched the `openssl` output and the Owner signed in with an
 authenticator code. With A removed from the list, the same sign-in was refused with
-`Auth.SecondFactorKeyUnavailable`. Procedure D.4: not drilled yet. Procedure C: not
-recorded.
+`Auth.SecondFactorKeyUnavailable`. Procedure D.4: 2026-11-13 by the #1420 implementer at
+commit `74947ddc`, against a scratch PostgreSQL container with the API serving in Production
+and the verb run from the image built at that commit. Certificate A was issued with the A.1
+command and an Owner enrolled in two-factor, then D.1 to D.3 moved to certificate B with A
+listed. Before any re-wrap, a host with B alone refused that Owner's code with
+`Auth.SecondFactorKeyUnavailable`. D.4 steps 1 to 5 then ran as written: the key-id list,
+`rewrap-key-ring` through `docker run --env-file`, the run with no previous entries, the
+restart with A removed, and the Owner's sign-in with a code, which succeeded. The verb also
+re-encrypted the ring under a role with only schema usage, table DML and sequence access,
+and no DDL. Procedure C: not recorded.
 
 Background and the reasons behind each rule:
 [`794-data-protection-key-ring.md`](../decisions/794-data-protection-key-ring.md).
@@ -200,9 +208,17 @@ the ones they protected.
 
 ### 1. Issue the new certificate
 
-Follow A.1. A new key pair is preferred. A renewal on the same key pair also works,
-because the boot compares certificates by thumbprint, and a reissued certificate has a
-new one.
+Follow A.1, but write the new pair under new file names, so the current pair's files are
+still there for step 2:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+  -subj "/CN=cluckwork-data-protection" -keyout dp-key-new.pem -out dp-cert-new.pem
+openssl x509 -in dp-cert-new.pem -noout -fingerprint -sha256
+```
+
+A new key pair is preferred. A renewal on the same key pair also works, because the boot
+compares certificates by thumbprint, and a reissued certificate has a new one.
 
 ### 2. Move the current certificate to the previous list
 
@@ -266,7 +282,8 @@ psql "<connection URI>" -Atc 'SELECT substr("FriendlyName", 5) FROM "DataProtect
 
 `pg_dump` and `psql` take a libpq connection URI, such as
 `postgresql://<user>@<host>:5432/<database>?sslmode=require`, not the `Host=…;Port=…` form
-of `ConnectionStrings__Default`.
+of `ConnectionStrings__Default`. Set `sslmode` to what the database uses: `require` when it
+has TLS.
 
 #### 2. Re-encrypt
 
@@ -279,6 +296,9 @@ docker run --rm --env-file <runtime-credential.env> \
   ghcr.io/mforce/cluckwork@sha256:<digest> \
   rewrap-key-ring
 ```
+
+The container needs a network that reaches the database. Host-specific image references,
+network arguments, and env-file paths belong in the deployment repo.
 
 Expected output, and exit code 0:
 
@@ -368,10 +388,13 @@ D.4, a user enrolled before the change signs in with an authenticator code.
   and do not go on to step 4. A refused run wrote nothing. If the run lost its database
   connection while writing, run it again: the write is one transaction, and a second run
   re-encrypts whatever is still under an old certificate.
+- **A key appears that step 1 did not list.** A serving instance that cannot read the
+  default key creates a new one under the current certificate. Its line names only the
+  current fingerprint, so D.4's rule for an extra key covers it.
 - **Authenticator codes fail after D.4 step 4.** Put the removed entries back (D.2 form)
-  and restart. Then compare the verb's `current certificate SHA-256` line with `CertificateSha256`. If the rows went
-  under a wrong certificate, run the verb again with the serving certificate current and the
-  wrong one listed. Never restore the whole database for this: a restore discards every
-  write since step 1.
+  and restart. Then compare the verb's `current certificate SHA-256` line with
+  `CertificateSha256`. If the rows went under a wrong certificate, run the verb again with
+  the serving certificate current and the wrong one listed. Never restore the whole
+  database for this: a restore discards every write since step 1.
 - **Rolling back to the old certificate as current after D.4.** It reads nothing unless the
   new certificate is listed as a previous one.
