@@ -34,7 +34,7 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.*" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.*" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.*" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.*" />
     <!-- Pinned, floor AND ceiling load-bearing: transitive 2.0.0 has
          GHSA-v5pm-xwqc-g5wc (NU1903); Microsoft.AspNetCore.OpenApi 10.x
