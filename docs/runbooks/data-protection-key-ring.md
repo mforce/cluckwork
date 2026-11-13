@@ -256,11 +256,12 @@ keeps the keys it has already read, and their key material is unchanged.
 
 #### 1. Back up
 
-Take a database backup, and export the key table on its own. Note its row count:
+Take a database backup, and export the key table on its own. Keep the ids of the stored keys:
+the framework names each key row `key-<key id>`, and the query prints the ids.
 
 ```bash
 pg_dump --data-only --table='"DataProtectionKeys"' "<connection URI>" > data-protection-keys.sql
-psql "<connection URI>" -c 'SELECT count(*) FROM "DataProtectionKeys"'
+psql "<connection URI>" -Atc 'SELECT substr("FriendlyName", 5) FROM "DataProtectionKeys" WHERE "FriendlyName" LIKE $$key-%$$ ORDER BY "Id"' > stored-keys.txt
 ```
 
 `pg_dump` and `psql` take a libpq connection URI, such as
@@ -292,11 +293,13 @@ The fields of each row line are separated by tabs. The `current certificate SHA-
 must equal `CertificateSha256` from the startup log; in Production, log lines in compact
 JSON can come before it. Each key row then names its fingerprints before and after,
 comma-separated, never key material. The row lines and the counts print only after the
-write succeeds. `rewrapped`, `already current` and `revocations` together must equal the row
-count from step 1. The run is online, so a serving instance may have created a key since
-step 1: each such row adds one key line that names only the current fingerprint, and that
-is expected. Any other difference means the verb read another database. The verb's own log,
-in the same output, gets one line with the same counts and fingerprints.
+write succeeds. Every key id in `stored-keys.txt` must have a line. The run is online, so a
+serving instance may have created a key since step 1: such a key adds a line that names only
+the current fingerprint, and one to `already current`, and that is expected. Any other
+difference, a missing key id or an extra one under another fingerprint, means stop and find
+out why before going on. These checks do not prove which database the verb read; that rests
+on the prerequisite that the verb gets the serving `ConnectionStrings__Default`. The verb's
+own log, in the same output, gets one line with the same counts and fingerprints.
 
 The verb writes every row in one transaction, after every check, so a refused run writes
 nothing. It refuses, with exit code 1 and one line per refusal, when:
@@ -316,13 +319,13 @@ nothing. It refuses, with exit code 1 and one line per refusal, when:
 
 Run the verb again with no `DataProtection__PreviousCertificates__*` variables at all. It
 must exit 0 and print `rewrapped 0`, and its `current certificate SHA-256` line must again
-equal `CertificateSha256`. It must print every key id step 2 printed, and its `already
-current` must equal step 2's `rewrapped` plus `already current`. A key a serving instance
-created since step 2 adds one line that names only the current fingerprint, and that is
-expected; any other difference means another database. The verb decrypts every key row on
-every run, so this proves the current certificate alone reads every stored key. It checks
-only the rows it read: a key a serving instance creates later is already under the current
-certificate, because D.3 is done.
+equal `CertificateSha256`. Every key id step 2 printed must have a line again, and
+`already current` must be at least step 2's `rewrapped` plus `already current`. A key a
+serving instance created since step 2 adds a line that names only the current fingerprint,
+and one to `already current`, and that is expected; any other difference means stop and find
+out why. The verb decrypts every key row on every run, so this proves the current
+certificate alone reads every stored key. It checks only the rows it read: a key a serving
+instance creates later is already under the current certificate, because D.3 is done.
 
 #### 4. Remove the previous entries
 
