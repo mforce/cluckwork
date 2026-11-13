@@ -122,14 +122,17 @@ shape on 2026-11-12, and two design reviews tightened it before it was built.
   which a fingerprint listing cannot: a row can name one certificate and be encrypted to
   another.
 - **Configured recipients only.** `EncryptedXml` falls back to the operating system's
-  certificate store through any other key reference. Before it decrypts, the verb requires
-  the direct envelope the encryptor writes, with nothing beside it in either `KeyInfo`:
-  `EncryptedData/KeyInfo/EncryptedKey/KeyInfo/X509Data/X509Certificate`. The recipient must
-  be the current or a listed certificate.
+  certificate store when a key reference names no configured certificate. Before it
+  decrypts, the verb requires the direct envelope the encryptor writes, with nothing beside
+  it in either `KeyInfo`:
+  `EncryptedData/KeyInfo/EncryptedKey/KeyInfo/X509Data/X509Certificate`. It refuses an
+  `EncryptedData` nested inside, because decrypting the outer one decrypts it too, with its
+  own `KeyInfo`, and it refuses ciphertext by reference. The recipient must be the current or a listed certificate. The tests pin every route to
+  the store found in review; they do not prove that no other exists.
 - **The decryptor type** must name `EncryptedXmlDecryptor` and its assembly, at any
   version, as the framework resolves it: a ring an older framework wrote names another
-  version. Any other type or assembly refuses: the framework could not read that row, and
-  the encryptor would wrap a blob the stored type cannot read.
+  version. Another assembly refuses because the framework could not resolve that row's type.
+  Another type refuses because the encryptor would wrap a blob the stored type cannot read.
 - **The server's configuration and refusals.** `EnsureKeyEncryptionCertificate` and
   `EnsurePreviousCertificates` run as at a serving start. A missing current certificate
   refuses in every environment.
@@ -243,7 +246,9 @@ yet; the runbook records when it is.
   The log line names both fingerprints. A rerun writes nothing, and a run with no previous
   certificate passes. A forced failure on the second update leaves every row unchanged and
   prints no row line. A row under an unlisted certificate, a row that names B but is
-  encrypted to A, three recipients only the certificate store resolves, every refused row
+  encrypted to A, four rows whose recipient only the certificate store resolves (an unlisted
+  certificate, an issuer and serial beside a decoy, a `RetrievalMethod` ahead of a decoy, and
+  a nested `EncryptedData`), an `X509Data` outside the `EncryptedKey`, every refused row
   shape, a missing current certificate and a refused previous entry each exit 1 with every
   row unchanged. The plaintext check on the rewritten XML has no test that reaches it, and
   the store tests rely on .NET's Linux store path under `HOME`.

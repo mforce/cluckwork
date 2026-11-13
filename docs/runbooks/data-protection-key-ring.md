@@ -240,7 +240,7 @@ expired and revoked keys alike. Key ids and key material do not change, so every
 and authenticator key they protect stays readable, and every previous entry can then
 leave the configuration. Revocation records hold no key and stay as they are.
 
-Before step 2, check both:
+Before step 2, check all three:
 
 - D.3 is done: every serving instance runs with the new certificate current.
 - The environment the verb gets names the serving database: the same
@@ -259,9 +259,13 @@ keeps the keys it has already read, and their key material is unchanged.
 Take a database backup, and export the key table on its own. Note its row count:
 
 ```bash
-pg_dump --data-only --table='"DataProtectionKeys"' "<connection string>" > data-protection-keys.sql
-psql "<connection string>" -c 'SELECT count(*) FROM "DataProtectionKeys"'
+pg_dump --data-only --table='"DataProtectionKeys"' "<connection URI>" > data-protection-keys.sql
+psql "<connection URI>" -c 'SELECT count(*) FROM "DataProtectionKeys"'
 ```
+
+`pg_dump` and `psql` take a libpq connection URI, such as
+`postgresql://<user>@<host>:5432/<database>?sslmode=require`, not the `Host=…;Port=…` form
+of `ConnectionStrings__Default`.
 
 #### 2. Re-encrypt
 
@@ -289,8 +293,10 @@ must equal `CertificateSha256` from the startup log; in Production, log lines in
 JSON can come before it. Each key row then names its fingerprints before and after,
 comma-separated, never key material. The row lines and the counts print only after the
 write succeeds. `rewrapped`, `already current` and `revocations` together must equal the row
-count from step 1, or the verb read another database. The verb's own log, in the same
-output, gets one line with the same counts and fingerprints.
+count from step 1. The run is online, so a serving instance may have created a key since
+step 1: each such row adds one key line that names only the current fingerprint, and that
+is expected. Any other difference means the verb read another database. The verb's own log,
+in the same output, gets one line with the same counts and fingerprints.
 
 The verb writes every row in one transaction, after every check, so a refused run writes
 nothing. It refuses, with exit code 1 and one line per refusal, when:
@@ -303,17 +309,20 @@ nothing. It refuses, with exit code 1 and one line per refusal, when:
 - a row holds a key stored without encryption: follow procedure B, never re-encrypt it;
 - a row has a shape the framework does not write: a decryptor other than
   `EncryptedXmlDecryptor` in its own assembly, a recipient anywhere but the direct
-  `KeyInfo` path, a key with no `encryptedSecret`, an unknown root element, XML that is not
-  well formed, or no XML.
+  `KeyInfo` path, an `EncryptedData` nested in another, ciphertext by reference, a key with
+  no `encryptedSecret`, an unknown root element, XML that is not well formed, or no XML.
 
 #### 3. Check without the previous certificates
 
 Run the verb again with no `DataProtection__PreviousCertificates__*` variables at all. It
 must exit 0 and print `rewrapped 0`, and its `current certificate SHA-256` line must again
-equal `CertificateSha256`. Its key ids must be the ones step 2 printed, and its `already
-current` must equal step 2's `rewrapped` plus `already current`. The verb decrypts every
-key row on every run, so this proves the current certificate alone reads every stored key. It checks only the rows it read: a key a serving
-instance creates later is already under the current certificate, because D.3 is done.
+equal `CertificateSha256`. It must print every key id step 2 printed, and its `already
+current` must equal step 2's `rewrapped` plus `already current`. A key a serving instance
+created since step 2 adds one line that names only the current fingerprint, and that is
+expected; any other difference means another database. The verb decrypts every key row on
+every run, so this proves the current certificate alone reads every stored key. It checks
+only the rows it read: a key a serving instance creates later is already under the current
+certificate, because D.3 is done.
 
 #### 4. Remove the previous entries
 
