@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography.Xml;
 using System.Xml.Linq;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -23,6 +24,9 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
     : IClassFixture<DataProtectionKeyRewrapTests.Database>, IAsyncLifetime
 {
     private const string Purpose = "Cluckwork.IntegrationTests.1420";
+    private const string NotTheEnvelope = "is not in the envelope the framework writes";
+    private const string OtherDecryptor = "names a decryptor other than EncryptedXmlDecryptor";
+    private const string Plaintext = "holds an unencrypted master key";
     private static readonly XNamespace Dp = "http://schemas.asp.net/2015/03/dataProtection";
     private static readonly XNamespace Dsig = "http://www.w3.org/2000/09/xmldsig#";
     private static readonly XNamespace Xenc = "http://www.w3.org/2001/04/xmlenc#";
@@ -182,17 +186,19 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
         Assert.Equal(before, await RowsAsync());
     }
 
+    // The refusal text tells which check fired: several shapes would also fail later, at the decrypt.
     [Theory]
-    [InlineData("unknown decryptor type")]
-    [InlineData("decryptor in another assembly")]
-    [InlineData("key reached through a RetrievalMethod")]
-    [InlineData("plaintext key")]
-    [InlineData("plaintext key beside a current secret")]
-    [InlineData("two recipients")]
-    [InlineData("key without encryptedSecret")]
-    [InlineData("unknown root")]
-    [InlineData("empty Xml")]
-    public async Task A_row_the_verb_cannot_classify_refuses_the_run(string shape)
+    [InlineData("unknown decryptor type", OtherDecryptor)]
+    [InlineData("decryptor in another assembly", OtherDecryptor)]
+    [InlineData("key reached through a RetrievalMethod", NotTheEnvelope)]
+    [InlineData("ciphertext by reference", NotTheEnvelope)]
+    [InlineData("plaintext key", Plaintext)]
+    [InlineData("plaintext key beside a current secret", Plaintext)]
+    [InlineData("two recipients", NotTheEnvelope)]
+    [InlineData("key without encryptedSecret", "holds no encryptedSecret")]
+    [InlineData("unknown root", "is neither a key nor a revocation")]
+    [InlineData("empty Xml", "has no XML")]
+    public async Task A_row_the_verb_cannot_classify_refuses_the_run(string shape, string refusal)
     {
         var rows = KeysUnder(A, 2);
         var odd = rows[1].Xml;
@@ -203,6 +209,7 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
             "decryptor in another assembly" => WithDecryptorType(
                 odd, "Microsoft.AspNetCore.DataProtection.XmlEncryption.EncryptedXmlDecryptor, Missing.Assembly"),
             "key reached through a RetrievalMethod" => WithRetrievalMethod(odd),
+            "ciphertext by reference" => WithCipherReference(odd),
             "plaintext key" =>
                 "<key id=\"00000000-0000-0000-0000-000000001420\" version=\"1\"><descriptor><descriptor>"
                 + "<masterKey p4:requiresEncryption=\"true\" xmlns:p4=\"http://schemas.asp.net/2015/03/dataProtection\">"
@@ -222,6 +229,7 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
 
         Assert.True(exitCode == 1, $"exit {exitCode}\nstdout={stdout}\nstderr={stderr}");
         Assert.Contains($"row {before[1].Id}", stderr, StringComparison.Ordinal);
+        Assert.Contains(refusal, stderr, StringComparison.Ordinal);
         Assert.Equal(before, await RowsAsync());
     }
 
@@ -260,15 +268,21 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
     [InlineData("unlisted recipient")]
     [InlineData("issuer serial beside a decoy certificate")]
     [InlineData("X509Data outside the EncryptedKey")]
+    [InlineData("RetrievalMethod ahead of a decoy EncryptedKey")]
+    [InlineData("nested EncryptedData keyed from the store")]
     public async Task A_recipient_only_the_certificate_store_holds_refuses_the_run(string shape)
     {
         var (rows, inStore, refusal) = shape switch
         {
             "unlisted recipient" => (KeysUnder(C, 1), C, $"{C.Sha256}, which is not configured"),
             "issuer serial beside a decoy certificate" =>
-                (Reshaped(KeysUnder(A, 1), IssuerSerialBesideDecoy), A, "is not in the envelope the framework writes"),
+                (Reshaped(KeysUnder(A, 1), IssuerSerialBesideDecoy), A, NotTheEnvelope),
             "X509Data outside the EncryptedKey" =>
-                (Reshaped(KeysUnder(A, 1), X509DataOutsideEncryptedKey), A, "is not in the envelope the framework writes"),
+                (Reshaped(KeysUnder(A, 1), X509DataOutsideEncryptedKey), A, NotTheEnvelope),
+            "RetrievalMethod ahead of a decoy EncryptedKey" =>
+                (Reshaped(KeysUnder(A, 1), RetrievalMethodAheadOfDecoy), A, NotTheEnvelope),
+            "nested EncryptedData keyed from the store" =>
+                (Reshaped(KeysUnder(B, 1), NestedEncryptedDataKeyedByC), C, NotTheEnvelope),
             _ => throw new ArgumentOutOfRangeException(nameof(shape)),
         };
         await InsertAsync(rows);
@@ -331,10 +345,7 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
         var copy = new XElement(key);
         var embedded = copy.Descendants(Dsig + "X509Certificate").Single();
         var x509Data = embedded.Parent!;
-        using (var a = A.Load())
-            x509Data.Add(new XElement(Dsig + "X509IssuerSerial",
-                new XElement(Dsig + "X509IssuerName", a.IssuerName.Name),
-                new XElement(Dsig + "X509SerialNumber", new BigInteger(a.GetSerialNumber(), isUnsigned: true).ToString())));
+        x509Data.Add(IssuerSerial(A));
         embedded.Remove();
         using (var b = B.Load())
             x509Data.Parent!.Add(new XElement("wrapper", new XElement(Dsig + "X509Certificate", Convert.ToBase64String(b.RawData))));
@@ -436,6 +447,92 @@ public sealed class DataProtectionKeyRewrapTests(DataProtectionKeyRewrapTests.Da
         var encryptedKey = copy.Descendants(Xenc + "EncryptedKey").Single();
         encryptedKey.AddAfterSelf(new XElement(encryptedKey));
         return copy.ToString(SaveOptions.DisableFormatting);
+    }
+
+    // The outer ciphertext named by a URI instead of carried inline.
+    private static string WithCipherReference(XElement key)
+    {
+        var copy = new XElement(key);
+        copy.Descendants(Xenc + "EncryptedData").Single().Element(Xenc + "CipherData")!
+            .ReplaceNodes(new XElement(Xenc + "CipherReference", new XAttribute("URI", "#ciphertext-1420")));
+        return copy.ToString(SaveOptions.DisableFormatting);
+    }
+
+    // The outer KeyInfo holds a RetrievalMethod ahead of a decoy EncryptedKey that names B. The
+    // reference reaches the real wrapped key, renamed so no second EncryptedKey exists, which
+    // names A by issuer and serial only.
+    private static XElement RetrievalMethodAheadOfDecoy(XElement key)
+    {
+        var copy = new XElement(key);
+        var data = copy.Descendants(Xenc + "EncryptedData").Single();
+        var keyInfo = data.Element(Dsig + "KeyInfo")!;
+        var original = keyInfo.Element(Xenc + "EncryptedKey")!;
+        var decoy = new XElement(original);
+        using (var b = B.Load())
+            decoy.Descendants(Dsig + "X509Certificate").Single().Value = Convert.ToBase64String(b.RawData);
+        var carried = new XElement(Xenc + "CarriedKey", original.Attributes(), original.Elements());
+        carried.SetAttributeValue("Id", "carried-1420");
+        var x509Data = carried.Descendants(Dsig + "X509Data").Single();
+        x509Data.RemoveNodes();
+        x509Data.Add(IssuerSerial(A));
+        original.Remove();
+        keyInfo.Add(
+            new XElement(Dsig + "RetrievalMethod",
+                new XAttribute("URI", "#carried-1420"), new XAttribute("Type", EncryptedXml.XmlEncEncryptedKeyUrl)),
+            decoy);
+        data.Element(Xenc + "EncryptionMethod")!.Add(carried);
+        return copy;
+    }
+
+    // A framework envelope under B whose plaintext carries a key wrapped to C, named by issuer
+    // and serial only, and whose EncryptionMethod hides a second EncryptedData that reaches that
+    // key by reference. Decrypting the outer element decrypts the inner one too.
+    private static XElement NestedEncryptedDataKeyedByC(XElement key)
+    {
+        var copy = new XElement(key);
+        var outer = copy.Descendants(Xenc + "EncryptedData").Single();
+        XElement clear;
+        using (var services = new ServiceCollection().AddDataProtection()
+            .UnprotectKeysWithAnyCertificate(B.Load()).Services.BuildServiceProvider())
+            clear = new EncryptedXmlDecryptor(services).Decrypt(outer);
+
+        using var aes = Aes.Create();
+        using var c = C.Load();
+        var wrapped = new EncryptedKey
+        {
+            Id = "wrapped-1420",
+            EncryptionMethod = new EncryptionMethod(EncryptedXml.XmlEncRSAOAEPUrl),
+            CipherData = new CipherData(EncryptedXml.EncryptKey(aes.Key, c.GetRSAPublicKey()!, useOAEP: true)),
+        };
+        var wrappedXml = XElement.Parse(wrapped.GetXml().OuterXml);
+        wrappedXml.Add(new XElement(Dsig + "KeyInfo", new XElement(Dsig + "X509Data", IssuerSerial(C))));
+        clear.Add(wrappedXml);
+
+        var inner = new System.Xml.XmlDocument();
+        inner.LoadXml("<inner>not-key-material</inner>");
+        var nested = new EncryptedData
+        {
+            Type = EncryptedXml.XmlEncElementUrl,
+            EncryptionMethod = new EncryptionMethod(EncryptedXml.XmlEncAES256Url),
+            CipherData = new CipherData(new EncryptedXml().EncryptData(inner.DocumentElement!, aes, false)),
+            KeyInfo = new KeyInfo(),
+        };
+        nested.KeyInfo.AddClause(new KeyInfoRetrievalMethod("#wrapped-1420", EncryptedXml.XmlEncEncryptedKeyUrl));
+
+        XElement rewrapped;
+        using (var b = B.Load())
+            rewrapped = new CertificateXmlEncryptor(b, NullLoggerFactory.Instance).Encrypt(clear).EncryptedElement;
+        rewrapped.Element(Xenc + "EncryptionMethod")!.Add(XElement.Parse(nested.GetXml().OuterXml));
+        outer.ReplaceWith(rewrapped);
+        return copy;
+    }
+
+    private static XElement IssuerSerial(Pair pair)
+    {
+        using var certificate = pair.Load();
+        return new XElement(Dsig + "X509IssuerSerial",
+            new XElement(Dsig + "X509IssuerName", certificate.IssuerName.Name),
+            new XElement(Dsig + "X509SerialNumber", new BigInteger(certificate.GetSerialNumber(), isUnsigned: true).ToString()));
     }
 
     private static string WithoutSecrets(XElement key)
