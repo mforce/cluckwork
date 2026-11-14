@@ -124,7 +124,7 @@ and shows only the steps whose order matters. See `Program.cs` for the full list
 
 ```mermaid
 flowchart TD
-    CLI{"one-shot verb?<br/><i>migrate · seed · recover-admin · bootstrap-admin<br/>list-accounts · suspend-account · reactivate-account<br/>provision-account · rename-account · healthcheck</i>"}
+    CLI{"one-shot verb?<br/><i>migrate · seed · recover-admin · bootstrap-admin<br/>list-accounts · suspend-account · reactivate-account<br/>provision-account · rename-account · rewrap-key-ring · healthcheck</i>"}
     CLI -->|yes| EXIT["run, then exit — the HTTP<br/>pipeline is never registered"]
     CLI -->|no| EDGE
 

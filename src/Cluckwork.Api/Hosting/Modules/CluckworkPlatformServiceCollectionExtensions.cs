@@ -75,7 +75,7 @@ internal static class CluckworkPlatformServiceCollectionExtensions
 
     // Production refuses to store the key ring in plaintext: anyone holding a database
     // backup could otherwise forge what it protects. Elsewhere the certificate is optional.
-    private static X509Certificate2? EnsureKeyEncryptionCertificate(
+    internal static X509Certificate2? EnsureKeyEncryptionCertificate(
         IConfiguration configuration, IHostEnvironment environment)
     {
         var certificatePem = configuration["DataProtection:CertificatePem"];
@@ -99,7 +99,7 @@ internal static class CluckworkPlatformServiceCollectionExtensions
     // them and never encrypts. A leaked certificate never belongs here: that revokes the ring
     // (794). Outside Production a list with no current certificate is harmless: it only reads,
     // and keys there are stored in plaintext anyway.
-    private static X509Certificate2[] EnsurePreviousCertificates(
+    internal static X509Certificate2[] EnsurePreviousCertificates(
         IConfiguration configuration, X509Certificate2? current) =>
     [
         .. configuration.GetSection("DataProtection:PreviousCertificates").GetChildren().Select(entry =>
