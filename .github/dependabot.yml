@@ -109,6 +109,20 @@ updates:
     ignore:
       - dependency-name: "Microsoft.CodeAnalysis.CSharp"
       - dependency-name: "Microsoft.CodeAnalysis.CSharp.Workspaces"
+      # The .NET 11 move is one planned PR (#1435): the 11.0 Identity and Data
+      # Protection packages need EF Core 11, which waits on a stable Npgsql
+      # provider. A lone 11.0 package on net10.0 ships 11.0 assemblies over the
+      # 10.0 runtime (#1430, #1431). Remove these five when the move lands.
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dotnet-ef"
+        update-types: ["version-update:semver-major"]
     groups:
       nuget-minor-patch:
         patterns: ["*"]
