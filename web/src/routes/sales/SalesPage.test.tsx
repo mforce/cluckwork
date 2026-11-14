@@ -4368,6 +4368,7 @@ describe("Sales Field Console context and settlement", () => {
     expect(summary).toHaveClass("sr-only");
     expect(responsiveStyle(summary, "(min-width:0px)", "display")).toBe("inline");
     expect(responsiveStyle(summary, "(min-width:900px)", "display")).toBe("none");
+    expect(summary.style.display).toBe("");
     summary.style.display = "inline";
     expect(row).toHaveAccessibleName(/Unit price \$0\.38, Line total \$9\.12/);
   });

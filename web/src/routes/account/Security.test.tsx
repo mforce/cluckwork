@@ -160,6 +160,7 @@ describe("enrolment", () => {
     const openInApp = screen.getByText(t("openInAppLink")).closest("a")!;
     expect(responsiveStyle(openInApp, "(min-width:0px)", "display")).toBe("inline");
     expect(responsiveStyle(openInApp, "(min-width:900px)", "display")).toBe("none");
+    expect(openInApp.style.display).toBe("");
     openInApp.style.display = "inline";
     expect(screen.getByRole("link", { name: t("openInAppLink") })).toHaveAttribute("href", shownUri);
     expect(screen.getByText(t("signOutWarning"))).toBeInTheDocument();
