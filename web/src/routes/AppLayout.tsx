@@ -45,8 +45,6 @@ export function AppLayout() {
   // Later. Reads the SAME store UpdatePrompt.tsx registers against, so this
   // never triggers a second registerServiceWorker call.
   const updateWaiting = useIsUpdateWaiting();
-  // The sidebar/tab-bar switch rides the forceable seam (lib/breakpoints.ts):
-  // a null answer keeps the sx media query, a forced one sets the literal.
   const phoneMode = usePhoneMode();
 
   const groups = navGroups(role, isAdmin);

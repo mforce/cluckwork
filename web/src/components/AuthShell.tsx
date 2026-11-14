@@ -13,8 +13,6 @@ export function AuthShell({
   children, footerNote, bannerSlot, nextStep,
 }: { children: ReactNode; footerNote: string; bannerSlot?: ReactNode; nextStep?: ReactNode }) {
   const { t } = useTranslation("auth");
-  // The nextStep panel swaps placement across the phone/desktop boundary;
-  // ride the forceable seam (lib/breakpoints.ts) like the nav switches.
   const phoneMode = usePhoneMode();
 
   // #976 round 2 — this screen fills the whole viewport in --surface-2, with

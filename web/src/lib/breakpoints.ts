@@ -20,20 +20,10 @@ export const MD_UP_QUERY = "(min-width: 900px)";
 // nothing can determine it (no matchMedia: jsdom 30 and other bare hosts).
 // A null answer tells call sites to keep the sx media query, which is what
 // every host did before jsdom 31; a determined one lets them set the literal
-// display instead. Tests force an answer with setPhoneModeForTests and clear
-// it with null, session-scoped like resetExplicitThemeChoiceForTests. Set it
-// BEFORE rendering: the value is read during render, so a mid-test change
-// does not re-render on its own.
-let phoneModeOverride: boolean | null = null;
-
-export function setPhoneModeForTests(mode: boolean | null): void {
-  phoneModeOverride = mode;
-}
-
+// display instead. Tests pick an answer with stubMatchMedia (test/matchMedia.ts).
 export function usePhoneMode(): boolean | null {
   const mdUp = useMediaQuery(MD_UP_QUERY);
-  if (phoneModeOverride !== null) return phoneModeOverride;
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return null;
+  if (typeof window.matchMedia !== "function") return null;
   return !mdUp;
 }
 

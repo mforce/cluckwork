@@ -77,9 +77,6 @@ export function BottomNav({
     return () => desktop.removeEventListener("change", closeOnDesktop);
   }, []);
 
-  // #883 round 2 — see the MD_UP_QUERY listener above for the sheet's own
-  // phone/desktop boundary; the bar's visibility rides the same switch
-  // through the forceable seam (lib/breakpoints.ts).
   const phoneMode = usePhoneMode();
   return (
     <>
