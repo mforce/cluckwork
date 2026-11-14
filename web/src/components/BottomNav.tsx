@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Box, BottomNavigation, BottomNavigationAction } from "@mui/material";
 import { Dialog } from "./Dialog";
 import { ThemeToggle } from "./ThemeToggle";
-import { MD_UP_QUERY } from "../lib/breakpoints";
+import { MD_UP_QUERY, phoneModeDisplay, usePhoneMode } from "../lib/breakpoints";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import type { NavEntry, NavGroup } from "../routes/nav";
 
@@ -77,13 +77,14 @@ export function BottomNav({
     return () => desktop.removeEventListener("change", closeOnDesktop);
   }, []);
 
+  const phoneMode = usePhoneMode();
   return (
     <>
       <Box
         component="nav"
         aria-label={t("tabBarAriaLabel")}
         sx={{
-          display: { xs: "block", md: "none" },
+          display: phoneModeDisplay(phoneMode, "block", "none"),
           position: "fixed", left: 0, right: 0, bottom: 0,
           zIndex: 20, // over the page + the entry footer (10), under the dialog (50)
         }}

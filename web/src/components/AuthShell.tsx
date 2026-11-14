@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Box, Paper, Typography } from "@mui/material";
 import { ThemeToggle } from "./ThemeToggle";
 import { resyncThemeColorMeta } from "../theme/metaThemeColor";
+import { phoneModeDisplay, usePhoneMode } from "../lib/breakpoints";
 
 // nextStep (#798, login B) names what follows sign-in: in the brand panel in place
 // of the tagline on a wide screen, and above the form on a phone, where the
@@ -12,6 +13,7 @@ export function AuthShell({
   children, footerNote, bannerSlot, nextStep,
 }: { children: ReactNode; footerNote: string; bannerSlot?: ReactNode; nextStep?: ReactNode }) {
   const { t } = useTranslation("auth");
+  const phoneMode = usePhoneMode();
 
   // #976 round 2 — this screen fills the whole viewport in --surface-2, with
   // no sidebar at all, so the meta colour is wrong at desktop width unless
@@ -61,11 +63,11 @@ export function AuthShell({
           }}>{t("title")}</Typography>
           {nextStep ? (
             <Box sx={{
-              display: { xs: "none", md: "block" }, marginTop: 3, padding: "14px",
+              display: phoneModeDisplay(phoneMode, "none", "block"), marginTop: 3, padding: "14px",
               border: "1px solid var(--on-brand-mute)", borderRadius: "var(--r-panel)",
             }}>{nextStep}</Box>
           ) : (
-            <Typography variant="body2" sx={{ color: "var(--on-brand-mute)", display: { xs: "none", md: "block" } }}>
+            <Typography variant="body2" sx={{ color: "var(--on-brand-mute)", display: phoneModeDisplay(phoneMode, "none", "block") }}>
               {t("shellTagline")}
             </Typography>
           )}
@@ -77,7 +79,7 @@ export function AuthShell({
         <Box sx={{ flex: 1, padding: { xs: "20px", md: "32px" }, backgroundColor: "background.paper" }}>
           {nextStep && (
             <Box sx={{
-              display: { xs: "block", md: "none" }, marginBottom: 2, padding: "14px",
+              display: phoneModeDisplay(phoneMode, "block", "none"), marginBottom: 2, padding: "14px",
               border: "1px solid var(--hairline)", borderRadius: "var(--r-panel)",
               background: "var(--tint-accent)", color: "var(--ink)",
             }}>{nextStep}</Box>
