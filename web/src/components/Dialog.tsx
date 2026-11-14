@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import {
   Box, Dialog as MuiDialog, DialogTitle, DialogContent, IconButton, useMediaQuery,
 } from "@mui/material";
-import { MD_UP_QUERY } from "../lib/breakpoints";
+import { MD_UP_QUERY, usePhoneMode } from "../lib/breakpoints";
 
 // Everything the browser lets you tab to, minus the things that only LOOK
 // focusable: hidden inputs, [hidden]/aria-hidden nodes, and anything parked at
@@ -292,7 +292,11 @@ export function Dialog({
   const { t } = useTranslation("common");
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<Element | null>(null);
-  const isPhone = !useMediaQuery(MD_UP_QUERY);
+  // Same switch as the sidebar/tab bar, through the same forceable seam:
+  // a null answer falls back to the raw media query exactly as before.
+  const mdUp = useMediaQuery(MD_UP_QUERY);
+  const phoneMode = usePhoneMode();
+  const isPhone = phoneMode ?? !mdUp;
   const fullScreen = fullScreenOnPhone && isPhone;
 
   // #485 — `openCount` above is fed by `onTransitionEnter`/`onTransitionExited`,

@@ -12,6 +12,7 @@ import { PostedNotice, ShellNotice } from "../components/AppNotice";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { FarmBrand } from "../components/FarmBrand";
 import { MAIN_CONTENT_ID } from "../lib/mainContent";
+import { phoneModeDisplay, usePhoneMode } from "../lib/breakpoints";
 import { useFarm } from "../farm/useFarm";
 import { reopenUpdate, useIsUpdateWaiting } from "../pwa/updateStore";
 import { navGroups, tabEntries } from "./nav";
@@ -44,6 +45,9 @@ export function AppLayout() {
   // Later. Reads the SAME store UpdatePrompt.tsx registers against, so this
   // never triggers a second registerServiceWorker call.
   const updateWaiting = useIsUpdateWaiting();
+  // The sidebar/tab-bar switch rides the forceable seam (lib/breakpoints.ts):
+  // a null answer keeps the sx media query, a forced one sets the literal.
+  const phoneMode = usePhoneMode();
 
   const groups = navGroups(role, isAdmin);
   const tabs = tabEntries(groups);
@@ -91,7 +95,7 @@ export function AppLayout() {
         // the landmark has to be asked for explicitly or it is silently lost.
         slotProps={{ paper: { component: "aside" } }}
         sx={{
-          display: { xs: "none", md: "block" },
+          display: phoneModeDisplay(phoneMode, "none", "block"),
           width: "var(--sidebar-w)",
           flexShrink: 0,
           "& .MuiDrawer-paper": {
