@@ -356,12 +356,23 @@ public sealed partial class SecondFactorLoginTests
     // wrong current password. Three barriers stand behind it, in the order the
     // loser meets them: the binding (the first change moves the epoch and
     // rotates the stamp, so VerifyAsync answers Superseded), the watermark, and the
-    // current-password re-check under the lock. A loser whose password check
-    // runs after the first change sees a wrong password, the same answer.
+    // current-password re-check under the lock. The first request waits at the
+    // user-row lock until the second arrives there, so both passed
+    // CredentialEpochMiddleware on the old epoch. Without that wait, a second
+    // request that starts after the first commits is refused there as
+    // superseded (401), as CredentialEpochTests pins (#1434).
     [Fact]
     public async Task TwoConcurrentChanges_WithOneCode_ChangeThePasswordOnce()
     {
         var (session, code) = await PasswordSessionAsync("totp");
+        var arrived = 0;
+        var bothAtTheLock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        factory.BeforeCommand.Arm("FOR NO KEY UPDATE", () =>
+        {
+            if (Interlocked.Increment(ref arrived) == 2)
+                bothAtTheLock.SetResult();
+            return bothAtTheLock.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }, times: 2);
 
         var answers = await Task.WhenAll(
             ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code),
