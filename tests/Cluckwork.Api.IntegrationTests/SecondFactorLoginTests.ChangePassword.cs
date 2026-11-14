@@ -378,6 +378,8 @@ public sealed partial class SecondFactorLoginTests
             ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code),
             ChangePasswordAsync(session.Client, TestHarness.Password, NewPassword, code));
 
+        Assert.True(Volatile.Read(ref arrived) == 2,
+            $"{Volatile.Read(ref arrived)} of the 2 requests reached the user-row lock rendezvous; the other never arrived");
         Assert.Single(answers, answer => answer.StatusCode == HttpStatusCode.OK);
         var refused = Assert.Single(answers, answer => answer.StatusCode != HttpStatusCode.OK);
         Assert.Equal((HttpStatusCode.BadRequest, "Users.CurrentPasswordIncorrect"), (refused.StatusCode, (await ProblemOf(refused)).Title));
