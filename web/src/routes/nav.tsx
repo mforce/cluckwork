@@ -5,13 +5,17 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "../auth/claims";
-import type { Resources } from "../i18n/en";
+import type { ParseKeysWithoutVariables } from "i18next";
 
 // A key into the `nav` i18next namespace (#182, Task 7). This file is a PURE
 // FUNCTION module — it cannot call useTranslation — so nav items carry a
 // labelKey instead of English text; AppLayout and BottomNav translate it at
 // their render sites via `t(item.labelKey)`.
-export type NavLabelKey = keyof Resources["nav"];
+// ParseKeysWithoutVariables: i18next 27 rejects keys whose value needs
+// interpolation options from a no-options `t()`, also inside a union. The nav
+// model carries label keys only; nav's one variable key (`versionLabel`) is
+// passed with its variable by AppLayout and never rides this model.
+export type NavLabelKey = ParseKeysWithoutVariables<"nav">;
 
 // One nav model, three renderers (sidebar, bottom tabs, the More sheet). The
 // role gates live HERE only — a second copy in the mobile nav would be the
