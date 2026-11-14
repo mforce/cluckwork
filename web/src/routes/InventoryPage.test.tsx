@@ -13,6 +13,7 @@ import {
 import type { Account, Flock, InventoryItem, InventoryLot, InventoryMovement } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { cssVar } from "../test/cssVar";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. EVERY network fn the screen can
@@ -1568,10 +1569,10 @@ it("mutes inactive item cells without muting active item cells", async () => {
   const inactive = await screen.findByRole("row", { name: /Old Additive/ });
   const active = screen.getByRole("row", { name: /Layer Feed/ });
   for (const cell of within(inactive).getAllByRole("cell")) {
-    expect(cell).toHaveStyle({ color: "var(--muted)" });
+    expect(cell).toHaveStyle({ color: cssVar("--muted") });
   }
   for (const cell of within(active).getAllByRole("cell")) {
-    expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+    expect(cell).not.toHaveStyle({ color: cssVar("--muted") });
   }
 });
 

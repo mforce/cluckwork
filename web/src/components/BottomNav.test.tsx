@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { act, render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import i18n from "../i18n";
@@ -26,6 +26,9 @@ function renderBottomNav(route = "/", onLogout = vi.fn()) {
 const tabbar = () => within(screen.getByRole("navigation", { name: "Sections" }));
 
 describe("BottomNav", () => {
+  // The tab bar is phone-only; jsdom 31 applies media queries at 1024px, so force phone.
+  beforeEach(() => { stubMatchMedia(false); });
+
   it("renders the four highest-priority destinations an admin reaches, plus More", () => {
     renderBottomNav();
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);

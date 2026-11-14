@@ -16,6 +16,7 @@ import { bindAccount, bindFarm, farmBindingToken } from "../auth/tokenStore";
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 import { readStylesheet } from "../test/stylesheet";
+import { cssVar } from "../test/cssVar";
 
 const stylesCss = readStylesheet();
 const srOnlyCss = stylesCss.match(/\.sr-only\s*\{[^}]*\}/)?.[0] ?? "";
@@ -1699,12 +1700,14 @@ describe("SettingsPage expandable sections", () => {
       const card = remove.closest(".MuiPaper-root");
       if (!(card instanceof HTMLElement)) throw new Error("Remove control is outside its media card");
 
+      const outlinedBg = cssVar("--variant-outlinedBg", "background-color", remove);
+      const outlinedColor = cssVar("--variant-outlinedColor", "color", remove);
       const neutralBorder = getComputedStyle(card).borderColor;
       const rest = getComputedStyle(remove);
       expect(rest.borderColor).toBe(neutralBorder);
-      expect(rest.backgroundColor).toBe("var(--variant-outlinedBg)");
+      expect(rest.backgroundColor).toBe(outlinedBg);
       expect(renderedDeclaration(remove, "--variant-outlinedBg")).toBe("");
-      expect(rest.color.toLowerCase()).toBe("var(--variant-outlinedcolor)");
+      expect(rest.color).toBe(outlinedColor);
       expect(renderedDeclaration(remove, "--variant-outlinedColor")).toBe("#d32f2f");
     }
   });
@@ -1736,7 +1739,7 @@ describe("SettingsPage expandable sections", () => {
     expect(selected.borderColor).not.toBe(unselected.borderColor);
     expect(selected.boxShadow).not.toBe("none");
     const focusRule = renderedRule(forestLabel, ":has(input:focus-visible)");
-    expect(focusRule?.style.outline).toBe("2px solid");
+    expect(focusRule?.style.outline).toBe("2px solid rgb(2, 136, 209)");
     expect(focusRule?.style.outlineColor).toBe("rgb(2, 136, 209)");
     expect(focusRule?.style.outlineOffset).toBe("2px");
   });
@@ -1828,9 +1831,10 @@ describe("SettingsPage — persistent actions and image guidance", () => {
   it("keeps Save settings in a fixed footer above the phone tab bar", async () => {
     await renderReady();
     const saveBar = screen.getByTestId("settings-save-bar");
+    const tabbarHeight = cssVar("--tabbar-h", "bottom", saveBar);
     const computed = getComputedStyle(saveBar);
     expect(computed.position).toBe("fixed");
-    expect(computed.bottom).toBe("var(--tabbar-h)");
+    expect(computed.bottom).toBe(tabbarHeight);
     expect(within(saveBar).getByRole("button", { name: "Save settings" })).toBeInTheDocument();
   });
 });

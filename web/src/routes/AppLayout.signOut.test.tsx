@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { stubMatchMedia } from "../test/matchMedia";
 import i18n from "../i18n";
 import { AppLayout } from "./AppLayout";
 
@@ -32,6 +33,7 @@ describe("Sign out while a sign-out is in flight", () => {
   });
 
   it("keeps the More menu's Sign out disabled after the menu reopens", async () => {
+    stubMatchMedia(false); // the More menu lives in the phone-only tab bar
     let answer: (() => void) | undefined;
     vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => (String(input).endsWith("/auth/logout")
       ? new Promise<Response>((resolve) => { answer = () => resolve(new Response(null, { status: 204 })); })

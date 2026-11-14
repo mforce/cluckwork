@@ -12,6 +12,7 @@ import type {
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
 import { responsiveStyle } from "../test/renderedStyle";
+import { cssVar } from "../test/cssVar";
 
 // ReportsPage reads its tab from the URL path (`useParams` under the app's
 // `reports/:tab` route), so the harness's bare MemoryRouter is not enough —
@@ -872,6 +873,6 @@ it("emphasises every Period total cell in ink at semibold weight", async () => {
   const cells = within(row).getAllByRole("columnheader");
   expect(cells).toHaveLength(10);
   for (const cell of cells) {
-    expect(cell).toHaveStyle({ color: "var(--ink)", fontWeight: "600" });
+    expect(cell).toHaveStyle({ color: cssVar("--ink"), fontWeight: "600" });
   }
 });
