@@ -111,6 +111,9 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         // OWN clean exit 1 rather than mutating anything. What must never happen is a crash
         // out of service registration before the verb's code runs (#331's class).
         { "rename-account --slug no-such-farm --new-slug no-target-farm", "Production" },
+        // #1420 — Production on purpose. With no certificate configured the verb's own clean
+        // exit 1 is the expected result; DataProtectionKeyRewrapTests pins that refusal.
+        { "rewrap-key-ring", "Production" },
         // Seeding is deliberately blocked in Production (#280), so BOTH sides of
         // that are cases. The Testing arm is the one that actually seeds.
         { "seed --profile demo", "Testing" },

@@ -208,5 +208,8 @@ internal static class FilterFreeSetSites
         new("Cluckwork.Api.Hosting.PlaintextDataProtectionKeyGuard.EnsureNoPlaintextDataProtectionKeysAsync(IServiceScopeFactory scopes, CancellationToken cancellationToken)",
             "db.DataProtectionKeys", "f2781570",
             "non-tenant table: DataProtectionKey has no AccountId because one key ring serves every farm (#794); the Production serving guard reads every key at host start to refuse plaintext ones before any tenant exists."),
+        new("Cluckwork.Api.Cli.RewrapKeyRingCliCommand.RunAsync(WebApplication app, string[] args)",
+            "db.DataProtectionKeys", "9f790d29",
+            "non-tenant table: DataProtectionKey has no AccountId because one key ring serves every farm (#794); the rewrap-key-ring operator verb loads every key to re-encrypt it under the current certificate (#1420)."),
     ];
 }
