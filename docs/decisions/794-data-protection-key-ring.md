@@ -7,7 +7,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-06, amended 2026-10-07 (plaintext-key refusal, certificate expiry, revocation)
-and 2026-11-12 (previous certificates, #1338)
+and 2026-11-12 (previous certificates, #1338; re-wrapping stored keys, #1420)
 
 ## What happened
 
@@ -32,7 +32,8 @@ A serving process stores the key ring in the `DataProtectionKeys` table through
 Production it refuses to start unless `DataProtection:CertificatePem` and
 `DataProtection:PrivateKeyPem` hold an RSA certificate and its private key, and it refuses
 to start while the table holds any key stored without encryption. Production uses its own
-database. One-shot verbs use an in-memory ring and never read or write the table. Dropping
+database. One-shot verbs use an in-memory ring and never load the stored one.
+`rewrap-key-ring` is the one verb that reads and rewrites the table's rows (#1420). Dropping
 the persistence brings back the restart and replica failure. Dropping either Production
 guard lets anyone with a database backup forge every token the ring protects. A serving
 process may also list previous certificates, which only decrypt (#1338).
@@ -85,8 +86,8 @@ thumbprint and needs that certificate's private key. It checks no dates. Only
 The maintainer chose this on 2026-11-12 ("Ok start 1338 with your recommendations"), so
 a planned certificate change costs users nothing.
 
-- **A list, not one pair.** Until stored keys can be re-encrypted, a second change still
-  needs the first certificate.
+- **A list, not one pair.** A second change made before the first certificate is retired
+  still needs it.
 - **Boot refusals.** A serving start refuses an entry that does not parse, has no
   matching private key, is not RSA, or has the current certificate's thumbprint. The
   framework silently skips a certificate without its key, so that entry would boot and
@@ -97,11 +98,58 @@ a planned certificate change costs users nothing.
 - **Not for a leaked key.** A leak still revokes the whole ring, and the leaked
   certificate is never listed.
 - **Retiring a previous certificate.** Two-factor authenticator keys are encrypted once,
-  at enrolment. A previous certificate therefore stays needed for as long as any user
-  keeps an authenticator key protected by a key that certificate encrypted. That includes
-  users who enrolled up to about 90 days after the change, because the ring keeps using
-  its current key until the next one takes over. Nothing re-encrypts stored keys under the
-  new certificate yet. Removing an entry costs what an unplanned change costs.
+  at enrolment, and users who enrol up to about 90 days after the change still get a key
+  the old certificate encrypted. Removing an entry before the keys are re-encrypted costs
+  what an unplanned change costs. Re-wrapping (below) is the way to retire it.
+
+## Re-wrapping stored keys (#1420)
+
+`rewrap-key-ring` re-encrypts every stored key under the current certificate, so a
+previous certificate can leave the list with no user action. The maintainer settled its
+shape on 2026-11-12, and two design reviews tightened it before it was built.
+
+- **What it rewrites.** Only the `EncryptedData` under each `encryptedSecret`, through the
+  framework's public `EncryptedXmlDecryptor` and `CertificateXmlEncryptor`. Key ids, dates,
+  descriptors, `decryptorType` and the key material stay as stored, so every payload the
+  ring protects stays readable. Current, expired and revoked keys are all rewritten.
+  Revocation records hold no key and stay byte-identical.
+- **Why a verb reads the table.** The framework has no re-wrap. Its key manager caches keys
+  by id and its repository only inserts rows, so re-encrypting means rewriting the rows.
+  The verb never loads the stored ring: it decrypts each element itself, with only the
+  configured certificates.
+- **Every key row is decrypted on every run.** The embedded certificate decides only whether
+  to write. A run without a certificate listed therefore proves that no row still needs it,
+  which a fingerprint listing cannot: a row can name one certificate and be encrypted to
+  another.
+- **Configured recipients only.** `EncryptedXml` falls back to the operating system's
+  certificate store when a key reference names no configured certificate. Before it
+  decrypts, the verb requires the direct envelope the encryptor writes, with nothing beside
+  it in either `KeyInfo`:
+  `EncryptedData/KeyInfo/EncryptedKey/KeyInfo/X509Data/X509Certificate`. It refuses an
+  `EncryptedData` nested inside, because decrypting the outer one decrypts it too, with its
+  own `KeyInfo`, and it refuses ciphertext by reference. The recipient must be the current or a listed certificate. The tests pin every route to
+  the store found in review; they do not prove that no other exists.
+- **The decryptor type** must name `EncryptedXmlDecryptor` and its assembly, at any
+  version, as the framework resolves it: a ring an older framework wrote names another
+  version. Another assembly refuses because the framework could not resolve that row's type.
+  Another type refuses because the encryptor would wrap a blob the stored type cannot read.
+- **The server's configuration and refusals.** `EnsureKeyEncryptionCertificate` and
+  `EnsurePreviousCertificates` run as at a serving start. A missing current certificate
+  refuses in every environment.
+- **All or nothing.** Every refusal comes before one `SaveChanges`, which is one
+  transaction. There is no explicit transaction: `EnableRetryOnFailure` refuses one opened
+  outside an execution strategy.
+- **Online, after the serving instances run with the new certificate.** A running instance
+  keeps the keys it has read, unchanged in key material, and inserts new keys under the
+  current certificate. The check run reads only the rows that exist when it runs, so it
+  cannot prove the restart happened; the runbook makes that a prerequisite.
+- **No audit row.** `AuditWriter` needs a resolved farm, and the ring belongs to none. The
+  verb prints counts and fingerprints and logs one line with the same. It never prints XML
+  or an exception message from the decrypt path.
+- **Old backups.** Re-wrapping changes no key material and cannot reach a backup. An old
+  private key stays as protected as the current one until the last backup taken before the
+  re-wrap is destroyed. Restoring such a backup needs the old certificate listed again.
+  A leak still revokes the whole ring (procedure C).
 
 ## What counts as plaintext
 
@@ -147,9 +195,10 @@ yet; the runbook records when it is.
 
 ## What this does NOT cover
 
-- **Re-encrypting stored keys under a new certificate.** Previous certificates (#1338)
-  keep old keys readable, but no step rewrites them, so an old certificate cannot be
-  retired while any key it encrypted is still in use.
+- **Backups taken before a re-wrap.** They still hold keys encrypted with the old
+  certificates. Keep each old private key protected until the last such backup is
+  destroyed. Restoring one needs the old certificate listed again and the runbook's D.4
+  repeated.
 - **A key written into the Production database after startup.** The plaintext check runs at
   host start only. A non-Production host writing into the Production database is caught at
   the next start, which is why Production must use its own database.
@@ -188,8 +237,24 @@ yet; the runbook records when it is.
   and the current certificate. Every other row runs with a valid expired previous
   certificate listed, the plaintext-key row included. `ServingGuardCoverageTests` maps them
   to `EnsureUsableCertificate` and `EnsurePreviousCertificates`.
+- `DataProtectionKeyRewrapTests` runs `rewrap-key-ring` as an operator does, against
+  Postgres. Seven keys under an expired certificate A (current, expired, revoked, one naming
+  `Version=8.0.0.0` types, and three with a second encrypted element: under A, and under B
+  before or after A's) and a revocation record are re-wrapped to B. Every decrypted element
+  is unchanged, a host with B alone reads every key and an A-era payload, everything outside
+  the ciphertext is unchanged, and no output names `masterKey` or carries a master key value.
+  The log line names both fingerprints. A rerun writes nothing, and a run with no previous
+  certificate passes. A forced failure on the second update leaves every row unchanged and
+  prints no row line. A row under an unlisted certificate, a row that names B but is
+  encrypted to A, four rows whose recipient only the certificate store resolves (an unlisted
+  certificate, an issuer and serial beside a decoy, a `RetrievalMethod` ahead of a decoy, and
+  a nested `EncryptedData`), an `X509Data` outside the `EncryptedKey`, every refused row
+  shape, a missing current certificate and a refused previous entry each exit 1 with every
+  row unchanged. The plaintext check on the rewritten XML has no test that reaches it, and
+  the store tests rely on .NET's Linux store path under `HOME`.
 - `TableOwnerRealModelTests` requires the Platform row in `TableOwnerOverrides`, and
   `TenantBypassDiscoveryTests` pins `DataProtectionKey` in the filter-free set. The
-  plaintext check's two queries carry `BypassAllowList` and `FilterFreeSetSites` rows.
+  plaintext check's two queries carry `BypassAllowList` and `FilterFreeSetSites` rows, and
+  the verb's query a `FilterFreeSetSites` row.
 - `tools/simulation/verify-harness.sh` rejects a missing or placeholder certificate before the
   sim stack boots.
