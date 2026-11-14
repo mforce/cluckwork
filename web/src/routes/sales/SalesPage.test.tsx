@@ -4362,11 +4362,14 @@ describe("Sales Field Console context and settlement", () => {
     await openOrder(order, /Grade A Dozen/);
     const panel = screen.getByRole("region", { name: "SO-2 — Acme Eggs" });
     const row = within(panel).getByRole("row", { name: /Grade A Dozen/ });
-    // Phone-only summary: jsdom 31 applies media at a fixed 1024px, so pin the phone rule.
+    // Phone-only summary: jsdom 31 applies media at a fixed 1024px, so pin the
+    // phone rule, then apply it inline to read the row as a phone reader would.
     const summary = within(row).getByText("Unit price $0.38, Line total $9.12");
     expect(summary).toHaveClass("sr-only");
     expect(responsiveStyle(summary, "(min-width:0px)", "display")).toBe("inline");
     expect(responsiveStyle(summary, "(min-width:900px)", "display")).toBe("none");
+    summary.style.display = "inline";
+    expect(row).toHaveAccessibleName(/Unit price \$0\.38, Line total \$9\.12/);
   });
 
   it("offers Clear filters even when the commercial ledger is populated", async () => {
