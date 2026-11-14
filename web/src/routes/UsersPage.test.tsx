@@ -26,6 +26,7 @@ import i18n from "../i18n";
 import { freshCode } from "../test/codes";
 import { productionStepUpCallSites } from "../test/stepUpCallers";
 import { freshPassword } from "../test/passwords";
+import { cssVar } from "../test/cssVar";
 
 // Runtime-generated, with NO static substring — GitGuardian's scanner
 // flagged an earlier version of this line even though it was already
@@ -326,10 +327,10 @@ describe("UsersPage selected-record inspector (#908)", () => {
     fireEvent.click(screen.getByRole("row", { name: /worker@farm.test/ }));
     expect(within(inspector).getByText("Active")).toHaveClass("badge", "badge-ok");
     const disable = within(inspector).getByRole("button", { name: "disable" });
-    expect(disable).toHaveStyle({ color: "var(--error)" });
+    expect(disable).toHaveStyle({ color: cssVar("--error") });
     expect(disable.querySelector(".lucide-ban")).toBeInTheDocument();
     const edit = within(inspector).getByRole("button", { name: "edit" });
-    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit).not.toHaveStyle({ color: cssVar("--error") });
     expect(edit.querySelector(".lucide-ban")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("row", { name: /disabled@farm.test/ }));
@@ -4041,7 +4042,7 @@ it("keeps corrective actions outside the destructive group for an inactive recor
     .map((control) => control.textContent?.trim())).toEqual(["edit", "role", "password", "change email", "flocks", "enable"]);
   const corrective = within(inspector).getByRole("button", { name: "enable" });
   expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
-  expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+  expect(corrective).not.toHaveStyle({ color: cssVar("--error") });
   expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
 });
 

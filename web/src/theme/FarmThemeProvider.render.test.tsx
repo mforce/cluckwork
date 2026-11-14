@@ -131,11 +131,10 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
     expect(getComputedStyle(icon!).height, "tab icon height").toBe("24px");
 
     const selectedRoot = container.querySelector(".MuiBottomNavigationAction-root.Mui-selected");
-    // jsdom passes `box-shadow` through unnormalized (no browser-style
-    // `px`/`rgb()` canonicalization), unlike a real engine — so this compares
-    // against the literal the theme declares, not a browser-computed form.
+    // jsdom 31 canonicalizes `box-shadow` the way a browser does: the theme
+    // declares `inset 0 2px 0 0 #4a154b`.
     expect(getComputedStyle(selectedRoot!).boxShadow, "selected tab rule")
-      .toBe("inset 0 2px 0 0 #4a154b");
+      .toBe("rgb(74, 21, 75) 0px 2px inset");
   });
 
   // Found by a Codex review of #882 (2026-09-16): `transition` is a
@@ -155,11 +154,12 @@ describe("FarmThemeProvider against the real DOM (#871 local review)", () => {
     const button = container.querySelector(".MuiButton-contained");
     expect(button, "a contained button renders").not.toBeNull();
     const transition = getComputedStyle(button!).transition;
-    expect(transition, "keeps the added press transform").toContain("transform 240ms");
-    expect(transition, "keeps MUI's own background-color transition").toContain("background-color 160ms");
-    expect(transition, "keeps MUI's own border-color transition").toContain("border-color 160ms");
+    // jsdom 31 serializes durations in seconds, as a browser does.
+    expect(transition, "keeps the added press transform").toContain("transform 0.24s");
+    expect(transition, "keeps MUI's own background-color transition").toContain("background-color 0.16s");
+    expect(transition, "keeps MUI's own border-color transition").toContain("border-color 0.16s");
     expect(transition, "keeps MUI's own color transition")
-      .toMatch(/(?:^|,\s*)color 160ms/);
+      .toMatch(/(?:^|,\s*)color 0.16s/);
   });
 });
 

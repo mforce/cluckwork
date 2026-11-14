@@ -11,6 +11,7 @@ import { bindAccount, bindFarm, farmBindingToken, clearBoundAccount, getBoundFar
 import { cacheBannerBytes, readCachedBannerBlob } from "../lib/bannerCache";
 import i18n from "../i18n";
 import { freshCode } from "../test/codes";
+import { cssVar } from "../test/cssVar";
 
 // Keep the real ApiError (Login branches on `instanceof ApiError`) but stub the
 // network + AuthProvider's registration hooks.
@@ -728,13 +729,15 @@ describe("Login — forgetting a remembered farm", () => {
     await screen.findByRole("button", { name: "Sign in" });
 
     const forget = screen.getByRole("button", { name: i18n.t("auth:forgetFarm", { farmCode: "farm-a" }) });
-    expect(getComputedStyle(forget).color).toBe("var(--error)");
+    const error = cssVar("--error");
+    const danger = cssVar("--danger");
+    expect(getComputedStyle(forget).color).toBe(error);
 
     const select = screen.getByRole("button", { name: "farm-a" });
     const selectStyle = getComputedStyle(select);
-    expect(selectStyle.color).not.toBe("var(--danger)");
-    expect(selectStyle.color).not.toBe("var(--error)");
-    expect(selectStyle.background).not.toBe("var(--danger)");
+    expect(selectStyle.color).not.toBe(danger);
+    expect(selectStyle.color).not.toBe(error);
+    expect(selectStyle.backgroundColor).not.toBe(cssVar("--danger", "background-color"));
   });
 });
 

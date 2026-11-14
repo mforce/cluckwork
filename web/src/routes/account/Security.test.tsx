@@ -15,6 +15,7 @@ import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/
 import { parseError } from "../../api/errors";
 import i18n from "../../i18n";
 import { freshPassword } from "../../test/passwords";
+import { responsiveStyle } from "../../test/renderedStyle";
 
 // #1277 — the Account page's Security section. The network is mocked at the
 // API seam; ApiError stays real, because the section branches on it.
@@ -154,7 +155,11 @@ describe("enrolment", () => {
     const qr = screen.getByRole("img", { name: t("qrLabel") });
     expect(qr.querySelector("path")!.getAttribute("d")).toMatch(/^M\d+ \d+h1v1h-1z/);
     expect(screen.getByText(shownKey.match(/.{4}/g)!.join(" "))).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: t("openInAppLink") })).toHaveAttribute("href", shownUri);
+    // Phone-only link: jsdom 31 applies media at a fixed 1024px, so pin the phone rule.
+    const openInApp = screen.getByText(t("openInAppLink")).closest("a")!;
+    expect(openInApp).toHaveAttribute("href", shownUri);
+    expect(responsiveStyle(openInApp, "(min-width:0px)", "display")).toBe("inline");
+    expect(responsiveStyle(openInApp, "(min-width:900px)", "display")).toBe("none");
     expect(screen.getByText(t("signOutWarning"))).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

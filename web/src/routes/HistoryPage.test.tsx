@@ -12,6 +12,7 @@ import {
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
+import { cssVar } from "../test/cssVar";
 
 // HistoryPage's only runtime dep on the API module is the network seam; mock all
 // of it. ApiError comes from ../api/client (unmocked, real) so errText's
@@ -1544,7 +1545,7 @@ it("uses an unfilled status dot, preserving the reason, and always offers filter
   expect(status).toHaveAttribute("title", VOIDED.voidReason);
   expect(status).toHaveTextContent(/^Voided$/);
   expect(status.querySelector('[aria-hidden="true"]')).toHaveStyle({
-    width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "var(--error)",
+    width: "6px", height: "6px", borderRadius: "50%", backgroundColor: cssVar("--error", "background-color"),
   });
   expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
 });
@@ -1556,10 +1557,10 @@ it("mutes voided cells without muting submitted cells", async () => {
   const voided = await screen.findByRole("row", { name: /Voided/ });
   const submitted = screen.getByRole("row", { name: /Submitted/ });
   for (const cell of within(voided).getAllByRole("cell")) {
-    expect(cell).toHaveStyle({ color: "var(--muted)" });
+    expect(cell).toHaveStyle({ color: cssVar("--muted") });
   }
   for (const cell of within(submitted).getAllByRole("cell")) {
-    expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+    expect(cell).not.toHaveStyle({ color: cssVar("--muted") });
   }
 });
 
@@ -1586,7 +1587,7 @@ it("distinguishes neutral Draft from warning Adjusted status dots", async () => 
   const draft = await screen.findByRole("row", { name: /Draft/ });
   const adjusted = screen.getByRole("row", { name: /Adjusted/ });
   expect(within(draft).getByText("Draft").querySelector('[aria-hidden="true"]'))
-    .toHaveStyle({ backgroundColor: "var(--muted)" });
+    .toHaveStyle({ backgroundColor: cssVar("--muted", "background-color") });
   expect(within(adjusted).getByText("Adjusted").querySelector('[aria-hidden="true"]'))
-    .toHaveStyle({ backgroundColor: "var(--warn)" });
+    .toHaveStyle({ backgroundColor: cssVar("--warn", "background-color") });
 });

@@ -16,6 +16,8 @@ import {
 } from "../../api/cluckwork";
 import type { Account, Customer, EggGrade, EggUnitConversion, OrderItem, Product, SalesOrder } from "../../api/cluckwork";
 import { ApiError } from "../../api/client";
+import { cssVar } from "../../test/cssVar";
+import { responsiveStyle } from "../../test/renderedStyle";
 
 // Keep the REAL formatMoney + parseMoneyToMinorUnits (the money math under test)
 // via importOriginal; stub only the network seam. Every network call the screen
@@ -839,8 +841,8 @@ describe("SalesPage quantity unit clarity (#445)", () => {
     const cells = within(editRow).getAllByRole("cell");
     expect(cells[2]).toHaveTextContent("36");
     expect(cells[3]).toHaveTextContent("$3.75");
-    expect(cells[2]).toHaveStyle({ color: "var(--muted)" });
-    expect(cells[3]).toHaveStyle({ color: "var(--muted)" });
+    expect(cells[2]).toHaveStyle({ color: cssVar("--muted") });
+    expect(cells[3]).toHaveStyle({ color: cssVar("--muted") });
     // …and follows the edit: 60 dozen is visibly 720 eggs before save.
     const qty = within(editRow).getByRole("spinbutton", { name: "Edit quantity" });
     fireEvent.change(qty, { target: { value: "60" } });
@@ -997,7 +999,7 @@ describe("SalesPage list price and discount (#720)", () => {
     const badge = within(row).getByText(i18n.t("sales:belowListBadge"));
     expect(badge).toHaveClass("discount");
     expect(badge).not.toHaveClass("badge");
-    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(row).not.toHaveStyle({ backgroundColor: cssVar("--tint-warn", "background-color") });
     // The list-price money is struck through — the <s> element, not a class, so
     // it survives a stylesheet change and reads as struck to a screen reader.
     expect(within(row).getByText("$12.00").closest("s")).not.toBeNull();
@@ -1016,7 +1018,7 @@ describe("SalesPage list price and discount (#720)", () => {
     };
     const row = await openOrder(order, /Grade A Dozen/);
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
-    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(row).not.toHaveStyle({ backgroundColor: cssVar("--tint-warn", "background-color") });
     // The fixture renders $3.00 in the List price AND the Unit price cell.
     // Checking only the first let an implementation that struck the other pass.
     for (const match of within(row).getAllByText("$3.00")) {
@@ -1045,7 +1047,7 @@ describe("SalesPage list price and discount (#720)", () => {
     // satisfy a test named for a chip.
     const productCell = within(row).getAllByRole("cell")[0];
     expect(within(productCell).getByText(i18n.t("enums:listPriceBasis.ProductUnpriced"))).toHaveClass("badge");
-    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(row).not.toHaveStyle({ backgroundColor: cssVar("--tint-warn", "background-color") });
   });
 
   // #773 — the two answers side by side on ONE order. Before this, both lines
@@ -4145,7 +4147,7 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
 
     // Typed UP to the list price: no longer a discount, so every marker goes.
     typePrice("3.75");
-    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(row).not.toHaveStyle({ backgroundColor: cssVar("--tint-warn", "background-color") });
     expect(within(row).queryByText(i18n.t("sales:belowListBadge"))).toBeNull();
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent("—");
 
@@ -4153,7 +4155,7 @@ describe("SalesPage discount markers under inline edit (#752)", () => {
     // used to be blanked to "—" for the whole edit.
     typePrice("4.00");
     expect(within(row).getAllByRole("cell")[DISCOUNT_CELL]).toHaveTextContent(i18n.t("sales:aboveList"));
-    expect(row).not.toHaveStyle({ backgroundColor: "var(--tint-warn)" });
+    expect(row).not.toHaveStyle({ backgroundColor: cssVar("--tint-warn", "background-color") });
 
     // Back below list: the markers come back rather than sticking.
     typePrice("2.00");
@@ -4344,10 +4346,10 @@ describe("Sales Field Console context and settlement", () => {
     const voided = await within(settlement).findByRole("row", { name: /VOID-PAY/ });
     const active = within(settlement).getByRole("row", { name: /LIVE-PAY/ });
     for (const cell of within(voided).getAllByRole("cell")) {
-      expect(cell).toHaveStyle({ color: "var(--muted)" });
+      expect(cell).toHaveStyle({ color: cssVar("--muted") });
     }
     for (const cell of within(active).getAllByRole("cell")) {
-      expect(cell).not.toHaveStyle({ color: "var(--muted)" });
+      expect(cell).not.toHaveStyle({ color: cssVar("--muted") });
     }
   });
 
@@ -4360,8 +4362,11 @@ describe("Sales Field Console context and settlement", () => {
     await openOrder(order, /Grade A Dozen/);
     const panel = screen.getByRole("region", { name: "SO-2 — Acme Eggs" });
     const row = within(panel).getByRole("row", { name: /Grade A Dozen/ });
-    expect(within(row).getByText("Unit price $0.38, Line total $9.12")).toBeInTheDocument();
-    expect(row).toHaveAccessibleName(/Unit price \$0\.38, Line total \$9\.12/);
+    // Phone-only summary: jsdom 31 applies media at a fixed 1024px, so pin the phone rule.
+    const summary = within(row).getByText("Unit price $0.38, Line total $9.12");
+    expect(summary).toHaveClass("sr-only");
+    expect(responsiveStyle(summary, "(min-width:0px)", "display")).toBe("inline");
+    expect(responsiveStyle(summary, "(min-width:900px)", "display")).toBe("none");
   });
 
   it("offers Clear filters even when the commercial ledger is populated", async () => {
