@@ -10,6 +10,7 @@ import {
 } from "../api/cluckwork";
 import type { DailyEntry, EggGrade, Flock } from "../api/cluckwork";
 import { MD_UP_QUERY } from "../lib/breakpoints";
+import { cssVar } from "../test/cssVar";
 
 // #980 — the phone surface of History: one two-line row per entry, and a
 // Details dialog behind a tap. Its own file rather than cases inside
@@ -190,7 +191,7 @@ describe("HistoryPage phone rows (#980)", () => {
     renderWithProviders(<HistoryPage />, { token: ADMIN });
     const button = await row();
 
-    expect(button).toHaveStyle({ color: "var(--muted)" });
+    expect(button).toHaveStyle({ color: cssVar("--muted") });
     within(button).getByText("100");
     within(button).getByText("Voided");
   });

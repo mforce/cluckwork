@@ -9,6 +9,7 @@ import { approveConsent, askConsent, declineConsent } from "../api/oauth";
 import type { ConsentRequest } from "../api/oauth";
 import i18n from "../i18n";
 import { freshCode } from "../test/codes";
+import { cssVar } from "../test/cssVar";
 
 vi.mock("../api/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/client")>()),
@@ -106,9 +107,10 @@ describe("ConnectPage (#798, consent D)", () => {
   it("colours the farm name and role badge with the theme-aware accent", async () => {
     await show(REQUEST);
 
-    expect(getComputedStyle(screen.getByText("Hen House")).color).toBe("var(--stat-accent)");
+    const accent = cssVar("--stat-accent");
+    expect(getComputedStyle(screen.getByText("Hen House")).color).toBe(accent);
     const badge = getComputedStyle(screen.getByText("Your role:").parentElement!);
-    expect(badge.color).toBe("var(--stat-accent)");
+    expect(badge.color).toBe(accent);
   });
 
   it("spends a step-up grant on Allow and sends the browser to the app", async () => {

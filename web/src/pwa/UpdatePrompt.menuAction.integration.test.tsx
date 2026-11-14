@@ -7,6 +7,7 @@ import { UpdatePrompt } from "./UpdatePrompt";
 import { registerServiceWorker } from "./registerServiceWorker";
 import { resetUpdateStoreForTests } from "./updateStore";
 import { useCachedBannerUrl } from "../lib/bannerCache";
+import { stubMatchMedia } from "../test/matchMedia";
 
 // #936 — the deferred-update recovery path, exercised the way the real app
 // composes it: UpdatePrompt (outside auth/router) and BottomNav's More sheet
@@ -24,6 +25,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   resetUpdateStoreForTests();
   vi.mocked(useCachedBannerUrl).mockReturnValue(null);
+  stubMatchMedia(false); // the More sheet lives in the phone-only tab bar
 });
 
 function Harness() {

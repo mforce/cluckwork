@@ -4,6 +4,7 @@ import { act, render, screen, fireEvent, within, waitFor } from "@testing-librar
 import { MemoryRouter, Route, Routes } from "react-router";
 import { ThemeProvider } from "@mui/material/styles";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { stubMatchMedia } from "../test/matchMedia";
 import { AuthProvider } from "../auth/AuthContext";
 import { FarmContext } from "../farm/FarmContext";
 import { account, farmState } from "../test/fixtures";
@@ -272,6 +273,8 @@ describe("AppLayout sidebar", () => {
 });
 
 describe("AppLayout bottom tabs", () => {
+  beforeEach(() => { stubMatchMedia(false); }); // the tab bar is phone-only
+
   it("promotes the four most-used destinations a producer can reach, plus More", () => {
     renderWithProviders(<AppLayout />, { token: { sub: "u1", role: "Admin" } });
     const tabs = tabbar().getAllByRole("link").map((a) => a.textContent);

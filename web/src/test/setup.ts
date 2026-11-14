@@ -7,6 +7,7 @@ import { cleanup } from "@testing-library/react";
 import { createFakeIndexedDb } from "./fakeIndexedDb";
 import { clearAccessToken } from "../auth/tokenStore";
 import { ledgerCellStyles } from "./ledgerCellStyles";
+import { resetCssVars } from "./cssVar";
 
 Element.prototype.scrollIntoView ??= vi.fn();
 
@@ -30,6 +31,7 @@ afterEach(async () => {
   const scrollingActions = Array.from(document.querySelectorAll(".MuiDialogContent-root .MuiDialogActions-root"))
     .map(actions => actions.closest('[role="dialog"]')?.querySelector("h2")?.textContent ?? actions.textContent);
   cleanup();
+  resetCssVars();
   vi.unstubAllGlobals();
   clearAccessToken();
   // Imported here, not at the top, so a test file's vi.mock of the token path
