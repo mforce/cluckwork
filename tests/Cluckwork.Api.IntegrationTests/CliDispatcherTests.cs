@@ -16,7 +16,7 @@ public sealed class CliDispatcherTests
     {
         var names = CliDispatcher.Commands.Select(c => c.Name).ToArray();
         Assert.Equal(
-            ["bootstrap-admin", "list-accounts", "migrate", "provision-account", "reactivate-account", "recover-admin", "rename-account", "seed", "suspend-account"],
+            ["bootstrap-admin", "list-accounts", "migrate", "provision-account", "reactivate-account", "recover-admin", "rename-account", "rewrap-key-ring", "seed", "suspend-account"],
             names.OrderBy(n => n).ToArray());
         Assert.Equal(names.Length, names.Distinct().Count());
     }
