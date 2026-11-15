@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { FieldConsole, LedgerTableContainer, ListInspectorPane, RecordInspector, selectableRowProps } from "./FieldConsole";
 import { ledgerCellStyles } from "../test/ledgerCellStyles";
+import { cssVar } from "../test/cssVar";
 
 it("keeps numeric ledger values on one line while prose can wrap", () => {
   render(<FieldConsole><LedgerTableContainer><Table><TableBody><TableRow>
@@ -26,12 +27,13 @@ it("walks arbitrary rows and footer variants, rejecting emphasis masked by MUI c
     <TableFooter><TableRow><TableCell>Total</TableCell></TableRow></TableFooter>
   </Table></FieldConsole>);
   const result = ledgerCellStyles(view.container);
+  const muted = cssVar("--muted");
   // Unmount the deliberately broken fixture before the suite-wide guard runs.
   view.unmount();
   expect(result.rows).toBe(3);
   expect(result.footers).toBe(1);
   expect(result.violations).toEqual([
-    "Masked: row color var(--muted), cell rgba(0, 0, 0, 0.87)",
+    `Masked: row color ${muted}, cell rgba(0, 0, 0, 0.87)`,
     "Masked: row fontWeight 600, cell 400",
   ]);
 });

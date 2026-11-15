@@ -9,6 +9,7 @@ import type { EggGrade } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
+import { cssVar } from "../test/cssVar";
 
 // Network seam only; ApiError stays real (errorMessage branches on it).
 vi.mock("../api/cluckwork", () => ({
@@ -235,15 +236,15 @@ describe("GradesPage admin actions", () => {
   it("marks deactivate as destructive, distinct from edit and activate", async () => {
     await renderReady(ADMIN);
     const deactivate = within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "deactivate" });
-    expect(deactivate).toHaveStyle({ color: "var(--error)" });
+    expect(deactivate).toHaveStyle({ color: cssVar("--error") });
     expect(deactivate.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
 
     const edit = within(screen.getByRole("row", { name: /Grade A/ })).getByRole("button", { name: "edit" });
-    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit).not.toHaveStyle({ color: cssVar("--error") });
     expect(edit.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
 
     const activate = within(screen.getByRole("row", { name: /Legacy/ })).getByRole("button", { name: "activate" });
-    expect(activate).not.toHaveStyle({ color: "var(--error)" });
+    expect(activate).not.toHaveStyle({ color: cssVar("--error") });
     expect(activate.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 
@@ -732,6 +733,6 @@ it("keeps corrective actions outside the destructive group for an inactive recor
     .map((control) => control.textContent?.trim())).toEqual(["edit", "Audit history", "activate"]);
   const corrective = within(inspector).getByRole("button", { name: "activate" });
   expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
-  expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+  expect(corrective).not.toHaveStyle({ color: cssVar("--error") });
   expect(corrective.querySelector(".lucide-triangle-alert, .lucide-ban")).not.toBeInTheDocument();
 });

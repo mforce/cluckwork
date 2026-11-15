@@ -15,6 +15,7 @@ import type { BirdMovement, Flock } from "../api/cluckwork";
 import { ApiError } from "../api/client";
 import i18n from "../i18n";
 import { NO_RECORD_HISTORY, RECORD_HISTORY } from "../test/fixtures";
+import { cssVar } from "../test/cssVar";
 
 // Network seam only; ApiError stays real (errorMessage branches on it), and the
 // date helpers (todayIso/ageWeeks) stay real too — they are pure and not mocked.
@@ -125,11 +126,11 @@ describe("FlocksPage loading + list", () => {
     expect(generatedClass).toBeDefined();
     const cssRules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]);
     expect(cssRules.some((rule) => rule.type === CSSRule.MEDIA_RULE
-      && rule.cssText.includes("min-width:0px")
+      && rule.cssText.includes("min-width: 0px")
       && rule.cssText.includes(`.${generatedClass}`)
       && rule.cssText.includes("last-child") && rule.cssText.includes("display: none"))).toBe(true);
     expect(cssRules.some((rule) => rule.type === CSSRule.MEDIA_RULE
-      && rule.cssText.includes("min-width:900px")
+      && rule.cssText.includes("min-width: 900px")
       && rule.cssText.includes(`.${generatedClass}`)
       && rule.cssText.includes("last-child") && rule.cssText.includes("display: table-cell"))).toBe(true);
 
@@ -268,7 +269,7 @@ describe("FlocksPage selected-record inspector (#908)", () => {
       .map((control) => control.textContent?.trim())).toEqual(actions);
     const corrective = within(inspector).getByRole("button", { name: "reactivate" });
     expect(corrective.parentElement).toBe(within(inspector).getByRole("button", { name: "edit" }).parentElement);
-    expect(corrective).not.toHaveStyle({ color: "var(--error)" });
+    expect(corrective).not.toHaveStyle({ color: cssVar("--error") });
     expect(corrective.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 
@@ -645,20 +646,20 @@ describe("FlocksPage lifecycle", () => {
     await renderReady(ADMIN, [ACTIVE, DEPLETED]);
     const activeRow = getRowByCellText("Hen House 1");
     const deplete = within(activeRow).getByRole("button", { name: "deplete" });
-    expect(deplete).toHaveStyle({ color: "var(--error)" });
+    expect(deplete).toHaveStyle({ color: cssVar("--error") });
     expect(deplete.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
 
     const archive = within(activeRow).getByRole("button", { name: "archive" });
-    expect(archive).toHaveStyle({ color: "var(--error)" });
+    expect(archive).toHaveStyle({ color: cssVar("--error") });
     expect(archive.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
 
     const edit = within(activeRow).getByRole("button", { name: "edit" });
-    expect(edit).not.toHaveStyle({ color: "var(--error)" });
+    expect(edit).not.toHaveStyle({ color: cssVar("--error") });
     expect(edit.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
 
     const depletedRow = screen.getByRole("row", { name: /Depleted Flock/ });
     const reactivate = within(depletedRow).getByRole("button", { name: "reactivate" });
-    expect(reactivate).not.toHaveStyle({ color: "var(--error)" });
+    expect(reactivate).not.toHaveStyle({ color: cssVar("--error") });
     expect(reactivate.querySelector(".lucide-triangle-alert")).not.toBeInTheDocument();
   });
 });
