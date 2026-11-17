@@ -1061,7 +1061,8 @@ immediately reusable; there is no retired-code list. The default farm's code is
 The farm code is the way to disambiguate login across farms (#532): the sign-in
 form requires it before the email, because one email address can now exist in
 several farms and only the farm code says which one is meant, and a wrong or
-unrecognised one is refused with its own message.
+unrecognised one is refused with its own message. Signing in with a
+**passkey** (#320, planned) is the one exception: the passkey names its farm.
 
 On the SPA sign-in page the field is prefilled in two ways. A `?farm=<slug>`
 link prefills the field with a validated slug (an invalid value is ignored, not
@@ -1405,7 +1406,9 @@ shows it. From the deadline, the app shows only the set-up
 screen, which offers **Sign out**, until two-factor authentication is on, and
 then opens the page the Owner asked for. Sign-in itself is never refused. An
 operator can switch the requirement off for every Owner with
-`TwoFactor:RequireForOwners`.
+`TwoFactor:RequireForOwners`. Once passkeys ship (#320), a **passkey** also
+meets this requirement, and the notice reads "Every Owner must set up a passkey
+or two-factor authentication".
 
 **Authenticator app (#1277)** — the phone app that shows a new 6-digit code
 every 30 seconds for each account added to it. Cluckwork appears in it as
@@ -1448,6 +1451,37 @@ they had is refused. Their next sign-in takes the password only. It is audited
 authentication; they replace their authenticator through enrolment.
 `recover-admin` clears an Owner's second factor together with its password
 reset.
+
+**Passkey (#320, planned)** — a way to sign in without typing the password:
+the user's phone or computer checks their fingerprint, face or PIN, then proves
+it holds a key registered to that user. A passkey alone counts as both steps
+of a sign-in. Like the **authenticator app**, it is a second factor: a user who
+has either can no longer sign in or step up with the password alone, and the
+second sign-in step accepts a passkey, an **authenticator code** or a
+**recovery code**. A passkey alone is a step-up proof, and it meets the Owner
+requirement (#1281). It is not what this glossary calls **two-factor
+authentication**, which is the authenticator app, and removing a user's
+passkeys is a separate action from **Reset two-factor authentication**.
+
+Signing in with a passkey needs no farm code: the passkey says which farm it
+belongs to. If a farm code is already in the field, the passkey must belong to
+that farm. A passkey works only at the web address where it was made. Any
+user, whatever their role, may register up to five. A passkey saved in a
+phone's or browser's password manager also works on that person's other
+devices. Once passkeys are on, a user without one sees a single suggestion
+to create one after a password sign-in; **Account** → **Security** always
+offers it.
+
+Registering a user's first passkey, when they have no authenticator app, ends
+every other session and connected app and keeps this device signed in, as
+setting up two-factor authentication does; later passkeys end nothing.
+Removing one of their own passkeys does the same. While the Owner requirement
+is on, an Owner cannot remove their last passkey if they have no authenticator
+app. When an Owner removes another user's passkeys, every session and
+connected app of that user ends, as with a two-factor reset. Every user keeps
+a password, which recovery still uses. A password reset or change leaves the
+passkeys in place; `recover-admin` clears both. A user whose password an Owner
+has reset must still change it after signing in with a passkey.
 
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets
@@ -1596,7 +1630,8 @@ Any user steps up on the **Account** screen's **Security** section too (#1277):
 **Set up** asks for the password, because the user has no second factor yet, and
 **Replace authenticator app**, **Regenerate** and **Turn off** ask for the
 password and a code.
-WebAuthn step-up remains a deferred follow-up (#320).
+Once passkeys ship (#320), a **passkey** alone is also a step-up proof, and a
+user who has one cannot step up with the password alone.
 
 **Connecting an app (#798)** — approving an outside app, such as an AI assistant,
 to act as you through OAuth. The app sends you to Cluckwork's consent screen
