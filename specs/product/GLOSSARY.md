@@ -1475,7 +1475,7 @@ passkey needs no farm code: the passkey says which farm it belongs to. If a
 farm code is already in the field, the passkey must belong to that farm. A
 passkey works only at the web address where it was made, and **Account** →
 **Security** shows that address when there is more than one. Any user,
-whatever their role, may register up to five there. A passkey saved in a
+whatever their role, may register up to five passkeys in all. A passkey saved in a
 phone's or browser's password manager also works on that person's other
 devices. A user without a passkey whose browser can create one sees a
 one-time suggestion after a password sign-in, unless they are an Owner who
