@@ -1435,10 +1435,13 @@ in, and the next sign-in asks for the password only. It is audited
 (`User.TwoFactorDisabled`). Removing another user's is **Reset two-factor
 authentication**. While two-factor authentication is required for Owners
 (#1281), an Owner cannot turn it off: **Security** says why in place of
-**Turn off**.
+**Turn off**. Once passkeys ship (#320), a user who still has a **passkey**
+signs in with it instead of the password alone, and an Owner who has one may
+turn the app off.
 
 **Reset two-factor authentication (#1280)** — an Owner, or `recover-admin`,
-removes another user's second factor so they can enrol again, for example after
+removes another user's authenticator app and recovery codes so they can enrol
+again, for example after
 they lose their phone or their recovery codes. On the Users screen the selected
 user's inspector shows **Two-factor authentication** as On or Off, and for a
 user with it on, other than yourself, offers **reset two-factor**. The
@@ -1446,7 +1449,8 @@ confirmation asks for a step-up proof (see **Step-up authentication**). The
 reset deletes the user's authenticator key, recovery codes and any started
 enrolment, bumps their **credential epoch** and rotates their security stamp,
 so every session, connected app, step-up grant and pending sign-in code step
-they had is refused. Their next sign-in takes the password only. It is audited
+they had is refused. Their next sign-in takes the password only, unless, once
+passkeys ship (#320), they still have a **passkey**. It is audited
 (`User.TwoFactorReset`). An Owner cannot reset their own two-factor
 authentication; they replace their authenticator through enrolment.
 `recover-admin` clears an Owner's second factor together with its password
@@ -1457,20 +1461,25 @@ the user's phone or computer checks their fingerprint, face or PIN, then proves
 it holds a key registered to that user. A passkey alone counts as both steps
 of a sign-in. Like the **authenticator app**, it is a second factor: a user who
 has either can no longer sign in or step up with the password alone, and the
-second sign-in step accepts a passkey, an **authenticator code** or a
-**recovery code**. A passkey alone is a step-up proof, and it meets the Owner
-requirement (#1281). It is not what this glossary calls **two-factor
-authentication**, which is the authenticator app, and removing a user's
-passkeys is a separate action from **Reset two-factor authentication**.
+second sign-in step accepts a passkey, or the app's **authenticator code** or
+a **recovery code** when the user has the app. A passkey alone is a step-up
+proof, and it meets the Owner requirement (#1281). Users with a passkey or the
+app sign in fully again every `Auth:EnrolledSessionMaxDays` days. A passkey is
+not what this glossary calls **two-factor authentication**, which is the
+authenticator app, and removing a user's passkeys is a separate action from
+**Reset two-factor authentication**.
 
-Signing in with a passkey needs no farm code: the passkey says which farm it
-belongs to. If a farm code is already in the field, the passkey must belong to
-that farm. A passkey works only at the web address where it was made. Any
-user, whatever their role, may register up to five. A passkey saved in a
+Passkeys are off until the operator lists the app's web addresses in
+`Passkeys:Origins`; until then no screen offers them. Signing in with a
+passkey needs no farm code: the passkey says which farm it belongs to. If a
+farm code is already in the field, the passkey must belong to that farm. A
+passkey works only at the web address where it was made, and **Account** →
+**Security** shows that address when there is more than one. Any user,
+whatever their role, may register up to five there. A passkey saved in a
 phone's or browser's password manager also works on that person's other
-devices. Once passkeys are on, a user without one sees a single suggestion
-to create one after a password sign-in; **Account** → **Security** always
-offers it.
+devices. A user without a passkey whose browser can create one sees a
+one-time suggestion after a password sign-in, unless they are an Owner who
+already sees the Owner-requirement notice.
 
 Registering a user's first passkey, when they have no authenticator app, ends
 every other session and connected app and keeps this device signed in, as
@@ -1479,7 +1488,11 @@ Removing one of their own passkeys does the same. While the Owner requirement
 is on, an Owner cannot remove their last passkey if they have no authenticator
 app. When an Owner removes another user's passkeys, every session and
 connected app of that user ends, as with a two-factor reset. Every user keeps
-a password, which recovery still uses. A password reset or change leaves the
+a password, which recovery still uses. A user with only passkeys has no
+recovery codes, and the password alone cannot add a passkey: if every passkey
+is lost, an Owner removes the user's passkeys, after which the password works
+again; for an Owner, another Owner does it, or the operator runs
+`recover-admin`. A password reset or change leaves the
 passkeys in place; `recover-admin` clears both. A user whose password an Owner
 has reset must still change it after signing in with a passkey.
 
