@@ -11,6 +11,7 @@ const playwright = process.env.PLAYWRIGHT_DIR ?? join(existsSync(join(checkout, 
 const font = process.env.INTER_WOFF2 ?? join(existsSync(join(checkout, 'web/node_modules/@fontsource-variable/inter')) ? checkout : installed, 'web/node_modules/@fontsource-variable/inter/files/inter-latin-opsz-normal.woff2');
 const out = resolve(process.argv[2] ?? join(here, 'renders'));
 const captureScreen = process.argv[3];
+const capture = screen => !captureScreen || (captureScreen === 'passkeys' ? screen.startsWith('pk-') : screen === captureScreen);
 const { chromium } = await import(pathToFileURL(join(playwright, 'index.mjs')).href);
 const cache = join(homedir(), '.cache/ms-playwright');
 const shell = readdirSync(cache).filter(name => name.startsWith('chromium_headless_shell-')).sort().at(-1);
@@ -28,7 +29,7 @@ try {
   await page.addStyleTag({ content: `@font-face{font-family:"Inter Variable";src:url(data:font/woff2;base64,${fontData});font-weight:100 900}.lab,.labnote{display:none!important}.stage{padding:0;justify-content:flex-start}` });
   await page.evaluate(() => document.fonts.ready);
   const screens = await page.evaluate(() => window.LAB.screens);
-  assert(!captureScreen || Object.hasOwn(screens, captureScreen), `Unknown capture screen: ${captureScreen}`);
+  assert(!captureScreen || captureScreen === 'passkeys' || Object.hasOwn(screens, captureScreen), `Unknown capture screen: ${captureScreen}`);
   for (const [screen, spec] of Object.entries(screens)) {
     for (const direction of Object.keys(spec.directions)) {
       for (const width of [1280, 390]) {
@@ -75,8 +76,11 @@ try {
               assert(geometry.action.left >= geometry.dialog.left && geometry.action.right <= geometry.dialog.right, `${screen}/${direction}/${state}: primary action clipped horizontally`);
               assert(geometry.content.bottom <= geometry.footer.top + 1, `${screen}/${direction}/${state}: content covers footer`);
             }
+            if (screen.startsWith('pk-') && width === 390 && (state.endsWith('-code') || state.endsWith('-recovery'))) {
+              await page.locator('.dlg-content').evaluateAll(contents => contents.forEach(content => { content.scrollTop = content.scrollHeight; }));
+            }
             const name = `${screen}-${direction}-${width}-${state}-${theme}.png`;
-            if (!captureScreen || screen === captureScreen) {
+            if (capture(screen)) {
               await page.locator('#frame').screenshot({ path: join(out, name), scale: 'css' });
               captures++;
             }
@@ -187,8 +191,93 @@ try {
     await page.evaluate(config => window.configure({...config,state:config.limited}),config);
     assert.equal(await page.getByRole('button',{name:'Use a recovery code',exact:true}).isDisabled(),true);
   }
+  for (const width of [1280,390]) {
+    const show=(screen,state,direction='a')=>page.evaluate(config=>window.configure(config),{screen,state,direction,width,theme:'light'});
+    await show('pk-login','ready');
+    assert.equal(await page.getByLabel('Farm code',{exact:true}).inputValue(),'');
+    assert.equal(await page.getByLabel('Email',{exact:true}).getAttribute('autocomplete'),'username webauthn');
+    await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();
+    await page.getByRole('heading',{name:'Signed in',exact:true}).waitFor();
+    await show('pk-login','off');
+    assert.equal(await page.getByRole('button',{name:/passkey/i}).count(),0);
+    assert.equal(await page.getByLabel('Email',{exact:true}).getAttribute('autocomplete'),'username');
+    await show('pk-login','connect');
+    await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();
+    await page.getByRole('button',{name:'Review app permissions',exact:true}).click();
+    await page.getByRole('heading',{name:'Let Farm Ledger act as you?',exact:true}).waitFor();
+    await show('pk-login','second-passkey-only');
+    assert.equal(await page.locator('input[type="password"],input[autocomplete="one-time-code"]').count(),0);
+    assert.equal(await page.getByRole('button',{name:/authenticator|recovery/}).count(),0);
+    await show('pk-account','both');
+    await page.getByRole('button',{name:'Rename',exact:true}).first().click();
+    assert.equal(await page.getByLabel('Passkey name',{exact:true}).evaluate(input=>input===document.activeElement),true);
+    await page.getByLabel('Passkey name',{exact:true}).fill('Everyday phone');
+    await page.getByRole('button',{name:'Save name',exact:true}).click();
+    await page.getByRole('heading',{name:'Everyday phone',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Rename',exact:true}).first().click();
+    await page.getByLabel('Passkey name',{exact:true}).fill('Phone');
+    await page.getByRole('button',{name:'Save name',exact:true}).click();
+    await show('pk-account','app-only');
+    assert.equal(await page.getByRole('button',{name:'Turn off',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Add passkey',exact:true}).click();
+    await page.getByLabel('Your current password',{exact:true}).waitFor();
+    await page.getByLabel('Your authenticator code',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Use a passkey',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'Use a passkey',exact:true}).count(),0);
+    await show('pk-account','limit');
+    assert.equal(await page.getByRole('button',{name:'Add passkey',exact:true}).isDisabled(),true);
+    assert.equal(await page.locator('.pk-key').count(),5);
+    await show('pk-account','one-owner');
+    assert.equal(await page.getByRole('button',{name:'Remove',exact:true}).count(),0);
+    assert.match(await page.locator('.pk-locked').innerText(),/Cannot remove your last factor/);
+    assert.equal(await page.locator('.pk-address').count(),0);
+    await page.getByRole('button',{name:'Add passkey',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'Use password and authenticator code',exact:true}).count(),0);
+    assert.equal(await page.getByLabel('Your current password',{exact:true}).count(),0);
+    await show('pk-account','multi-address');
+    assert.equal(await page.locator('.pk-address').count(),2);
+    await show('pk-registration','stepup-password');
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    assert.match(await page.getByRole('status').innerText(),/Other devices and connected apps/);
+    await page.getByRole('button',{name:'Create passkey',exact:true}).click();
+    await page.getByRole('heading',{name:'Passkey created',exact:true}).waitFor();
+    for(const state of ['later','with-app']) {
+      await show('pk-registration',state);
+      assert.equal(await page.locator('.alert.warning').count(),0);
+    }
+    for(const [screen,state] of [['pk-stepup','dialog'],['pk-stepup','consent'],['pk-users','confirm'],['pk-account','remove']]) {
+      await show(screen,state);
+      const target=page.locator('#pk-target-password');
+      if(await target.count())await target.fill(samples[0]);
+      if(state==='consent')await page.getByRole('checkbox',{name:'Read farm data',exact:true}).uncheck();
+      await page.getByRole('button',{name:'Use password and authenticator code',exact:true}).click();
+      await page.getByLabel('Your current password',{exact:true}).fill(samples[0]);
+      await page.getByLabel('Your authenticator code',{exact:true}).waitFor();
+      await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+      assert.equal(await page.getByLabel('Your current password',{exact:true}).inputValue(),samples[0]);
+      await page.getByLabel('Your recovery code',{exact:true}).waitFor();
+      if(await target.count())assert.equal(await target.inputValue(),samples[0]);
+      if(state==='consent')assert.equal(await page.getByRole('checkbox',{name:'Read farm data',exact:true}).isChecked(),false);
+      await page.getByRole('button',{name:'Use a passkey',exact:true}).click();
+      assert.equal(await page.getByLabel('Your current password',{exact:true}).count(),0);
+      if(state==='consent')assert.equal(await page.getByRole('checkbox',{name:'Read farm data',exact:true}).isChecked(),false);
+    }
+    await show('pk-users','confirm');
+    assert.match(await page.getByRole('dialog').innerText(),/Every session and connected app of this user ends/);
+    await page.getByRole('button',{name:'Use passkey and remove',exact:true}).click();
+    await page.getByText('Passkeys removed for ben@example.test. Every session and connected app of this user ended.',{exact:true}).waitFor();
+    await show('pk-suggestion','offer');
+    await page.getByRole('button',{name:'Not now',exact:true}).click();
+    await page.getByRole('heading',{name:'Continue to your farm',exact:true}).waitFor();
+    await show('pk-owner','setup');
+    await page.getByText('Every Owner must set up a passkey or two-factor authentication',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Set up a passkey',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Set up two-factor authentication',exact:true}).waitFor();
+  }
+
   assert.deepEqual(errors, []);
-  writeFileSync(join(out, 'manifest.json'), JSON.stringify(results.filter(result => !captureScreen || result.screen === captureScreen), null, 2) + '\n');
+  writeFileSync(join(out, 'manifest.json'), JSON.stringify(results.filter(result => capture(result.screen)), null, 2) + '\n');
   console.log(`Checked ${results.length} frames; captured ${captures} at 1:1 into ${out}. No page errors or horizontal frame overflow. Interaction checks passed.`);
 } finally {
   await browser.close();
