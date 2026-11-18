@@ -189,32 +189,55 @@ const pkKeys = ['Phone','Laptop','Tablet','Security key','Work computer'].map((n
 let pkSelectedKey = 0;
 let pkJourney = null;
 function pkAccountFacts(state) {
-  const app=['both','limit','multi-address','rename','remove','remove-code','remove-recovery','removed','app-only'].includes(state);
-  const count=['empty','app-only'].includes(state)?0:state==='limit'?5:state==='removed'?1:app?2:1;
-  return {app,keys:pkKeys.slice(state==='removed'?1:0,state==='removed'?2:count).map(key=>({...key})),owner:['one-owner','last-factor','app-only'].includes(state),multi:state==='multi-address'};
+  const app=['both','limit','multi-address','rename','remove','remove-code','remove-recovery','removed','app-only','feature-off'].includes(state);
+  const count=['empty','app-only','feature-off'].includes(state)?0:state==='limit'?5:state==='removed'?1:app?2:1;
+  return {app,passkeysEnabled:state!=='feature-off',keys:pkKeys.slice(state==='removed'?1:0,state==='removed'?2:count).map(key=>({...key})),owner:['one-owner','last-factor','app-only'].includes(state),multi:state==='multi-address'};
 }
 function pkRegistrationFacts(state) {
   const noFactor=['stepup-password','first','waiting','success','cancelled','unsupported'].includes(state);
   const app=!noFactor&&state!=='stepup-passkey-only';
-  return {app,keys:state!=='success'&&(noFactor||state.includes('app-only')||state==='with-app')?[]:[{...pkKeys[0]}],owner:false,multi:false};
+  return {app,passkeysEnabled:true,keys:state!=='success'&&(noFactor||state.includes('app-only')||state==='with-app')?[]:[{...pkKeys[0]}],owner:false,multi:false};
 }
 function pkGo(next) { configure({...next,pkJourney:true}); }
+function pkAccountState(account) {
+  if(!account.passkeysEnabled)return 'feature-off';
+  if(!account.keys.length)return account.app?'app-only':'empty';
+  return !account.app&&account.owner&&account.keys.length===1?'one-owner':'both';
+}
 function pkStartJourney() {
   if(pkJourney)return;
-  const account=cfg.screen==='pk-account'?pkAccountFacts(cfg.state):pkRegistrationFacts(cfg.state);
-  const state=account.keys.length?(account.app?'both':'one-owner'):(account.app?'app-only':'empty');
-  pkJourney={account,origin:{screen:'pk-account',state:cfg.screen==='pk-account'&&!['rename','remove','remove-code','remove-recovery'].includes(cfg.state)?cfg.state:state}};
+  const source=cfg.screen,state=cfg.state;
+  let account;
+  if(source==='pk-account')account=pkAccountFacts(state);
+  else if(source==='pk-registration')account=pkRegistrationFacts(state);
+  else if(source==='pk-suggestion')account={...pkAccountFacts(state.endsWith('-app')?'app-only':'empty'),owner:false};
+  else if(source==='pk-owner')account={...pkAccountFacts('empty'),owner:true};
+  else account={...pkAccountFacts(state.startsWith('off')?'feature-off':state==='second-passkey-only'?'one-owner':'both'),owner:false};
+  const origin=source==='pk-registration'||source==='pk-account'&&['rename','remove','remove-code','remove-recovery'].includes(state)?{screen:'pk-account',state:pkAccountState(account)}:{screen:source,state};
+  pkJourney={account,origin};
 }
+function pkAppAct(action) {
+  if(action==='account-off'){pkGo(pkJourney.appOrigin);return true;}
+  if(action==='finish'){
+    if(saved){pkJourney.origin={screen:'pk-account',state:pkAccountState(pkJourney.account)};pkGo(pkJourney.origin);}
+    return true;
+  }
+  const routes={scan:{state:'scan'},confirm:{state:'confirm'},'new-codes':{screen:'recovery',state:'new'}};
+  if(!routes[action])return false;
+  if(action==='new-codes')pkJourney.account.app=true;
+  pkGo(routes[action]);return true;
+}
+
 const pkText = value => value.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const OWNER_NOTICE = 'Every Owner must set up a passkey or two-factor authentication';
 Object.assign(SCREENS, {
-  'pk-account': {name:'Passkeys · Account / Security',recommended:'a',directions:{a:'A · Address below the name',b:'B · Separate address column'},states:['empty','app-only','one-owner','both','limit','multi-address','rename','remove','remove-code','remove-recovery','removed','last-factor']},
+  'pk-account': {name:'Passkeys · Account / Security',recommended:'a',directions:{a:'A · Address below the name',b:'B · Separate address column'},states:['empty','app-only','feature-off','one-owner','both','limit','multi-address','rename','remove','remove-code','remove-recovery','removed','last-factor']},
   'pk-registration': {name:'Passkeys · Registration',recommended:'a',directions:{a:'A · Existing inline proof and set-up panel'},states:['stepup-password','stepup-passkey','stepup-passkey-only','stepup-code','stepup-recovery','stepup-app-only','stepup-app-only-recovery','first','later','with-app','waiting','success','cancelled','unsupported']},
-  'pk-login': {name:'Passkeys · Sign in',recommended:'a',directions:{a:'A · Passkey below the password form',b:'B · Passkey before the password form'},states:['ready','connect','cancelled','unknown','wrong-farm','second','second-code','second-recovery','second-passkey-only','connect-second','connect-second-code','connect-second-recovery','off','off-code','off-recovery','signed-in','connect-return','password-change']},
+  'pk-login': {name:'Passkeys · Sign in',recommended:'a',directions:{a:'A · Passkey below the password form',b:'B · Passkey before the password form'},states:['ready','connect','cancelled','unknown','wrong-farm','second','second-code','second-recovery','second-passkey-only','connect-second','connect-second-code','connect-second-recovery','off','off-code','off-recovery','off-signed-in','signed-in','connect-return','password-change']},
   'pk-autofill': {name:'Passkeys · Email autofill',recommended:'a',directions:{a:'A · Browser suggestion only',b:'B · Helper above the email field'},states:['suggestion']},
   'pk-stepup': {name:'Passkeys · Step-up and consent',recommended:'a',directions:{a:'A · Selected inline proof with method switch'},states:['dialog','dialog-code','dialog-recovery','dialog-passkey-only','consent','consent-code','consent-recovery','consent-passkey-only','cancelled','wrong','done']},
   'pk-owner': {name:'Passkeys · Owner requirement',recommended:'a',directions:{a:'A · Existing notice and set-up panel'},states:['notice','setup']},
-  'pk-suggestion': {name:'Passkeys · One-time suggestion',recommended:'a',directions:{a:'A · Existing auth card'},states:['offer','offer-app','skipped']},
+  'pk-suggestion': {name:'Passkeys · One-time suggestion',recommended:'a',directions:{a:'A · Existing auth card'},states:['offer','offer-app','skipped','skipped-app']},
   'pk-users': {name:'Passkeys · Remove another user’s passkeys',recommended:'a',directions:{a:'A · Existing inspector and confirmation'},states:['selected','confirm','confirm-code','confirm-recovery','done','self']},
 });
 Object.assign(REASONS, {
@@ -240,11 +263,11 @@ function pkProof({method='passkey',app=true,passkey=true,combined=false}={}) {
   return `<div class="ruled pk-proof"><h3>Confirm it's you</h3><p class="caption">Signed in as ana@example.test</p>${code ? `<p class="muted">Enter your password and ${method==='recovery'?'a recovery code':'an authenticator code'}.</p>${field('Your current password','pk-proof-password',{password:true,autocomplete:'current-password'})}${field(method==='recovery'?'Your recovery code':'Your authenticator code','pk-proof-code',{recovery:method==='recovery',hint:method==='recovery'?'16 characters, with or without the hyphens.':'6 digits from your authenticator app.'})}<div class="actions">${button(method==='recovery'?'Use an authenticator code':'Use a recovery code',method==='recovery'?'pk-code':'pk-recovery')}${passkey?button('Use a passkey','pk-passkey'):''}</div>` : `<p class="muted">Use your passkey to confirm this action.</p><div class="actions">${combined?'':button('Use a passkey','pk-proof-ok','outlined')}${app?button('Use password and authenticator code','pk-code'):''}</div>${!app?'<p class="caption">No authenticator app is set up. Your password alone cannot confirm this action.</p>':''}`}</div>`;
 }
 function pkAccount() {
-  const state=cfg.state,facts=pkJourney?.account??pkAccountFacts(state),both=facts.app,multi=facts.multi,count=facts.keys.length,empty=count===0;
+  const state=cfg.state,facts=pkJourney?.account??pkAccountFacts(state),both=facts.app,multi=facts.multi,count=facts.keys.length,empty=count===0,appLocked=facts.owner&&count===0;
   const rows=facts.keys.map(({name,date,address},i)=>`<div class="pk-key ${multi&&cfg.direction==='b'?'pk-columns':''}"><div><h3>${pkText(name)}</h3><p class="caption">Created ${date}</p>${multi&&cfg.direction==='a'?`<p class="caption pk-address">${address}</p>`:''}</div>${multi&&cfg.direction==='b'?`<div class="pk-address"><span class="caption">Web address</span><br>${address}</div>`:''}<div class="pk-key-actions">${button('Rename',`pk-rename-${i}`)}${count===1&&!both&&facts.owner?'<span class="caption pk-locked">Cannot remove your last factor.<br>Set up another passkey or the authenticator app first.</span>':button('Remove',`pk-remove-${i}`,'danger-text')}</div></div>`).join('');
-  const app=`<div class="row"><div><h3>Two-factor authentication</h3><p class="muted">Codes from your authenticator app.</p>${status(both?'On':'Off')}</div><div class="actions">${both?button('Replace','no-op','outlined'):button('Set up','pk-app','outlined')}</div></div>${both?`<div class="row"><div><h3>Recovery codes</h3><p>8 codes left</p><p class="caption">Each code works once.</p></div><div class="actions">${button('Regenerate','no-op','outlined')}</div></div><div class="row"><p class="muted">${count===0?'You cannot turn off your last factor. Set up a passkey first.':'Your passkeys will still be available after you turn off two-factor authentication.'}</p><div class="actions">${count===0?'':button('Turn off','no-op','danger-text')}</div></div>`:''}`;
+  const app=`<div class="row"><div><h3>Two-factor authentication</h3><p class="muted">Codes from your authenticator app.</p>${status(both?'On':'Off')}</div><div class="actions">${both?button('Replace','no-op','outlined'):button('Set up','pk-app','outlined')}</div></div>${both?`<div class="row"><div><h3>Recovery codes</h3><p>8 codes left</p><p class="caption">Each code works once.</p></div><div class="actions">${button('Regenerate','no-op','outlined')}</div></div><div class="row"><p class="muted">${appLocked?'You cannot turn off your last factor. Set up a passkey first.':facts.passkeysEnabled?'Your passkeys will still be available after you turn off two-factor authentication.':'Remove the extra code at sign-in.'}</p><div class="actions">${appLocked?'':button('Turn off','no-op','danger-text')}</div></div>`:''}`;
   const passkeys=`<section class="pk-section"><div class="row"><div><h3>Passkeys</h3><p class="muted">Sign in with your fingerprint, face or device PIN.</p><p class="caption">${count} of 5 passkeys</p></div><div class="actions">${button('Add passkey','pk-add','outlined',count===5)}</div></div>${count===5?'<p class="caption">You have 5 passkeys. Remove one before adding another.</p>':''}${multi?'<p class="caption">A passkey works only at the web address where it was made.</p>':''}${rows}${empty?'<p class="muted">No passkeys yet.</p>':''}${count===1&&!both?alert('Add a second passkey or set up the authenticator app, so you have another way in.','warning'):''}${state==='last-factor'?alert(OWNER_NOTICE+'. You cannot remove your last factor.','warning'):''}</section>`;
-  let html=shell(`<h1>Account</h1><p class="muted">Signed in as <strong>Ana · Admin</strong>.</p>${accordion('Preferences','<p>Language · English</p>')}${accordion('Change password','<p>Change your account password.</p>')}${accordion('Security',`${state==='removed'?alert('Passkey removed. Other devices and connected apps must sign in again.','success'):''}${app}${passkeys}`,true)}${accordion('Connected apps','<p>Manage connected apps.</p>')}`);
+  let html=shell(`<h1>Account</h1><p class="muted">Signed in as <strong>Ana · Admin</strong>.</p>${accordion('Preferences','<p>Language · English</p>')}${accordion('Change password','<p>Change your account password.</p>')}${accordion('Security',`${state==='removed'?alert('Passkey removed. Other devices and connected apps must sign in again.','success'):''}${app}${facts.passkeysEnabled?passkeys:''}`,true)}${accordion('Connected apps','<p>Manage connected apps.</p>')}`);
   if(state==='rename')html+=dialog('Rename passkey',`<p>Choose a name you will recognise.</p>${pkField('Passkey name','pk-name',{value:pkText(facts.keys[pkSelectedKey].name)})}`,button('Cancel','pk-account-back')+button('Save name','pk-renamed','primary'));
   if(state.startsWith('remove')&&state!=='removed')html+=dialog('Remove passkey?',`<p class="identity">${pkText(facts.keys[pkSelectedKey].name)}</p><p>You will no longer be able to use this passkey to sign in.</p>${pkSessionWarning()}${pkProof({method:state==='remove-code'?'code':state==='remove-recovery'?'recovery':'passkey',app:both,combined:true})}`,button('Cancel','pk-account-back')+button(state==='remove'?'Use passkey and remove':'Remove passkey','pk-removed','danger'));
   return html;
@@ -262,7 +285,7 @@ function pkRegistration() {
 }
 function pkLogin() {
   const state=cfg.state,connect=state.startsWith('connect'),off=state.startsWith('off'),second=state.includes('second')||off&&state!=='off';
-  if(['signed-in','connect-return'].includes(state))return pkAuth(`<h2>${connect?'Continue to Farm Ledger':'Signed in'}</h2>${alert('Signed in to Sunrise Farm.','success')}<p class="identity">ana@example.test</p><p class="muted">Sunrise Farm is now remembered on this device.</p><div class="actions">${button(connect?'Review app permissions':'Continue',connect?'pk-connect':'pk-home','primary')}</div>`,connect);
+  if(['signed-in','off-signed-in','connect-return'].includes(state))return pkAuth(`<h2>${connect?'Continue to Farm Ledger':'Signed in'}</h2>${alert('Signed in to Sunrise Farm.','success')}<p class="identity">ana@example.test</p><p class="muted">Sunrise Farm is now remembered on this device.</p><div class="actions">${button(connect?'Review app permissions':'Continue',connect?'pk-connect':'pk-home','primary')}</div>`,connect);
   if(state==='password-change')return pkAuth(`<h2>Change your password</h2><p>Your passkey signed you in. Your Admin has reset your password, so you must change it before continuing.</p>${field('New password','pk-new-password',{password:true,hint:'At least 12 characters'})}${field('Confirm new password','pk-confirm-password',{password:true})}<div class="actions">${button('Change password','pk-signed-in','primary')}</div>`);
   if(second) {
     const recovery=state.endsWith('-recovery'),code=state.endsWith('-code')||recovery;
@@ -288,7 +311,7 @@ function pkOwner() {
   return shell(`${alert(`${OWNER_NOTICE}.<br>Set up by 24 Nov 2026, 09:00 UTC.`,'warning')}<div class="actions">${button('Set up now','pk-owner-setup','primary')}</div><h1 class="ruled">Account</h1><p class="muted">Signed in as Ana · Admin</p>${accordion('Security','<p>Set up a passkey or the authenticator app to continue using the farm.</p>',true)}`);
 }
 function pkSuggestion() {
-  return cfg.state==='skipped'?pkAuth(`<h2>Continue to your farm</h2><p>You can add a passkey later in Account / Security.</p><div class="actions">${button('Continue','pk-home','primary')}</div>`):pkAuth(`<h2>Sign in faster with a passkey</h2><p>Use your fingerprint, face or device PIN instead of typing your password.</p><p class="muted">${cfg.state==='offer-app'?'You can still use your password with an authenticator code.':'You can still use your password.'}</p><div class="actions">${button('Create passkey','pk-add','primary')}${button('Not now','pk-skip')}</div>`);
+  return cfg.state.startsWith('skipped')?pkAuth(`<h2>Continue to your farm</h2><p>You can add a passkey later in Account / Security.</p><div class="actions">${button('Continue','pk-home','primary')}</div>`):pkAuth(`<h2>Sign in faster with a passkey</h2><p>Use your fingerprint, face or device PIN instead of typing your password.</p><p class="muted">${cfg.state==='offer-app'?'You can still use your password with an authenticator code.':'You can still use your password.'}</p><div class="actions">${button('Create passkey','pk-add','primary')}${button('Not now','pk-skip')}</div>`);
 }
 function pkUsers() {
   const state=cfg.state,self=state==='self';
@@ -305,26 +328,27 @@ function pkUsers() {
 }
 const PK_RENDERERS={'pk-account':pkAccount,'pk-registration':pkRegistration,'pk-login':pkLogin,'pk-autofill':pkAutofill,'pk-stepup':pkStepup,'pk-owner':pkOwner,'pk-suggestion':pkSuggestion,'pk-users':pkUsers};
 function pkAct(action) {
-  if(['pk-account','pk-registration'].includes(cfg.screen))pkStartJourney();
+  if(!['pk-stepup','pk-users'].includes(cfg.screen))pkStartJourney();
   const keyAction=/^pk-(rename|remove)-(\d)$/.exec(action);
   if(keyAction){pkSelectedKey=Number(keyAction[2]);pkGo({state:keyAction[1]});(frame.querySelector('.dlg input')??frame.querySelector('.dlg .close')).focus({preventScroll:true});return;}
   if(action==='pk-add') {
-    if(cfg.screen!=='pk-account')pkJourney={account:{app:cfg.screen==='pk-suggestion'&&cfg.state==='offer-app',keys:[],owner:cfg.screen==='pk-owner',multi:false},origin:{screen:cfg.screen,state:cfg.state}};
+    pkJourney.origin={screen:cfg.screen,state:cfg.state};
     const facts=pkJourney.account;
     pkGo({screen:'pk-registration',state:facts.keys.length?(facts.app?'stepup-passkey':'stepup-passkey-only'):(facts.app?'stepup-app-only':'stepup-password')});
     frame.querySelector('.dlg input,.dlg [data-action="pk-proof-ok"]')?.focus({preventScroll:true});
     return;
   }
+  if(action==='pk-app')pkJourney.appOrigin={screen:cfg.screen,state:cfg.state};
   const loginPrefix=cfg.state.startsWith('connect')?'connect-':cfg.state.startsWith('off')?'off-':'';
   const routes={
     'pk-app':{screen:'enrolment',state:'scan'},'pk-account-back':pkJourney?.origin,'pk-removed':{state:'removed'},
     'pk-registration-first':{state:pkJourney?.account.app?'with-app':pkJourney?.account.keys.length?'later':'first'},
     'pk-login-second':{screen:'pk-login',state:loginPrefix==='off-'?'off-code':`${loginPrefix}second`},'pk-login-code':{screen:'pk-login',state:`${loginPrefix}${loginPrefix==='off-'?'':'second-'}code`},'pk-login-recovery':{screen:'pk-login',state:`${loginPrefix}${loginPrefix==='off-'?'':'second-'}recovery`},'pk-login-back':{screen:'pk-login',state:loginPrefix==='connect-'?'connect':loginPrefix==='off-'?'off':'ready'},
-    'pk-signed-in':{screen:'pk-login',state:loginPrefix==='connect-'?'connect-return':'signed-in'},'pk-connect':{screen:'pk-stepup',state:'consent'},'pk-owner-setup':{state:'setup'},'pk-skip':{state:'skipped'},
-    reset:{screen:'users',direction:'a-password',state:'confirm'},'set-password':{screen:'pk-stepup',state:'dialog'},'pk-users-back':{screen:'pk-users',state:'selected'},'pk-remove-all':{state:'confirm'},'pk-users-done':{state:'done'},'pk-home':{screen:'pk-account',state:'both'},
+    'pk-signed-in':{screen:'pk-login',state:loginPrefix==='connect-'?'connect-return':loginPrefix==='off-'?'off-signed-in':'signed-in'},'pk-connect':{screen:'pk-stepup',state:'consent'},'pk-owner-setup':{state:'setup'},'pk-skip':{state:pkJourney?.account.app?'skipped-app':'skipped'},
+    reset:{screen:'users',direction:'a-password',state:'confirm'},'set-password':{screen:'pk-stepup',state:'dialog'},'pk-users-back':{screen:'pk-users',state:'selected'},'pk-remove-all':{state:'confirm'},'pk-users-done':{state:'done'},
   };
   if(action==='pk-create'){pkJourney.account.keys.push({...pkKeys[0],name:frame.querySelector('#pk-name').value.trim()||'Passkey'});pkGo({state:'success'});return;}
-  if(action==='pk-registration-done'){pkJourney.origin={screen:'pk-account',state:'both'};pkGo(pkJourney.origin);return;}
+  if(action==='pk-registration-done'||action==='pk-home'){pkJourney.origin={screen:'pk-account',state:pkAccountState(pkJourney.account)};pkGo(pkJourney.origin);return;}
   if(action==='pk-removed')pkJourney.account.keys.splice(pkSelectedKey,1);
   if(['pk-code','pk-recovery','pk-passkey'].includes(action)) {
     const drafts=[...frame.querySelectorAll('input[id]')].map(input=>({id:input.id,value:input.value}));
@@ -388,6 +412,7 @@ frame.addEventListener('keydown', e => {
 frame.addEventListener('click', e => { const control=e.target.closest('[data-action]'); if(control && !control.disabled) act(control.dataset.action); });
 function act(action) {
   if (cfg.screen.startsWith('pk-')) { pkAct(action); return; }
+  if(pkJourney&&['enrolment','recovery'].includes(cfg.screen)&&pkAppAct(action))return;
   if (action === 'use-recovery' || action === 'use-authenticator') {
     const passwordDraft = [...frame.querySelectorAll('input[type="password"]')].map(input => [input.id,input.value]);
     const permissions = [...frame.querySelectorAll('.permissions input')].map(input => input.checked);
@@ -427,7 +452,7 @@ function act(action) {
       link.href=URL.createObjectURL(new Blob([`Cluckwork design preview\nSample ${t.recovery}s only. These codes do not work.\n${SAMPLE_CODES.join('\n')}\n`],{type:'text/plain'}));
       link.download='cluckwork-recovery-preview.txt'; link.click(); URL.revokeObjectURL(link.href);
     }
-    configure({state:action === 'download' ? 'downloaded' : 'copied'}); return;
+    configure({state:action === 'download' ? 'downloaded' : 'copied',pkJourney:!!pkJourney}); return;
   }
   if (routes[action]) configure(routes[action]);
   const focus = frame.querySelector('.dlg input:not(:disabled),.dlg .close');

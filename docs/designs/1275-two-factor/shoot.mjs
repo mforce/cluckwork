@@ -209,6 +209,17 @@ try {
     assert.doesNotMatch(await page.locator('#frame').innerText(),/passkey/i);
     await page.getByRole('button',{name:'Back to sign in',exact:true}).click();
     assert.equal(await page.getByLabel('Email',{exact:true}).getAttribute('autocomplete'),'username');
+    for(const recovery of [false,true]) {
+      await show('pk-login','off');
+      await page.getByRole('button',{name:'Sign in',exact:true}).click();
+      if(recovery)await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+      await page.getByRole('button',{name:'Sign in',exact:true}).click();
+      await page.getByRole('button',{name:'Continue',exact:true}).click();
+      await page.getByRole('heading',{name:'Account',exact:true}).waitFor();
+      assert.doesNotMatch(await page.locator('#frame').innerText(),/passkey/i);
+      assert.equal(await page.locator('.pk-key').count(),0);
+      assert.equal(await page.getByRole('heading',{name:'Recovery codes',exact:true}).count(),1);
+    }
     await show('pk-login','connect');
     await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();
     await page.getByRole('button',{name:'Review app permissions',exact:true}).click();
@@ -321,10 +332,14 @@ try {
     assert.match(await page.getByRole('dialog').innerText(),/Every session and connected app of this user ends/);
     await page.getByRole('button',{name:'Use passkey and remove',exact:true}).click();
     await page.getByText('Passkeys removed for ben@example.test. Every session and connected app of this user ended.',{exact:true}).waitFor();
-    await show('pk-suggestion','offer');
-    await page.getByRole('button',{name:'Not now',exact:true}).click();
-    await page.getByRole('heading',{name:'Continue to your farm',exact:true}).waitFor();
     for(const state of ['offer','offer-app']) {
+      await show('pk-suggestion',state);
+      await page.getByRole('button',{name:'Not now',exact:true}).click();
+      await page.getByRole('button',{name:'Continue',exact:true}).click();
+      await page.getByRole('heading',{name:'Account',exact:true}).waitFor();
+      assert.equal(await page.locator('.pk-key').count(),0);
+      assert.equal(await page.getByText(state==='offer-app'?'On':'Off',{exact:true}).count(),1);
+      assert.equal(await page.getByRole('heading',{name:'Recovery codes',exact:true}).count(),state==='offer-app'?1:0);
       await show('pk-suggestion',state);
       await page.getByRole('button',{name:'Create passkey',exact:true}).click();
       await page.getByLabel('Your current password',{exact:true}).waitFor();
@@ -358,6 +373,115 @@ try {
     assert.equal(await page.getByText('Off',{exact:true}).count(),1);
     assert.equal(await page.getByRole('button',{name:'Remove',exact:true}).count(),0);
   }
+
+  const exits=[];
+  const registrationFacts=state=>({
+    app:!['stepup-password','stepup-passkey-only','first','waiting','success','cancelled','unsupported'].includes(state),
+    keys:['stepup-passkey','stepup-passkey-only','stepup-code','stepup-recovery','later','success'].includes(state)?1:0,
+  });
+  const accountIs=async({app,keys,enabled=true})=>{
+    await page.getByRole('heading',{name:'Account',exact:true}).waitFor();
+    assert.equal(await page.locator('.pk-key').count(),keys);
+    assert.equal(await page.getByText(app?'On':'Off',{exact:true}).count(),1);
+    assert.equal(await page.getByRole('heading',{name:'Recovery codes',exact:true}).count(),app?1:0);
+    assert.equal(await page.getByRole('button',{name:'Add passkey',exact:true}).count(),enabled?1:0);
+  };
+  for(const width of [1280,390]) {
+    await page.setViewportSize({width,height:width===390?844:800});
+    const show=(screen,state,direction='a')=>page.evaluate(config=>window.configure(config),{screen,state,direction,width,theme:'light'});
+    for(const [screen,spec] of Object.entries(screens).filter(([screen])=>screen.startsWith('pk-'))) {
+      for(const direction of Object.keys(spec.directions)) for(const state of spec.states) {
+        await show(screen,state,direction);
+        const names=await page.getByRole('button',{name:/^(Continue|Done|Cancel)$/}).allTextContents();
+        for(const name of names) {
+          await show(screen,state,direction);
+          const exit=page.getByRole('button',{name,exact:true});
+          if(await exit.isDisabled())await page.getByRole('button',{name:'Use a passkey',exact:true}).click();
+          await exit.click();
+          if(screen==='pk-registration') {
+            const facts=registrationFacts(state);
+            if(name==='Continue') {
+              await page.getByRole('button',{name:'Create passkey',exact:true}).click();
+              await page.getByRole('button',{name:'Done',exact:true}).click();
+              facts.keys++;
+            }
+            await accountIs(facts);
+          } else if(screen==='pk-account')await accountIs({app:true,keys:2});
+          else if(screen==='pk-login')await accountIs({app:true,keys:state==='off-signed-in'?0:2,enabled:state!=='off-signed-in'});
+          else if(screen==='pk-suggestion')await accountIs({app:state==='skipped-app',keys:0});
+          else if(screen==='pk-stepup'&&state.startsWith('consent'))await page.getByRole('heading',{name:'Connection cancelled',exact:true}).waitFor();
+          else {
+            await page.getByRole('heading',{name:'Users',exact:true}).waitFor();
+            assert.equal(await page.getByRole('dialog').count(),0);
+            assert.match(await page.locator('.inspector').innerText(),/2 registered/);
+          }
+          exits.push({screen,state,direction,width,action:name,destination:await page.locator('#frame').getAttribute('data-screen')});
+        }
+      }
+    }
+    for(const screen of ['pk-login','pk-autofill'])for(const state of screens[screen].states) {
+      await show(screen,state);
+      for(const name of ['Sign in with a passkey','Change password','Sign in','Sign in','Use a passkey']) {
+        const action=page.getByRole('button',{name,exact:true});
+        if(await action.count())await action.click();
+      }
+      if(state.startsWith('connect')) {
+        await page.getByRole('button',{name:'Review app permissions',exact:true}).click();
+        await page.getByRole('heading',{name:'Let Farm Ledger act as you?',exact:true}).waitFor();
+        await page.getByRole('button',{name:'Cancel',exact:true}).click();
+        await page.getByRole('heading',{name:'Connection cancelled',exact:true}).waitFor();
+      } else {
+        await page.getByRole('button',{name:'Continue',exact:true}).click();
+        await accountIs({app:state!=='second-passkey-only',keys:state.startsWith('off')?0:state==='second-passkey-only'?1:2,enabled:!state.startsWith('off')});
+      }
+      exits.push({screen,state,width,action:'sign-in-complete',destination:await page.locator('#frame').getAttribute('data-screen')});
+    }
+    // Complete enrollment and cancellation from every context that offers Add passkey.
+    for(const [screen,states] of [['pk-account',['empty','app-only','one-owner','both','multi-address','removed','last-factor']],['pk-owner',['notice','setup']],['pk-suggestion',['offer','offer-app']]])for(const state of states) {
+      const app=screen==='pk-account'?['app-only','both','multi-address','removed'].includes(state):state==='offer-app';
+      const keys=screen==='pk-account'?['both','multi-address'].includes(state)?2:['empty','app-only'].includes(state)?0:1:0;
+      for(const finish of ['cancel-proof','cancel-create','done']) {
+        await show(screen,state);
+        if(state==='notice')await page.getByRole('button',{name:'Set up now',exact:true}).click();
+        const origin=await page.locator('#frame').innerText();
+        await page.getByRole('button',{name:screen==='pk-owner'?'Set up a passkey':screen==='pk-suggestion'?'Create passkey':'Add passkey',exact:true}).click();
+        if(finish!=='cancel-proof') {
+          const continueButton=page.getByRole('button',{name:'Continue',exact:true});
+          if(await continueButton.isDisabled())await page.getByRole('button',{name:'Use a passkey',exact:true}).click();
+          await continueButton.click();
+        }
+        if(finish==='done') {
+          await page.getByRole('button',{name:'Create passkey',exact:true}).click();
+          await page.getByRole('button',{name:'Done',exact:true}).click();
+          await accountIs({app,keys:keys+1});
+        } else {
+          await page.getByRole('button',{name:'Cancel',exact:true}).click();
+          assert.equal(await page.locator('#frame').innerText(),origin);
+        }
+        exits.push({screen,state,width,action:finish,destination:await page.locator('#frame').getAttribute('data-screen')});
+      }
+    }
+    // Authenticator setup reuses historical screens but must return to the passkey journey.
+    for(const [screen,state] of [['pk-account','empty'],['pk-account','one-owner'],['pk-account','last-factor'],['pk-owner','setup'],['pk-registration','unsupported']])for(const finish of ['cancel','done']) {
+      await show(screen,state);
+      const origin=await page.locator('#frame').innerText();
+      await page.getByRole('button',{name:screen==='pk-account'?'Set up':'Set up two-factor authentication',exact:true}).click();
+      if(finish==='cancel') {
+        await page.getByRole('button',{name:'Cancel',exact:true}).click();
+        assert.equal(await page.locator('#frame').innerText(),origin);
+      } else {
+        await page.getByRole('button',{name:'Confirm code',exact:true}).click();
+        await page.getByRole('button',{name:'Copy all codes',exact:true}).click();
+        await page.getByRole('checkbox',{name:'I saved my recovery codes somewhere safe.',exact:true}).check();
+        await page.getByRole('button',{name:'Done',exact:true}).click();
+        await accountIs({app:true,keys:['one-owner','last-factor'].includes(state)?1:0});
+      }
+      exits.push({screen,state,width,action:`app-${finish}`,destination:await page.locator('#frame').getAttribute('data-screen')});
+    }
+  }
+  assert(exits.length>0,'No passkey exit journeys were exercised');
+  writeFileSync(join(out,'exit-walk.json'),JSON.stringify(exits,null,2)+'\n');
+  console.log(`Walked ${exits.length} passkey exit journeys through their final screen.`);
 
   assert.deepEqual(errors, []);
   writeFileSync(join(out, 'manifest.json'), JSON.stringify(results.filter(result => capture(result.screen)), null, 2) + '\n');
