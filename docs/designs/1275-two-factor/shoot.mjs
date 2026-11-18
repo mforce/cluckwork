@@ -385,6 +385,10 @@ try {
     assert.equal(await page.getByText(app?'On':'Off',{exact:true}).count(),1);
     assert.equal(await page.getByRole('heading',{name:'Recovery codes',exact:true}).count(),app?1:0);
     assert.equal(await page.getByRole('button',{name:'Add passkey',exact:true}).count(),enabled?1:0);
+    if(app&&keys===0) {
+      assert.equal(await page.getByText('Your passkeys will still be available after you turn off two-factor authentication.',{exact:true}).count(),0);
+      if(await page.getByRole('button',{name:'Turn off',exact:true}).count())await page.getByText('Remove the extra code at sign-in.',{exact:true}).waitFor();
+    }
   };
   for(const width of [1280,390]) {
     await page.setViewportSize({width,height:width===390?844:800});
