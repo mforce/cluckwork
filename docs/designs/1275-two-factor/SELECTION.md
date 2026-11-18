@@ -29,7 +29,7 @@ The user-facing terms are "two-factor authentication", "authenticator app" and "
 
 ## Passkeys (#1283)
 
-The [amended screen list](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6941756512) governs this extension. No passkey direction has been picked. Recommendations in the lab and README are the worker's proposals. The picks and history above stay unchanged. Autofill is a separate comparison within the Sign-in screen.
+The [amended screen list](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6941756512) governs this extension. The maintainer picked A for all eight screens on [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682). The picks and history above stay unchanged. Autofill is a separate comparison within the Sign-in screen.
 
 | Screen | Pick | Representative frames |
 | --- | --- | --- |
