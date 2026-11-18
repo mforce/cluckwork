@@ -338,7 +338,7 @@ A passkey works only at the host it was made on, because the authenticator binds
 
 #### 7. A passkey answers at the code step, and is a second way into `SignedIn` (items 1 and 7)
 
-At the second sign-in step, `CompleteSecondFactorLoginAsync` accepts a code string, as today, or a `SecondFactorCode.Passkey`. Both go through `VerifyAsync` with the challenge's binding, so one accepted proof of either kind ends the challenge and every challenge issued before it (#1274 decision 2). The pending 401's `secondFactors` extension tells the SPA which proofs to offer. It tells a password holder which factors the user has. Decided by the maintainer on 2026-11-18: "Send the list (Recommended)".
+At the second sign-in step, `CompleteSecondFactorLoginAsync` accepts a code string, as today, or a `SecondFactorCode.Passkey`. Both go through `VerifyAsync` with the challenge's binding, so one accepted proof of either kind ends the challenge and every challenge issued before it (#1274 decision 2). The pending 401's `secondFactors` extension tells the SPA which proofs to offer. It tells a password holder which factors the user has. Decided by the maintainer on 2026-11-17: "Send the list (Recommended)".
 
 `PasskeyLoginAsync` is the second way into `LoginStep.SignedIn`'s tokens. Its accepted proof increments `SecondFactorSignIns` too, so a passkey sign-in also ends any pending password challenge for that user.
 
@@ -354,7 +354,7 @@ A refused passkey never calls `AccessFailedAsync` or `AccountLockout.RecordFaile
 
 Connected-app consent spends the same grant (`OAuthEndpoints.cs:198`), so it follows the same rule with no change of its own.
 
-Change-password follows step-up. Decided by the maintainer on 2026-11-18: "Password + passkey (Recommended)". A user with a passkey and no app changes the password with the current password and a passkey; a user with the app sends a code or a passkey; a user with neither sends the password, as today. `ChangeOwnPasswordAsync` gains the passkey as `IssueAsync` does, in #1443. It uses the step-up options route and a `StepUp` ceremony bound to the caller, so both consumers check the same purpose and user. The forced-change path never needs a passkey (decision 19), so `MustChangePasswordMiddleware`'s allowed paths do not change.
+Change-password follows step-up. Decided by the maintainer on 2026-11-17: "Password + passkey (Recommended)". A user with a passkey and no app changes the password with the current password and a passkey; a user with the app sends a code or a passkey; a user with neither sends the password, as today. `ChangeOwnPasswordAsync` gains the passkey as `IssueAsync` does, in #1443. It uses the step-up options route and a `StepUp` ceremony bound to the caller, so both consumers check the same purpose and user. The forced-change path never needs a passkey (decision 19), so `MustChangePasswordMiddleware`'s allowed paths do not change.
 
 Every user keeps a password; nothing removes it, and recovery uses it (decision 10). There are no passkey-only users.
 
