@@ -201,8 +201,27 @@ try {
     await show('pk-login','off');
     assert.equal(await page.getByRole('button',{name:/passkey/i}).count(),0);
     assert.equal(await page.getByLabel('Email',{exact:true}).getAttribute('autocomplete'),'username');
+    await page.getByRole('button',{name:'Sign in',exact:true}).click();
+    await page.getByLabel('Authenticator code',{exact:true}).waitFor();
+    assert.doesNotMatch(await page.locator('#frame').innerText(),/passkey/i);
+    await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
+    await page.getByLabel('Recovery code',{exact:true}).waitFor();
+    assert.doesNotMatch(await page.locator('#frame').innerText(),/passkey/i);
+    await page.getByRole('button',{name:'Back to sign in',exact:true}).click();
+    assert.equal(await page.getByLabel('Email',{exact:true}).getAttribute('autocomplete'),'username');
     await show('pk-login','connect');
     await page.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();
+    await page.getByRole('button',{name:'Review app permissions',exact:true}).click();
+    await page.getByRole('heading',{name:'Let Farm Ledger act as you?',exact:true}).waitFor();
+    await show('pk-login','connect');
+    await page.getByRole('button',{name:'Sign in',exact:true}).click();
+    for(const method of ['Use an authenticator code','Use a recovery code','Use a passkey']) {
+      assert.match(await page.locator(width===390?'.next-mobile':'.next').innerText(),/Farm Ledger/);
+      await page.getByRole('button',{name:method,exact:true}).click();
+    }
+    assert.match(await page.locator(width===390?'.next-mobile':'.next').innerText(),/Farm Ledger/);
+    await page.getByRole('button',{name:'Use a passkey',exact:true}).click();
+    await page.getByRole('heading',{name:'Continue to Farm Ledger',exact:true}).waitFor();
     await page.getByRole('button',{name:'Review app permissions',exact:true}).click();
     await page.getByRole('heading',{name:'Let Farm Ledger act as you?',exact:true}).waitFor();
     await show('pk-login','second-passkey-only');
@@ -225,6 +244,17 @@ try {
     assert.equal(await page.getByRole('button',{name:'Use a passkey',exact:true}).count(),0);
     await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
     assert.equal(await page.getByRole('button',{name:'Use a passkey',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    assert.equal(await page.locator('.alert.warning').count(),0);
+    await page.getByLabel('Passkey name',{exact:true}).fill('New phone');
+    await page.getByRole('button',{name:'Create passkey',exact:true}).click();
+    await page.getByText('New phone is ready to use.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Done',exact:true}).click();
+    assert.equal(await page.locator('.pk-key').count(),1);
+    await page.getByRole('heading',{name:'New phone',exact:true}).waitFor();
+    await page.getByRole('heading',{name:'Recovery codes',exact:true}).waitFor();
+    assert.equal(await page.getByText('On',{exact:true}).count(),1);
+    assert.equal(await page.getByRole('button',{name:'Remove',exact:true}).count(),1);
     await show('pk-account','limit');
     assert.equal(await page.getByRole('button',{name:'Add passkey',exact:true}).isDisabled(),true);
     assert.equal(await page.locator('.pk-key').count(),5);
@@ -232,6 +262,18 @@ try {
     assert.equal(await page.getByRole('button',{name:'Remove',exact:true}).count(),0);
     assert.match(await page.locator('.pk-locked').innerText(),/Cannot remove your last factor/);
     assert.equal(await page.locator('.pk-address').count(),0);
+    await page.getByRole('button',{name:'Rename',exact:true}).click();
+    await page.getByLabel('Passkey name',{exact:true}).fill('Owner phone');
+    await page.getByRole('button',{name:'Save name',exact:true}).click();
+    await page.getByRole('heading',{name:'Owner phone',exact:true}).waitFor();
+    assert.equal(await page.locator('.pk-key').count(),1);
+    assert.equal(await page.getByText('Off',{exact:true}).count(),1);
+    assert.equal(await page.getByRole('heading',{name:'Recovery codes',exact:true}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Remove',exact:true}).count(),0);
+    assert.match(await page.locator('.pk-locked').innerText(),/Cannot remove your last factor/);
+    await page.getByRole('button',{name:'Rename',exact:true}).click();
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.getByRole('heading',{name:'Owner phone',exact:true}).waitFor();
     await page.getByRole('button',{name:'Add passkey',exact:true}).click();
     assert.equal(await page.getByRole('button',{name:'Use password and authenticator code',exact:true}).count(),0);
     assert.equal(await page.getByLabel('Your current password',{exact:true}).count(),0);
@@ -252,17 +294,29 @@ try {
       if(await target.count())await target.fill(samples[0]);
       if(state==='consent')await page.getByRole('checkbox',{name:'Read farm data',exact:true}).uncheck();
       await page.getByRole('button',{name:'Use password and authenticator code',exact:true}).click();
+      assert.equal(await page.getByLabel('Your current password',{exact:true}).evaluate(input=>input===document.activeElement),true);
       await page.getByLabel('Your current password',{exact:true}).fill(samples[0]);
       await page.getByLabel('Your authenticator code',{exact:true}).waitFor();
       await page.getByRole('button',{name:'Use a recovery code',exact:true}).click();
       assert.equal(await page.getByLabel('Your current password',{exact:true}).inputValue(),samples[0]);
+      assert.equal(await page.getByLabel('Your current password',{exact:true}).evaluate(input=>input===document.activeElement),true);
       await page.getByLabel('Your recovery code',{exact:true}).waitFor();
       if(await target.count())assert.equal(await target.inputValue(),samples[0]);
       if(state==='consent')assert.equal(await page.getByRole('checkbox',{name:'Read farm data',exact:true}).isChecked(),false);
       await page.getByRole('button',{name:'Use a passkey',exact:true}).click();
       assert.equal(await page.getByLabel('Your current password',{exact:true}).count(),0);
       if(state==='consent')assert.equal(await page.getByRole('checkbox',{name:'Read farm data',exact:true}).isChecked(),false);
+      else {
+        assert.equal(await page.getByRole('dialog').evaluate(dialog=>dialog.contains(document.activeElement)),true);
+        assert.match(await page.evaluate(()=>document.activeElement.textContent),/Use passkey/);
+        await page.keyboard.press('Escape');
+        assert.equal(await page.getByRole('dialog').count(),0);
+      }
     }
+    await show('pk-stepup','dialog');
+    await page.getByRole('button',{name:'Use password and authenticator code',exact:true}).click();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('dialog').count(),0);
     await show('pk-users','confirm');
     assert.match(await page.getByRole('dialog').innerText(),/Every session and connected app of this user ends/);
     await page.getByRole('button',{name:'Use passkey and remove',exact:true}).click();
@@ -270,10 +324,39 @@ try {
     await show('pk-suggestion','offer');
     await page.getByRole('button',{name:'Not now',exact:true}).click();
     await page.getByRole('heading',{name:'Continue to your farm',exact:true}).waitFor();
+    for(const state of ['offer','offer-app']) {
+      await show('pk-suggestion',state);
+      await page.getByRole('button',{name:'Create passkey',exact:true}).click();
+      await page.getByLabel('Your current password',{exact:true}).waitFor();
+      assert.equal(await page.getByLabel('Your authenticator code',{exact:true}).count(),state==='offer-app'?1:0);
+      assert.equal(await page.getByRole('button',{name:'Use a passkey',exact:true}).count(),0);
+      await page.getByRole('button',{name:'Cancel',exact:true}).click();
+      await page.getByRole('heading',{name:'Sign in faster with a passkey',exact:true}).waitFor();
+    }
     await show('pk-owner','setup');
     await page.getByText('Every Owner must set up a passkey or two-factor authentication',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Set up a passkey',exact:true}).waitFor();
     await page.getByRole('button',{name:'Set up two-factor authentication',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Set up a passkey',exact:true}).click();
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.getByRole('heading',{name:'Protect your account',exact:true}).waitFor();
+    assert.equal(await page.locator('.pk-key').count(),0);
+    assert.equal(await page.getByRole('heading',{name:'Recovery codes',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Set up a passkey',exact:true}).click();
+    assert.equal(await page.getByLabel('Your authenticator code',{exact:true}).count(),0);
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.getByRole('heading',{name:'Protect your account',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Set up a passkey',exact:true}).click();
+    await page.getByRole('button',{name:'Continue',exact:true}).click();
+    await page.getByRole('button',{name:'Create passkey',exact:true}).click();
+    await page.getByRole('button',{name:'Done',exact:true}).click();
+    await page.getByRole('button',{name:'Rename',exact:true}).click();
+    await page.getByRole('button',{name:'Save name',exact:true}).click();
+    await page.getByRole('heading',{name:'Account',exact:true}).waitFor();
+    assert.equal(await page.locator('.pk-key').count(),1);
+    assert.equal(await page.getByText('Off',{exact:true}).count(),1);
+    assert.equal(await page.getByRole('button',{name:'Remove',exact:true}).count(),0);
   }
 
   assert.deepEqual(errors, []);
