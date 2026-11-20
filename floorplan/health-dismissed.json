@@ -1,0 +1,18 @@
+{
+  "dismissed": [
+    {
+      "id": "secret:web/src/i18n/es.ts",
+      "severity": "high",
+      "locations": ["web/src/i18n/es.ts:72"],
+      "reason": "False positive: line 72 is the Spanish translation of the 'Password' field label, not a credential.",
+      "at": "2026-11-20T19:00:00Z"
+    },
+    {
+      "id": "large-files",
+      "severity": "medium",
+      "locations": ["web/src/i18n/en.ts:1", "web/src/i18n/tl.ts:1", "web/src/i18n/es.ts:1", "tools/simulation/ui/src/mutants.ts:1"],
+      "reason": "Locale catalogs are flat key/value text and are excluded from the repo's own FileSizeLimitTests on purpose; mutants.ts is a test-tooling harness outside src/ and web/src/, which the repo's size rule doesn't cover.",
+      "at": "2026-11-20T19:00:00Z"
+    }
+  ]
+}
