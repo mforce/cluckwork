@@ -64,7 +64,7 @@ jobs:
         run: dotnet restore Cluckwork.slnx --locked-mode
 
       # The AppHost build takes DCP and the dashboard from the Aspire CLI
-      # bundle in ~/.aspire, and downloads it (about 380 MB) when it is missing.
+      # bundle in ~/.aspire (about 380 MB extracted).
       - name: Read Aspire version
         id: aspire
         run: |
@@ -72,10 +72,22 @@ jobs:
           echo "version=$version" >>"$GITHUB_OUTPUT"
 
       - name: Cache Aspire CLI bundle
+        id: aspire-cache
         uses: actions/cache@v6
         with:
           path: ~/.aspire
           key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
+
+      # The same setup the AppHost build runs when it finds no bundle, done
+      # here so the fingerprint check below runs before anything uses it.
+      - name: Fetch Aspire CLI bundle
+        if: steps.aspire-cache.outputs.cache-hit != 'true'
+        env:
+          ASPIRE_VERSION: ${{ steps.aspire.outputs.version }}
+        run: dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
+
+      - name: Check Aspire CLI bundle fingerprint
+        run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle
 
       # No continue-on-error: a failing test fails this run too, same as
       # ci.yml's Test step. Only the coverage NUMBERS are non-gating.

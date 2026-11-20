@@ -98,6 +98,8 @@ jobs:
         run: node --test .github/scripts/image-scan-issues.test.mjs
       - name: Run the release-line decision self-tests
         run: node --test .github/scripts/release-line.test.mjs
+      - name: Run the Aspire bundle fingerprint self-tests
+        run: node --test .github/scripts/aspire-bundle-fingerprint.test.mjs
       - name: Run the agent git-guard table test
         run: python3 tools/agent-guard/git_guard_test.py
 
@@ -232,7 +234,7 @@ jobs:
         run: lscpu | grep -E '^(Model name|CPU\(s\)):'
 
       # The AppHost build takes DCP and the dashboard from the Aspire CLI
-      # bundle in ~/.aspire, and downloads it (about 380 MB) when it is missing.
+      # bundle in ~/.aspire (about 380 MB extracted).
       - name: Read Aspire version
         if: matrix.group == 'apphost'
         id: aspire
@@ -242,10 +244,23 @@ jobs:
 
       - name: Cache Aspire CLI bundle
         if: matrix.group == 'apphost'
+        id: aspire-cache
         uses: actions/cache@v6
         with:
           path: ~/.aspire
           key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
+
+      # The same setup the AppHost build runs when it finds no bundle, done
+      # here so the fingerprint check below runs before anything uses it.
+      - name: Fetch Aspire CLI bundle
+        if: matrix.group == 'apphost' && steps.aspire-cache.outputs.cache-hit != 'true'
+        env:
+          ASPIRE_VERSION: ${{ steps.aspire.outputs.version }}
+        run: dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
+
+      - name: Check Aspire CLI bundle fingerprint
+        if: matrix.group == 'apphost'
+        run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle
 
       - name: Test
         run: >-
@@ -333,7 +348,7 @@ jobs:
             | node .github/scripts/vuln-gate.mjs --ecosystem nuget --level high
 
       # The AppHost build takes DCP and the dashboard from the Aspire CLI
-      # bundle in ~/.aspire, and downloads it (about 380 MB) when it is missing.
+      # bundle in ~/.aspire (about 380 MB extracted).
       - name: Read Aspire version
         id: aspire
         run: |
@@ -341,10 +356,22 @@ jobs:
           echo "version=$version" >>"$GITHUB_OUTPUT"
 
       - name: Cache Aspire CLI bundle
+        id: aspire-cache
         uses: actions/cache@v6
         with:
           path: ~/.aspire
           key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
+
+      # The same setup the AppHost build runs when it finds no bundle, done
+      # here so the fingerprint check below runs before anything uses it.
+      - name: Fetch Aspire CLI bundle
+        if: steps.aspire-cache.outputs.cache-hit != 'true'
+        env:
+          ASPIRE_VERSION: ${{ steps.aspire.outputs.version }}
+        run: dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
+
+      - name: Check Aspire CLI bundle fingerprint
+        run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle
 
       - name: Build
         run: dotnet build Cluckwork.slnx --configuration Release --no-restore

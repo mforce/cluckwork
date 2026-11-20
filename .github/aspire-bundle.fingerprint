@@ -1,0 +1,5 @@
+# Aspire CLI bundle fingerprint, checked in CI by .github/scripts/aspire-bundle-fingerprint.sh.
+# "version" must match Aspire.Hosting.AppHost in Directory.Packages.props.
+# One line per platform, keyed by `uname -s`-`uname -m` in lower case.
+version 17.0.0
+linux-x86_64 85e56241208ec978bcf2c3e45be6e778ebf47b1c7aec63a46097d1662ae4634e

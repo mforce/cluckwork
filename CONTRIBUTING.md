@@ -48,8 +48,16 @@ the build at another bundle, set `ASPIRE_HOME` or pass
 `-p:AspireCliBundlePath=<dir>`. Only when no bundle exists at all does the
 build run `dnx aspire.cli@17.0.0 setup` itself. That fallback needs Microsoft's
 portable .NET SDK; a distro-built SDK fails it with `ASPIRE009`. CI is not
-affected: it starts with no bundle, or restores one cached under the same
-Aspire version.
+affected: it fetches the bundle itself, or restores one cached under the same
+Aspire version, and checks its contents.
+
+Before the AppHost builds in CI, `.github/scripts/aspire-bundle-fingerprint.sh`
+compares a SHA-256 over every file in the bundle with the value in
+`.github/aspire-bundle.fingerprint`. It pins DCP and the dashboard byte for
+byte, as the NuGet lock files did before Aspire 17. The check runs only in CI,
+only on Linux x64, and never on local machines. When you bump
+`Aspire.Hosting.AppHost`, update that file in the same commit: the failing
+check prints the command that computes the new value.
 
 **Frontend:**
 
