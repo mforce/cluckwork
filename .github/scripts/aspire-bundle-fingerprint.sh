@@ -11,22 +11,29 @@
 # file hashes would not cover what it points at. So does a name with a control
 # character, because a newline in one could stand in for another file's line.
 #
-#   aspire-bundle-fingerprint.sh <bundle-dir>          print and check
-#   aspire-bundle-fingerprint.sh --print <bundle-dir>  print only
+#   aspire-bundle-fingerprint.sh <bundle-dir>           print and check
+#   aspire-bundle-fingerprint.sh --print <bundle-dir>   print only
+#   aspire-bundle-fingerprint.sh --refresh <work-dir>   when the Aspire version
+#     differs from the committed one, set up that version's bundle under
+#     <work-dir> and rewrite the fingerprint file (the Dependabot lockfix job)
 #
 # PACKAGES_PROPS and FINGERPRINT_FILE override the repository files (tests).
 set -euo pipefail
 
-print_only=false
-if [[ "${1:-}" == "--print" ]]; then
-  print_only=true
+mode=check
+if [[ "${1:-}" == "--print" || "${1:-}" == "--refresh" ]]; then
+  mode="${1#--}"
   shift
 fi
-bundle="${1:?usage: aspire-bundle-fingerprint.sh [--print] <bundle-dir>}"
+target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--refresh] <dir>}"
 
-repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+scripts="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$scripts/../.." && pwd)"
 props="${PACKAGES_PROPS:-$repo/Directory.Packages.props}"
 fingerprint_file="${FINGERPRINT_FILE:-$repo/.github/aspire-bundle.fingerprint}"
+version="$(sed -n 's/.*"Aspire\.Hosting\.AppHost" Version="\([^"]*\)".*/\1/p' "$props")"
+platform="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+committed() { awk -v key="$1" '$1 == key { print $2 }' "$fingerprint_file"; }
 
 manifest() {
   cd -P "$1"
@@ -50,16 +57,38 @@ manifest() {
     done
 }
 
-actual="$( (manifest "$bundle") | sha256sum | cut -d' ' -f1)"
-echo "$actual"
-if $print_only; then
+fingerprint() {
+  (manifest "$1") | sha256sum | cut -d' ' -f1
+}
+
+if [[ "$mode" == refresh ]]; then
+  if [[ "$(committed version)" == "$version" ]]; then
+    echo "Aspire $version is already fingerprinted; nothing to refresh."
+    exit 0
+  fi
+  # A temp HOME keeps the CLI's caches off the runner's own home.
+  mkdir -p "$target/home"
+  HOME="$target/home" "$scripts/aspire-bundle-fetch.sh" "$target/aspire"
+  value="$(fingerprint "$target/aspire/bundle")"
+  awk -v version="$version" -v key="$platform" -v value="$value" '
+    $1 == "version" { print "version " version; next }
+    $1 == key { print key " " value; seen = 1; next }
+    { print }
+    END { if (!seen) print key " " value }
+  ' "$fingerprint_file" > "$fingerprint_file.new"
+  mv "$fingerprint_file.new" "$fingerprint_file"
+  echo "Fingerprinted Aspire $version on $platform: $value"
   exit 0
 fi
 
-version="$(sed -n 's/.*"Aspire\.Hosting\.AppHost" Version="\([^"]*\)".*/\1/p' "$props")"
-platform="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
-expected_version="$(awk '$1 == "version" { print $2 }' "$fingerprint_file")"
-expected="$(awk -v key="$platform" '$1 == key { print $2 }' "$fingerprint_file")"
+actual="$(fingerprint "$target")"
+echo "$actual"
+if [[ "$mode" == print ]]; then
+  exit 0
+fi
+
+expected_version="$(committed version)"
+expected="$(committed "$platform")"
 regenerate="d=\$(mktemp -d) && ASPIRE_HOME=\"\$d\" dnx --yes aspire.cli@$version -- setup --install-path \"\$d\" && .github/scripts/aspire-bundle-fingerprint.sh --print \"\$d/bundle\""
 
 if [[ "$expected_version" != "$version" ]]; then
@@ -67,6 +96,6 @@ if [[ "$expected_version" != "$version" ]]; then
   exit 1
 fi
 if [[ "$actual" != "$expected" ]]; then
-  echo "::error::The Aspire CLI bundle at $bundle has fingerprint $actual, but .github/aspire-bundle.fingerprint expects '$expected' for Aspire $version on $platform. The bundle is not the one committed. If the change is expected, regenerate the value: $regenerate" >&2
+  echo "::error::The Aspire CLI bundle at $target has fingerprint $actual, but .github/aspire-bundle.fingerprint expects '$expected' for Aspire $version on $platform. The bundle is not the one committed. If the change is expected, regenerate the value: $regenerate" >&2
   exit 1
 fi

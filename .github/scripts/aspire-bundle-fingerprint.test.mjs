@@ -178,3 +178,49 @@ test("fetch skips setup when the bundle link resolves", (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(f.calls(), []);
 });
+
+// --refresh, as the Dependabot lockfix job runs it. A fake `dnx` first on PATH
+// logs its arguments and lays out a small bundle at --install-path.
+function refreshFixture(t, { propsVersion, committedVersion }) {
+  const root = mkdtempSync(join(tmpdir(), "aspire-refresh-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  const log = join(root, "dnx.log");
+  writeFileSync(join(bin, "dnx"), [
+    "#!/bin/sh",
+    '[ -d "$HOME" ] || { echo "dnx needs an existing HOME" >&2; exit 9; }',
+    `echo "$*" >> "${log}"`,
+    'while [ "$1" != --install-path ]; do shift; done',
+    'mkdir -p "$2/versions/v1/dcp" && printf dcp > "$2/versions/v1/dcp/dcp" && ln -s "$2/versions/v1" "$2/bundle"',
+    "",
+  ].join("\n"), { mode: 0o755 });
+  const props = join(root, "Directory.Packages.props");
+  writeFileSync(props, `<PackageVersion Include="Aspire.Hosting.AppHost" Version="${propsVersion}" />\n`);
+  const fingerprintFile = join(root, "aspire-bundle.fingerprint");
+  const committed = `# header kept as is\nversion ${committedVersion}\n${PLATFORM} ${"0".repeat(64)}\n`;
+  writeFileSync(fingerprintFile, committed);
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, PACKAGES_PROPS: props, FINGERPRINT_FILE: fingerprintFile };
+  const run = (...args) => spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env });
+  return { root, log, fingerprintFile, committed, run };
+}
+
+test("refresh leaves the file alone and downloads nothing when Aspire is unchanged", (t) => {
+  const f = refreshFixture(t, { propsVersion: "17.0.0", committedVersion: "17.0.0" });
+  const result = f.run("--refresh", join(f.root, "work"));
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(f.fingerprintFile, "utf8"), f.committed);
+  assert.equal(existsSync(f.log), false);
+});
+
+test("refresh rewrites the version and fingerprint when Aspire changes, and the check accepts it", (t) => {
+  const f = refreshFixture(t, { propsVersion: "17.1.0", committedVersion: "17.0.0" });
+  const work = join(f.root, "work");
+  const result = f.run("--refresh", work);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(readFileSync(f.log, "utf8"), /aspire\.cli@17\.1\.0 -- setup --install-path /);
+  const value = f.run("--print", join(work, "aspire", "bundle")).stdout.trim();
+  assert.equal(readFileSync(f.fingerprintFile, "utf8"), `# header kept as is\nversion 17.1.0\n${PLATFORM} ${value}\n`);
+  const check = f.run(join(work, "aspire", "bundle"));
+  assert.equal(check.status, 0, check.stderr);
+});
