@@ -52,10 +52,14 @@ affected: it fetches the bundle itself, or restores one cached under the same
 Aspire version, and checks its contents.
 
 Before the AppHost builds in CI, `.github/scripts/aspire-bundle-fingerprint.sh`
-compares a SHA-256 over every file in the bundle with the value in
-`.github/aspire-bundle.fingerprint`. It pins DCP and the dashboard byte for
-byte, as the NuGet lock files did before Aspire 17. The check runs only in CI,
-only on Linux x64, and never on local machines. When you bump
+compares a SHA-256 over every file in the bundle except the root `.leases/`,
+including each file's execute bit, with the value in
+`.github/aspire-bundle.fingerprint`, and fails on any symlink or other
+non-regular entry. It pins DCP and the dashboard byte for byte, as the NuGet
+lock files did before Aspire 17. The CLI's own bootstrap code, which `dnx` runs
+before the check, is covered by NuGet's package signature verification, not by
+this fingerprint. The check runs only in CI, only on Linux x64, and never on
+local machines. When you bump
 `Aspire.Hosting.AppHost`, update that file in the same commit: the failing
 check prints the command that computes the new value.
 
