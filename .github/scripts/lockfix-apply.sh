@@ -21,8 +21,8 @@ LOCKS=(
   "tests/Cluckwork.AppHost.Tests/packages.lock.json"
 )
 
-# The Aspire bundle fingerprint, rewritten by compute when an Aspire bump changes
-# the version (PINNED_FILES in lockfix.mjs). Unchanged otherwise.
+# The Aspire bundle fingerprint, which compute takes from the PR's CI when an
+# Aspire bump changes the version (PINNED_FILES in lockfix.mjs). Unchanged otherwise.
 FINGERPRINT=".github/aspire-bundle.fingerprint"
 
 # A lock must parse as JSON; the fingerprint must pass the fingerprint grammar,

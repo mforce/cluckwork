@@ -220,3 +220,32 @@ and record the one-time GitHub App setup + the two secrets.
   `Cluckwork.sln`. If a project is ever dropped from the solution its lock won't refresh.
   Standing invariant to protect; the 7-path allowlist makes an unexpected set visible.
 - Do not "fix" `--force-evaluate` to `--use-lock-file` (not a `dotnet` flag).
+
+## Amendment 2026-11-20: the Aspire bundle fingerprint (#1453)
+
+Since Aspire 17, DCP and the dashboard come from the Aspire CLI bundle, not from NuGet
+packages, so CI pins them in `.github/aspire-bundle.fingerprint` instead of the lock files.
+A Dependabot PR that bumps `Aspire.Hosting.AppHost` needs a new pin. This section
+supersedes the statements above where they differ.
+
+- **Where the pin is computed.** In the PR's own CI, not here. On a `dependabot/nuget/`
+  branch, the AppHost leg of `ci.yml` fetches the bundle, writes the fingerprint file for the
+  PR's Aspire version (`aspire-bundle-fingerprint.sh --emit`) and uploads it as the
+  `aspire-bundle-fingerprint` artifact, before its own check fails on the old pin. This
+  workflow runs no Aspire code and no `dnx`.
+- **`compute`.** Gains `actions: read`, only to download that artifact from the triggering
+  run. The repository is public, so the token can read nothing it could not read anyway. It
+  still holds no write credential. `--adopt` copies the file over the committed one only when
+  it passes the grammar, names the PR's Aspire version, and the committed file names another.
+  Otherwise the committed file stays. The upload covers the 10 lock files and the
+  fingerprint file, with `include-hidden-files: true` because the file sits under `.github/`.
+- **`commit`.** Still runs no PR code. `lockfix.mjs` allows the 10 lock files and the one
+  pinned file. `lockfix-apply.sh` applies the fingerprint only when the PR head tracks it. It
+  checks the file with the trusted copy of `aspire-bundle-fingerprint.sh --validate`: one
+  `version` line, distinct `<os>-<arch> <sha256>` lines, `#` comments, LF line ends, no other
+  control byte, and any tool failure refuses. The same symlink and tracked-mode checks as for
+  the locks apply.
+- **What the pin proves.** It is recorded on first download. It stops later drift, such as a
+  cache serving other bytes for the same version, not a bad upstream release. A restore
+  exploit in `compute` could still replace the file before the upload; CI then fails the check
+  against the bundle it downloads itself. Aspire bumps go to the maintainer to merge.

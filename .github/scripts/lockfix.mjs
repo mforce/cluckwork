@@ -40,7 +40,7 @@ export const LOCK_FILES = Object.freeze([
 ]);
 
 // Pins that restore does not write but an Aspire bump must move with the locks:
-// the compute job rewrites the bundle fingerprint when the Aspire version changes.
+// compute takes the PR CI's bundle fingerprint when the Aspire version changes.
 export const PINNED_FILES = Object.freeze([".github/aspire-bundle.fingerprint"]);
 
 const ALLOW = new Set([...LOCK_FILES, ...PINNED_FILES]);
