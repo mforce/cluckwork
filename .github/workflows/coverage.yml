@@ -72,19 +72,18 @@ jobs:
           echo "version=$version" >>"$GITHUB_OUTPUT"
 
       - name: Cache Aspire CLI bundle
-        id: aspire-cache
         uses: actions/cache@v6
         with:
           path: ~/.aspire
           key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
 
       # The same setup the AppHost build runs when it finds no bundle, done
-      # here so the fingerprint check below runs before anything uses it.
+      # here so the fingerprint check below runs before anything uses it. It
+      # also runs when a restored cache's bundle link points at another home.
       - name: Fetch Aspire CLI bundle
-        if: steps.aspire-cache.outputs.cache-hit != 'true'
         env:
           ASPIRE_VERSION: ${{ steps.aspire.outputs.version }}
-        run: dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
+        run: test -d ~/.aspire/bundle || dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
 
       - name: Check Aspire CLI bundle fingerprint
         run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle
