@@ -189,6 +189,17 @@ public sealed class AppHostModelTests
     }
 
     [Fact]
+    public async Task Api_resource_launches_the_api_project()
+    {
+        await using var builder = await CreateBuilderAsync();
+
+        var metadata = Assert.Single(GetResource(builder.Resources, "api").Annotations.OfType<IProjectMetadata>());
+        Assert.Equal(
+            Path.Combine(FindRepositoryRoot(), "src", "Cluckwork.Api", "Cluckwork.Api.csproj"),
+            Path.GetFullPath(metadata.ProjectPath));
+    }
+
+    [Fact]
     public async Task Container_images_are_exact_pinned_references_with_split_components()
     {
         await using var builder = await CreateBuilderAsync();
