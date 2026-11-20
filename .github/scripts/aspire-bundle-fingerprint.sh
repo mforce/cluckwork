@@ -113,6 +113,11 @@ if [[ "$mode" == print ]]; then
   exit 0
 fi
 
+# A bad edit fails here, on its own PR, instead of later stopping the lockfix.
+valid_file "$fingerprint_file" || {
+  echo "::error::.github/aspire-bundle.fingerprint breaks its grammar; run .github/scripts/aspire-bundle-fingerprint.sh --validate on it." >&2
+  exit 1
+}
 expected_version="$(committed version)"
 expected="$(committed "$platform")"
 regenerate="d=\$(mktemp -d) && ASPIRE_HOME=\"\$d\" dnx --yes aspire.cli@$version -- setup --install-path \"\$d\" && .github/scripts/aspire-bundle-fingerprint.sh --print \"\$d/bundle\""

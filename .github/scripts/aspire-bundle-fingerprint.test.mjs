@@ -48,7 +48,7 @@ function fixture(t) {
   assert.match(recorded, /^[0-9a-f]{64}$/);
   const commit = (version) => writeFileSync(fingerprintFile, `# comment\nversion ${version}\n${PLATFORM} ${recorded}\n`);
   commit("17.0.0");
-  return { root, versionDir, bundle, recorded, commit, run, check: () => run(bundle) };
+  return { root, versionDir, bundle, recorded, commit, run, fingerprintFile, check: () => run(bundle) };
 }
 
 test("a bundle that matches the committed fingerprint passes", (t) => {
@@ -136,6 +136,18 @@ for (const [name, body] of [
     assert.equal(validate(t, body).status, 1);
   });
 }
+
+test("the committed fingerprint file follows the grammar", () => {
+  const committed = fileURLToPath(new URL("../aspire-bundle.fingerprint", import.meta.url));
+  const result = spawnSync("bash", [SCRIPT, "--validate", committed], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("the check fails when the committed file breaks the grammar, even with a matching value", (t) => {
+  const f = fixture(t);
+  writeFileSync(f.fingerprintFile, `# comment\n\nversion 17.0.0\n${PLATFORM} ${f.recorded}\n`);
+  assert.equal(f.check().status, 1);
+});
 
 test("validate refuses when the parser itself fails", (t) => {
   const bin = mkdtempSync(join(tmpdir(), "aspire-validate-bin-"));
