@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +30,7 @@ function fixture(t) {
     mkdirSync(join(versionDir, path, ".."), { recursive: true });
     writeFileSync(join(versionDir, path), content);
   }
+  chmodSync(join(versionDir, "dcp/dcp"), 0o755);
   const bundle = join(root, "home", "bundle");
   symlinkSync(versionDir, bundle);
   const props = join(root, "Directory.Packages.props");
@@ -86,4 +87,28 @@ test("runtime lease files are ignored", (t) => {
   writeFileSync(join(f.versionDir, ".leases", "12345"), "lease");
   const result = f.check();
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("an added internal symlink fails", (t) => {
+  const f = fixture(t);
+  writeFileSync(join(f.root, "outside"), "outside bytes");
+  symlinkSync(join(f.root, "outside"), join(f.versionDir, "dcp/extra"));
+  assert.equal(f.check().status, 1);
+});
+
+test("a file swapped for a symlink fails, whatever its target holds", (t) => {
+  const f = fixture(t);
+  const outside = join(f.root, "outside");
+  writeFileSync(outside, "managed binary");
+  rmSync(join(f.versionDir, "managed/aspire-managed"));
+  symlinkSync(outside, join(f.versionDir, "managed/aspire-managed"));
+  assert.equal(f.check().status, 1);
+  writeFileSync(outside, "other bytes");
+  assert.equal(f.check().status, 1);
+});
+
+test("clearing an execute bit fails", (t) => {
+  const f = fixture(t);
+  chmodSync(join(f.versionDir, "dcp/dcp"), 0o644);
+  assert.equal(f.check().status, 1);
 });

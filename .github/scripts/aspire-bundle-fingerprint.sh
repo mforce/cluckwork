@@ -3,9 +3,12 @@
 # in .github/aspire-bundle.fingerprint. Since Aspire 17 these binaries come from
 # the CLI bundle, not from NuGet packages, so the lock files no longer pin them.
 #
-# The fingerprint is a SHA-256 over the sorted "sha256  ./relative/path" lines of
-# every file in the bundle, so it ignores mtimes, ownership and the
-# versions/<version>_<hash> directory name. .leases/ holds runtime lease files.
+# The fingerprint is a SHA-256 over sorted "<sha256> <x|-> ./relative/path" lines,
+# one per file outside the root .leases/ (runtime lease files), where x|- is the
+# owner execute bit. It ignores mtimes, ownership, other mode bits and the
+# versions/<version>_<hash> directory name. Any entry that is not a regular file
+# or directory (a symlink, device, fifo or socket) fails the check, because the
+# file hashes would not cover what it points at.
 #
 #   aspire-bundle-fingerprint.sh <bundle-dir>          print and check
 #   aspire-bundle-fingerprint.sh --print <bundle-dir>  print only
@@ -24,8 +27,23 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 props="${PACKAGES_PROPS:-$repo/Directory.Packages.props}"
 fingerprint_file="${FINGERPRINT_FILE:-$repo/.github/aspire-bundle.fingerprint}"
 
-actual="$(cd -P "$bundle" && find . -type f ! -path './.leases/*' -print0 \
-  | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | cut -d' ' -f1)"
+manifest() {
+  cd -P "$1"
+  local other
+  other="$(find . ! -path './.leases/*' ! -type f ! -type d -print -quit)"
+  if [[ -n "$other" ]]; then
+    echo "::error::The Aspire CLI bundle at $1 holds $other, which is not a regular file or directory." >&2
+    return 1
+  fi
+  find . -type f ! -path './.leases/*' -print0 | LC_ALL=C sort -z |
+    while IFS= read -r -d '' file; do
+      execute=-
+      if (( 8#$(stat -c %a "$file") & 8#100 )); then execute=x; fi
+      printf '%s %s %s\n' "$(sha256sum < "$file" | cut -d' ' -f1)" "$execute" "$file"
+    done
+}
+
+actual="$( (manifest "$bundle") | sha256sum | cut -d' ' -f1)"
 echo "$actual"
 if $print_only; then
   exit 0
