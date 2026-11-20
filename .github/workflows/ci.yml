@@ -231,6 +231,22 @@ jobs:
         if: matrix.group == 'integration'
         run: lscpu | grep -E '^(Model name|CPU\(s\)):'
 
+      # The AppHost build takes DCP and the dashboard from the Aspire CLI
+      # bundle in ~/.aspire, and downloads it (about 380 MB) when it is missing.
+      - name: Read Aspire version
+        if: matrix.group == 'apphost'
+        id: aspire
+        run: |
+          version=$(grep -oP '"Aspire\.Hosting\.AppHost" Version="\K[^"]+' Directory.Packages.props)
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Cache Aspire CLI bundle
+        if: matrix.group == 'apphost'
+        uses: actions/cache@v6
+        with:
+          path: ~/.aspire
+          key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
+
       - name: Test
         run: >-
           dotnet test ${{ matrix.project }} --configuration Release --no-restore --verbosity normal
@@ -315,6 +331,20 @@ jobs:
         run: |
           dotnet list package --vulnerable --include-transitive --format json --output-version 1 \
             | node .github/scripts/vuln-gate.mjs --ecosystem nuget --level high
+
+      # The AppHost build takes DCP and the dashboard from the Aspire CLI
+      # bundle in ~/.aspire, and downloads it (about 380 MB) when it is missing.
+      - name: Read Aspire version
+        id: aspire
+        run: |
+          version=$(grep -oP '"Aspire\.Hosting\.AppHost" Version="\K[^"]+' Directory.Packages.props)
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Cache Aspire CLI bundle
+        uses: actions/cache@v6
+        with:
+          path: ~/.aspire
+          key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
 
       - name: Build
         run: dotnet build Cluckwork.slnx --configuration Release --no-restore

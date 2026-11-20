@@ -63,6 +63,20 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore Cluckwork.slnx --locked-mode
 
+      # The AppHost build takes DCP and the dashboard from the Aspire CLI
+      # bundle in ~/.aspire, and downloads it (about 380 MB) when it is missing.
+      - name: Read Aspire version
+        id: aspire
+        run: |
+          version=$(grep -oP '"Aspire\.Hosting\.AppHost" Version="\K[^"]+' Directory.Packages.props)
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+
+      - name: Cache Aspire CLI bundle
+        uses: actions/cache@v6
+        with:
+          path: ~/.aspire
+          key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
+
       # No continue-on-error: a failing test fails this run too, same as
       # ci.yml's Test step. Only the coverage NUMBERS are non-gating.
       - name: Collect coverage
