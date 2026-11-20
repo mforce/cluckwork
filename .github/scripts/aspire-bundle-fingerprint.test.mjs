@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT = fileURLToPath(new URL("./aspire-bundle-fingerprint.sh", import.meta.url));
@@ -319,35 +319,134 @@ test("changed reports whether the props' Aspire version differs from the committ
 });
 
 // The pin the lockfix commits must come from a fresh download that nothing in
-// the PR's build could touch. Read the producer job from ci.yml (no YAML parser
-// here) as the lines from its key to the next top-level job, comments dropped.
-const CI_YML = readFileSync(new URL("../workflows/ci.yml", import.meta.url), "utf8");
-
-function jobBlock(name) {
-  const lines = CI_YML.split("\n");
-  const start = lines.indexOf(`  ${name}:`);
-  assert.notEqual(start, -1, `ci.yml has no top-level job ${name}`);
-  let end = start + 1;
-  while (end < lines.length && !/^ {2}[A-Za-z0-9_-]+:/.test(lines[end])) end++;
-  return lines.slice(start, end).filter((line) => !/^\s*#/.test(line)).join("\n");
+// the PR's build could touch. These guards read the jobs with a strict parser
+// for the block-YAML subset the workflows use: mappings, sequences of mappings,
+// plain, '...' and "..." scalars, and |/> block scalars. Anything else throws,
+// so an unknown construct fails the guard instead of slipping past it.
+function yamlScalar(text) {
+  const s = text.trim();
+  const double = /^"((?:[^"\\]|\\.)*)"(?:\s+#.*)?$/.exec(s);
+  if (double) return JSON.parse(`"${double[1]}"`);
+  const single = /^'((?:[^']|'')*)'(?:\s+#.*)?$/.exec(s);
+  if (single) return single[1].replaceAll("''", "'");
+  if (/^["'[{&*!|>@`%]/.test(s)) throw new Error(`unsupported YAML scalar: ${s}`);
+  return s.replace(/\s+#.*$/, "");
 }
 
-test("the aspire-fingerprint job fingerprints a fresh download and nothing else", () => {
-  const job = jobBlock("aspire-fingerprint");
-  assert.doesNotMatch(job, /^\s*(strategy|needs):/m, "outside any matrix, with no job it waits on");
-  assert.doesNotMatch(job, /actions\/cache/, "no cache step");
-  assert.doesNotMatch(job, /dotnet\s+(restore|build|test|publish|run)\b/, "no restore or build");
-  assert.match(job, /persist-credentials: false/);
-  const setup = job.slice(job.indexOf("actions/setup-dotnet"));
-  assert.match(setup.slice(0, setup.indexOf("\n      - ")), /cache: false/, "setup-dotnet without its NuGet cache");
-  const fetch = job.indexOf("aspire-bundle-fetch.sh");
-  const emit = job.indexOf("--emit");
-  const upload = job.indexOf("actions/upload-artifact");
-  assert.ok(fetch > 0 && fetch < emit && emit < upload, "fetch, then emit, then upload");
+function parseYaml(source) {
+  const lines = source.split("\n");
+  let i = 0;
+  const indentOf = (line) => line.length - line.trimStart().length;
+  const skip = () => {
+    while (i < lines.length && /^\s*(#.*)?$/.test(lines[i])) i++;
+  };
+  const node = (indent) => (lines[i].trimStart().startsWith("- ") ? sequence(indent) : mapping(indent));
+  function sequence(indent) {
+    const items = [];
+    for (skip(); i < lines.length && indentOf(lines[i]) === indent && lines[i].trimStart().startsWith("- "); skip()) {
+      lines[i] = " ".repeat(indent + 2) + lines[i].trimStart().slice(2);
+      items.push(mapping(indent + 2));
+    }
+    return items;
+  }
+  function mapping(indent) {
+    const map = {};
+    for (skip(); i < lines.length && indentOf(lines[i]) === indent && !lines[i].trimStart().startsWith("- "); skip()) {
+      const entry = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s"'#-][^:]*?|-[^\s:][^:]*?):(?:\s+(.*))?$/.exec(lines[i].trimStart());
+      if (!entry) throw new Error(`unsupported YAML line: ${lines[i]}`);
+      const key = yamlScalar(entry[1]);
+      const rest = entry[2] ?? "";
+      if (Object.hasOwn(map, key)) throw new Error(`duplicate YAML key: ${key}`);
+      i++;
+      if (/^[|>][-+]?$/.test(rest)) {
+        const body = [];
+        while (i < lines.length && (/^\s*$/.test(lines[i]) || indentOf(lines[i]) > indent)) body.push(lines[i++]);
+        while (body.length && /^\s*$/.test(body.at(-1))) body.pop();
+        const pad = Math.min(...body.filter((line) => line.trim()).map(indentOf));
+        const text = body.map((line) => line.slice(pad));
+        map[key] = rest.startsWith("|") ? text.join("\n") : text.join(" ");
+      } else if (rest === "" || rest.startsWith("#")) {
+        skip();
+        map[key] = i < lines.length && indentOf(lines[i]) > indent ? node(indentOf(lines[i])) : "";
+      } else {
+        map[key] = yamlScalar(rest);
+      }
+    }
+    return map;
+  }
+  skip();
+  const value = node(indentOf(lines[i]));
+  skip();
+  if (i !== lines.length) throw new Error(`unparsed YAML from: ${lines[i]}`);
+  return value;
+}
+
+// One job of a workflow: the lines from its key under `jobs:` to the next job.
+function workflowJob(file, name) {
+  const lines = readFileSync(new URL(`../workflows/${file}`, import.meta.url), "utf8").split("\n");
+  const keyOf = (line) => (/^ {2}\S.*:\s*$/.test(line) && !/^\s*#/.test(line) ? yamlScalar(line.trim().slice(0, -1)) : null);
+  const start = lines.findIndex((line) => keyOf(line) === name);
+  assert.notEqual(start, -1, `${file} has no job ${name}`);
+  let end = start + 1;
+  while (end < lines.length && keyOf(lines[end]) === null) end++;
+  return parseYaml(lines.slice(start, end).join("\n"))[name];
+}
+
+const withoutNames = ({ name: _name, ...rest }) => rest;
+const CHANGED = "steps.aspire.outputs.changed == 'true'";
+
+test("the aspire-fingerprint job is exactly a fresh download, an emit and an upload", () => {
+  const job = workflowJob("ci.yml", "aspire-fingerprint");
+  assert.deepEqual(withoutNames({ ...job, steps: job.steps.map(withoutNames) }), {
+    "runs-on": "ubuntu-26.04",
+    "timeout-minutes": "15",
+    if: "github.event_name == 'pull_request' && startsWith(github.head_ref, 'dependabot/nuget/')",
+    permissions: { contents: "read" },
+    steps: [
+      { uses: "actions/checkout@v7", with: { "persist-credentials": "false" } },
+      { id: "aspire", run: '.github/scripts/aspire-bundle-fingerprint.sh --changed >>"$GITHUB_OUTPUT"' },
+      { if: CHANGED, uses: "actions/setup-dotnet@v6", with: { "dotnet-version": "10.0.x", cache: "false" } },
+      {
+        if: CHANGED,
+        env: { HOME: "${{ runner.temp }}/home", NUGET_PACKAGES: "${{ runner.temp }}/nuget-packages" },
+        run: 'mkdir -p "$HOME"\n.github/scripts/aspire-bundle-fetch.sh "$RUNNER_TEMP/aspire"',
+      },
+      {
+        if: CHANGED,
+        run: '.github/scripts/aspire-bundle-fingerprint.sh --emit "$RUNNER_TEMP/aspire/bundle" "$RUNNER_TEMP/aspire-fingerprint/aspire-bundle.fingerprint"',
+      },
+      {
+        if: CHANGED,
+        uses: "actions/upload-artifact@v7",
+        with: {
+          name: "aspire-bundle-fingerprint",
+          path: "${{ runner.temp }}/aspire-fingerprint/aspire-bundle.fingerprint",
+          "if-no-files-found": "error",
+          "retention-days": "1",
+        },
+      },
+    ],
+  });
+});
+
+test("the lockfix downloads and adopts the artifact and file the producer uploads", () => {
+  const upload = workflowJob("ci.yml", "aspire-fingerprint").steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+  const compute = workflowJob("dependabot-lockfix.yml", "compute").steps;
+  const download = compute.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+  const adopt = compute.find((step) => step.run?.includes("--adopt"));
+  assert.equal(download.with.name, upload.with.name);
+  const adopted = `${download.with.path.replace("${{ runner.temp }}", "$RUNNER_TEMP")}/${basename(upload.with.path)}`;
+  assert.match(adopt.run, new RegExp(`--adopt "${adopted.replace(/[$.]/g, "\\$&")}"$`));
 });
 
 test("only the aspire-fingerprint job uploads the fingerprint artifact", () => {
-  const uploads = CI_YML.match(/^\s*name: aspire-bundle-fingerprint\s*$/gm) ?? [];
+  const ci = readFileSync(new URL("../workflows/ci.yml", import.meta.url), "utf8");
+  const uploads = ci.match(/^\s*name:\s*["']?aspire-bundle-fingerprint["']?\s*$/gm) ?? [];
   assert.equal(uploads.length, 1);
-  assert.match(jobBlock("aspire-fingerprint"), /^\s*name: aspire-bundle-fingerprint\s*$/m);
+});
+
+test("the guard's YAML reader accepts quoting and refuses what it cannot read", () => {
+  assert.deepEqual(parseYaml('"a-b":\n  c: \'it\'\'s\'\n  d: "\\u0063x" # note\n  e: |\n    one\n    two\n'), { "a-b": { c: "it's", d: "cx", e: "one\ntwo" } });
+  assert.throws(() => parseYaml("a: {b: c}\n"));
+  assert.throws(() => parseYaml("a: 1\na: 2\n"));
 });
