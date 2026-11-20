@@ -1,183 +1,184 @@
-# Graph Report - cluckwork  (2026-10-05)
+# Graph Report - cluckwork  (2026-11-20)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 2581 files · ~2,348,228 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 43 file(s) not represented in the graph (top: .css 19, (none) 16, .props 3)
 
 ## Summary
-- 20650 nodes · 56022 edges · 756 communities (717 shown, 39 thin omitted)
-- Extraction: 90% EXTRACTED · 10% INFERRED · 0% AMBIGUOUS · INFERRED: 5468 edges (avg confidence: 0.9)
-- Token cost: 499,915 input · 11,763 output
+- 24660 nodes · 79884 edges · 1145 communities (764 shown, 381 thin omitted)
+- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 8746 edges (avg confidence: 0.87)
+- Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `23bb1921`
+- Built from commit: `204585d5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - Sales and Catalog Handlers
-- Architecture Seam Fixtures
-- Image Sanitizer Tests
-- Inventory SPA API
-- Farm Credentials Lessons
-- Farm Sign-In Results
-- Customers and Expenses SPA
-- Flock and Egg Handlers
+- SeamSurfaceTests.cs
+- ExpensesPage.tsx
+- api/client.ts
+- SecondFactorLoginTests
+- OAuthFailClosedTests
+- Cluckwork.Application.Modules.EggOperations.Contracts
 - User Disable Race Tests
-- Product Repository
-- Farm Branding Settings
+- Product
+- SettingsPage.test.tsx
 - Integration Test Infrastructure
-- Architecture Docs and Access Contract
+- IIdentityProvider
 - Farm Settings Tests
 - Farm Logo Tests
-- Compatibility Exception Scanner
-- Validator Error Code Coverage
-- Daily Entry Adjust Tests
-- Multi-Instance Idempotency Tests
+- IEnumerable
+- ValidatorErrorCodeCoverageTests.CollectLeafComponents
+- DailyEntryAdjustTests
+- IAsyncLifetime
 - Audit Provenance Tests
-- Bird Movement Types
+- InventoryMovement
 - Named Entity Discovery Tests
-- Flock Step-Up Threat Model
+- UsersPage.test.tsx
 - Customers Screen Wireframe
 - Per-Farm Refresh Cookies
-- Client Error Reporting Endpoint
-- Commerce Module Tests
-- Index HTML Hiding File Provider
+- ClientErrorEndpoints.Report
+- EggUnitConversion
+- IndexHtmlHidingFileProvider
 - User Password Admin Tests
-- SPA Auth and Test Setup
-- Identity Transaction Concurrency
-- Daily Entry Aggregate
+- index.ts
+- TwoFactorCredentials
+- DailyEntry
 - Adapter Reach Report
-- API Hosting and User Commands
-- Integration Test Harness
+- Cluckwork.Api.Hosting
+- TestHarness.CreateAuthedClient
 - Disable User Tests
 - Adapter Reach Tests
 - Entity Discovery HTTP Contract
 - User Role Change Tests
-- SPA API Post Calls
-- Counting Read Stream
-- Redacting Logger Pipeline
-- OTLP Endpoint Options
-- Test Host Factories
+- McpServerTool
+- CountingReadStream
+- IDisposable
+- OtlpOptions
+- IWebHostBuilder
 - Payments and Role Matrix Tests
-- Log Redaction Tests
+- system_security_cryptography
 - Table Owner Tests
-- Egg Ledger Tests
-- Payments Integration Tests
-- Client Error Report Tests
-- Customer and Order Tests
-- Egg Operations Module Tests
-- Farm Settings Validation
-- Inventory Module Contract
-- Seam Fixture Interfaces
+- EggLedgerTests
+- PaymentsTests
+- ClientErrorReportTests
+- TestHarness.PostWithKeyAsync
+- EggGrade
+- Theory
+- InventoryTools.RecordFeedUsageAsync
+- Fact
 - Accounts Table Schema
 - i18n Hardcoded String Scanner
-- Persistence Composition
+- JsonElement
 - Module Ledger Tests
 - Business Record Chronology
-- Feed Inventory Movement Tests
+- FeedUsageTests
 - Production Day Strip
 - Vulnerability Gate Script
-- Flock Scope Middleware
+- FlockScopeTests
 - Product Spec and Glossary
-- Fake OTLP Collector Tests
-- Flock Endpoints
-- Farm-Local Date Boundary Tests
+- Exception
+- Cluckwork.Application.Modules.FlockManagement.Contracts
+- FarmLocalBoundaryBehindUtcTests
 - Daily Entry Domain Tests
 - Inventory Domain Tests
-- EF Migration Snapshot 1
-- Sales Order Endpoints
-- Inventory Movement Repository
-- Catalog Integration Tests
-- Currency Lock Serialization Tests
-- Admin Role Gating Tests
-- Currency Lock Race Tests
-- Inventory Repository Fakes
-- Audit Trail Tests
+- RecordDailyEntryToolTests
+- Type
+- RedactedCredentialTypesTests
+- CatalogTests
+- OwnerTwoFactorGateTests
+- HttpClient
+- TwoFactorEnrolmentTests
+- McpSecondaryScopeTests
+- AuditTests
 - Read Endpoint DTOs
 - k6 Manager Load Script
-- Audit Endpoints
+- RedactedToStringTests
 - OTLP Secure Endpoint Guard
-- Simulation Seeder Design Review
-- Inventory Item Repository
+- git_guard.py
+- InventoryItem
 - Response Cache Control Tests
 - SPA TypeScript Config
-- Redacting Logger Pipeline
-- Credential Epoch Reads
-- Sales and Inventory Schema Docs
+- mcp/client.ts
+- Domain surface
+- Sales & finance
 - Sales Product Tests
-- Integration Test Flake Findings
-- Auth Body Limit Tests
-- Audit Actor and Flock Scoping
-- Expense Endpoints
-- Flock Scope Tests
-- Egg Grade Endpoints
-- Access Ownership Claims
-- Bird Movement Tests
-- General Inventory Commands
-- Sales Order Discount Ceiling
-- Farm-Local Date Boundary Tests
-- Adapter Reach Scanner
-- SPA Styles and Code Splitting
-- UI Library Decision
+- StealLossConnectionReleaseTests
+- AuthBodyLimitTests
+- AuditWriter
+- ExpenseTools.RecordExpenseAsync
+- with
+- microsoft_entityframeworkcore_migrations
+- SyntaxNode
+- environment
+- AbstractValidator
+- SalesOrder
+- steps
+- OAuthServerRegistration.AddAccessOAuthServer
+- vitest
+- cssTokens.ts
 - Flock Domain Tests
-- User Email Change
+- ChangeUserEmailTests
 - Legacy Import Wizard
-- User Management Endpoints
+- CancellationToken
 - Sales Discount Ceiling Tests
-- Expense Categories
-- Farm Clock Time Zone
-- Flock Management Tests
+- Expense
+- StubAccounts
+- OAuthClientRegistrationTests
 - Idempotency and Me Endpoints
 - Validation Response Errors
-- Audit Entity History Status
+- enums.ts
 - SPA Runtime Dependencies
 - TypeScript Node Config
-- Refresh Token Grace Races
+- AuditConnectedAppTests
 - Simulation Seed Owner Tests
-- Durable Job Worker Health
-- Egg Grade Management Tests
+- DurableJobWorkerResilienceTests.Worker
+- Fixture
 - Expenses Integration Tests
-- Reports Integration Tests
-- Water Usage Tests
+- Created
+- DataProtectionKeyRewrapTests
 - Water Usage Repository
 - Agent Brief Conventions
-- Expense Domain Tests
-- Farm Logo Endpoints
-- Admin Provisioning and Policies
-- Data Export Tests
-- Adapter Tier Scanner
-- Report DTOs and Simulation Provisioning
-- Roslyn Guard Reviews
-- Account Provisioning
-- Daily Entry Grade Tests
+- Expense.Create
+- updates
+- ClientMetadataTests
+- ExportTests
+- AdapterTierScanner.Scan
+- run
+- GuardScanner
+- AccountProvisioner
+- analyze
 - Adapter Tier Tests
 - CI Security Gates
 - Sales Order Discount Reasons
-- Data Export Datasets
+- NamedEntityPicker.tsx
 - Step-Up Auth Tests
-- Stepper Unit Setting
-- Kestrel Body Limit Tests
+- Account
+- Converts
 - API Project Dependencies
-- Auth Cookie Contract Tests
+- IClassFixture
 - Egg Production Wireframe
 - Farm Localization Settings
-- Account Lockout Tests
+- GitGuardTest
 - Alerts and Tasks Wireframe
 - Health and Welfare Wireframe
-- Step-Up Validation and Platform Services
+- steps
 - Integration Collection Measurement
 - Image Scan Issue Automation
-- Farm-Local Restriction Tests
-- MUI Revamp Design
-- Backup And Health Checks
-- Identity Roles and Tokens
+- KeyRingRewrap
+- @mui/material
+- DurableJobWorkerHealthCheck
+- ApplicationUser
 - Egg Lots Traceability Wireframe
 - Flock Setup Wireframe
 - Flocks Screen Wireframe
 - Audit Provenance Tests
 - Daily Entry Validation
 - Stock Page SPA
-- Egg Lot Repository Fakes
+- SaleAllocationPolicyTests
 - Lockfix and Refresh Tokens
 - Account Lifecycle CLI Tests
 - Core Loop Wireframes
@@ -185,134 +186,133 @@
 - Sales Allocation by Type
 - Generic Sales Order Wireframe
 - Weight Records Wireframe
-- Commerce Module Contract
-- Claim-Once Step-Up Store
+- collector.yaml
+- 4. Retire previous certificates
 - Distributed Rate Limiting
-- Forbidden Problem Handler
+- stepUpCallers.ts
 - Solution Package Dependencies
-- Tenant Account Id Shape Guards
-- General Inventory Namespaces
-- Exception Redacting Sink
+- AppDbContext.OnModelCreating
+- Cluckwork.Domain.Modules.GeneralInventory.Inventory
+- DataProtectionCertificateExpiryTests
 - k6 Auth Load Scripts
-- Order Item Implementation Plan
+- check-suppressions.mjs
 - Beak Treatment Wireframe
 - Daily Entry Wireframe
 - Flock Detail Wireframe
 - Products Page Wireframe
-- Byte-Capped Request Stream
-- Auth Rate Limit Logging
-- User Command Types
-- Allowed Hosts Guard Tests
-- Egg Lot Write-Off Tests
+- ByteCappedRequestStream
+- viewpoint-3.md
+- TwoFactorCredentialsStorageTests
+- ChangeOwnPasswordCommand
+- AllowedHostsGuardTests
+- docs-impact.mjs
 - Daily Entry Submit Tests
-- Service Worker Verifier
+- verify-sw.mjs
 - Recover Admin Command Tests
 - Audit Log Wireframe
 - Live Bird Ledger Wireframe
 - Egg Sales Allocation Wireframe
 - Feed and Inventory Wireframe
 - First-Run Onboarding Wireframe
-- Idempotency Middleware
+- with
 - Migration Security Review Guard
 - User Role Change Races
-- Durable Job Worker
 - Integration Test Packages
 - Expenses Screen Wireframe
 - Inventory Reconciliation Wireframe
 - Users and Roles Wireframe
-- Farm Banner Tests
-- Database Provider Configuration
-- Atomic Idempotency Protocol Tests
+- FarmBannerTests
+- Cluster
+- OwnerTwoFactorGateUnitTests
 - Durable Job Model
-- Module Service Registration
-- Dependabot Lockfix Workflow
-- Sensitive Log Redaction
+- IAuditWriter
+- Lock File Noise Finding
+- SensitiveDataRedactionEnricher
 - Daily Entry and Offline Sync
 - Mobile Daily Entry Wireframe
 - Settings Page Wireframe
 - Water & Additives Screen
-- Single Serving Instance Rule
-- Egg Lot Repository Queries
-- Ambient Transaction Scopes
-- Step-Up and Auth Test Doubles
-- Farm Module Settings and Branding
+- DurableJobWorker
+- Guid
+- steps
+- harness-login-body.test.mjs
+- submit
 - Verification Feature Map
-- Image Sanitization
-- MCP OAuth Design Docs
+- SanitizedImage
+- 788-mcp-oauth/00-README.md
 - Suspension Service Runbook
 - OTLP Payload Decoding
 - Account Rename Service Tests
 - FIFO Egg Allocation Rules
 - Egg and Meat Lots
-- Discount Ceiling Rules
-- Value Object Base
+- steps
+- 3. Decisions, and the facts behind them
 - Bootstrap Admin Command Tests
-- Access Contract Errors
-- Kestrel Log Assertions
+- ImageSanitizer
+- LogEvent
 - Single-Container Deployment Topology
 - OTLP Payload Assertion Tests
-- Commerce Module Implementation
-- Healthcheck CLI Command
+- db
+- Enforced rules and their records
 - Decision Records Index
-- Egg Grade Floor Race
-- Secret Logging Guards
+- EggGradeFloorRaceTests.Two_floor_updates_off_one_version_leave_exactly_one_winner
+- FailOnceStream
 - Capacity Findings Template
-- Audit Monotonic Order Runbook
-- Aspire AppHost Model Tests
+- Runbook — #508: order same-instant audit events by a durable monotonic key, not a random Guid
+- AppHostModelTests
 - Customer Command Validators
-- Demo Seed Cleanup Tests
-- Low Stock Floor Tests
+- image
+- EggGradeLowStockFloorTests
 - Date Range Filter Plan
-- OTLP Resolver Tests
-- Multi-Farm Tenancy Decision
-- Sales Picker Implementation Plan
-- OTLP Exporter Subprocess Tests
+- with
+- RedisFixture
+- WaterPage.tsx
+- TwoFactorPrimitivesTests
 - Account Suspension
-- Tenant Write Token Runbook
-- Products Page UI
-- k6 Request Bundles
+- Regex
+- UpdateCustomerHandler.HandleAsync
+- A write-contract change must update its non-CI callers (#394)
 - Egg Quality Condition Tests
-- Access Fixture Tests
-- Distributed IP Rate Limiter
-- Cross-Tenant Isolation Guard Design
+- IAccessLookup
+- DistributedIpFixedWindowRateLimiter
+- system_text_regularexpressions
 - Account Rename Docs Guards
-- Credential Epoch Race Barriers
-- Logging and Provisioning Runbooks
-- Shared State Namespace Wiring
-- Job Worker Leader Gate
+- CredentialEpochRaceTests
+- Disable a user, and change a user's email address
+- public.OpenIddictApplications
+- UsersPage.resetTwoFactor.test.tsx
 - Farm Locale Settings
-- Daily Entry Endpoints
-- Create Flock Validation
-- Report Concurrency Gate Tests
-- Docs-Only Path Detection
-- Source Preprocessor Guard
-- Egg Stock Endpoints
-- Report Concurrency Limiting
-- MCP Server Design Synthesis
-- Bootstrap Lock Continuity
+- Cluckwork.Infrastructure.csproj
+- UserTokenTenantWriteTests
+- Func
+- Runbook — #357: let Owners change a user's login email
+- jobs
+- publish
+- InProcessLease
+- ReadsRequestBodyAttribute
+- ValueTask
 - Production Log Format
-- Auth and Identity Modules
-- Idempotency Replay Tests
-- Simulation Seed Command Tests
-- In-Process Fixed Window Counter
-- Product Types and Handlers
-- Multi-Instance Rate Limit Tests
+- Cluckwork.Infrastructure.Persistence
+- with
+- SimulationSeedCommandTests
+- TimeSpan
+- ProductUnit
+- name
 - Refresh Tokens Table Schema
-- UserRoleAssignments Table Schema
+- PlaintextDataProtectionKeyClassifierTests
 - UI Tests TypeScript Config
-- Process Role Guard Tests
+- ProcessRoleGuardTests
 - Release Rehearsal Sim Harness
-- Postgres Leader Lease
-- AspNetRoleClaims Table Schema
-- Trusted Proxy Boot Guard
+- PostgresLeaderLease
+- Actor
+- InventoryCategory
 - AspNetRoles Table Schema
-- Claim-Once Store Contract
+- Fixture
 - Maskable App Icon Branding
 - PWA Icon 192 Branding
 - Maskable PWA Icon 192
 - Maskable PWA Icon 512
 - Runtime E2E Verification
-- Pre-Commit Hook
 - Session Token Auth
 - i18n Catalog Parity
 - Apple Touch Icon
@@ -323,475 +323,856 @@
 - CDN Static Asset Caching
 - Lockfile Fix Script
 - Auth Lockout Rate Limiting
-- Customer Repository
+- IReadOnlyDictionary
 - CI Security Gate Decisions
-- PNG Sanitizer Tests
 - AspNetUsers Table Schema
 - Two-Layer Backup Strategy
 - Tenant Hierarchy
 - Version Concurrency Token
-- Provider-Agnostic EF Core
-- Vertical-Slice Architecture
 - User Display Name Tests
 - Sales Order Ceiling Tests
 - k6 Capacity Baseline Script
 - Slacc Design Language
 - Pastel Mesh Gradient
 - Pill Buttons
-- Chronology Migration Triggers
+- env
 - Table Owner Test Fixtures
-- Migrate Command Tests
+- AuthEndpoints.ChangePassword
 - Module Seam Surface Scanner
 - BirdMovements Table Schema
-- Account Roles
+- EffectiveAccountRole
 - Sales Order Settlement Scope
 - Customers Table Schema
 - Design-Time Migration Connection
-- Flock Schema Docs
 - DailyEntryGrades Table Schema
-- Farm Directory Contract
+- .tbls.yml
 - EF Migrations History Table
-- Revoke Fault Interceptor
+- Repo
 - EggGrades Table Schema
-- Break-Glass Recovery Runbook
-- Idempotency Record Model
+- AuthEndpoints
+- McpCallContext
 - Refresh Token Purge Sweep
-- Test JWT Key Generation
-- Login Request Validation
-- Deployment Bootstrap Script
+- FakeCoverageTrackers.cs
+- services
+- #798, #799, #800: OAuth screen directions
 - Postgres Snapshot Script
 - Egg Inventory Movements Schema
 - EggLots Table Schema
-- Module Ledger And CI Matrix Decisions
+- #277 — session report
 - Egg Unit Conversions Schema
-- Exports and Save States
-- Expense Schema Docs
-- Payment Endpoints
+- ExportPage.test.tsx
+- public.ExpenseCategories
+- CluckworkEndpointGroups.MapCluckworkEndpointGroups
 - FeedUsages Table Schema
 - Flocks Table Schema
-- Inventory Schema Docs
-- Request Logging Tests
+- public.InventoryLots
+- RequestLoggingTests
 - Aspire AppHost Design
-- Future-Dated Lot Stock Test
+- AccessFixtureTests
 - Currency Catalog and Brands
 - Docker Stats Sampler
 - Sim Stack Reset Script
 - Baseline Run Script
 - Idempotency Record Purge Tests
-- Persistent Step-Up Grant Registry
-- Login Rate Limit Bucket Probe
+- DocsImpactWarningTest
+- LoginCounterKeyProbeTests
 - Payments Table Schema
 - Products Table Schema
 - SalesOrderAllocations Table Schema
-- Single-Instance Shared Stores
-- Distributed Rate Limiter Wiring
-- Vite and Aspire Frontend Tooling
-- Retry Boundary Tests
+- IFixedWindowCounter
+- DistributedRateLimiterWiringTests
+- TwoFactorStatus
+- RetryBoundaryTests
 - SalesOrderItems Table Schema
-- EF Persistence and Migrations
+- MigrationBuilder
 - SalesOrders Table Schema
 - WaterUsages Table Schema
 - Flock Scope Step-up Plan
 - Farm Logo Upload Options
 - Speckit Prerequisite Scripts
 - Feature Task List
-- Feed Usage Repository
+- styles.bare-elements.test.ts
 - Sales Discount Reason Tests
 - Command Validators
 - Insights Module Namespaces
-- Void Sale Tests
-- Seeded Audit Actor Design
+- Fix increment 2 — #562 / PR #671, round-2 findings (comments and one assertion message only)
+- plans/README.md
 - JPEG Sanitizer Tests
-- Flock Entity
-- Access Seed Lookup
-- Customer Reference Repository
-- Global User Lookup Guard
-- Inventory Endpoints
+- Flock
+- SimulationDataSeeder.ComputeCountsAsync
+- Procedure
+- GlobalUserLookupGuardTests
+- sha
 - Schema Docs Generator Script
-- MCP Server Design Record
+- e2e-smoke.yml
 - Binding Failure Response
-- Logout Refresh Race Tests
+- CodeSet
 - Write Denial Implementation Runbook
-- MCP Server Design Review
-- Integration Suite Performance
-- Schema Docs Guards
-- Docs and Runbooks Index
+- Fixture
+- SeedCommandRunner.RunToCompletionAsync
+- SchemaDocsTests
+- simulation-fixture-on-a-dev-database.md
 - Exception Handler Re-Execution Tests
-- Redis Fixed Window Counter
-- Seed and Simulation Profile
-- Product Audit Payload Tests
-- Transaction Holder Disposal
+- RedisFixedWindowCounter
+- SimulationDataSeeder
+- Threat model and design — #606: step-up for durable flock scope
+- ClientMetadataFetcher.FetchAsync
 - TOC Verification Script
-- Playwright CSP and Dashboard Specs
+- src/fixtures.ts
 - Account-Scoped Identity Migration
-- In-Process Lease
-- Rate Limiter Unit Tests
-- Account User Validator Tests
+- FakeTimeProvider
+- env
+- canary
 - Module Compatibility Exceptions
-- User Roles Account Runbook
-- Auth Refresh Cookies
-- Update Customer Validator Tests
-- Egg Lot Movement Validation
-- OTLP Configuration Resolution
-- Shared State Redis Options
-- Sales Order Domain Tests
-- Background Jobs and Leader Lease
+- e2e
+- AuthEndpoints.Refresh
+- with
+- RecordEggLotMovementCommand
+- with
+- SharedStateOptions
+- Error.Domain
+- groom
 - Farm Timezone Availability
-- Credential Epoch Tests
+- ProblemDetails
 - Auth Rate Limiting Tests
 - Playwright UI Package Config
-- Aggregate Root and Seams
-- Ambient Principal Login Tests
-- Postgres Leader Lease Tests
-- Rate Limiting Options
-- Leader Lease Abstraction
+- Entity
+- sha
+- totp.js
+- RateLimitingOptions
+- Fixture
 - Namespace Move Script
 - Account Rename Domain Runbook
 - SPA E2E Suite Docs
-- Module Adapter Reach Rules
+- AdapterReachRealTreeTests
 - Break-Glass Admin Recovery
-- Discount Visibility Design
+- SalesPage.test.tsx
 - Screen Reader Verification Runbook
 - Business Record Contributions
-- Product Catalog Endpoints
-- Rate Limit Keying
+- UpdateEggUnitConversionValidator
+- HttpContext
 - Non-Seekable Stream Helper
 - Commerce Test Fixture
-- Flock Lookup Tests
+- plan.md
 - Fake IndexedDB Test Double
 - Fake OTLP Collector Runbook
 - UI Component Library Docs
-- Confirm Sale Validator Tests
-- Transaction Delegate Shape Guard
-- Credential Epoch Race Tests
+- ConfirmSaleCommand
+- TransactionDelegateShapeTests.FindViolations
 - Flock Scope Filter Discovery
-- Telemetry Registration
+- Page Adoption Contract
 - User Index Model Tests
-- Identity User Configuration
-- Schema Docs and Worker Runbook
-- Non-Seekable Stream Wrapper
-- Egg Movement Types
+- CountingPasswordHasher
+- InitialCreate
+- IFlockStore
+- EggMovementType
 - First-Run Provisioning Status
-- Playwright Configs and Dashboard
+- canary.spec.ts
 - List Screens Implementer Runbook
-- User Email Change Handout
-- Farm Logo and Banner
-- EF Migration Snapshot 2
-- Tenant Write Guard
-- Credential Epoch Floor
+- UserName
+- services
+- TestDataProtectionCertificate
+- environment
+- #1278: login, and enrolment without routes
 - Export Row Types
-- SPA Raw Path Tests
-- Report Queries Contract
-- Payment Repository
+- 674 — Adopt a UI component library, and which one
+- ExportQueries.GetDataset
+- Payment
 - Runbook Template
-- Process Role Boot Checks
-- List Accounts CLI Tests
-- Transient DB Retry Tests
-- EF Migration Snapshot 3
-- EF Migration Snapshot 4
-- EF Migration Snapshot 5
-- EF Migration Snapshot 6
-- Edge Security Configuration
+- IConfiguration
+- Fix increment 2 — review findings on head `a1966740`
+- TransientFaultFactory.ConfigureWebHost
+- Releasing & container images
+- web
+- dry_run
+- env
+- McpToolErrors
 - Tasks Template
-- Business Record Ordering
-- Query Shape Warning Tests
-- Egg Operations Module API
+- scan
+- QueryShapeWarningTests
+- release-please.yml
 - Backend Coverage Decision
-- Egg Lot Lock Ordering
-- Farm Banner Endpoints
-- Finance Module Expenses
-- Egg Operations Contract
-- First Admin Provisioning Runbook
-- Idempotency Records Table Schema
+- EggLotLockOrderTests
+- release-please
+- States
+- The stock port
+- app
+- healthcheck
 - Serving Guard Coverage Tests
-- Owner-Only Farm Configuration Decision
+- OAuth screens: selected directions
 - Web Style and i18n Rules
-- Egg Grade Condition Guard
+- #863: splitting the shared integration collection
 - Architecture Enforcement Decisions
 - SPA Shell CSP Nonce
 - Screenshot Capture Script
-- Flock Module API
+- steps
 - Arena Synthesis Record
 - AspNetUserLogins Table Schema
 - ProductEggGradeMappings Table Schema
 - InventoryItems Table Schema
 - Aspire AppHost Packages
-- Farm Logo Repository
-- Integration Collection Split
-- SQL Capture Interceptor Review
-- Inventory Test Fixture
-- Inventory Lot Repository
-- Mutable Test Clock
+- resolve
+- CluckworkWebApplicationFactory
+- Round 3 — attacking the round-2 fixes
+- promote
+- steps
+- States
 - Farm Logo and Banner
-- EF Model Snapshot
+- HealthCheckCliCommand
 - Egg Lot Domain Tests
-- Host Pinning and Security Headers
-- Discount Reason Vocabulary
+- SpaShellTests
+- CreateUserCommand
 - Runtime Verification Skill
-- Module Edge Analyzer
-- Farm Module Options
-- Named Row Projection Probes
+- ModuleEdgeAnalyzer
+- SetUserPasswordCommand
+- Window
 - Tenant Bypass Allow-List
-- Cross-Tenant Isolation Guard Plan
+- SetConnectedAppsCommand
 - AspNetUserClaims Table Schema
 - AspNetUserRoles Table Schema
-- Account CLI Commands
+- ICliCommand
 - User Roles Tenant Column
-- EF Module Configurations
+- Cluckwork.Domain.Modules.Farm.Accounts
 - AspNetUserTokens Table Schema
-- Named Row Projection Tests
-- AuditEvents Table Schema
+- PaymentMethod
+- mcp/mutation-check.sh
 - SPA Elevation and Caps Runbook
-- Remembered-Farm Removal Plan
-- Analyzers and Architecture Tests
-- Audit Price Payload Design
-- Logout Refresh Lineage Race
-- Simulation Seed State Table
-- Fake OTLP Collector
-- Idempotency Claim Outcomes
+- oauth/mutation-check.sh
+- Cluckwork.Application.Tests.Architecture
+- Task
+- TaskCompletionSource
+- db
+- healthcheck
+- migrate
 - Screenshot Pipeline Runbook
-- Reference Data Comparison
-- Two-Farm Isolation Matrix
-- Credential Middleware Order Guard
-- Account Id Probe Entities
-- EF Migration Snapshot 7
+- Gate two C# style rules at build time (#985)
+- Product: seeded records name a real person (#500)
+- public.DailyEntries
+- public.Expenses
+- public.InventoryMovements
 - Audit Actor Implementation Runbook
-- CLI Verbs and Healthcheck
-- Money Value Object
-- Tenant Resolution Middleware Tests
-- Feed Usage Lock Ordering
-- k6 Simulation Fixture Runbook
-- Canary Screen E2E Vitals
-- Filter-Free Set Identity Tests
-- Logout Tip Barrier Interceptor
-- Access Authorization Contract
+- changes
+- image-scan.yml
+- CurrentUserContext
+- FeedUsageLockOrderTests
+- DeepSimulationSeedFactory
+- permissions
+- contents
+- Submit a fully graded day
+- States
 - Farm Provisioning Runbook
-- EF Migration Snapshot 8
-- Seed and List-Accounts CLI
-- EF Migration Snapshot 9
-- EF Migration Snapshot 10
-- FarmLogos Table Schema
-- Egg Grade Enums
-- Detached Tenant Write Tests
-- EF Migration Snapshot 11
-- Module Compatibility Exceptions
-- EF Migration Snapshot 12
-- Frozen Test Clock
+- AuthEndpoints.ConfirmTwoFactorEnrolment
+- Payment.Void
+- WrongGrant
+- HostPinningTests
+- viewpoint-4.md
+- DailyEntryKind
+- DetachedTenantWriteTests
+- Outcome
+- app
+- depends_on
+- [0.1.0](https://github.com/mforce/cluckwork/compare/v0.0.4...v0.1.0) (2026-09-12)
 - Paged Row Lookup Detector
-- Test TLS Certificate
-- Audit Order Delivery Contract
-- Changelog Releases
+- [0.1.5](https://github.com/mforce/cluckwork/compare/v0.1.4...v0.1.5) (2026-10-07)
+- [1.1.0](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.1.0) (2026-10-14)
+- Changelog
 - Entity Picker Data Model
-- Tracked Repository Read Guard
-- Flock Reference Design Review
-- Tenant Write Refusal Logging
+- [1.1.2](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.1.2) (2026-10-19)
+- Design review disposition — #606
+- [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.3...v1.2.0) (2026-11-14)
 - Combined Design Direction
-- Flock Test Fixture
-- Expense Aggregate
-- Transient Command Fault Interceptor
-- Inventory Item Integration Tests
-- Egg Operations Test Fixture
+- Architecture: Entity-scoped audit history
+- IDbSetReturnFixture.Query
+- public.DataProtectionKeys
+- public.OpenIddictScopes
 - Expanded Lay Rate Chart
-- Discovery Test Fixture Data
+- image-summary
 - Feature Spec Template
-- Ambient Principal Attributes
+- Attribute
 - Entity Picker Specification
-- Style Guard Tests
-- Audit Event Ordering Diagnosis
-- Local Monitoring Sinks
-- Finance Expense Handlers
-- Mortality Ledger Atomicity Tests
+- ref_node_fs
+- #508 — diagnosis: same-instant audit events order by a random Guid
+- steps
+- Confirm as a Worker with assigned flocks
+- Egg grade
 - Aspire Config
-- Production Report Rows
-- Sales Allocation Repository
-- Expense Report Queries
+- Expense category
+- EntityTypeBuilder
+- Farm
 - Entity Picker Research
-- Farm Logo And Banner Removal
+- Inventory item
 - Design Selection Proposals
-- Identity Access Schema Docs
-- Platform Operations Schema Docs
-- Design Review Brief
+- Payment
+- Product
+- States
 - Trusted Forwarded Header Tests
-- Kestrel Response Write Tests
-- Scoped Update Source Scanner
-- Tenant Write Token Fixes
+- scenarioKinds
+- SeedStatus
+- TenantWriteRefusalLoggingTests
 - Project Constitution
-- Idempotency Options
-- Refresh Token Flow Tests
+- RegistryEnvelope
+- AuthCookieContractTests
 - Constitution Template
 - Entity Picker UI Contract
-- Credential Epoch Revocation
+- CredentialEpochMiddleware
 - OTLP Collector Fix Runbook
-- Handler Logging Tests
-- Worker Sale-Allocation Policy
+- IFlockTag
+- ListPriceBasis
 - Screenshot Capture Script
-- Fixed Farm Clock
-- Account Settings DTOs
+- PropertyEnvelope
+- FarmBrand.styles.test.ts
 - Coverage Collect Script
 - Entity Picker Implementation Plan
 - Page Adoption Contract Docs
 - Entity Picker Requirements
-- Insights Read-Only Guards
-- Ledger Theme Contrast Spec
+- [0.0.4](https://github.com/mforce/cluckwork/compare/v0.0.3...v0.0.4) (2026-08-13)
+- InsightsReadOnlyTests
+- [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16)
 - Module Peer Contract Tests
-- Insights Export Queries
+- [1.1.1](https://github.com/mforce/cluckwork/compare/v1.1.0...v1.1.1) (2026-10-15)
 - Plan Template
-- Expense Repositories
-- Database TLS Floor Guard
+- [1.1.3](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.1.3) (2026-10-27)
+- depends_on
 - Module Map Rules
-- Account Settings Endpoints
-- Sales Order Repository
-- Tracked Entry Snapshot
-- EF Migration Snapshot 13
-- EF Migration Snapshot 14
-- Daily Entry Repository
+- Two-factor authentication screen directions
+- env
+- TestHarness.ResolveTenantAndActor
+- issues
+- plugin.yaml
+- Add a line
 - Markdown TOC Generator
-- Customer API Endpoints
-- Module Edge Analyzer Map
-- Durable Jobs Table Schema
-- Confirm Sale Order Lock Tests
-- Static Asset Caching Tests
-- Aspire Local Development
-- API Health Checks
-- Current User Endpoints
-- Body-Reading Endpoint Guard
+- Refuse a line whose list price moved
+- Adjust a submitted day
+- Refuse an adjustment below what a lot has sold, allocated or written off
+- Refuse assigning a flock to someone who is not a Worker
+- Browse the farm's audit events
+- Browse customers and what they owe
+- List customers through a connected app
+- Browse History
+- McpRouteParityTests
 - Customer Update Tests
 - Farm Code Rename Enforcement
 - Mutation Check Script
-- CSS Mutation Test Harness
-- Export Snapshot Source Guard
-- Water Usage Endpoints
+- Browse orders as a Worker
+- ExportSnapshotSourceTests.FindViolations
+- Change a farm's code
 - Module Edge Analyzer Tests
-- Fixture Port Probe
-- First-Run Admin Lock Tests
+- ReloadableFilteredConfiguration
+- FirstRunAdminUnlockCleanupFactory
 - Checklist Template
-- Flock Scope Test Fixture
+- Refuse a currency change once amounts exist
 - SPA Elevation and Caps Design
-- Daily Entry Lock Pass
-- Auth Session Contract Tests
-- JWT Options and Auth Logging
+- LockDueDailyEntriesHandler.HandleAsync
+- Save farm settings
+- McpConnection.IssueAsync
 - Release-Please Configuration
-- Operator Verb Contract Tests
-- Bird Movement Repository
-- Paged Result Pagination
-- Module Contract Derivation
-- Egg Lot Lock Order
+- OperatorVerbContractTests
+- Refuse a wrong current password
+- Change language and counting unit
+- ContractFixtureResolution
+- Change a login email
 - Fake OTLP Collector Fixes
-- Flock Name Resolution Tests
-- Audit Event Reads
-- Egg Grade Commands
-- Flock Scoping and Tenant Plans
+- FlockNameResolutionTests.ResolveAsync
+- Change a person's role
+- UpdateEggGradeCommand
+- AppDbContext
 - Drop-Shadow Fix Runbooks
-- Docs-Only CI Gating Decision
+- Confirm an order sold below list price
 - Runbook Fence Fix Plan
-- Egg Grade Repository
-- Account Max Discount Migration
-- Entity Provenance Lookup
-- Analyzer Namespace Symbol Walk
+- Confirm an order
+- Confirm past lots under withdrawal restriction
+- Refuse a below-list order without a reason
+- Refuse a Worker whose assigned flocks lack the stock
 - Tenant Write Token Fixes
-- Refresh Token Purge Batching
-- Refresh Token Fault Interceptor
+- Refuse a line beyond the farm's discount ceiling
+- Approve an app
 - Badge Caps Fix Plan
 - List Empty-State Fix Plan
-- Admin Recovery Service
+- Approve only some of the permissions an app asks for
 - Canary Run Script
-- Contributing Guide
-- Transient Commit Fault Injection
-- Seam Surface Scan Rules
-- CSV Export Writer
+- Reconnect an app that asks for nothing new
+- Refuse a correction out of range
+- Correct a water record
+- Create a category
 - List Screens Filter Fix
-- Log Event Collecting Sink
-- Slug Lookup Caller Guard
+- Create an item
+- Refuse an email already on the farm
 - k6 Package Manifest
-- Commit Message Hook
 - Simulation Date Helpers
-- Database Snapshot Tables
-- Request Logging Sink Tests
-- Screenshot Pipeline Fix Plan
+- Disconnect one's own app
+- Edit a customer
+- Edit a grade
 - Screenshot Pipeline Fixes
-- EF Migration Snapshot 15
-- Egg Grade Lookup
-- Production Report Model
+- Edit a flock
+- Edit a line
+- Edit a packed unit
 - Verify Harness Script
-- Transient Postgres Fault
-- Discovery Validation Tests
-- OTLP Exporter Validation
-- Distributed IP Rate Limiter
-- Serving Subprocess Harness
-- Refresh Token Storage
-- EF Migration Snapshot 16
-- EF Migration Snapshot 17
-- EF Mapping Test Model
-- Roslyn Symbol Binding
+- Lock submitted entries after seven farm days
+- Record an expense
+- Record an expense through a connected app
+- Log feed for a flock
+- InvalidOperationException
+- RefreshToken
+- Record feed through a connected app
+- Refuse feed beyond the stock on hand that day
+- Refuse a payment above the outstanding amount
+- Receive a purchase
 - Toolbar Fix Increment Runbook
-- Sales Order Status
-- Job Worker Heartbeat
-- Sale Confirmation Assignment Read
-- Migrate-on-Startup Disabled Tests
-- Purge Delete Counter
-- Namespace Folder Agreement
-- Font Optical Size Tests
-- Audit Details Column Design
-- Aspire AppHost Implementation Plan
-- Daily Entry Status States
-- Logout Token Revocation
-- Dialog Session Scope Typing
-- Baseline Currency Seed Tests
-- Account ID Key Conversion
-- OTLP Collector Lint Fix 3
-- OTLP Collector Lint Fix 4
+- Record a purchase through a connected app
+- Record water through a connected app
+- Refuse readings that disagree with the quantity
+- Register with a name and return addresses
+- Record a draft through a connected app
+- Refuse a day the flock no longer accepts
+- Refuse grading beyond the sellable count
+- Save a new day as a draft
+- Dependency Graph
+- Refuse an unsafe or oversized image
+- Refuse wrong credentials
+- react
+- Sign in to a farm
+- Refuse a day whose grading does not add up
+- Submit a draft through a connected app
+- Suspend an active farm
 - AuditEvents Partitioning Question
-- Aspire Second Database Decision
+- Switch connected apps off
 - Decision Record Template
-- Owned Value Test Entity
-- EF Migration Snapshot 18
-- Unit of Work Transactions
-- Integration Test Setup Fixture
-- OpenAPI Generated Client
-- Logger Implementation
-- Mapped Order Payment Totals
-- Farm Directory Caller Guard
-- Filter-Free Query Sites
+- Remove an assignment
+- View the morning dashboard
+- View revenue, expenses and profit
+- View daily production
+- View stock by grade
+- Refuse voiding a day whose eggs have left its lots
+- Void a submitted day
+- Void a confirmed order
+- Refuse a correction outside the lot's range
 - Proxy-Trust Boot Guard
-- Adjust Daily Entry Command
-- Flock Eligibility Filter
+- Write off lost eggs
+- Product model
 - EF Query Shape Warnings
-- Farm Time Zone Clock
-- List Filter Test Seeding
-- Egg Lot Movement Result
-- Daily Entry Submit Response
-- Void Daily Entry Command
-- Account Settings Views
-- Money Totals
-- Web Text Encodings
-- JSON Serialization
+- Dependencies & Execution Order
+- IOAuthPurge.PurgeAsync
+- Fault
+- FieldEnvelope
+- LookupEnvelope
+- Node
+- MockIO
+- [0.0.2](https://github.com/mforce/cluckwork/compare/v0.0.1...v0.0.2) (2026-08-03)
+- [0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-26)
+- DeclaresBind.BindAsync
+- db
+- Flocks & egg production
+- Feed & supply inventory
+- pull_request_template.md
+- Activate a grade
+- Activate an item
+- Activate a product
+- Adjust a locked day
+- Adjust a day again
+- Refuse adjusting a day of an archived flock
+- Archive a depleted flock
+- Archive a flock created by mistake
+- Assign a flock
+- Show only actions through connected apps
+- Read what customers owe through a connected app
+- List daily entries through a connected app
+- List egg lots through a connected app
+- Trace a grade's lots and a lot's movements
+- List an order's payments through a connected app
+- Review an order's payments
+- Browse orders and what they owe
+- List orders through a connected app
+- Cancel a draft order
+- Change one's own password
+- Replace a one-time password
+- Refuse demoting the last Owner
+- Clear the banner
+- Clear the logo
+- Refuse an order short of stock
+- Refuse every app while connected apps are off
+- Correct an expense
+- Refuse a correction made against a stale copy
+- Correct an inventory lot
+- Create a customer
+- Refuse a customer without name or phone
+- Create a grade
+- Refuse a duplicate grade name
+- Create a flock
+- Create a flock while recording a day
+- Refuse a flock without breed or birds
+- Create a product
+- Refuse a duplicate product name
+- Create a draft order
+- Refuse an order dated in the future
+- Create a person
+- Deactivate a grade
+- Deactivate a category
+- Deactivate an item
+- Deactivate a product
+- Deplete an active flock
+- Disable a person
+- Refuse disabling oneself or the last Owner
+- Disconnect a colleague's app as the Owner
+- Download one dataset
+- Download everything
+- Set a grade's low-stock floor
+- Edit an item
+- Refuse changing the unit of a stocked item
+- Edit a product
+- Rename a person
+- Enable a person
+- List the server's farms
+- Provision a new farm
+- Refuse a reserved or taken farm code
+- Create the first Owner
+- Do nothing when an Owner exists
+- Reactivate a category
+- Reactivate a suspended farm
+- Reactivate a depleted flock
+- Reactivate an archived flock
+- Record a cull
+- Record a recount that adds birds back
+- Refuse an invalid bird movement
+- Record a payment
+- Refuse a purchase of an inactive item
+- Log water for a flock
+- Refuse recovering a disabled person
+- Reset a locked-out Owner
+- Identify with a client metadata document
+- Remove a line
+- Refuse resetting one's own password this way
+- Set a colleague's password
+- Refuse saving over an official day
+- Save over an existing draft
+- Upload a banner
+- Upload a logo
+- Refuse signing in to a suspended farm
+- Refuse an unknown farm code
+- Sign in with a one-time password
+- Sign out
+- Submit a day where every egg was lost
+- Switch connected apps on
+- Read stock through a connected app
+- Void a locked day
+- Void a payment
+- Refuse voiding an order that has payments
+- Add eggs back after a recount
+- config.yaml
+- Sell eggs to a customer
+- Sell eggs as a Worker
+- Sell eggs as a Sales user
+- StepUpResponse
+- RequireUserIdentityColumns
+- AddCustomerVersion
+- AccountIdConcurrencyToken
+- AddSalesOrderItemListPriceBasis
+- AddSalesOrderDiscountReason
+- AddCredentialEpochFloor
+- AddAuditEventConnectedApp
+- coupling-matrix.md
+- InheritedStaticFieldEnvelope
+- DtoWithQueryableProperty
+- QueryFactory
+- InheritsBind
+- [0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12)
+- [0.1.4](https://github.com/mforce/cluckwork/compare/v0.1.3...v0.1.4) (2026-09-28)
+- Why not the obvious alternative
+- IQueryableImplementationFixture.Query
+- self-hosted-runner
+- Changing who can sign in or what they may do requires re-entering one's current password
+- The farm currency cannot change once any amount is recorded in it
+- Every date rule reads the farm's own today
+- Grading must equal the sellable count exactly to submit or adjust a day
+- An egg lot under withdrawal restriction is never allocated to a sale
+- Account
+- Connected apps
+- Customers
+- Daily entry
+- Expenses
+- Export
+- Farm settings
+- Flocks
+- Grades
+- History
+- Inventory
+- Products
+- Reports
+- Sales
+- Stock
+- Users
+- Water
+- Connected app
+- App connection
+- Audit event
+- Bird movement
+- Customer
+- Egg lot
+- Egg movement
+- Expense
+- Feed usage
+- Flock assignment
+- Inventory lot
+- Inventory movement
+- Packed unit
+- Water usage
+- Worker
+- Farm MCP address
+- Farm web app
+- Cluckwork
+- ChangeOwnPasswordRequest
+- SecondFactorLoginRequest
+- ParameterText
+- FlockCarryingResult
+- StaticFieldEnvelope
+- IInheritedGenericBaseFixture
+- INestedQueryFixture.Get
+- IInheritedExternalMemberFixture
+- a-draft-never-grades-more-than-is-sellable.md
+- below-list-orders-carry-a-discount-reason.md
+- bird-movements-are-recorded-by-owners-and-managers.md
+- condition-eggs-come-from-their-counters.md
+- connected-apps-act-within-their-person.md
+- corrections-never-take-back-sold-eggs.md
+- credential-changes-end-sessions.md
+- draft-edits-are-production-work.md
+- egg-lots-follow-the-days-and-sales-that-move-them.md
+- every-change-to-an-egg-lot-is-in-its-ledger.md
+- every-corrective-or-configuration-change-is-audited.md
+- every-inventory-change-is-in-its-ledger.md
+- expenses-are-owners-and-managers-only.md
+- feed-usage-draws-inventory-lots.md
+- flocks-accept-capture-only-in-their-window.md
+- hen-day-rate-counts-only-recorded-flocks.md
+- one-live-entry-per-flock-and-day.md
+- only-operators-change-a-farm-code.md
+- only-operators-create-farms.md
+- only-operators-reactivate-a-farm.md
+- only-operators-suspend-a-farm.md
+- only-owners-and-managers-adjust-a-day.md
+- only-owners-and-managers-change-expense-categories.md
+- only-owners-and-managers-change-flocks.md
+- only-owners-and-managers-change-grades.md
+- only-owners-and-managers-change-inventory-items.md
+- only-owners-and-managers-change-packed-units.md
+- only-owners-and-managers-change-products.md
+- only-owners-and-managers-correct-egg-stock.md
+- only-owners-and-managers-correct-expenses.md
+- only-owners-and-managers-correct-inventory-stock.md
+- only-owners-and-managers-correct-water.md
+- only-owners-and-managers-create-expense-categories.md
+- only-owners-and-managers-create-flocks.md
+- only-owners-and-managers-create-inventory-items.md
+- only-owners-and-managers-create-products.md
+- only-owners-and-managers-read-the-audit-log.md
+- only-owners-and-managers-void-a-day.md
+- only-owners-and-managers-void-payments.md
+- only-owners-and-managers-void-sales-orders.md
+- only-owners-assign-flocks.md
+- only-owners-change-a-persons-login-name-or-role.md
+- only-owners-configure-the-farm.md
+- only-owners-disable-people.md
+- only-owners-enable-people.md
+- only-owners-remove-flock-assignments.md
+- only-owners-set-low-stock-floors.md
+- only-provisioning-creates-packed-units.md
+- only-the-money-tier-reads-customer-balances.md
+- only-the-money-tier-reads-what-an-order-owes.md
+- only-the-money-tier-records-payments.md
+- only-the-schedule-locks-a-day.md
+- order-lines-keep-what-they-were-sold-under.md
+- orders-with-payments-are-not-voided.md
+- owners-and-managers-record-expenses.md
+- owners-and-provisioning-create-people.md
+- owners-managers-and-provisioning-create-grades.md
+- payments-never-exceed-what-is-owed.md
+- people-and-owners-disconnect-apps.md
+- people-approve-apps-while-the-farm-allows-them.md
+- people-change-their-own-password.md
+- people-change-their-own-preferences.md
+- people-reapprove-apps-while-the-farm-allows-them.md
+- producers-record-feed.md
+- producers-record-purchases.md
+- producers-record-water.md
+- recording-a-day-is-production-work.md
+- restricted-workers-read-only-their-flocks.md
+- sales-draw-the-oldest-lots-first.md
+- sales-users-and-workers-stay-within-the-discount-ceiling.md
+- sellers-change-customers.md
+- sellers-change-sales-orders.md
+- sellers-create-customers.md
+- sellers-create-sales-orders.md
+- submitting-a-day-creates-its-stock-and-mortality.md
+- submitting-a-day-is-production-work.md
+- the-farm-always-keeps-an-owner.md
+- voided-sales-return-eggs-to-their-lots.md
+- worker-sales-draw-all-flocks.md
+- worker-sales-draw-assigned-flocks.md
+- write-offs-stay-within-the-lot.md
+- activate-egg-grade/capability.md
+- activate-inventory-item/capability.md
+- activate-product/capability.md
+- add-order-line/capability.md
+- adjust-daily-entry/capability.md
+- archive-flock/capability.md
+- assign-flock/capability.md
+- browse-audit-log/capability.md
+- browse-customers/capability.md
+- browse-daily-entries/capability.md
+- browse-egg-lots/capability.md
+- browse-payments/capability.md
+- browse-sales-orders/capability.md
+- cancel-sales-order/capability.md
+- change-farm-code/capability.md
+- change-farm-settings/capability.md
+- change-password/capability.md
+- change-preferences/capability.md
+- change-user-email/capability.md
+- change-user-role/capability.md
+- clear-farm-banner/capability.md
+- clear-farm-logo/capability.md
+- confirm-sales-order/capability.md
+- connect-app/capability.md
+- correct-expense/capability.md
+- correct-inventory-stock/capability.md
+- correct-water-usage/capability.md
+- create-customer/capability.md
+- create-egg-grade/capability.md
+- create-expense-category/capability.md
+- create-flock/capability.md
+- create-inventory-item/capability.md
+- create-product/capability.md
+- create-sales-order/capability.md
+- create-user/capability.md
+- deactivate-egg-grade/capability.md
+- deactivate-expense-category/capability.md
+- deactivate-inventory-item/capability.md
+- deactivate-product/capability.md
+- deplete-flock/capability.md
+- disable-user/capability.md
+- disconnect-app/capability.md
+- download-dataset/capability.md
+- download-full-export/capability.md
+- edit-customer/capability.md
+- edit-egg-grade/capability.md
+- edit-flock/capability.md
+- edit-inventory-item/capability.md
+- edit-order-line/capability.md
+- edit-packed-unit/capability.md
+- edit-product/capability.md
+- edit-user/capability.md
+- enable-user/capability.md
+- list-farms/capability.md
+- lock-daily-entries/capability.md
+- provision-farm/capability.md
+- provision-first-admin/capability.md
+- reactivate-expense-category/capability.md
+- reactivate-farm/capability.md
+- reactivate-flock/capability.md
+- record-bird-movement/capability.md
+- record-expense/capability.md
+- record-feed-usage/capability.md
+- record-payment/capability.md
+- record-purchase/capability.md
+- record-water-usage/capability.md
+- recover-admin/capability.md
+- register-connected-app/capability.md
+- remove-order-line/capability.md
+- reset-user-password/capability.md
+- save-daily-entry-draft/capability.md
+- set-farm-banner/capability.md
+- set-farm-logo/capability.md
+- sign-in/capability.md
+- sign-out/capability.md
+- submit-daily-entry/capability.md
+- suspend-farm/capability.md
+- turn-off-connected-apps/capability.md
+- turn-on-connected-apps/capability.md
+- unassign-flock/capability.md
+- view-dashboard/capability.md
+- view-money-summary/capability.md
+- view-production-report/capability.md
+- view-stock/capability.md
+- void-daily-entry/capability.md
+- void-payment/capability.md
+- void-sales-order/capability.md
+- write-off-stock/capability.md
+- coverage.md
+- manager.md
+- operator.md
+- owner.md
+- read-only.md
+- entities/sales.md
+- visitor.md
+- farm/experience.md
+- screens/account.md
+- connect-app.md
+- screens/customers.md
+- screens/daily-entry.md
+- screens/dashboard.md
+- screens/expenses.md
+- feed.md
+- screens/flocks.md
+- screens/history.md
+- screens/inventory.md
+- screens/reports.md
+- screens/sales.md
+- screens/sales-order.md
+- set-password.md
+- screens/stock.md
+- screens/water.md
+- public/experience.md
+- sign-in.md
+- setup/experience.md
+- audit-log.md
+- screens/connected-apps.md
+- screens/export.md
+- screens/farm-settings.md
+- screens/grades.md
+- screens/products.md
+- screens/users.md
+- operator-cli.md
+- worker-sale-allocation.md
+- FlockNamedRow
+- IAppDbContextParameterFixture
+- IReader
+- IFunctionPointerFixture.Callback
+- IGenericConstraintFixture
+- IIndexerParameterFixture
+- IMoneyReturnFixture.Total
+- IQueryableReturnFixture.Query
+- IStaticAbstractOperatorFixture
+- IUnusedGenericConstraintFixture
+- in-playwright-image.sh
+- LANGUAGE_PACK_CACHE
+- LANGUAGE_PACK_MAX_ENTRIES
+- CURRENCY_UNICODE_RANGE
 
 ## God Nodes (most connected - your core abstractions)
-1. `AppDbContext` - 384 edges
-2. `TenantContext` - 279 edges
-3. `Cluckwork.Infrastructure.Persistence` - 247 edges
-4. `Result` - 246 edges
-5. `CluckworkWebApplicationFactory` - 225 edges
-6. `Cluckwork.Api.IntegrationTests` - 224 edges
-7. `Cluckwork.Api.IntegrationTests.Infrastructure` - 207 edges
-8. `Cluckwork.Application.Common` - 164 edges
-9. `vitest` - 153 edges
-10. `SimulationDataSeeder` - 141 edges
+1. `AppDbContext` - 491 edges
+2. `TenantContext` - 327 edges
+3. `Cluckwork.Infrastructure.Persistence` - 319 edges
+4. `Cluckwork.Api.IntegrationTests.Infrastructure` - 277 edges
+5. `Cluckwork.Api.IntegrationTests` - 276 edges
+6. `CluckworkWebApplicationFactory` - 275 edges
+7. `SecondFactorLoginTests` - 249 edges
+8. `Cluckwork.Application.Common` - 205 edges
+9. `Cluckwork.Application.Modules.Access.Contracts` - 191 edges
+10. `vitest` - 190 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Problem` --references--> `UserEndpoints`  [INFERRED]
-  docs/superpowers/specs/2026-08-01-user-disable-and-email-design.md → src/Cluckwork.Api/Modules/Access/Users/UserEndpoints.cs
-- `Task 1.2: Put proof validation first in both application handlers` --references--> `IStepUpGrantService`  [INFERRED]
-  docs/plans/606-step-up-flock-scope/04-implementation-plan.md → src/Cluckwork.Application/Modules/Access/Users/IStepUpGrantService.cs
-- `1.2 Implement the application gate` --references--> `IStepUpGrantService`  [INFERRED]
-  docs/plans/606-step-up-flock-scope/06-implementation-runbook.md → src/Cluckwork.Application/Modules/Access/Users/IStepUpGrantService.cs
-- `What happened` --references--> `AppDbContext`  [INFERRED]
-  docs/decisions/845-table-owners.md → src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs
-- `The rule` --references--> `AppDbContext`  [INFERRED]
-  docs/decisions/846-adapter-reach-ratchet.md → src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs
+- `ConcurrencyStamp compare-and-swap on token consumption` --semantically_similar_to--> `commit job — trusted push with GitHub App token`  [INFERRED] [semantically similar]
+  docs/superpowers/specs/2026-07-23-idempotent-refresh-design.md → .github/workflows/dependabot-lockfix.yml
+- `Why not the obvious alternative` --references--> `isDocsOnly()`  [INFERRED]
+  docs/decisions/782-ci-job-gating.md → .github/scripts/changed-paths.mjs
+- `Local OTLP metrics sink` --references--> `OtlpOptions`  [INFERRED]
+  tools/simulation/README.md → src/Cluckwork.Api/Configuration/OtlpOptions.cs
+- `Accepted costs` --references--> `CredentialEpochMiddleware`  [INFERRED]
+  docs/decisions/1146-connected-apps-switch.md → src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs
+- `What this does NOT cover` --references--> `CredentialEpochMiddleware`  [INFERRED]
+  docs/decisions/579-suspension-issuance-window.md → src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs
 
 ## Import Cycles
-- None detected.
+- 2-file cycle: `web/src/api/refresh.ts -> web/src/api/session.ts -> web/src/api/refresh.ts`
 
 ## Hyperedges (group relationships)
 - **Alerts Center Tab Sections** — specs_product_wireframes_alerts_tasks_alerts_tab, specs_product_wireframes_alerts_tasks_tasks_tab, specs_product_wireframes_alerts_tasks_rules_tab, specs_product_wireframes_alerts_tasks_email_digest_tab [EXTRACTED 1.00]
@@ -849,583 +1230,515 @@
 - **Sales Order Creation Flow (Order + Product Lines + Draft/Allocate/Confirm)** — specs_product_wireframes_sales_order_order_panel, specs_product_wireframes_sales_order_product_lines, specs_product_wireframes_sales_order_order_lifecycle_actions [INFERRED 0.85]
 - **Water Tracking Flow** — specs_product_wireframes_water_additives_water_usage_panel, specs_product_wireframes_water_additives_hydration_kpis_panel, specs_product_wireframes_water_additives_water_trend_chart [INFERRED 0.85]
 
-## Communities (756 total, 39 thin omitted)
+## Communities (1145 total, 381 thin omitted)
 
 ### Community 0 - "Sales and Catalog Handlers"
-Cohesion: 0.05
-Nodes (32): Cluckwork.Application.Modules.Commerce.Sales.RemoveOrderItem, Cluckwork.Application.Modules.Commerce.Sales.VoidPayment, Cluckwork.Application.Modules.Commerce.Sales.CreateSalesOrder, Cluckwork.Domain.Modules.Commerce.Catalog, Cluckwork.Application.Tests.Sales, Cluckwork.Domain.Tests.Sales, Cluckwork.Application.Tests.Accounts, Cluckwork.Application.Modules.Commerce.Catalog.SetProductActive (+24 more)
+Cohesion: 0.03
+Nodes (35): Cluckwork.Application.Modules.Commerce.Sales.RemoveOrderItem, Cluckwork.Application.Modules.Commerce.Sales.VoidPayment, Cluckwork.Application.Tests.Catalog, Cluckwork.Application.Modules.Commerce.Sales.CreateSalesOrder, Cluckwork.Domain.Modules.Commerce.Catalog, Cluckwork.Application.Tests.Sales, Cluckwork.Domain.Tests.Sales, Cluckwork.Application.Modules.Commerce.Catalog.SetProductActive (+27 more)
 
-### Community 1 - "Architecture Seam Fixtures"
+### Community 1 - "SeamSurfaceTests.cs"
+Cohesion: 0.03
+Nodes (33): Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractDerivedCase, Cluckwork.Application.Tests.Architecture.SeamFixtures.EntityParameter, Cluckwork.Application.Tests.Architecture.SeamFixtures.EfMetadataNested, Cluckwork.Application.Tests.Architecture.SeamFixtures.StaticAbstractOperator, Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedGenericBase, Cluckwork.Application.Tests.Architecture.SeamFixtures.InterfaceConstraint, Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractCrossAssemblyCase, Cluckwork.Application.Tests.Architecture.SeamFixtures.FunctionPointer (+25 more)
+
+### Community 3 - "ExpensesPage.tsx"
 Cohesion: 0.02
-Nodes (110): Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractDerivedCase, Cluckwork.Application.Tests.Architecture.SeamFixtures.EntityParameter, Cluckwork.Application.Tests.Architecture.SeamFixtures.EfMetadataNested, Cluckwork.Application.Tests.Architecture.SeamFixtures.StaticAbstractOperator, Cluckwork.Application.Tests.Architecture.SeamFixtures.InheritedGenericBase, Cluckwork.Application.Tests.Architecture.SeamFixtures.InterfaceConstraint, Cluckwork.Application.Tests.Architecture.SeamFixtures.ContractCrossAssemblyCase, Cluckwork.Application.Tests.Architecture.SeamFixtures.FunctionPointer (+102 more)
+Nodes (146): Why there was a decision to make at all, Accepted limits, Decision, Type dialog session helpers and retain the runtime default (#703), Verification, Why no development assertion, 5. The hook to extract, Data loading (+138 more)
 
-### Community 3 - "Inventory SPA API"
+### Community 4 - "api/client.ts"
+Cohesion: 0.02
+Nodes (231): RFC-7807, 10. The pending response is 401 with a distinct title, Round 4 — and where the loop was stopped, abortInFlightAuthCookieOperation, authCookieTail, HeldAuthCookieLock, REFRESH_TIMEOUT_MS, withAuthCookieLock() (+223 more)
+
+### Community 5 - "SecondFactorLoginTests"
+Cohesion: 0.05
+Nodes (11): RetryLaterError, SecondFactorErrors, EnrolledFactor, PendingLogin, SecondFactorLoginTests, FaultsBeforeTheCommit, PasswordSession, PasswordState (+3 more)
+
+### Community 6 - "OAuthFailClosedTests"
+Cohesion: 0.06
+Nodes (6): OAuthFailClosedTests, HeldWork, Gate, RefusingCounter, Keys, SeededUser
+
+### Community 7 - "Cluckwork.Application.Modules.EggOperations.Contracts"
 Cohesion: 0.03
-Nodes (70): Decision, 5. The hook to extract, createInventoryItem(), InventoryItem, InventoryLot, InventoryMovement, listInventoryItems(), listInventoryLots() (+62 more)
-
-### Community 4 - "Farm Credentials Lessons"
-Cohesion: 0.03
-Nodes (144): RFC-7807, Events, Facts that decay, Lessons — #585 + #587: farm-qualified credentials and revocable remembered farms, PART 1 — CAPTURE, PART 2 — RETRO, What cost, What to carry (+136 more)
-
-### Community 5 - "Farm Sign-In Results"
-Cohesion: 0.07
-Nodes (37): Three things stay outside the contract, FarmSignIn, Guid, RefreshTokenRevocationOutcome, InScope, OutOfScope, ResultLogging, ILogger (+29 more)
-
-### Community 6 - "Customers and Expenses SPA"
-Cohesion: 0.04
-Nodes (55): Not in scope, adjustExpense(), createCustomer(), createExpense(), createExpenseCategory(), CustomerBalances, ExpenseCategory, ExpenseList (+47 more)
-
-### Community 7 - "Flock and Egg Handlers"
-Cohesion: 0.03
-Nodes (51): Cluckwork.Domain.Tests.Eggs, Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword, Cluckwork.Application.Modules.Access.Users.AssignFlock, Cluckwork.Application.Modules.FlockManagement.Flocks.UpdateFlock, Cluckwork.Application.Modules.EggOperations.Eggs, Cluckwork.Domain.Tests.Flocks, Cluckwork.Application.Modules.FlockManagement.Flocks, Cluckwork.Infrastructure.Modules.FlockManagement.Repositories (+43 more)
+Nodes (59): Cluckwork.Domain.Tests.Eggs, Cluckwork.Api.Modules.GeneralInventory.Inventory, Cluckwork.Application.Modules.EggOperations.Eggs, Cluckwork.Api.Modules.EggOperations.EggGrades, Cluckwork.Api.Validation, Cluckwork.Application.Tests.DailyEntries, Cluckwork.Application.Modules.EggOperations.DailyEntries.LockDueDailyEntries, Cluckwork.Application.Modules.EggOperations.DailyEntries.RecordDailyEntry (+51 more)
 
 ### Community 8 - "User Disable Race Tests"
-Cohesion: 0.28
-Nodes (11): DisableUserRaceTests, StepUpDto, TokenPairDto, DateTimeOffset, Db, Fact, Guid, IDbContextTransaction (+3 more)
+Cohesion: 0.25
+Nodes (3): DisableUserRaceTests, StepUpDto, TokenPairDto
 
-### Community 9 - "Product Repository"
-Cohesion: 0.04
-Nodes (54): IEntityTypeConfiguration, CancellationToken, Task, IProductRepository, CancellationToken, Guid, IReadOnlyList, Task (+46 more)
+### Community 9 - "Product"
+Cohesion: 0.05
+Nodes (27): Product, Active, CreatedAtUtc, CurrencyCode, CurrencyMinorUnit, DefaultPriceMinorUnits, DefaultUnit, FarmId (+19 more)
 
-### Community 10 - "Farm Branding Settings"
-Cohesion: 0.04
-Nodes (74): BANNER_ACCEPT, FarmSettings, getFarmBanner(), getFarmLogo(), LOGO_ACCEPT, removeFarmBanner(), removeFarmLogo(), updateFarmSettings (+66 more)
+### Community 10 - "SettingsPage.test.tsx"
+Cohesion: 0.03
+Nodes (140): The return path after sign-in, Events, PART 2 — RETRO, What cost, What to carry, What worked, #587: revocable remembered farms, with stable login-field identifiers, Conflict table (+132 more)
 
 ### Community 11 - "Integration Test Infrastructure"
-Cohesion: 0.04
-Nodes (56): Cluckwork.Api.Logging, Cluckwork.Api.IntegrationTests, Cluckwork.Domain.Auditing, Cluckwork.Api.Modules.Access.Auth, Cluckwork.Api.IntegrationTests.Infrastructure, Cluckwork.Infrastructure.Jobs, google_protobuf, ICollectionFixture (+48 more)
+Cohesion: 0.03
+Nodes (15): Cluckwork.Api.Logging, Cluckwork.Infrastructure.Providers, Cluckwork.Api.IntegrationTests, Cluckwork.Infrastructure.Modules.Insights.Repositories, Cluckwork.Infrastructure.Providers.Postgres, Cluckwork.Api.Modules.Access.Auth, Cluckwork.Api.IntegrationTests.Infrastructure, Cluckwork.Infrastructure.Persistence.Interceptors (+7 more)
 
-### Community 12 - "Architecture Docs and Access Contract"
-Cohesion: 0.05
-Nodes (53): App architecture and components, Code layers, Deployment, Feature modules, The request pipeline, Access claims in #857 E2, Access: the claim waits for #857, Amendment, 2026-10-06: no type claims (#1087) (+45 more)
+### Community 12 - "IIdentityProvider"
+Cohesion: 0.03
+Nodes (57): Access claims in #857 E2, Access: the claim waits for #857, Why not the obvious alternative, 9. Provisioning: two verbs, one Owner-creation core, #857 — Access contract, Amendment, 2026-10-06: the contract folder and the login records (#1087, #1103), Authorization and construction, Boundary (+49 more)
 
 ### Community 13 - "Farm Settings Tests"
-Cohesion: 0.14
-Nodes (16): ApplicationUser&gt;, SettingsDto, AccountDto, FarmSettingsTests, IdDto, ProblemDto, AccountId, Client (+8 more)
+Cohesion: 0.09
+Nodes (8): BaselineSeedCurrencyTests, SettingsDto, TokenDto, FarmSettingsTests, AccountDto, IdDto, ProblemDto, SettingsDto
 
 ### Community 14 - "Farm Logo Tests"
-Cohesion: 0.11
-Nodes (21): LogoDto, OptionsValidationException, ProblemDto, AccountDto, FarmLogoTests, LogoDto, ProblemDto, AccountId (+13 more)
+Cohesion: 0.09
+Nodes (4): FarmLogoTests, AccountDto, LogoDto, ProblemDto
 
-### Community 15 - "Compatibility Exception Scanner"
-Cohesion: 0.05
-Nodes (33): BaseTypeDeclarationSyntax, CSharpCompilation, StoreObjectIdentifier, SymbolDisplayFormat, CompatibilityExceptionReport, CompatibilityExceptionScanner, DbSetRead, ExpressionSyntax (+25 more)
+### Community 15 - "IEnumerable"
+Cohesion: 0.04
+Nodes (10): ValueObject, ReferenceDataComparison, CompatibilityExceptionReport, CompatibilityExceptionScanner, DbSetRead, SpellingScannerRatchetTests, TableOwnerScanner, TwoFactorOwnershipTests (+2 more)
 
-### Community 16 - "Validator Error Code Coverage"
-Cohesion: 0.17
-Nodes (11): ErrorCode, IPropertyValidator, ValidatorErrorCodeCoverageTests, Fact, HashSet, IEnumerable, IValidator, MemberData (+3 more)
+### Community 17 - "DailyEntryAdjustTests"
+Cohesion: 0.19
+Nodes (5): DailyEntryAdjustTests, AdjustDto, Created, FlockDto, GradeLine
 
-### Community 17 - "Daily Entry Adjust Tests"
-Cohesion: 0.16
-Nodes (23): AdjustDto, GradeLine, AdjustDto, Created, DailyEntryAdjustTests, EntryDto, FlockDto, GradeLine (+15 more)
-
-### Community 18 - "Multi-Instance Idempotency Tests"
-Cohesion: 0.20
-Nodes (10): Body, MultiInstanceIdempotencyTests, Fact, Guid, HttpClient, HttpStatusCode, ProcessStartInfo, Status (+2 more)
+### Community 18 - "IAsyncLifetime"
+Cohesion: 0.07
+Nodes (15): BreakGlassRecoveryFixture, AdminEmail, AdminPassword, Database, ConnectionString, MultiInstanceIdempotencyTests, OtlpSubprocessDatabaseFixture, ConnectionString (+7 more)
 
 ### Community 19 - "Audit Provenance Tests"
-Cohesion: 0.24
-Nodes (4): AuditProvenanceTests, Fact, Func, Task
+Cohesion: 0.15
+Nodes (3): MUTATION CHECKS — prove the guards bite, AuditProvenanceTests, CreatedDto
 
-### Community 20 - "Bird Movement Types"
-Cohesion: 0.07
-Nodes (33): ICreatedRecord, CancellationToken, DateOnly, Guid, Task, BirdMovementType, Adjustment, Cull (+25 more)
+### Community 20 - "InventoryMovement"
+Cohesion: 0.04
+Nodes (50): MortalityLedger, BirdMovementType, Adjustment, Cull, Mortality, BirdMovement, CreatedAtUtc, DailyEntryId (+42 more)
 
 ### Community 21 - "Named Entity Discovery Tests"
-Cohesion: 0.22
-Nodes (9): CustomerRow, FlockRow, NamedEntityDiscoveryTests, Client, Fact, HttpClient, JsonSerializerOptions, List (+1 more)
+Cohesion: 0.14
+Nodes (3): NamedEntityDiscoveryTests, CustomerRow, UserRow
 
-### Community 22 - "Flock Step-Up Threat Model"
-Cohesion: 0.02
-Nodes (141): SPA and documentation, Assets and trust boundaries, Design options, Design-review claims to attack, Evidence and exposure, Intent, scope, and non-goals, Mechanically enumerated entry points and callers, Scope-ownership map (+133 more)
+### Community 22 - "UsersPage.test.tsx"
+Cohesion: 0.01
+Nodes (172): Account, getAccount(), getMe(), Me, onSessionChangeElsewhere(), FarmBrand(), mockGetFarmLogo, renderBrand() (+164 more)
 
 ### Community 23 - "Customers Screen Wireframe"
 Cohesion: 0.06
 Nodes (48): Customers Navigation Gap Finding, Restricted Lots KPI Drill-Through Finding, Manual Withdrawal Alert Finding, Alerts Badge, Balance Due Filter, Customer Entity, Customer Records Table, Customers Screen Wireframe (+40 more)
 
 ### Community 24 - "Per-Farm Refresh Cookies"
-Cohesion: 0.16
-Nodes (18): AccessToken, CookieContainer, Farm, TestBrowser, WebApplicationFactoryClientOptions, PerFarmRefreshCookieTests, RefreshAccountBindingTests, TestBrowser (+10 more)
+Cohesion: 0.11
+Nodes (5): Enrolling and replacing a key, AuthSessionContractTests, PerFarmRefreshCookieTests, TestBrowser, RefreshAccountBindingTests
 
-### Community 25 - "Client Error Reporting Endpoint"
-Cohesion: 0.21
-Nodes (9): ClientErrorEndpoints, ClientErrorReport, CancellationToken, HttpRequest, IHttpMaxRequestBodySizeFeature, ILogger, IResult, JsonSerializerOptions (+1 more)
-
-### Community 26 - "Commerce Module Tests"
-Cohesion: 0.07
-Nodes (32): FakeConversions, FakeCustomers, FakeOrders, FakePayments, FakeProducts, CommerceModuleTests, ExpectedItem, ExpectedOrder (+24 more)
-
-### Community 27 - "Index HTML Hiding File Provider"
-Cohesion: 0.12
-Nodes (14): IDirectoryContents, IFileInfo, IFileProvider, IndexHtmlHidingFileProvider, IChangeToken, IndexHtmlHidingFileProviderTests, SpaShellTests, Fact (+6 more)
+### Community 26 - "EggUnitConversion"
+Cohesion: 0.08
+Nodes (24): EggUnitConversionLookup, IEggUnitConversionRepository, EggUnitConversionDetails, IEggUnitConversionLookup, EggUnitConversion, Active, CreatedAtUtc, EggsPerUnit (+16 more)
 
 ### Community 28 - "User Password Admin Tests"
-Cohesion: 0.21
-Nodes (14): StepUpDto, UserPasswordTests, UserRow, AccountId, Admin, DateTimeOffset, Email, Fact (+6 more)
+Cohesion: 0.22
+Nodes (3): UserPasswordTests, StepUpDto, UserRow
 
-### Community 29 - "SPA Auth and Test Setup"
+### Community 29 - "index.ts"
 Cohesion: 0.02
-Nodes (82): i18next, @testing-library/jest-dom, @testing-library/react, @testing-library/user-event, vitest, Account, getAccount(), getMe() (+74 more)
+Nodes (105): putMeLanguage(), archiveFlock(), BirdMovement, depleteFlock(), FlockEligibility, listBirdMovements(), reactivateFlock(), CustomerBalances (+97 more)
 
-### Community 30 - "Identity Transaction Concurrency"
-Cohesion: 0.07
-Nodes (38): Identity transaction and concurrency contract, FailInert, Hash, IRawSqlCommandBuilder, IRelationalCommandDiagnosticsLogger, IRelationalConnection, Replacement, CancellationToken (+30 more)
+### Community 30 - "TwoFactorCredentials"
+Cohesion: 0.04
+Nodes (50): 11. An enrolled user steps up with the password and a code, 12. A wrong code returns 400, never 401, 13. The authenticator key is encrypted with the #794 ring; recovery codes are digests outside it, 14. Code replay is closed by the watermark in Postgres, 15. `AspNetUserTokens` gets the `AspNetUserRoles` tenant treatment before any write, 21. The SPA draws the QR code with `uqr`, 23. Login keeps its hand-written shape instead of `SignInManager`, Decisions (+42 more)
 
-### Community 31 - "Daily Entry Aggregate"
+### Community 31 - "DailyEntry"
 Cohesion: 0.06
-Nodes (44): IMutableRecord, DailyEntry, AdjustedFromJson, AdjustReason, CrackedEggs, CrackedGradeId, CreatedAtUtc, Date (+36 more)
+Nodes (29): DailyEntryStatus, Draft, Locked, ManagerAdjusted, Submitted, Voided, DailyEntry, AdjustedFromJson (+21 more)
 
 ### Community 32 - "Adapter Reach Report"
-Cohesion: 0.05
-Nodes (57): Cells, What happened, HandWrittenCell, StringBuilder, SyntaxTree, AdapterReach, AdapterReachReport, AliasErrors (+49 more)
+Cohesion: 0.06
+Nodes (35): Derived owners (#1074), AdapterReach, AdapterReachReport, AliasErrors, BindingErrors, ContractBypasses, RouteErrors, TopLevelProgramAdapterCount (+27 more)
 
-### Community 33 - "API Hosting and User Commands"
-Cohesion: 0.03
-Nodes (57): Cluckwork.Application.Modules.Access.Users.DisableUser, Cluckwork.Infrastructure.Modules.Farm.Repositories, Cluckwork.Api.Modules.EggOperations, Cluckwork.Api.Modules.Farm.Accounts, Cluckwork.Application.Modules.Access.Users.SetUserPassword, Cluckwork.Api.Modules.EggOperations.EggGrades, Cluckwork.Api.Validation, Cluckwork.Api.Hosting (+49 more)
+### Community 33 - "Cluckwork.Api.Hosting"
+Cohesion: 0.04
+Nodes (10): Cluckwork.Api.Modules.Farm.Accounts, Cluckwork.Api.Hosting, Cluckwork.Api.Configuration, Cluckwork.Api.RateLimiting, Cluckwork.Api.Security, Cluckwork.Api.Modules.Farm, Cluckwork.Api.Middleware, StaticAssetCaching (+2 more)
 
-### Community 34 - "Integration Test Harness"
-Cohesion: 0.09
-Nodes (24): Quantity, CluckworkWebApplicationFactory, ConnectionString, MigrateSchemaOnInitialize, TestHarness, ConcurrentDictionary, DateOnly, Dictionary (+16 more)
-
-### Community 35 - "Disable User Tests"
-Cohesion: 0.19
-Nodes (16): Concurrency, DisableUserTests, StepUpDto, UserRow, AccountId, DateTimeOffset, Email, Fact (+8 more)
-
-### Community 36 - "Adapter Reach Tests"
-Cohesion: 0.13
-Nodes (8): AdapterReachTests, Fact, InlineData, IReadOnlyList, Theory, AdapterClaim, AdapterTier, IReadOnlyDictionary
+### Community 34 - "TestHarness.CreateAuthedClient"
+Cohesion: 0.08
+Nodes (3): Donor, StartedEnrolment, FactorState
 
 ### Community 37 - "Entity Discovery HTTP Contract"
 Cohesion: 0.22
-Nodes (8): Additive Row Responses, Customer Discovery, Error and Paging Semantics, Exact Resolution, Flock Discovery, `GET /api/v1/customers`, `GET /api/v1/flocks`, HTTP Contract: Named Entity Discovery and Row Display
+Nodes (8): Additive Row Responses, Customer Discovery, Error and Paging Semantics, Flock Discovery, `GET /api/v1/customers`, `GET /api/v1/flocks`, HTTP Contract: Named Entity Discovery and Row Display, The defensive `null` name on a non-null id
 
 ### Community 38 - "User Role Change Tests"
-Cohesion: 0.18
-Nodes (16): ChangeUserRoleTests, StepUpDto, UserRow, AccountId, DateTimeOffset, Email, Fact, Guid (+8 more)
+Cohesion: 0.19
+Nodes (3): ChangeUserRoleTests, StepUpDto, UserRow
 
-### Community 39 - "SPA API Post Calls"
-Cohesion: 0.02
-Nodes (106): Behaviour, Out of scope, 2b. Callers, apiPost(), activateEggGrade(), activateInventoryItem(), addOrderItem(), cancelOrder() (+98 more)
+### Community 39 - "McpServerTool"
+Cohesion: 0.03
+Nodes (30): CustomerRow, GradeCount, McpPage, EggLotMovementRow, ProbeTools, ConstructionFaultTools, FaultTools, HangingTools (+22 more)
 
-### Community 40 - "Counting Read Stream"
-Cohesion: 0.09
-Nodes (23): IOptionsSnapshot, CountingReadStream, BytesRead, CanRead, CanSeek, CanWrite, Length, Position (+15 more)
+### Community 40 - "CountingReadStream"
+Cohesion: 0.13
+Nodes (10): FarmLogoRequestBodyCapTests, CountingReadStream, BytesRead, CanRead, CanSeek, CanWrite, Length, Position (+2 more)
 
-### Community 41 - "Redacting Logger Pipeline"
+### Community 41 - "IDisposable"
+Cohesion: 0.08
+Nodes (7): ExceptionRedactingSink, RedactingLoggerPipelineTests, DisposableTrackingSink, Disposed, RedactPasswordPropertyEnricher, BoundedTransientRetryTests, TransientDbResilienceTests
+
+### Community 42 - "OtlpOptions"
 Cohesion: 0.10
-Nodes (20): Config, Di, ILogEventEnricher, ILogEventSink, ConfigDeclaredCollectingSink, Events, DiSink, Events (+12 more)
+Nodes (15): Task 1: Resolve canonical and standard OTLP transport profiles, OtlpOptions, AllowInsecureEndpoint, Enabled, Endpoint, Headers, Protocol, CluckworkTelemetryRegistration (+7 more)
 
-### Community 42 - "OTLP Endpoint Options"
-Cohesion: 0.20
-Nodes (12): OtlpOptions, AllowInsecureEndpoint, Enabled, Endpoint, Headers, Protocol, Uri, OtlpEndpointResolutionTests (+4 more)
-
-### Community 43 - "Test Host Factories"
-Cohesion: 0.05
-Nodes (30): IStartupFilter, IWebHostBuilder, IWebHostBuilder, FakeRemoteIpStartupFilter, IStartupFilter, IWebHostBuilder, IPasswordHasher, IWebHostBuilder (+22 more)
+### Community 43 - "IWebHostBuilder"
+Cohesion: 0.03
+Nodes (31): DefaultResponseCaching, AcceptsOAuthTokensMarker, AccessSeedAuditFailureFactory, AssignmentActor, Roles, UserId, AuditProbe, ClaimsProbe (+23 more)
 
 ### Community 44 - "Payments and Role Matrix Tests"
-Cohesion: 0.10
-Nodes (32): AssignmentRow, Task 1.3: Adapt the endpoint and every raw integration caller, PaymentCreated, PaymentId, PaymentItem, AssignmentRow, AuditRow, Created (+24 more)
+Cohesion: 0.09
+Nodes (11): Task 1.3: Adapt the endpoint and every raw integration caller, RoleMatrixTests, AssignmentRow, AuditRow, Created, CustomerDto, PaymentCreated, PaymentItem (+3 more)
 
-### Community 45 - "Log Redaction Tests"
-Cohesion: 0.17
-Nodes (10): Events, CollectingSink, LogRedactionTests, ConcurrentQueue, Fact, ILogger, InlineData, LogEvent (+2 more)
+### Community 45 - "system_security_cryptography"
+Cohesion: 0.06
+Nodes (9): Cluckwork.Api.Mcp, Cluckwork.Api.Modules.Access.OAuth, Cluckwork.Infrastructure.OAuth, Cluckwork.Api.IntegrationTests.Mcp, McpNames, McpPage, Complete, Items (+1 more)
 
 ### Community 46 - "Table Owner Tests"
 Cohesion: 0.12
-Nodes (14): Child, Other, Parent, FixtureContext, TableOwnerTests, Action, DbContextOptionsBuilder, Dictionary (+6 more)
+Nodes (3): CrossOwnerForeignKey, TableOwnerTests, FixtureContext
 
-### Community 47 - "Egg Ledger Tests"
-Cohesion: 0.16
-Nodes (24): LotRow, MovementRow, Created, EggLedgerTests, EntryDto, LotRow, MovementRow, SubmitDto (+16 more)
+### Community 47 - "EggLedgerTests"
+Cohesion: 0.22
+Nodes (4): EggLedgerTests, Created, EntryDto, SubmitDto
 
-### Community 48 - "Payments Integration Tests"
-Cohesion: 0.15
-Nodes (24): BalanceRow, BalancesDto, OrderPaymentsDto, PaymentDto, BalanceRow, BalancesDto, Created, OrderPaymentsDto (+16 more)
-
-### Community 49 - "Client Error Report Tests"
-Cohesion: 0.13
-Nodes (19): HttpContent, ChunkedContent, ClientErrorReportFactory, Sink, ClientErrorReportTests, CollectingSink, Fact, FakeRemoteIpStartupFilter (+11 more)
-
-### Community 50 - "Customer and Order Tests"
-Cohesion: 0.13
-Nodes (23): CustomerDto, ItemCreatedDto, OrderItemDto, Products, CustomerAndOrderTests, CustomerDto, IdDto, ItemCreatedDto (+15 more)
-
-### Community 51 - "Egg Operations Module Tests"
-Cohesion: 0.09
-Nodes (28): FakeEntries, FakeGrades, EggOperationsModuleTests, FakeEntries, Calls, Rows, FakeGrades, Calls (+20 more)
-
-### Community 52 - "Farm Settings Validation"
+### Community 48 - "PaymentsTests"
 Cohesion: 0.17
-Nodes (8): 1. Fixed decisions (owner's calls, made before implementation), UpdateFarmSettingsValidator, DateTimeOffset, UpdateFarmSettingsCommand, UpdateFarmSettingsValidatorTests, Fact, InlineData, Theory
+Nodes (5): PaymentsTests, BalanceRow, BalancesDto, Created, OrderPaymentsDto
 
-### Community 53 - "Inventory Module Contract"
-Cohesion: 0.11
-Nodes (28): How it is enforced, Put General Inventory behind a contract and keep the feed-usage lock order (#855), The feed-usage order, The rule, What happened, FeedUsageDetails, IInventoryModule, InventoryItemDetails (+20 more)
+### Community 50 - "TestHarness.PostWithKeyAsync"
+Cohesion: 0.06
+Nodes (12): CustomerAndOrderTests, CustomerDto, IdDto, ItemCreatedDto, OrderItemDto, StockDto, DailyEntryGradeTests, EggGradeDto (+4 more)
 
-### Community 54 - "Seam Fixture Interfaces"
-Cohesion: 0.07
-Nodes (29): Flock&gt;&gt;, HandlerContractFixture, IAggregateRootReturnFixture, IAppDbContextParameterFixture, IConcreteAggregateReturnFixture, IDbSetReturnFixture, IDepleteContractFixture, IDtoWithQueryablePropertyFixture (+21 more)
+### Community 51 - "EggGrade"
+Cohesion: 0.06
+Nodes (19): EggGradeLookup, EggGrade, Active, CreatedAtUtc, DailyEntryKind, FarmId, GradeType, IsSaleable (+11 more)
+
+### Community 52 - "Theory"
+Cohesion: 0.04
+Nodes (12): CluckworkSharedStateServiceCollectionExtensions, CurrencyCatalog, CurrencyInfo, AccessLifecycleDependencyTests, AccessSeedDependencyTests, FixturePortRegistrationTests, McpPageTests, SecretCliLoggingGuardTests (+4 more)
+
+### Community 53 - "InventoryTools.RecordFeedUsageAsync"
+Cohesion: 0.08
+Nodes (12): DailyEntryTools, GradeLine, RecordedDailyEntry, SubmittedDailyEntry, FlockTools, RecordedFeedUsage, RecordedWaterUsage, RecordDailyEntryCommand (+4 more)
+
+### Community 54 - "Fact"
+Cohesion: 0.02
+Nodes (19): AccountLockoutTests, AmbientPrincipalOnLoginTests, LogRedactionTests, OtlpExporterHostValidationTests, ProcessRoleRegistryTests, SimulationOptionsBindingTests, SimulationSeederTests, ExpenseCategoryTotalDto (+11 more)
 
 ### Community 55 - "Accounts Table Schema"
-Cohesion: 0.29
+Cohesion: 0.25
 Nodes (7): Columns, Constraints, Indexes, public.Accounts, Relations, Triggers, Viewpoints
 
 ### Community 56 - "i18n Hardcoded String Scanner"
 Cohesion: 0.13
 Nodes (10): ALLOWLIST_PATH, args, ATTR_NAMES, CWD, DEFAULT_PATHS, files, maskAll(), maskLengthPreserving() (+2 more)
 
-### Community 57 - "Persistence Composition"
-Cohesion: 0.05
-Nodes (40): Compose every module through its contract, its fixture port and its own registration file (#858), End state, The rule, What happened, Why not the obvious alternatives, CluckworkPersistenceRegistration, CluckworkPersistenceServiceCollectionExtensions, IConfiguration (+32 more)
-
-### Community 58 - "Module Ledger Tests"
-Cohesion: 0.16
-Nodes (6): EdgeCell, ModuleLedgerTests, Fact, InlineData, IReadOnlyList, Theory
+### Community 57 - "JsonElement"
+Cohesion: 0.11
+Nodes (5): How it is enforced, ValidationProblemDto, OpaqueRow, OAuthConsentTests, OAuthServerTests
 
 ### Community 59 - "Business Record Chronology"
-Cohesion: 0.13
-Nodes (14): Business dates, row timestamps, and list sequences are separate facts (#819), Existing rows, Migration and enforcement, Sales line display order (#906), The rule, What happened, Why PostgreSQL owns the timestamps, ICreatedRecord (+6 more)
+Cohesion: 0.16
+Nodes (11): Business dates, row timestamps, and list sequences are separate facts (#819), Existing rows, Migration and enforcement, Sales line display order (#906), The rule, What happened, Why PostgreSQL owns the timestamps, ICreatedRecord (+3 more)
 
-### Community 60 - "Feed Inventory Movement Tests"
-Cohesion: 0.13
-Nodes (29): EntryVersionDto, HouseId, ItemDto, MovementDto, MovementWithRef, Created, EntryVersionDto, FeedUsageTests (+21 more)
+### Community 60 - "FeedUsageTests"
+Cohesion: 0.06
+Nodes (12): FeedUsageTests, Created, EntryVersionDto, ItemDto, LotCreated, MovementWithRef, UsageResponse, InventoryTests (+4 more)
 
 ### Community 61 - "Production Day Strip"
-Cohesion: 0.03
-Nodes (110): listOrders(), ProductionDay, ProductionReport, StockRow, DaySlots(), DayLegend(), DayReadout(), data (+102 more)
+Cohesion: 0.02
+Nodes (161): ExpenseSummaryReport, getExpenseSummary(), getProductionReport(), getProfitReport(), getSalesSummary(), ProductionDay, ProductionReport, ProfitReport (+153 more)
 
 ### Community 62 - "Vulnerability Gate Script"
 Cohesion: 0.12
 Nodes (34): advisoryId(), badInput(), canonicalGhsa(), dedupe(), describe(), ECOSYSTEMS, emitAllowlist(), exceptionProblem() (+26 more)
 
-### Community 63 - "Flock Scope Middleware"
-Cohesion: 0.10
-Nodes (27): Task 1: `FlockScope` service + middleware (no filters yet), HttpContext, IExceptionHandlerFeature, Task, FlockScope, AssignedFlockIds, IsResolved, IsUnrestricted (+19 more)
+### Community 63 - "FlockScopeTests"
+Cohesion: 0.05
+Nodes (18): 9. Tests, Global Constraints, Mutation checks (run after all tasks, on the final commit), Task 1: `FlockScope` service + middleware (no filters yet), Task 2: 8 query filters on `AppDbContext`, Task 4: Docs + E2E, FlockScopeReassignmentException, FlockScopeMiddlewareTests (+10 more)
 
 ### Community 64 - "Product Spec and Glossary"
-Cohesion: 0.08
-Nodes (27): Product Spec Changelog (v4.3 rename / v4.4 corrections), Cluckwork Glossary, Audit Log (#93), Bird Movement Ledger (Mortality/Cull/Adjustment), Currency Change Rule (spec §4.6, extended), Egg Movement Ledger (#101), Farm Logo (#123), Flock Lifecycle (Active/Depleted/Archived) (+19 more)
-
-### Community 65 - "Fake OTLP Collector Tests"
-Cohesion: 0.17
-Nodes (14): 2a. RED — add both regression tests first — PROTECTED, MUTATION CHECKS — prove the guards bite, Rules, ObjectDisposedException, Func, Task, TimeSpan, FakeOtlpCollectorTests (+6 more)
-
-### Community 66 - "Flock Endpoints"
-Cohesion: 0.10
-Nodes (31): Cluckwork.Api.Modules.FlockManagement.Flocks, BirdMovementResponse, CreateFlockRequest, FlockEndpoints, FlockResponse, RecordBirdMovementRequest, UpdateFlockRequest, CancellationToken (+23 more)
-
-### Community 67 - "Farm-Local Date Boundary Tests"
-Cohesion: 0.16
-Nodes (19): ProductionDayDto, FarmLocalBoundaryBehindUtcTests, FrozenClock, TodayUtc, UtcNow, IdDto, ProblemDto, ProductionDayDto (+11 more)
-
-### Community 68 - "Daily Entry Domain Tests"
-Cohesion: 0.17
-Nodes (4): GradeQuantity, DailyEntryTests, Fact, Guid
-
-### Community 69 - "Inventory Domain Tests"
-Cohesion: 0.17
-Nodes (5): InventoryTests, ArgumentException, ArgumentOutOfRangeException, DateOnly, Fact
-
-### Community 70 - "EF Migration Snapshot 1"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 71 - "Sales Order Endpoints"
-Cohesion: 0.14
-Nodes (24): Caller ledger, per commit boundary, IAuthorizationService, AddOrderItemRequest, ConfirmSaleRequest, CreateSalesOrderRequest, SaleEndpoints, SalesOrderItemResponse, SalesOrderResponse (+16 more)
-
-### Community 72 - "Inventory Movement Repository"
 Cohesion: 0.06
-Nodes (37): IInventoryMovementRepository, CancellationToken, Guid, IReadOnlyList, Task, InventoryMovement, CreatedAtUtc, Date (+29 more)
+Nodes (27): How it is enforced, Scale a sales line's list price to its unit, rounded up (#1160), The rule, What happened, What this does NOT cover, Why not the obvious alternative, Product Spec Changelog (v4.3 rename / v4.4 corrections), Cluckwork Glossary (+19 more)
 
-### Community 73 - "Catalog Integration Tests"
-Cohesion: 0.20
-Nodes (18): ConversionRow, ProductRow, AuditRow, CatalogTests, ConversionRow, Created, ProductRow, AccountId (+10 more)
+### Community 65 - "Exception"
+Cohesion: 0.07
+Nodes (17): INCREMENT 7 — the test header names the shipped hook (Mechanical, comment only), 2a. RED — add both regression tests first — PROTECTED, Caller ledger, Task 2: Override SDK-parsed transport fields and preserve process-role behavior, BootstrapBackendLossFailsClosedTests, CapturedOtlpRequest, FakeOtlpCollector, AbortedExportCountForTest (+9 more)
 
-### Community 74 - "Currency Lock Serialization Tests"
-Cohesion: 0.32
-Nodes (6): IsolationLevel, CurrencyLockSerializationTests, Exception, Fact, Guid, Task
-
-### Community 75 - "Admin Role Gating Tests"
-Cohesion: 0.14
-Nodes (19): AdminGatingTests, Created, StepUpDto, UserRow, AccountId, Admin, DateOnly, DateTimeOffset (+11 more)
-
-### Community 76 - "Currency Lock Race Tests"
-Cohesion: 0.24
-Nodes (11): Seeded, CurrencyLockRaceTests, StampingHandlers, Seeded, Fact, Guid, IServiceProvider, MemberData (+3 more)
-
-### Community 77 - "Inventory Repository Fakes"
+### Community 66 - "Cluckwork.Application.Modules.FlockManagement.Contracts"
 Cohesion: 0.09
-Nodes (30): FakeFeedUsages, FakeItems, FakeWaterUsages, FakeFeedUsages, Calls, Rows, FakeItems, Calls (+22 more)
+Nodes (15): Cluckwork.Application.Modules.FlockManagement.Flocks.UpdateFlock, Cluckwork.Domain.Tests.Flocks, Cluckwork.Application.Modules.FlockManagement.Flocks, Cluckwork.Infrastructure.Modules.FlockManagement.Repositories, Cluckwork.Application.Modules.FlockManagement.Flocks.RecordBirdMovement, Cluckwork.Application.Modules.FlockManagement.Flocks.ReactivateFlock, Cluckwork.Domain.Modules.FlockManagement.Flocks, Cluckwork.Domain.Modules.FlockManagement.Contracts (+7 more)
 
-### Community 78 - "Audit Trail Tests"
-Cohesion: 0.15
-Nodes (23): AuditRow, EntryDto, PaymentRow, PaymentsPage, AuditRow, AuditTests, Created, EntryDto (+15 more)
+### Community 67 - "FarmLocalBoundaryBehindUtcTests"
+Cohesion: 0.12
+Nodes (4): FarmLocalBoundaryBehindUtcTests, IdDto, ProblemDto, ProductionDayDto
+
+### Community 70 - "RecordDailyEntryToolTests"
+Cohesion: 0.09
+Nodes (6): How it is enforced, User, McpWriteToolsTests, RecordDailyEntryToolFaultTests, RecordDailyEntryToolTests, Farm
+
+### Community 71 - "Type"
+Cohesion: 0.07
+Nodes (6): Excuse, McpToolSurface, McpToolSurfaceTests, IgnoredRow, RawAmountRow, SecondaryScopeWalk
+
+### Community 72 - "RedactedCredentialTypesTests"
+Cohesion: 0.04
+Nodes (26): CredentialTypes, OpenApiResponseComment, RedactedCredentialTypesTests, AcronymKey, AllCaps, CapturesAKey, Envelope, InheritsAPrinter (+18 more)
+
+### Community 73 - "CatalogTests"
+Cohesion: 0.16
+Nodes (5): CatalogTests, AuditRow, ConversionRow, Created, ProductRow
+
+### Community 74 - "OwnerTwoFactorGateTests"
+Cohesion: 0.08
+Nodes (17): IOwnerGraceStart, EnrolledSessionCapTests, SecondFactorFactory, BeforeCommand, Clock, CommandFault, CommitFault, Sink (+9 more)
+
+### Community 75 - "HttpClient"
+Cohesion: 0.08
+Nodes (10): AdminGatingTests, Created, StepUpDto, UserRow, KestrelResponseWriteTests, IdDto, SalesOrderAuditPayloadTests, AddedItemDto (+2 more)
+
+### Community 77 - "McpSecondaryScopeTests"
+Cohesion: 0.06
+Nodes (16): Deliberately not guarded, with reasons, Guards — synthesized design, #770, Transport and blast radius, Where these guards stop, stated plainly, McpSecondaryScopeTests, BridgeOnlyTool, DelegateHelper, DelegateHelperTool (+8 more)
+
+### Community 78 - "AuditTests"
+Cohesion: 0.10
+Nodes (8): AuditTests, Created, EntryDto, PaymentRow, PaymentsPage, ProductAuditPayloadTests, AuditRow, IdDto
 
 ### Community 79 - "Read Endpoint DTOs"
-Cohesion: 0.12
-Nodes (32): GradeLineDto, OrderBasisDto, OrderBasisLineDto, OrderMoneyDto, PaymentRowDto, PaymentsPageDto, StockDto, EntryDto (+24 more)
+Cohesion: 0.07
+Nodes (11): ReadEndpointTests, EntryDto, GradeLineDto, IdDto, OrderBasisDto, OrderBasisLineDto, OrderItemDto, OrderMoneyDto (+3 more)
 
 ### Community 80 - "k6 Manager Load Script"
-Cohesion: 0.20
-Nodes (26): The canonical pattern being copied, maybeRefresh(), warmupFn(), dashboard(), deepLinkProbe(), history(), makeIdemKeyFactory(), reports() (+18 more)
+Cohesion: 0.17
+Nodes (37): maybeRefresh(), warmupFn(), auditBundle(), authedGet(), customerBalances(), customersBundle(), dashboard(), DEEP_LINK_TARGETS (+29 more)
 
-### Community 81 - "Audit Endpoints"
-Cohesion: 0.20
-Nodes (8): What both issues were actually asking, AuditEndpoints, CancellationToken, DateOnly, Guid, IResult, RouteGroupBuilder, Task
-
-### Community 82 - "OTLP Secure Endpoint Guard"
-Cohesion: 0.31
-Nodes (5): OtlpProductionFailureFactory, OtlpSecureEndpointGuardTests, Exception, Fact, IWebHostBuilder
-
-### Community 83 - "Simulation Seeder Design Review"
+### Community 81 - "RedactedToStringTests"
 Cohesion: 0.06
-Nodes (75): BeddingItemId, BeddingLotId, Category, DefaultUnitCostMinorUnits, Slices, Flow, Call stack, Mutation check — the method, which changed (+67 more)
+Nodes (9): RedactedToString, RedactedToStringTests, Accepted, Concat, FieldLoad, HelperCall, OtherTracker, StateDependent (+1 more)
 
-### Community 84 - "Inventory Item Repository"
+### Community 83 - "git_guard.py"
 Cohesion: 0.07
-Nodes (38): IInventoryItemRepository, InventoryStock, CancellationToken, Guid, IReadOnlyList, Task, SetInventoryItemActiveHandler, InventoryCategory (+30 more)
+Nodes (29): block(), Blocked, cd_dir(), changes_shallow_state(), check(), check_gh(), check_gh_api(), check_git() (+21 more)
 
-### Community 85 - "Response Cache Control Tests"
-Cohesion: 0.26
-Nodes (8): CacheControlHeaderValue, ResponseCacheControlTests, Client, Email, Fact, HttpClient, HttpResponseMessage, Task
+### Community 84 - "InventoryItem"
+Cohesion: 0.03
+Nodes (36): InventoryItemDetails, InventoryItem, Active, Category, CreatedAtUtc, DefaultUnitCost, FarmId, Name (+28 more)
 
 ### Community 86 - "SPA TypeScript Config"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowImportingTsExtensions, jsx, lib, module, moduleDetection, moduleResolution, noEmit (+10 more)
 
-### Community 87 - "Redacting Logger Pipeline"
-Cohesion: 0.11
-Nodes (16): ConfigurationReloadToken, 1. Redaction at ingestion, IConfigurationProvider, IConfigurationRoot, IConfigurationSection, LoggerConfiguration, RedactingLoggerPipeline, ReloadableFilteredConfiguration (+8 more)
+### Community 87 - "mcp/client.ts"
+Cohesion: 0.06
+Nodes (40): RFC-8707, Approval, and what "unapproved" means, @modelcontextprotocol/sdk, playwright, Clock, CODE_STEP_HINT, codeSteps(), decodeBase32() (+32 more)
 
-### Community 88 - "Credential Epoch Reads"
-Cohesion: 0.08
-Nodes (32): ActiveBearer, Entered, Fault, Release, ActiveBearer, CredentialEpochFreshReadFactory, CredentialReads, CredentialEpochFreshReadTests (+24 more)
+### Community 88 - "Domain surface"
+Cohesion: 0.10
+Nodes (11): Domain surface, CustomerBalanceRow, SalesOrderLine, SalesOrderRow, DailyEntryRow, FlockRow, McpMoney, StockRow (+3 more)
 
-### Community 89 - "Sales and Inventory Schema Docs"
-Cohesion: 0.27
+### Community 89 - "Sales & finance"
+Cohesion: 0.50
 Nodes (4): Description, Relations, Sales & finance, Tables
 
 ### Community 90 - "Sales Product Tests"
-Cohesion: 0.15
-Nodes (25): ItemCreated, OrderDto, SettingsView, AccountView, ConversionRow, Created, ItemCreated, ItemDto (+17 more)
-
-### Community 91 - "Integration Test Flake Findings"
-Cohesion: 0.07
-Nodes (28): Connection, Change, #840 findings — four remaining integration flakes, Lane C — `StealLossConnectionReleaseTests` (Npgsql `Authenticate` timeout), Lane D — harness current state, What follows from this, D6: correctness boundary for a future split, S3: database boundaries and resource checks (+20 more)
-
-### Community 92 - "Auth Body Limit Tests"
-Cohesion: 0.23
-Nodes (8): Detail, AuthBodyLimitTests, Fact, HttpRequestMessage, HttpResponseMessage, Status, Task, Title
-
-### Community 93 - "Audit Actor and Flock Scoping"
-Cohesion: 0.02
-Nodes (143): AssignmentActor, AssignmentAuditFailure, Nothing writes an audit event without an actor (#500), The rule, The trap: an actor is an authorization input, not a label, What happened, 10. Documentation surfaces, 1. Goal (+135 more)
-
-### Community 94 - "Expense Endpoints"
-Cohesion: 0.12
-Nodes (27): Cluckwork.Api.Modules.Finance.Expenses, AdjustExpenseRequest, CreateExpenseCategoryRequest, CreateExpenseRequest, ExpenseCategoryResponse, ExpenseEndpoints, ExpenseListResponse, ExpenseResponse (+19 more)
-
-### Community 95 - "Flock Scope Tests"
 Cohesion: 0.13
-Nodes (24): 9. Tests, Mutation checks (run after all tasks, on the final commit), EggMovementRow, FlockDiscoveryRow, StepUpDto, DailyEntryRow, EggMovementRow, Fixture (+16 more)
+Nodes (7): SalesProductTests, AccountView, ConversionRow, Created, ItemCreated, ItemDto, SettingsView
 
-### Community 96 - "Egg Grade Endpoints"
-Cohesion: 0.14
-Nodes (21): CreateEggGradeRequest, EggGradeEndpoints, UpdateEggGradeRequest, CancellationToken, Guid, IResult, IValidator, RouteGroupBuilder (+13 more)
+### Community 91 - "StealLossConnectionReleaseTests"
+Cohesion: 0.17
+Nodes (7): #840 findings — four remaining integration flakes, Lane C — `StealLossConnectionReleaseTests` (Npgsql `Authenticate` timeout), Lane D — harness current state, What follows from this, S3: database boundaries and resource checks, DmlOnlyRole, StealLossConnectionReleaseTests
 
-### Community 97 - "Access Ownership Claims"
-Cohesion: 0.07
-Nodes (32): CSharpParseOptions, Diagnostic, ProjectFile, SortedDictionary, AccessOwnershipClaimTests, InlineData, Theory, Type (+24 more)
+### Community 92 - "AuthBodyLimitTests"
+Cohesion: 0.08
+Nodes (9): AuthBodyLimitTests, NonSeekableStream, CanRead, CanSeek, CanWrite, Length, Position, KestrelRequestBodyLimitTests (+1 more)
 
-### Community 98 - "Bird Movement Tests"
-Cohesion: 0.16
-Nodes (19): FlockDto, IdDto, BirdMovementTests, FlockDto, IdDto, MovementDto, AccountId, Client (+11 more)
+### Community 93 - "AuditWriter"
+Cohesion: 0.02
+Nodes (95): Nothing writes an audit event without an actor (#500), The rule, The trap: an actor is an authorization input, not a label, What happened, 10. Documentation surfaces, 1. Goal, 4. Conflict table (Phase 3), 5. Invariants and enforcement sites (Phase 3) (+87 more)
 
-### Community 99 - "General Inventory Commands"
-Cohesion: 0.06
-Nodes (33): GeneralInventoryModuleServiceCollectionExtensions, IServiceCollection, IValidator, CreateInventoryItemCommand, RecordAdjustmentCommand, DateOnly, Guid, RecordPurchaseCommand (+25 more)
+### Community 94 - "ExpenseTools.RecordExpenseAsync"
+Cohesion: 0.23
+Nodes (3): RecordedExpense, RecordedPurchase, CreateExpenseCommand
 
-### Community 100 - "Sales Order Discount Ceiling"
+### Community 95 - "with"
 Cohesion: 0.05
-Nodes (40): CeilingBreach, DiscountReason, LineCeilingStatus, Exceeds, Unmeasurable, Within, SalesOrder, CreatedAtUtc (+32 more)
+Nodes (47): environment, name, needs, permissions, runs-on, steps, if, name (+39 more)
 
-### Community 101 - "Farm-Local Date Boundary Tests"
-Cohesion: 0.19
-Nodes (14): FarmLocalBoundarySweepTests, FrozenClock, TodayUtc, UtcNow, IdDto, AccountId, Client, DateOnly (+6 more)
-
-### Community 102 - "Adapter Reach Scanner"
-Cohesion: 0.10
-Nodes (28): ExpressionElementSyntax, GlobalStatementSyntax, ParameterSyntax, ProgramRoute, AdapterReachScanner, ProgramRoute, BaseMethodDeclarationSyntax, Claim (+20 more)
-
-### Community 103 - "SPA Styles and Code Splitting"
-Cohesion: 0.03
-Nodes (79): 2.2 `styles.css` rule families, 2.3 The ten bare element selectors, at six sites, 2.4 Every drop shadow and every uppercase, today, 2.5 The navigation model, 2.6 The theme bridge, 2. Inventories. Walked, not recalled, D5. The IA. Keep the model, change the renderers, Files (+71 more)
-
-### Community 104 - "UI Library Decision"
-Cohesion: 0.03
-Nodes (106): 674 — Adopt a UI component library, and which one, Amendment (2026-09-14), Consequences, The constraint everyone expected to be decisive, and why it was not, The cost, measured rather than predicted, The decision, What is NOT decided here, What the spike proved about migration cost (+98 more)
-
-### Community 105 - "Flock Domain Tests"
-Cohesion: 0.26
-Nodes (4): FlockTests, ArgumentException, ArgumentOutOfRangeException, Fact
-
-### Community 106 - "User Email Change"
+### Community 97 - "SyntaxNode"
 Cohesion: 0.06
-Nodes (54): Mutation rows reserved for driver Phase 11, FarmCode, IdentitySnapshot, OwnerId, ChangeUserEmailCommand, Guid, ChangeUserEmailValidator, ChangeUserEmailFinalSaveFactory (+46 more)
+Nodes (9): What this does NOT cover, AdapterReachScanner, ProgramRoute, CrossOwnerEdge, GlobalModuleImport, ModuleLedgerScanner, Attribution, Claim (+1 more)
+
+### Community 98 - "environment"
+Cohesion: 0.04
+Nodes (45): environment, AllowedHosts, ASPNETCORE_URLS, ConnectionStrings__Default, Database__AllowInsecureConnection, Database__MigrateOnStartup, Database__Provider, Database__ThrowQueryShapeWarnings (+37 more)
+
+### Community 99 - "AbstractValidator"
+Cohesion: 0.07
+Nodes (15): 3.1 `AddOrderItemHandler` — the Add path carries the real line id, AddOrderItemValidator, UpdateOrderItemValidator, VoidPaymentValidator, AdjustDailyEntryValidator, VoidDailyEntryValidator, RecordEggLotMovementValidator, CreateExpenseCategoryValidator (+7 more)
+
+### Community 100 - "SalesOrder"
+Cohesion: 0.03
+Nodes (68): 3.2 `UpdateOrderItemHandler.cs:30`, 3.3 The enum is written as a NAME, not a number, 3. The design, 4. Invariants, 5. Ownership map (epic #719), 6. Conflict table, #722 — Price change in the sales-line audit payload · design, 7. What this design hedges about, and the predictions to test (+60 more)
+
+### Community 101 - "steps"
+Cohesion: 0.05
+Nodes (41): name, runs-on, steps, timeout-minutes, default, description, type, env (+33 more)
+
+### Community 102 - "OAuthServerRegistration.AddAccessOAuthServer"
+Cohesion: 0.08
+Nodes (16): A farm switch for app connections, DCR in today's clients, How it is enforced, Let OAuth clients register themselves, and sweep dead OAuth rows (#797), Registration mechanisms, checked against the MCP specification, The sweep, What happened, What the validator accepts (+8 more)
+
+### Community 103 - "vitest"
+Cohesion: 0.02
+Nodes (134): 2.2 `styles.css` rule families, 2.3 The ten bare element selectors, at six sites, 2.4 Every drop shadow and every uppercase, today, 2.5 The navigation model, 2.6 The theme bridge, 2.7 Layout census per route, 2. Inventories. Walked, not recalled, D5. The IA. Keep the model, change the renderers (+126 more)
+
+### Community 104 - "cssTokens.ts"
+Cohesion: 0.06
+Nodes (42): css, MODES, blocks, css, CAPS_ALLOWED, clean(), css, declarationsFor() (+34 more)
+
+### Community 106 - "ChangeUserEmailTests"
+Cohesion: 0.18
+Nodes (5): ChangeUserEmailCommand, ChangeUserEmailValidator, ChangeUserEmailTests, IdentitySnapshot, StepUpDto
 
 ### Community 107 - "Legacy Import Wizard"
 Cohesion: 0.13
 Nodes (20): Sales History Import Type Confirmed Finding, Backdated Flag, Column Mapping, CSV/Excel Upload, Customers Import Type, Customers Import Type, Download Template Action, Existing Flocks Import Type (+12 more)
 
-### Community 108 - "User Management Endpoints"
-Cohesion: 0.05
-Nodes (48): Cluckwork.Api.Modules.Access.Users, 3. API surface, AssignFlockRequest, ChangeUserEmailRequest, ChangeUserRoleRequest, CreateUserRequest, DisableUserRequest, FlockAssignmentResponse (+40 more)
+### Community 108 - "CancellationToken"
+Cohesion: 0.01
+Nodes (93): Consent, What happened, How it is enforced, How it is enforced, How it is enforced, How it is enforced, The currency probe waits for Commerce, Application and HTTP shape (+85 more)
 
 ### Community 109 - "Sales Discount Ceiling Tests"
-Cohesion: 0.20
-Nodes (18): AccountDto, Fixture, IdDto, OrderDto, OrderItemDto, ProblemDto, SalesDiscountCeilingTests, Available (+10 more)
+Cohesion: 0.18
+Nodes (6): SalesDiscountCeilingTests, AccountDto, Fixture, IdDto, OrderItemDto, ProblemDto
 
-### Community 110 - "Expense Categories"
+### Community 110 - "Expense"
+Cohesion: 0.03
+Nodes (37): How it is enforced, Amendment, 2026-10-06: no `Implementations` allowance (#1087), How it is enforced, Register every read of a contracted module's tables from outside it (#850), The rule, What this does NOT cover, Why not the obvious alternative, CreateExpenseCategoryCommand (+29 more)
+
+### Community 111 - "StubAccounts"
+Cohesion: 0.28
+Nodes (8): FarmClock, FarmTimeZoneException, FarmClockTests, FrozenClock, TodayUtc, UtcNow, StubAccounts, Calls
+
+### Community 112 - "OAuthClientRegistrationTests"
 Cohesion: 0.09
-Nodes (27): FakeCategories, FakeExpenses, ExpenseCategory, Active, CreatedAtUtc, FarmId, Name, UpdatedAtUtc (+19 more)
-
-### Community 111 - "Farm Clock Time Zone"
-Cohesion: 0.19
-Nodes (14): FarmTimeZoneException, FarmClockTests, FrozenClock, TodayUtc, UtcNow, StubAccounts, Calls, CancellationToken (+6 more)
-
-### Community 112 - "Flock Management Tests"
-Cohesion: 0.25
-Nodes (12): FlockDto, FlockManagementTests, IdDto, AccountId, Client, DateOnly, Fact, Guid (+4 more)
+Nodes (6): Amendment, 2026-10-14: only `none` is advertised, and a document's list is read (#1294), ClientMetadataDocuments, Descriptor, OAuthClientRegistrationTests, Names, WiderGrants
 
 ### Community 113 - "Idempotency and Me Endpoints"
-Cohesion: 0.14
-Nodes (16): MeRow, IdempotencyUserScopeTests, MeRow, Fact, Guid, Task, MeEndpointsTests, MeRow (+8 more)
+Cohesion: 0.12
+Nodes (4): IdempotencyUserScopeTests, MeRow, MeEndpointsTests, MeRow
 
-### Community 114 - "Validation Response Errors"
-Cohesion: 0.26
-Nodes (7): Codes, Errors, Dictionary, ValidationResult, ValidationResponseTests, ValidationResult, ValidationFailure
-
-### Community 115 - "Audit Entity History Status"
-Cohesion: 0.02
-Nodes (106): Behaviour, Files, Slice A — Audit (#666), The delicate part, 4a. RED — pin the new action's label in every locale, Feature complete — all 6 slices shipped, Gate 2 corrections to Gate 1 (factual, from reading the actual code), Notes for a fresh session (+98 more)
+### Community 115 - "enums.ts"
+Cohesion: 0.03
+Nodes (112): Behaviour, Files, Slice A — Audit (#666), The delicate part, 4c. GREEN — the Audit UI offers it, Feature complete — all 6 slices shipped, Gate 2 corrections to Gate 1 (factual, from reading the actual code), Notes for a fresh session (+104 more)
 
 ### Community 116 - "SPA Runtime Dependencies"
-Cohesion: 0.05
-Nodes (38): dependencies, @emotion/cache, @emotion/react, @emotion/styled, @fontsource-variable/inter, i18next, lucide-react, @mui/material (+30 more)
+Cohesion: 0.03
+Nodes (73): @babel/parser, @emotion/cache, @emotion/react, @emotion/styled, @fontsource-variable/inter, jsdom, postcss-selector-parser, react-dom (+65 more)
 
 ### Community 117 - "TypeScript Node Config"
 Cohesion: 0.12
 Nodes (15): compilerOptions, allowImportingTsExtensions, lib, module, moduleDetection, moduleResolution, noEmit, noUnusedLocals (+7 more)
 
-### Community 118 - "Refresh Token Grace Races"
+### Community 118 - "AuditConnectedAppTests"
 Cohesion: 0.11
-Nodes (18): RefreshClockAnomalyGraceDisabledFactory, RefreshClockAnomalyGraceDisabledTests, RefreshGraceClockRaceFactory, Barrier, RefreshGraceClockRaceTests, RefreshReadBarrierInterceptor, CancellationToken, CommandEventData (+10 more)
+Nodes (7): OAuthScopeRequirement, AnyOf, ConnectedApp, AuditConnectedAppTests, AuditRow, Created, TestScopes
 
 ### Community 119 - "Simulation Seed Owner Tests"
-Cohesion: 0.11
-Nodes (27): 1b. GREEN — the seam (PROTECTED) and the generated migration, IClassFixture, MutableClock, DemoSeedOnlyDisabledOwnerFactory, DemoSeedOnlyDisabledOwnerTests, SimulationBaseDataAndOwnerBothMissingTests, SimulationDisabledCastMemberTests, SimulationDisabledCoOwnerTests (+19 more)
+Cohesion: 0.05
+Nodes (24): Results, Row 12: the mutation the test was written for, and survived, Row 16: a load-bearing line no test covers, stated rather than assumed, Rows added by the final review (2026-08-12), The recorded mutation run (2026-08-12), 1b. GREEN — the seam (PROTECTED) and the generated migration, DemoSeedOnlyDisabledOwnerFactory, DemoSeedOnlyDisabledOwnerTests (+16 more)
 
-### Community 120 - "Durable Job Worker Health"
-Cohesion: 0.12
-Nodes (20): DurableJobWorkerHealthCheck, CancellationToken, HealthCheckContext, HealthCheckResult, Task, TimeProvider, TimeSpan, DurableJobWorkerHealthCheckTests (+12 more)
+### Community 120 - "DurableJobWorkerResilienceTests.Worker"
+Cohesion: 0.42
+Nodes (3): AlwaysLeaderLease, DurableJobWorkerResilienceTests, ThrowingScopeFactory
 
-### Community 121 - "Egg Grade Management Tests"
-Cohesion: 0.23
-Nodes (13): GradeDto, EggGradeManagementTests, FlockDto, GradeDto, IdDto, AccountId, Client, Fact (+5 more)
+### Community 121 - "Fixture"
+Cohesion: 0.05
+Nodes (34): Fixture, AccountId, ActiveFlock, ActiveName, ArchivedFlock, ArchivedName, CategoryId, CustomerA (+26 more)
 
 ### Community 122 - "Expenses Integration Tests"
-Cohesion: 0.23
-Nodes (15): CategoryDto, ExpenseDto, ListDto, CategoryDto, Created, ExpenseDto, ExpensesTests, ListDto (+7 more)
-
-### Community 123 - "Reports Integration Tests"
-Cohesion: 0.17
-Nodes (16): Created, ProductionDto, ProfitDto, SalesDto, Created, DayRow, EntryVersion, GradeRow (+8 more)
-
-### Community 124 - "Water Usage Tests"
 Cohesion: 0.19
-Nodes (16): Row, RowWithEntry, Created, Row, RowWithEntry, WaterUsageTests, AccountId, Client (+8 more)
+Nodes (4): ExpensesTests, CategoryDto, Created, ListDto
+
+### Community 123 - "Created"
+Cohesion: 0.06
+Nodes (11): ReportsTests, Created, DayRow, EntryVersion, GradeRow, ProductionDto, ProfitDto, SalesDto (+3 more)
+
+### Community 124 - "DataProtectionKeyRewrapTests"
+Cohesion: 0.10
+Nodes (7): DataProtectionKeyRewrapTests, C, MemoryRepository, Rows, Pair, Sha256, Row
 
 ### Community 125 - "Water Usage Repository"
-Cohesion: 0.06
-Nodes (35): IWaterUsageRepository, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, WaterSource, Municipal (+27 more)
+Cohesion: 0.07
+Nodes (24): RecordWaterUsageValidator, UpdateWaterUsageValidator, WaterSource, Municipal, Other, Tank, Well, WaterUsage (+16 more)
 
 ### Community 126 - "Agent Brief Conventions"
-Cohesion: 0.13
-Nodes (19): Asymmetric JWT Auth, AGENTS.md — Cluckwork Agent Brief, Documentation-in-Sync Directive, FluentValidation Validation, Git / PR Workflow, Graphify Usage Rules, Handler per Feature (No MediatR), Integration Tests via Testcontainers (+11 more)
-
-### Community 127 - "Expense Domain Tests"
-Cohesion: 0.19
-Nodes (8): Cluckwork.Domain.Tests.Expenses, ExpenseCategoryTests, ExpenseTests, ArgumentException, DateOnly, Fact, InlineData, Theory
-
-### Community 128 - "Farm Logo Endpoints"
-Cohesion: 0.13
-Nodes (16): EntityTagHeaderValue, FarmLogoRequestBodyCap, FarmLogoUploadCapMetadata, IApplicationBuilder, IHttpMaxRequestBodySizeFeature, IOptionsSnapshot, FarmLogoEndpoints, FarmLogoResponse (+8 more)
-
-### Community 129 - "Admin Provisioning and Policies"
-Cohesion: 0.09
-Nodes (26): AuthorizationOptions, First-run admin provisioning: the `bootstrap-admin` verb (#283), The verb's own audit row names a system actor (#500), 4. Enforcement, The per-request check is a credential epoch, not the disabled flag, AuthPolicies, AdminRecoveryResult, FirstRunAdminOutcome (+18 more)
-
-### Community 130 - "Data Export Tests"
-Cohesion: 0.18
-Nodes (13): AuditRow, Created, ExportTests, AccountId, Client, Fact, FarmId, FlockId (+5 more)
-
-### Community 131 - "Adapter Tier Scanner"
 Cohesion: 0.11
-Nodes (23): AliasDirective, ProjectNamespace, Relative, Root, AdapterTierReport, AdapterTierScanner, AliasDirective, SurfaceCallSite (+15 more)
+Nodes (22): Asymmetric JWT Auth, AGENTS.md — Cluckwork Agent Brief, Documentation-in-Sync Directive, FluentValidation Validation, Git / PR Workflow, Graphify Usage Rules, Handler per Feature (No MediatR), Integration Tests via Testcontainers (+14 more)
 
-### Community 132 - "Report DTOs and Simulation Provisioning"
-Cohesion: 0.04
-Nodes (69): ActorExpectation, Test plan, Increment 2 — explicit trusted simulation provisioning, Task 2.1: Add the audit-detail regression test first, Task 2.2: Remove the trusted caller from the interactive handler, Task 2.3: Verify simulation parity and kill the audit mutations, ExpenseCategoryTotalDto, ExpenseSummaryDto (+61 more)
+### Community 128 - "updates"
+Cohesion: 0.06
+Nodes (35): prefix, prefix-development, dependency-type, patterns, update-types, patterns, exclude-patterns, patterns (+27 more)
 
-### Community 133 - "Roslyn Guard Reviews"
-Cohesion: 0.07
-Nodes (30): AccessorDeclarationSyntax, AssignmentExpressionSyntax, BaseParameterListSyntax, BasePropertyDeclarationSyntax, Allow-list, Claude re-review (PR #584, fixes re-refuted, 3 defects fixed), Codex review findings (PR #584, all fixed and re-verified), Implementation resolution (2026-08-22, after driver-direct build) (+22 more)
-
-### Community 134 - "Account Provisioning"
+### Community 129 - "ClientMetadataTests"
 Cohesion: 0.12
-Nodes (21): ProvisionInput, AccountProvisionOutcome, AccountProvisioner, ProvisionInput, CancellationToken, DbUpdateException, Guid, Task (+13 more)
+Nodes (6): Why the code is in a Platform namespace, ClientMetadata, OfferedAuthMethods, ClientRegistrationRequest, ClientMetadataTests, DocumentsNotOfferingNone
 
-### Community 135 - "Daily Entry Grade Tests"
-Cohesion: 0.30
-Nodes (7): EggGradeDto, DailyEntryGradeTests, EggGradeDto, Fact, Guid, List, Task
+### Community 130 - "ExportTests"
+Cohesion: 0.21
+Nodes (3): ExportTests, AuditRow, Created
 
-### Community 136 - "Adapter Tier Tests"
-Cohesion: 0.19
-Nodes (4): AdapterTierTests, Fact, InlineData, Theory
+### Community 131 - "AdapterTierScanner.Scan"
+Cohesion: 0.11
+Nodes (7): TrackedMutationReadTests, AdapterTierReport, AdapterTierScanner, AliasDirective, SurfaceCallSite, ToolType, UndeclaredDefineConstant
+
+### Community 132 - "run"
+Cohesion: 0.14
+Nodes (7): head(), KnownLimitTest, PreCommitTest, PrePushTest, refs_of(), Repo, run()
+
+### Community 133 - "GuardScanner"
+Cohesion: 0.03
+Nodes (32): Global Constraints, Self-review (post invariants-review, round 1), T8 #536 Implementation Plan, Task 0: Baseline ledger (BEFORE any guard test exists), Task 1: Guard scaffold — discovery floor + Roslyn walk skeleton, Task 2: Allow-list semantics (unlisted red, stale red, predicate red, wrapper red), Task 4: Raw-SQL `FOR UPDATE` predicate walk, Task 5: Mutation matrix (M8) — recorded run (+24 more)
+
+### Community 134 - "AccountProvisioner"
+Cohesion: 0.09
+Nodes (16): The rule, Caller ledger — one row per increment, Documentation surfaces — filled now, RUN at Phase 11, Gate commands — every command COPIED from its source, Rules, Runbook — #732: `rename-account`, a one-shot verb that changes a farm code, Step 0 — confirm where you are, Step 0 — verify the base (or a descendant whose (+8 more)
+
+### Community 135 - "analyze"
+Cohesion: 0.06
+Nodes (31): name, permissions, runs-on, steps, strategy, timeout-minutes, language, jobs (+23 more)
 
 ### Community 137 - "CI Security Gates"
-Cohesion: 0.17
-Nodes (15): Dependabot version-update configuration, vite/vitest peer-locked major-bump group, vuln-gate.mjs shared vulnerability gate script, CI workflow (build-and-test, web, dependency-review), Dependency review job (PR diff-scoped gate), --locked-mode deterministic restore (NU1004 on drift), npm production audit gate (high+, blocking), NuGet vulnerability audit gate (high+, blocking) (+7 more)
+Cohesion: 0.14
+Nodes (17): Dependabot version-update configuration, vuln-gate.mjs shared vulnerability gate script, CI workflow (build-and-test, web, dependency-review), Dependency review job (PR diff-scoped gate), --locked-mode deterministic restore (NU1004 on drift), npm production audit gate (high+, blocking), NuGet vulnerability audit gate (high+, blocking), CodeQL SAST workflow (csharp + javascript-typescript) (+9 more)
 
 ### Community 138 - "Sales Order Discount Reasons"
-Cohesion: 0.17
-Nodes (5): SalesOrderDiscountReasonTests, ArgumentOutOfRangeException, Fact, InlineData, Theory
+Cohesion: 0.09
+Nodes (10): DiscountReasonCode, DamagedStock, LongStandingCustomer, ManagerApproved, Other, Volume, DiscountReason, SalesOrderConfirmedEvent (+2 more)
 
-### Community 139 - "Data Export Datasets"
-Cohesion: 0.13
-Nodes (14): 5b. Export, ExportDataset, IAsyncEnumerable, AsyncDisposableAction, ExportQueries, Datasets, CancellationToken, Func (+6 more)
+### Community 139 - "NamedEntityPicker.tsx"
+Cohesion: 0.18
+Nodes (23): i18next, EngineProps, EngineState, initialState(), NamedEntity, NamedEntityPickerEngine(), PickerClosedState(), PickerClosedStateProps (+15 more)
 
 ### Community 140 - "Step-Up Auth Tests"
+Cohesion: 0.05
+Nodes (19): OrderDto, EntryWithGrades, ProductionReportDto, ProductionReportDto, OrderDto, OrderDto, OrderDto, ExpenseSummaryDto (+11 more)
+
+### Community 141 - "Account"
+Cohesion: 0.04
+Nodes (43): Farm -> Commerce stays a declared edge, Put farm settings behind a Farm contract; keep identity and the account seam outside it (#851), The rule, Three things stay outside the contract, What happened, What this does NOT cover, Compose every module through its contract, its fixture port and its own registration file (#858), End state (+35 more)
+
+### Community 142 - "Converts"
 Cohesion: 0.10
-Nodes (25): Task 1.1: Add red integration guards for both mutation routes, FlockAssignmentRow, Spa, SpaLikeClient, SpaLikeClient, Tokens, StepUpAuthTests, Admin (+17 more)
-
-### Community 141 - "Stepper Unit Setting"
-Cohesion: 0.03
-Nodes (62): SetStepperUnitCommand, SetStepperUnitHandler, CancellationToken, Guid, IIdentityProvider, Task, SetStepperUnitValidator, EggUnits (+54 more)
-
-### Community 142 - "Kestrel Body Limit Tests"
-Cohesion: 0.26
-Nodes (9): ProblemFields, KestrelRequestBodyLimitTests, ProblemFields, Fact, HttpClient, HttpMethod, HttpRequestMessage, HttpResponseMessage (+1 more)
+Nodes (4): FormatsItsPassword, Password, Converts, Formats
 
 ### Community 143 - "API Project Dependencies"
-Cohesion: 0.14
-Nodes (13): Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.OpenApi, Microsoft.OpenApi, OpenTelemetry.Exporter.OpenTelemetryProtocol, OpenTelemetry.Extensions.Hosting, OpenTelemetry.Instrumentation.AspNetCore, OpenTelemetry.Instrumentation.EntityFrameworkCore, OpenTelemetry.Instrumentation.Runtime (+5 more)
+Cohesion: 0.13
+Nodes (14): Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.OpenApi, Microsoft.OpenApi, ModelContextProtocol.AspNetCore, OpenTelemetry.Exporter.OpenTelemetryProtocol, OpenTelemetry.Extensions.Hosting, OpenTelemetry.Instrumentation.AspNetCore, OpenTelemetry.Instrumentation.EntityFrameworkCore (+6 more)
 
-### Community 144 - "Auth Cookie Contract Tests"
-Cohesion: 0.20
-Nodes (10): Response, SetCookie, AuthCookieContractTests, AuthCookieSecureTests, Fact, HttpResponseMessage, JsonElement, Task (+2 more)
+### Community 144 - "IClassFixture"
+Cohesion: 0.06
+Nodes (22): AccessSeedOwnerFailureFactory, OwnerReadFailure, Throw, AccessSeedOwnerFailureTests, AuthCookieSecureTests, BootstrapLockContinuityFactory, Interceptor, BootstrapLockHeldAtCreateTests (+14 more)
 
 ### Community 145 - "Egg Production Wireframe"
 Cohesion: 0.20
@@ -1435,9 +1748,9 @@ Nodes (14): Daily Entry, Egg Grade (Saleable / Cracked / Dirty), Egg Inventory N
 Cohesion: 0.20
 Nodes (14): Audit UTC Timestamps Card (stable log), Display Defaults Panel (first day of week, date/time format overrides, number formatting, unit system), Farm Currency (code USD, symbol $, minor unit 2), Farm Locale (en-US), Farm Localization Settings Screen, Farm Timezone (America/Los_Angeles), Farm Today Preview Card (06/26/2026 from farm timezone), Financial Rules Panel (sales/expenses currency copied from farm, payments use order currency, cross-farm aggregation warning) (+6 more)
 
-### Community 147 - "Account Lockout Tests"
-Cohesion: 0.40
-Nodes (6): AccountLockoutTests, Fact, HttpClient, HttpResponseMessage, Task, UserManager
+### Community 147 - "GitGuardTest"
+Cohesion: 0.12
+Nodes (4): git(), GitGuardTest, payload(), run_guard()
 
 ### Community 148 - "Alerts and Tasks Wireframe"
 Cohesion: 0.19
@@ -1447,33 +1760,33 @@ Nodes (13): Alerts Badge (count 5, red pill in header), Alerts Tab (active), Ale
 Cohesion: 0.23
 Nodes (13): Cluckwork App, Event Severity, Farm Context Selector, Flock, Follow-up, Health Event, Health & Welfare Screen, Lab Tests (+5 more)
 
-### Community 150 - "Step-Up Validation and Platform Services"
-Cohesion: 0.05
-Nodes (58): The rule, What this does NOT cover, 2. Settled decisions (grill + Phase 4 review, 2026-08-26), INV-1: A scoped Worker's read of a flock-keyed entity returns only rows for assigned flocks (or farm-wide rows where `FlockId` is nullable)., PipeWriter, CluckworkPlatformServiceCollectionExtensions, IConfiguration, IServiceCollection (+50 more)
+### Community 150 - "steps"
+Cohesion: 0.06
+Nodes (30): args, inputs, integration, spec, default, prompt, type, any (+22 more)
 
 ### Community 151 - "Integration Collection Measurement"
-Cohesion: 0.06
-Nodes (52): Two independent blast radii — measure both, Gate 1 decision A — re-confirmed 2026-08-11 after the round-1 finding, Escalated to the owner — Gate 1 backtrack, Recorded, not fixed, #863: measure the integration collection and repair its false pass, D1: pre-repair baseline, D3: a false pass the serialization already hides, D4: pre-repair modeled collection floors (+44 more)
+Cohesion: 0.05
+Nodes (40): Two independent blast radii — measure both, Final pre-PR review (2026-08-12), Recorded, not fixed, Refuted, Where the loop was stopped, #863: measure the integration collection and repair its false pass, D1: pre-repair baseline, D3: a false pass the serialization already hides (+32 more)
 
 ### Community 152 - "Image Scan Issue Automation"
 Cohesion: 0.09
-Nodes (39): Releases and image publishing — internals (#351), allIssues(), apply(), ARCHS, archsOf(), buildTitle(), clearedComment(), collect() (+31 more)
+Nodes (38): allIssues(), apply(), ARCHS, archsOf(), buildTitle(), clearedComment(), collect(), commentsOf() (+30 more)
 
-### Community 153 - "Farm-Local Restriction Tests"
-Cohesion: 0.18
-Nodes (13): FrozenClock, FarmLocalRestrictionTests, FrozenClock, TodayUtc, UtcNow, StockRow, DateOnly, DateTime (+5 more)
+### Community 153 - "KeyRingRewrap"
+Cohesion: 0.10
+Nodes (11): KeyRingRewrap, CurrentSha256, PreviousSha256s, RowOutcome, Current, Refused, Revocation, Rewrapped (+3 more)
 
-### Community 154 - "MUI Revamp Design"
+### Community 154 - "@mui/material"
+Cohesion: 0.02
+Nodes (225): 2. The one hard rule — the superseded-safe question, The ordering that must survive, Confirm-dialog handoff model, lucide-react, @mui/material, react-i18next, react-router, Sub-features (+217 more)
+
+### Community 155 - "DurableJobWorkerHealthCheck"
+Cohesion: 0.11
+Nodes (13): Migrate command + prod migration split (#263), Backup, Drill, Handling dumps, Restore, Runbook: backup & restore (self-hosted), Verify the dump before trusting it, DatabaseReadyHealthCheck (+5 more)
+
+### Community 156 - "ApplicationUser"
 Cohesion: 0.03
-Nodes (201): 1. What the issues claim, and what the code says. The fact base, 2.1 Components and their call sites, 2.7 Layout census per route, 3. Decisions, and the facts behind them, 4. Guards. Walk everything, exclude deliberately, 5. Callers (#394), 6. Documentation, 7. Owner review, collected (+193 more)
-
-### Community 155 - "Backup And Health Checks"
-Cohesion: 0.11
-Nodes (16): Migrate command + prod migration split (#263), Backup, Drill, Handling dumps, Restore, Runbook: backup & restore (self-hosted), Verify the dump before trusting it, IHealthCheck (+8 more)
-
-### Community 156 - "Identity Roles and Tokens"
-Cohesion: 0.11
-Nodes (31): IdentityRole, AccountUserDirectory, AccountUserDirectoryRegistration, ILookupNormalizer, IServiceCollection, ApplicationRole, Guid, IStepUpGrantRegistry (+23 more)
+Nodes (55): ResultLogging, AccountScopedUserValidator, AccountScopedUserValidatorRegistration, AccountUserDirectory, AccountUserDirectoryRegistration, ApplicationRole, ApplicationUser, AccountId (+47 more)
 
 ### Community 157 - "Egg Lots Traceability Wireframe"
 Cohesion: 0.24
@@ -1488,28 +1801,20 @@ Cohesion: 0.21
 Nodes (12): Alerts Badge, Farm Context Selector, Flock Filter Toolbar (Search, Filter: Active, Filter: Stage, + New Flock), Flock List Table (Flock, House, Breed, Age, Live Birds, Stage, HD %, Withdrawal, Status), Flock Stage (Growing / Laying), Flocks Screen Wireframe, Hen-Day Percentage (HD %), Layer Batch (+4 more)
 
 ### Community 160 - "Audit Provenance Tests"
-Cohesion: 0.14
-Nodes (14): ExpenseListDto, ProvenanceRowDto, CreatedDto, ExpenseListDto, ProvenanceRowDto, Client, DateTimeOffset, Email (+6 more)
-
-### Community 161 - "Daily Entry Validation"
-Cohesion: 0.23
-Nodes (9): GradeQuantityDto, RecordDailyEntryCommand, DateOnly, Guid, IReadOnlyList, RecordDailyEntryValidatorTests, DateOnly, Fact (+1 more)
+Cohesion: 0.12
+Nodes (4): What happened, ExpenseListDto, HandlerLoggingTests, CreatedDto
 
 ### Community 162 - "Stock Page SPA"
-Cohesion: 0.07
+Cohesion: 0.08
 Nodes (41): Screens, EggLotMovementResult, EggLotRow, EggMovementRow, getStock(), listEggLotMovements(), listEggLots(), recordEggLotMovement() (+33 more)
 
-### Community 163 - "Egg Lot Repository Fakes"
-Cohesion: 0.13
-Nodes (29): QuantityA, QuantityB, CountingEggLotRepository, Created, ProblemDto, SaleAllocationPolicyTests, StepUpDto, UserRow (+21 more)
+### Community 163 - "SaleAllocationPolicyTests"
+Cohesion: 0.21
+Nodes (5): SaleAllocationPolicyTests, Created, ProblemDto, StepUpDto, UserRow
 
 ### Community 164 - "Lockfix and Refresh Tokens"
-Cohesion: 0.20
-Nodes (10): lockfix-apply.sh trusted applicator script, lockfix.mjs classify(), lockfix.mjs LOCK_FILES allowlist (7 paths), commit job — trusted push with GitHub App token, ConcurrencyStamp compare-and-swap on token consumption, Grace-window mint-on-retry idempotent refresh (#176), Leap-frog chain-extension hole + RevokedByGrace fix, Refresh-token reuse detection (family revoke on divergence) (+2 more)
-
-### Community 165 - "Account Lifecycle CLI Tests"
-Cohesion: 0.18
-Nodes (12): 3a. RED — the CLI contract, through the real binary, AccountLifecycleCommandTests, ExitCode, Fact, Guid, InlineData, Process, Stderr (+4 more)
+Cohesion: 0.15
+Nodes (7): lockfix-apply.sh trusted applicator script, lockfix.mjs classify(), lockfix.mjs LOCK_FILES allowlist (7 paths), commit job — trusted push with GitHub App token, compute job — credential-free lock regeneration, Refresh-token reuse detection (family revoke on divergence), IdentityProvider.RefreshAsync
 
 ### Community 166 - "Core Loop Wireframes"
 Cohesion: 0.31
@@ -1531,45 +1836,45 @@ Nodes (11): Allocation Dispatch, Bird Ledger (Future Allocation Target), Egg Lot
 Cohesion: 0.27
 Nodes (11): ADG KPI Card, Avg Weight KPI Card, Growth Notes Panel, Growth / Weight Records Screen, Recent Weight Records Panel, Sample Count KPI Card, Sidebar Navigation (Growth active), Target vs Actual Panel (+3 more)
 
-### Community 171 - "Commerce Module Contract"
-Cohesion: 0.16
-Nodes (16): The rule, ICommerceModule, PaymentDetails, ProductDetails, SalesOrderDetails, SalesOrderItemDetails, SalesOrderListItem, CancellationToken (+8 more)
+### Community 171 - "collector.yaml"
+Cohesion: 0.07
+Nodes (29): verbosity, exporters, debug, prometheus, endpoint, endpoint, level, exporters (+21 more)
 
-### Community 172 - "Claim-Once Step-Up Store"
-Cohesion: 0.17
-Nodes (13): InProcessClaimOnceStore, DateTimeOffset, Dictionary, TimeProvider, TimeSpan, FixedFakeTimeProvider, StepUpGrantRegistryTests, Expiry (+5 more)
+### Community 172 - "4. Retire previous certificates"
+Cohesion: 0.07
+Nodes (29): 1. Back up, 1. Confirm the situation, 1. Issue a new certificate on a new key pair, 1. Issue an RSA certificate and private key, 1. Issue the new certificate, 2. Move the current certificate to the previous list, 2. Re-encrypt, 2. Stop every serving instance (+21 more)
 
 ### Community 173 - "Distributed Rate Limiting"
-Cohesion: 0.10
-Nodes (11): Cluckwork.Api.Modules.Insights.Reports, Cluckwork.Api.IntegrationTests.SharedState, Cluckwork.Infrastructure.RateLimiting, Cluckwork.Infrastructure.SharedState, microsoft_aspnetcore_http, microsoft_aspnetcore_ratelimiting, microsoft_extensions_logging_abstractions, stackexchange_redis (+3 more)
+Cohesion: 0.07
+Nodes (5): Cluckwork.Api.HealthChecks, Cluckwork.Api.IntegrationTests.SharedState, Cluckwork.Infrastructure.RateLimiting, Cluckwork.Infrastructure.Jobs, Cluckwork.Infrastructure.SharedState
 
-### Community 174 - "Forbidden Problem Handler"
-Cohesion: 0.22
-Nodes (8): AuthorizationMiddlewareResultHandler, AuthorizationPolicy, IAuthorizationMiddlewareResultHandler, PolicyAuthorizationResult, ForbiddenProblemResultHandler, HttpContext, RequestDelegate, Task
+### Community 174 - "stepUpCallers.ts"
+Cohesion: 0.12
+Nodes (24): API_MODULES, CALLS, identifiersIn(), isApiModule(), isNode(), isNotAReference(), isProductionSource(), MEMBERS (+16 more)
 
 ### Community 175 - "Solution Package Dependencies"
-Cohesion: 0.10
-Nodes (22): netstandard2.0, Microsoft.AspNetCore.Identity.EntityFrameworkCore, Microsoft.CodeAnalysis.CSharp.Analyzer.Testing, Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.EntityFrameworkCore, Microsoft.Extensions.Logging.Abstractions, Npgsql.EntityFrameworkCore.PostgreSQL, Riok.Mapperly (+14 more)
+Cohesion: 0.15
+Nodes (13): netstandard2.0, Microsoft.CodeAnalysis.CSharp.Analyzer.Testing, Microsoft.CodeAnalysis.CSharp.Workspaces, Microsoft.Extensions.Logging.Abstractions, Riok.Mapperly, Microsoft.CodeAnalysis.CSharp, Microsoft.NET.Sdk, FluentValidation (+5 more)
 
-### Community 176 - "Tenant Account Id Shape Guards"
-Cohesion: 0.12
-Nodes (18): ConvertedKeyProbeContext, ConvertedProbeContext, 5. Isolation is single-assignment, and write-side mismatches throw, NullableProbeContext, PlainProbeContext, TenantAccountIdShapeException, EntityType, Type (+10 more)
+### Community 176 - "AppDbContext.OnModelCreating"
+Cohesion: 0.04
+Nodes (41): 5. Isolation is single-assignment, and write-side mismatches throw, Rules, AuditEvent, Action, ActorEmail, ActorUserId, ConnectedAppClientId, ConnectedAppName (+33 more)
 
-### Community 177 - "General Inventory Namespaces"
-Cohesion: 0.11
-Nodes (15): Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordAdjustment, Cluckwork.Domain.Tests.Inventory, Cluckwork.Api.Modules.GeneralInventory.Water, Cluckwork.Application.Modules.GeneralInventory.Inventory.CreateInventoryItem, Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordFeedUsage, Cluckwork.Application.Tests.Inventory, Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordPurchase, Cluckwork.Domain.Modules.GeneralInventory.Inventory (+7 more)
+### Community 177 - "Cluckwork.Domain.Modules.GeneralInventory.Inventory"
+Cohesion: 0.04
+Nodes (33): Cluckwork.Application.Modules.Finance.Expenses.CreateExpense, Cluckwork.Application.Tests.Expenses, Cluckwork.Api.Modules.EggOperations, Cluckwork.Application.Modules.GeneralInventory.Inventory.RecordAdjustment, Cluckwork.Domain.Tests.Inventory, Cluckwork.Application.Modules.GeneralInventory.Inventory.CreateInventoryItem, Cluckwork.Infrastructure.Time, Cluckwork.Api.Modules.GeneralInventory (+25 more)
 
-### Community 178 - "Exception Redacting Sink"
-Cohesion: 0.13
-Nodes (16): 1b. Exceptions, Exception, ExceptionRedactingSink, RedactedException, StackTrace, Func, LogEvent, AdvisoryLockFaultInterceptor (+8 more)
+### Community 178 - "DataProtectionCertificateExpiryTests"
+Cohesion: 0.09
+Nodes (14): Certificate lifetime and replacement, Fixing a refused start, Persist the Data Protection key ring in Postgres, encrypted in Production (#794), Previous certificates (#1338), Re-wrapping stored keys (#1420), Revoking the ring when the private key leaks, The rule, What counts as plaintext (+6 more)
 
 ### Community 179 - "k6 Auth Load Scripts"
-Cohesion: 0.10
-Nodes (29): ref_k6, assignUser(), extractSetCookie(), login(), preflightCredentials(), refresh(), safeJson(), getMe() (+21 more)
+Cohesion: 0.11
+Nodes (28): assignUser(), extractSetCookie(), login(), preflightCredentials(), refresh(), safeJson(), options, setup() (+20 more)
 
-### Community 180 - "Order Item Implementation Plan"
-Cohesion: 0.13
-Nodes (24): AddedItemDto, #722 — implementation plan, Close, Files, Gate commands, and what clean looks like, Increment 1 — the Update path, Increment 2 — the Add path (PROTECTED), Increment order (+16 more)
+### Community 180 - "check-suppressions.mjs"
+Cohesion: 0.10
+Nodes (23): eslint, @eslint/js, eslint-plugin-react-hooks, globals, typescript-eslint, args, atCommit(), errors (+15 more)
 
 ### Community 181 - "Beak Treatment Wireframe"
 Cohesion: 0.29
@@ -1587,37 +1892,29 @@ Nodes (10): Feed Cost per Dozen, Flock Detail Page, Hen-Day Production Rate, Flo
 Cohesion: 0.33
 Nodes (10): Allocation Source, Bird Ledger, Egg Lots, Mapped Grade, Meat Lots, Product Catalog Table, v4: Product-generic Sales, Product Types (egg, live_bird, meat, pullet) (+2 more)
 
-### Community 185 - "Byte-Capped Request Stream"
-Cohesion: 0.13
-Nodes (11): Span, ByteCappedRequestStream, CanRead, CanSeek, CanWrite, Length, Position, CancellationToken (+3 more)
+### Community 185 - "ByteCappedRequestStream"
+Cohesion: 0.09
+Nodes (10): FarmBannerRequestBodyCap, FarmLogoRequestBodyCap, ByteCappedRequestStream, CanRead, CanSeek, CanWrite, Length, Position (+2 more)
 
-### Community 187 - "Auth Rate Limit Logging"
-Cohesion: 0.17
-Nodes (14): AuthRateLimitLoggingCollection, AuthRateLimitLoggingFactory, Sink, AuthRateLimitLoggingTests, CollectingSink, Events, CollectingSink, ConcurrentQueue (+6 more)
+### Community 186 - "viewpoint-3.md"
+Cohesion: 0.10
+Nodes (17): Columns, Constraints, Indexes, public.AspNetRoleClaims, Relations, Viewpoints, Columns, Constraints (+9 more)
 
-### Community 188 - "User Command Types"
-Cohesion: 0.04
-Nodes (59): IValidator, ChangeOwnPasswordCommand, ChangeUserRoleCommand, Guid, CreateUserCommand, DisableUserCommand, Guid, SetLanguageCommand (+51 more)
+### Community 188 - "ChangeOwnPasswordCommand"
+Cohesion: 0.23
+Nodes (7): ChangeOwnPasswordCommand, ChangeOwnPasswordValidator, ThrowingChangeOwnPasswordValidator, ThrowingChangeOwnPasswordValidatorForRequestLogging, PasswordMaxLengthValidatorTests, AtCap, OverCap
 
-### Community 189 - "Allowed Hosts Guard Tests"
-Cohesion: 0.16
-Nodes (10): AllowedHostsGuardTests, AllowedHostsProductionFactory, Exception, Fact, HttpClient, HttpStatusCode, InlineData, IWebHostBuilder (+2 more)
-
-### Community 190 - "Egg Lot Write-Off Tests"
-Cohesion: 0.25
-Nodes (12): EggLotWriteOffTests, accountId, client, DateOnly, Fact, Guid, HttpClient, InlineData (+4 more)
+### Community 190 - "docs-impact.mjs"
+Cohesion: 0.14
+Nodes (22): deferralFindings(), driftFindings(), ESCAPE, flatten(), git(), loadCatalog(), loadModule(), main() (+14 more)
 
 ### Community 191 - "Daily Entry Submit Tests"
 Cohesion: 0.19
-Nodes (17): EntryStatusDto, SubmitDto, EntryStatusDto, RecordedDto, SubmitDailyEntryTests, SubmitDto, AccountId, Client (+9 more)
+Nodes (4): SubmitDailyEntryTests, EntryStatusDto, RecordedDto, SubmitDto
 
-### Community 192 - "Service Worker Verifier"
-Cohesion: 0.12
-Nodes (18): apiish, check(), denylist, emittedJs, extractDenylist(), extractedPrecache, extractRuntimeCacheRoutes(), failures (+10 more)
-
-### Community 193 - "Recover Admin Command Tests"
-Cohesion: 0.19
-Nodes (10): Task, RecoverAdminCommandTests, ExitCode, Fact, IDictionary, Process, Stderr, Stdout (+2 more)
+### Community 192 - "verify-sw.mjs"
+Cohesion: 0.06
+Nodes (46): Task 5: Make Vite honor Aspire's dynamic endpoint, workbox-expiration, workbox-expiration@^7.4.1, LANGUAGE_PACK_CACHE, LANGUAGE_PACK_MAX_ENTRIES, matchesInterExtendedSubsetFont(), matchesLanguagePack(), apiish (+38 more)
 
 ### Community 194 - "Audit Log Wireframe"
 Cohesion: 0.31
@@ -1639,21 +1936,13 @@ Nodes (9): App Top Bar (Cluckwork brand, Farm selector, Alerts badge, User), Cat
 Cohesion: 0.33
 Nodes (9): Account / Farm Setup Screen, Account Panel, Farm Panel, House & First Flock Panel, Invite Users Action, First-Run Onboarding Flow, Save Setup Action, Sidebar Navigation (+1 more)
 
-### Community 199 - "Idempotency Middleware"
-Cohesion: 0.17
-Nodes (15): ClaimAttempt, ClaimKind, ClaimAttempt, IdempotencyMiddleware, CancellationToken, DateTimeOffset, DbUpdateException, Guid (+7 more)
+### Community 199 - "with"
+Cohesion: 0.07
+Nodes (26): name, runs-on, steps, timeout-minutes, jobs, coverage, name, on (+18 more)
 
 ### Community 200 - "Migration Security Review Guard"
-Cohesion: 0.12
-Nodes (15): Migrations: `InitialCreate` frozen, one migration per change (#407), Writing a guard (a test that asserts an invariant), InsertDataOperation, MigrationAttribute, MigrationOperation, PropertyInfo, SqlOperation, MigrationSecurityReviewTests (+7 more)
-
-### Community 201 - "User Role Change Races"
-Cohesion: 0.29
-Nodes (10): ChangeUserRoleRaceTests, StepUpDto, DateTimeOffset, Db, Fact, Guid, IDbContextTransaction, Pid (+2 more)
-
-### Community 202 - "Durable Job Worker"
 Cohesion: 0.15
-Nodes (15): BackgroundService, DurableJobWorker, CancellationToken, ILogger, IServiceScopeFactory, Task, TimeSpan, RefreshTokenPurgeSweep (+7 more)
+Nodes (3): Migrations: `InitialCreate` frozen, one migration per change (#407), Writing a guard (a test that asserts an invariant), MigrationSecurityReviewTests
 
 ### Community 203 - "Integration Test Packages"
 Cohesion: 0.29
@@ -1671,37 +1960,29 @@ Nodes (8): Count Panel, Inventory Reconciliation Wireframe, Ledger Movement, Pre
 Cohesion: 0.36
 Nodes (8): Farm Context Selector, Financial Access Permission Dimension, User Role Records Table, Role-Based Data Scoping (Farm/House/Flock), Global Sidebar Navigation (Settings Active), Users/Roles/Assignments/Permissions Tab Bar, Top Bar (Farm Selector, Alerts Badge, User Menu), Users & Roles Settings Screen Wireframe
 
-### Community 207 - "Farm Banner Tests"
-Cohesion: 0.17
-Nodes (17): BannerDto, How it is enforced, AccountDto, BannerDto, FarmBannerTests, ProblemDto, AccountId, Client (+9 more)
-
-### Community 208 - "Database Provider Configuration"
-Cohesion: 0.07
-Nodes (23): Cluster, IDbProviderConfigurator, PostgreSqlContainer, DatabaseResilienceOptions, MaxRetryCount, MaxRetryDelaySeconds, IDbProviderConfigurator, MigrationsAssembly (+15 more)
-
-### Community 209 - "Atomic Idempotency Protocol Tests"
-Cohesion: 0.33
-Nodes (7): TenantFixture, AtomicIdempotencyProtocolTests, TenantFixture, Fact, Guid, HttpClient, Task
+### Community 207 - "FarmBannerTests"
+Cohesion: 0.10
+Nodes (11): How it is enforced, Keep farm configuration and identity Owner-only (#729), The rule, What happened, What this does not cover, Why not keep the `AdminOnly` policy, AccountSlugRaceTests, FarmBannerTests (+3 more)
 
 ### Community 210 - "Durable Job Model"
-Cohesion: 0.10
-Nodes (19): DurableJob, Attempts, CompletedAt, Id, JobType, LastError, PayloadJson, RunAfter (+11 more)
+Cohesion: 0.11
+Nodes (17): DurableJob, Attempts, CompletedAt, Id, JobType, LastError, PayloadJson, RunAfter (+9 more)
 
-### Community 211 - "Module Service Registration"
-Cohesion: 0.03
-Nodes (99): 2.2 Replace only the trusted caller, 2. Simplicity ceiling, 3.1 `AddOrderItemHandler` — the Add path carries the real line id, SaleMovements, IServiceCollection, IValidator, FlockManagementModuleServiceCollectionExtensions, IServiceCollection (+91 more)
+### Community 211 - "IAuditWriter"
+Cohesion: 0.02
+Nodes (172): Daily entry, Sale, The egg loop, Amendment, 2026-10-06: no type claims (#1087), Reach a contracted peer module only through its contract or seam (#1023), The rule, What happened, What this does NOT cover (+164 more)
 
-### Community 212 - "Dependabot Lockfix Workflow"
-Cohesion: 0.21
-Nodes (12): compute job — credential-free lock regeneration, Dependabot lockfix workflow (workflow_run auto-heal), Provenance gate (Dependabot-only job-level if), Dependency Submission Workflow, NuGet Lock Files Convention, Dependabot lockfix implementation plan (#203), Privilege separation: restore and write credential never coexist, Project reference chain Domain<-Application<-Infrastructure<-Api<-tests (+4 more)
+### Community 212 - "Lock File Noise Finding"
+Cohesion: 0.47
+Nodes (6): Dependency Submission Workflow, NuGet Lock Files Convention, Project reference chain Domain<-Application<-Infrastructure<-Api<-tests, Lock File Noise Finding, net10.0 Dependency Group (Api lock), net10.0 Dependency Group (Api.IntegrationTests lock)
 
-### Community 213 - "Sensitive Log Redaction"
-Cohesion: 0.24
-Nodes (6): LogEventPropertyValue, SensitiveDataRedactionEnricher, HashSet, ILogEventPropertyFactory, LogEvent, Regex
+### Community 213 - "SensitiveDataRedactionEnricher"
+Cohesion: 0.09
+Nodes (14): 1. Redaction at ingestion, 1b. Exceptions, 2. Stable structured security events, Log redaction + security-event policy, Never-logged invariant: generated one-time passwords, No identity-existence oracle, Operational (non-credential) security events, Tenant-isolation events (+6 more)
 
 ### Community 214 - "Daily Entry and Offline Sync"
 Cohesion: 0.29
-Nodes (7): Daily Entry Lifecycle (#69), Daily Entry (states, uniqueness, modular sections), Write Idempotency Rule, Background Jobs (PeriodicTimer + durable jobs table), Offline Conflict Resolution (state-machine keyed), Application-Layer Mutation Queue (outbox sync), Offline for Data Capture Only (KD-4)
+Nodes (4): Daily Entry Lifecycle (#69), Daily Entry (states, uniqueness, modular sections), Write Idempotency Rule, Offline Conflict Resolution (state-machine keyed)
 
 ### Community 215 - "Mobile Daily Entry Wireframe"
 Cohesion: 0.52
@@ -1715,305 +1996,277 @@ Nodes (7): Backups Panel, Daily Entry Locks Panel, Defaults Panel, Global Top Ba
 Cohesion: 0.48
 Nodes (7): Additive Application Panel, Hydration KPIs Panel, Recent Additives Panel, App Sidebar Navigation, Water & Additives Wireframe, Water Trend Chart, Water Usage Panel
 
-### Community 218 - "Single Serving Instance Rule"
+### Community 218 - "DurableJobWorker"
+Cohesion: 0.08
+Nodes (28): Exactly one serving API instance (#271, #338), The four blockers, all of which must close before scaling, The rule, What an operator would actually see, What does NOT license scaling, What is exposed today, The rule, Confirmed by review, and NOT a defect (+20 more)
+
+### Community 219 - "Guid"
+Cohesion: 0.01
+Nodes (130): 17. An Owner resets another user's two-factor as its own step-up action, The rule, What both issues were actually asking, Exact Resolution, EggLotRow, StockTools, UserResponse, CustomerResponse (+122 more)
+
+### Community 220 - "steps"
+Cohesion: 0.08
+Nodes (25): concurrency, cancel-in-progress, group, name, runs-on, steps, timeout-minutes, BASE_SHA (+17 more)
+
+### Community 221 - "harness-login-body.test.mjs"
 Cohesion: 0.13
-Nodes (14): Exactly one serving API instance (#271, #338), The four blockers, all of which must close before scaling, The rule, What an operator would actually see, What does NOT license scaling, What is exposed today, IdempotencyRecordPurgeSweep, BatchSizeForTests (+6 more)
+Nodes (18): asScript(), capturingConsole(), driveK6(), driveMcpRunbook(), driveProbeApi(), driveResetScript(), DRIVERS, ERROR_FIELDS (+10 more)
 
-### Community 219 - "Egg Lot Repository Queries"
-Cohesion: 0.10
-Nodes (26): CancellationToken, DateOnly, Guid, IReadOnlyList, Task, EggLot, CreatedAtUtc, DailyEntryId (+18 more)
-
-### Community 220 - "Ambient Transaction Scopes"
-Cohesion: 0.15
-Nodes (12): CancellationToken, Guid, Task, IAmbientTransactionScope, JoinedTransactionScope, OwnedTransactionScope, CancellationToken, DatabaseFacade (+4 more)
-
-### Community 221 - "Step-Up and Auth Test Doubles"
-Cohesion: 0.15
-Nodes (9): AuditRow, FlockAssignmentRow, RecordingStepUpGrantRegistry, Calls, RevokeRefreshTokenThrowsDecorator, UserRow, CancellationToken, Guid (+1 more)
-
-### Community 222 - "Farm Module Settings and Branding"
-Cohesion: 0.12
-Nodes (18): FarmModule, CancellationToken, Guid, ReadOnlyMemory, Task, CancellationToken, Task, FarmLogoMetadata (+10 more)
+### Community 222 - "submit"
+Cohesion: 0.08
+Nodes (24): jobs, submit, name, on, push, schedule, workflow_dispatch, permissions (+16 more)
 
 ### Community 223 - "Verification Feature Map"
+Cohesion: 0.04
+Nodes (41): Audit, Driving it with Playwright, Gotchas, How to get to it (user POV), Sub-features, Daily entry, Driving it with Playwright, Gotchas (+33 more)
+
+### Community 224 - "SanitizedImage"
+Cohesion: 0.20
+Nodes (8): ImageKind, Jpeg, Png, Webp, SanitizedImage, ContentType, FileExtension, FarmLogoTests
+
+### Community 225 - "788-mcp-oauth/00-README.md"
 Cohesion: 0.06
-Nodes (26): Daily entry, Driving it with Playwright, Gotchas, How to get to it (user POV), Sub-features, Dashboard, Driving it with Playwright, Gotchas (+18 more)
-
-### Community 224 - "Image Sanitization"
-Cohesion: 0.13
-Nodes (13): FrozenSet, ImageAssetKind, ReadOnlySpan, DateTimeOffset, ImageKind, Jpeg, Png, Webp (+5 more)
-
-### Community 225 - "MCP OAuth Design Docs"
-Cohesion: 0.09
-Nodes (18): MCP authentication — OAuth 2.1 via OpenIddict (#788), Slices, Why this is not in `docs/decisions/`, Accepted risks, The decision (#788), The question, What was rejected, and it was rejected late, Why OpenIddict specifically (+10 more)
+Nodes (29): How it is enforced, OAuth tokens run the session chain, on opted-in endpoints only (#796), What happened, What this does NOT cover, Amendment, 2026-10-18: exact reuse (#1326), Connected apps: listing, Disconnect, last used and audit (#799), How it is enforced, What happened (+21 more)
 
 ### Community 226 - "Suspension Service Runbook"
-Cohesion: 0.10
-Nodes (21): Args, AuditCallSite, 1. What actually shipped, versus what the issue says, 8. What remains unowned, and what it costs later, 2a. RED — the service's behaviour, through the service, 2b. GREEN — the two inert constants first (so the service compiles against them), 2c. GREEN — the service, 2d. Register it (+13 more)
+Cohesion: 0.14
+Nodes (9): 1. What actually shipped, versus what the issue says, 2a. RED — the service's behaviour, through the service, 2b. GREEN — the two inert constants first (so the service compiles against them), 2c. GREEN — the service, 2d. Register it, 2e. Build and run — DO NOT COMMIT until increment 5, INCREMENT 2 — the service, its audit row, and the two inert constants, AuditVocabularyCoverageTests (+1 more)
 
 ### Community 227 - "OTLP Payload Decoding"
-Cohesion: 0.14
-Nodes (18): DecodedMetric, DecodedMetricPayload, DecodedResourceMetrics, DecodedResourceSpans, DecodedScopeMetrics, DecodedSpan, DecodedTracePayload, DecodedMetric (+10 more)
+Cohesion: 0.11
+Nodes (8): OtlpPayloadAssertions, DecodedMetric, DecodedMetricPayload, DecodedResourceMetrics, DecodedResourceSpans, DecodedScopeMetrics, DecodedSpan, DecodedTracePayload
 
 ### Community 228 - "Account Rename Service Tests"
-Cohesion: 0.26
-Nodes (13): MUTATION CHECKS — prove the guards bite, Report back — every value here is produced by a step above, Stop-and-report limit, RenameOutcome, AccountRenameServiceTests, RenameOutcome, Db, Fact (+5 more)
+Cohesion: 0.28
+Nodes (5): MUTATION CHECKS — prove the guards bite, Report back — every value here is produced by a step above, Stop-and-report limit, AccountRenameServiceTests, RenameOutcome
 
 ### Community 229 - "FIFO Egg Allocation Rules"
 Cohesion: 0.33
-Nodes (6): FIFO Allocation, Egg-Lot Allocation Concurrency Rule, Sales Order Item Egg Allocations, Egg Lot, Medication Withdrawal Restriction, Sale-Confirmation Transaction (pessimistic lock)
+Nodes (5): FIFO Allocation, Sales Order Item Egg Allocations, Egg Lot, Medication Withdrawal Restriction, Sale-Confirmation Transaction (pessimistic lock)
 
 ### Community 230 - "Egg and Meat Lots"
 Cohesion: 0.60
 Nodes (6): Egg Lots, Future Meat Module, Harvest Record, Meat Lot, Product-Generic Sales (v4), Sales Allocation
 
-### Community 231 - "Discount Ceiling Rules"
-Cohesion: 0.15
-Nodes (10): Farm -> Commerce stays a declared edge, 8. Next implementation step, DiscountCeiling, BasisPoints, Percent, DiscountCeilingTests, ArgumentOutOfRangeException, Fact (+2 more)
+### Community 231 - "steps"
+Cohesion: 0.08
+Nodes (23): name, runs-on, steps, timeout-minutes, jobs, audit, name, on (+15 more)
 
-### Community 233 - "Bootstrap Admin Command Tests"
-Cohesion: 0.23
-Nodes (8): BootstrapAdminCommandTests, ExitCode, Process, Stderr, Stdout, Task, TimeSpan, UserManager
+### Community 232 - "3. Decisions, and the facts behind them"
+Cohesion: 0.09
+Nodes (20): Copy terms, Step-up uses the password and a code, Two-factor authentication screens: selected directions, 1. What the issues claim, and what the code says. The fact base, 3. Decisions, and the facts behind them, 4. Guards. Walk everything, exclude deliberately, 5. Callers (#394), 6. Documentation (+12 more)
 
-### Community 234 - "Access Contract Errors"
+### Community 234 - "ImageSanitizer"
+Cohesion: 0.12
+Nodes (3): AppError, ImageAssetKind, ImageSanitizer
+
+### Community 235 - "LogEvent"
 Cohesion: 0.05
-Nodes (32): #857 — Access contract, Authorization and construction, Limits, AppError, Error, CancellationToken, Guid, IReadOnlySet (+24 more)
-
-### Community 235 - "Kestrel Log Assertions"
-Cohesion: 0.36
-Nodes (5): KestrelLogAssertions, IReadOnlyList, KestrelBackedFactory, LogEvent, Task
+Nodes (33): CluckworkTelemetryServiceCollectionExtensions, CollectingSink, Events, CollectingSink, Events, ForwardedHeadersIgnoredLoggingTests, Sink, Events (+25 more)
 
 ### Community 236 - "Single-Container Deployment Topology"
 Cohesion: 0.40
 Nodes (5): app service (API + SPA bundle), prod Postgres service, traefik reverse-proxy service (prod profile), Traefik dynamic config directory, Single-container single-origin deployment (API serves SPA)
 
-### Community 237 - "OTLP Payload Assertion Tests"
-Cohesion: 0.26
-Nodes (4): CodedOutputStream, OtlpPayloadAssertionsTests, Action, Fact
+### Community 238 - "db"
+Cohesion: 0.11
+Nodes (21): environment, healthcheck, image, ports, volumes, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER (+13 more)
 
-### Community 238 - "Commerce Module Implementation"
-Cohesion: 0.17
-Nodes (12): CustomerDetails, VoidSaleCommand, VoidSaleResponse, Guid, CommerceModule, CancellationToken, Guid, IReadOnlyCollection (+4 more)
-
-### Community 239 - "Healthcheck CLI Command"
-Cohesion: 0.14
-Nodes (13): App, Delegate, HealthCheckCliCommand, Task, TimeSpan, HealthCheckCliCommandTests, Fact, InlineData (+5 more)
+### Community 239 - "Enforced rules and their records"
+Cohesion: 0.11
+Nodes (7): Enforced rules and their records, ConnectionTlsFloorWiringTests, ProductionInsecureDbFactory, HealthCheckCliCommandTests, TrustedProxyGuardTests, TrustedProxyOptOutFactory, AccessOwnershipClaimTests
 
 ### Community 240 - "Decision Records Index"
-Cohesion: 0.09
-Nodes (4): Production Postgres TLS floor + libpq mapping (#261/#262), A new Production boot guard must be taught to the sim harness (#370), Amendment, 2026-09-25: the harness is in CI, the k6 sibling is not (#956), AGENTS.md — `src/`
+Cohesion: 0.07
+Nodes (5): Production Postgres TLS floor + libpq mapping (#261/#262), Base reference data via guarded raw-SQL migrations, not `HasData` (#283), A new Production boot guard must be taught to the sim harness (#370), Amendment, 2026-09-25: the harness is in CI, the k6 sibling is not (#956), Generated PostgreSQL schema documentation (#417)
 
-### Community 241 - "Egg Grade Floor Race"
-Cohesion: 0.10
-Nodes (20): Lock, EggGradeFloorRaceFactory, Rendezvous, EggGradeFloorRaceTests, GradeDto, GradeReadRendezvousInterceptor, IdDto, CancellationToken (+12 more)
+### Community 241 - "EggGradeFloorRaceTests.Two_floor_updates_off_one_version_leave_exactly_one_winner"
+Cohesion: 0.22
+Nodes (5): EggGradeFloorRaceFactory, Rendezvous, EggGradeFloorRaceTests, GradeDto, IdDto
 
-### Community 242 - "Secret Logging Guards"
-Cohesion: 0.18
-Nodes (9): Never-logged invariant: generated one-time passwords, No identity-existence oracle, Operational (non-credential) security events, Tenant-isolation events, What this repo guarantees (portable, enforced in code), SecretCliLoggingGuardTests, InlineData, Regex (+1 more)
+### Community 242 - "FailOnceStream"
+Cohesion: 0.11
+Nodes (10): What changed for HTTP, IdempotencyResponseWriteFailureTests, FailFirstWrite, FailOnceStream, CanRead, CanSeek, CanWrite, Length (+2 more)
 
 ### Community 243 - "Capacity Findings Template"
 Cohesion: 0.10
 Nodes (20): 1. Header, #243 Release-Rehearsal Sim Harness — Capacity Baseline Findings, 2.1 Capacity-phase latency shape (`phase:capacity` only; warmup discarded), 2.2 By persona (relative comparison, not absolute), 2.3 By flow (relative comparison, not absolute), 2.4 Request-rate mix, 2.5 Correctness signals (status codes / checks / unexpected_status), 2.6 Resource utilization trend (`docker stats`, app/db/otel-collector) (+12 more)
 
-### Community 244 - "Audit Monotonic Order Runbook"
+### Community 244 - "Runbook — #508: order same-instant audit events by a durable monotonic key, not a random Guid"
 Cohesion: 0.07
-Nodes (26): AggregateRoot, 1a. RED — add the two failing tests, 1b. GREEN — map the shadow property, 1c. GREEN — generate the migration, then replace its body, 1d. GREEN — use the new key in all five order clauses, 1e. GREEN — replace the residual comment with what shipped, 1f. Build and re-run, 1g. Commit Increment 1 (+18 more)
+Nodes (26): 4. The sales-confirmation `ActAs` is covered by no test (codex, P2), 5. "The partial-rerun test cannot observe the bug it names" (pi, claimed SEVERE), 6. "The test's day index disagrees with the seeder's, and depends on the parity of `HistoryDays`" (pi, claimed HIGH), Confirmed, NOT fixed — recorded instead, Mid-point review — slices 1-3 (2026-08-12), One thing the panel could not have found, Out of scope — pre-existing, not introduced here, Refuted (+18 more)
 
-### Community 245 - "Aspire AppHost Model Tests"
-Cohesion: 0.13
-Nodes (20): ContainerImageAnnotation, ContainerMountAnnotation, How it is enforced, EndpointAnnotation, HealthCheckAnnotation, IDistributedApplicationTestingBuilder, IResource, IResourceWithEnvironment (+12 more)
+### Community 245 - "AppHostModelTests"
+Cohesion: 0.06
+Nodes (13): Cluckwork.AppHost.Tests, AppHost host endpoints, Aspire local development, Compose fallback, Drill, Host ports, Persistence and reset, Prerequisites (+5 more)
 
 ### Community 246 - "Customer Command Validators"
-Cohesion: 0.15
-Nodes (16): CreateCustomerCommand, UpdateCustomerCommand, Guid, CreateCustomerValidator, UpdateCustomerValidator, CustomerValidatorParityTests, Code, Fact (+8 more)
+Cohesion: 0.19
+Nodes (5): CreateCustomerCommand, UpdateCustomerCommand, CreateCustomerValidator, UpdateCustomerValidator, CustomerValidatorParityTests
 
-### Community 247 - "Demo Seed Cleanup Tests"
-Cohesion: 0.12
-Nodes (22): DemoSeedCleanupFactory, Faults, DemoSeedCleanupTests, DemoSeedFaults, DraftLineFailed, FailDeleteFrom, FailDraftLine, CancellationToken (+14 more)
+### Community 247 - "image"
+Cohesion: 0.10
+Nodes (21): if, name, needs, runs-on, strategy, timeout-minutes, arch, cache_prefix (+13 more)
 
-### Community 248 - "Low Stock Floor Tests"
-Cohesion: 0.25
-Nodes (14): Manager, StockRow, EggGradeLowStockFloorTests, GradeDto, IdDto, StockRow, AccountId, Fact (+6 more)
+### Community 248 - "EggGradeLowStockFloorTests"
+Cohesion: 0.09
+Nodes (8): EggGradeLowStockFloorTests, GradeDto, IdDto, StockRow, FarmLocalBoundarySweepTests, IdDto, FarmLocalRestrictionTests, StockRow
 
 ### Community 249 - "Date Range Filter Plan"
 Cohesion: 0.09
-Nodes (21): 666 / 667 — date-range filters on Audit and Expenses, An inverted range (`from` later than `to`) is allowed through, Coverage ratchet, Decisions taken (owner, 2026-09-03), Documentation (mandatory, same PR), `expenses.monthTotalLabel` — the key is renamed, not just reworded, `ExpensesPage.test.tsx` drives the month picker by label, at seven call sites, Files (+13 more)
+Nodes (23): 666 / 667 — date-range filters on Audit and Expenses, An inverted range (`from` later than `to`) is allowed through, Behaviour, Coverage ratchet, Decisions taken (owner, 2026-09-03), Documentation (mandatory, same PR), `expenses.monthTotalLabel` — the key is renamed, not just reworded, `ExpensesPage.test.tsx` drives the month picker by label, at seven call sites (+15 more)
 
-### Community 250 - "OTLP Resolver Tests"
-Cohesion: 0.33
-Nodes (4): IConfiguration, OtlpConfigurationResolverTests, IConfiguration, IReadOnlyDictionary
+### Community 250 - "with"
+Cohesion: 0.10
+Nodes (21): with, allow-ghsas, cache, cache-dependency-path, compression-level, dotnet-version, fail-on-severity, fetch-depth (+13 more)
 
-### Community 251 - "Multi-Farm Tenancy Decision"
-Cohesion: 0.06
-Nodes (32): 10. An unattributable value cannot be rescued by any rule about when to read it (#586), 1. Topology: one shared database, row-level `AccountId`, 2. Identity: swap the index, never rewrite the username, 3. The default `IUserValidator` is replaced, not supplemented, 4. Login takes a farm code, and says so when it is wrong, 6. Suspension is immediate for use, 7. Scale-out: at most one leader, never "exactly once", 8. Shared state: Redis only, with an in-process fallback, behind capability ports (+24 more)
+### Community 251 - "RedisFixture"
+Cohesion: 0.09
+Nodes (13): How this list was derived, because it was twice derived wrongly, ReportConcurrencyCapRegistration, RedisClaimOnceStore, RedisLease, RedisCapabilityIsolationTests, RedisClaimOnceContractTests, RedisFixture, ConnectionString (+5 more)
 
-### Community 252 - "Sales Picker Implementation Plan"
-Cohesion: 0.01
-Nodes (220): Summary, 6. One Narrow Picker Engine, Two Typed Adapters, 9. Page-Owned Lifecycle and Sales URL State, Implementation for User Story 1, Implementation for User Story 3, Phase 1: Setup (Shared Baseline), Phase 5: User Story 3 - Recover From Loading and Availability Changes (Priority: P2), Tests for User Story 3 (+212 more)
+### Community 252 - "WaterPage.tsx"
+Cohesion: 0.02
+Nodes (180): Flow, Implementation for User Story 1, Phase 1: Setup (Shared Baseline), adjustDailyEntry(), getDailyEntry(), GradeLine, listDailyEntries(), recordDailyEntry() (+172 more)
 
-### Community 253 - "OTLP Exporter Subprocess Tests"
-Cohesion: 0.18
-Nodes (11): Task 2: Override SDK-parsed transport fields and preserve process-role behavior, OtlpSubprocessDatabaseFixture, ConnectionString, OtlpSubprocessExporterTests, Action, Fact, ProcessStartInfo, Task (+3 more)
+### Community 253 - "TwoFactorPrimitivesTests"
+Cohesion: 0.24
+Nodes (3): OtpauthUri, TwoFactorPrimitivesTests, ParsedUri
 
 ### Community 254 - "Account Suspension"
-Cohesion: 0.15
-Nodes (18): How it is enforced, Suspension is immediate for use, not for issuance — the check-then-mint window stays open (#579), The rule, What happened, What this does NOT cover, AccountSuspensionService, TimeProvider, AccountSuspensionTests (+10 more)
-
-### Community 255 - "Tenant Write Token Runbook"
-Cohesion: 0.08
-Nodes (23): 1b. GREEN — the model walk (PROTECTED), 1c. Build and re-run, 1d. Commit Increment 1, 2b. GREEN — the interceptor (PROTECTED, whole file), 2c. Build and re-run, 2d. Commit Increment 2, 4a. `AGENTS.md` — the multi-tenancy bullet names the token, 4b. `docs/decisions/530-multi-farm-tenancy.md` §5 — the gap and its closure (+15 more)
-
-### Community 256 - "Products Page UI"
-Cohesion: 0.07
-Nodes (35): activateProduct(), createProduct(), deactivateProduct(), updateEggUnitConversion(), updateProduct(), errorMessage(), ProductsPage(), commit() (+27 more)
-
-### Community 257 - "k6 Request Bundles"
-Cohesion: 0.24
-Nodes (20): A write-contract change must update its non-CI callers (#394), Amendment, 2026-09-11: the Playwright half stopped being true, authHeaders(), auditBundle(), authedGet(), authedGetExpect403(), authedPost(), customerBalances() (+12 more)
-
-### Community 258 - "Egg Quality Condition Tests"
-Cohesion: 0.17
-Nodes (19): CrackedId, DirtyId, Lots, Manual, RecordedDto, QualityEggTests, RecordedDto, AccountId (+11 more)
-
-### Community 259 - "Access Fixture Tests"
 Cohesion: 0.13
-Nodes (22): Assignments, AuditRows, SeededFarm, IAccessLookup, AccessFixtureTests, SeededFarm, Fact, Guid (+14 more)
+Nodes (10): How it is enforced, Suspension is immediate for use, not for issuance — the check-then-mint window stays open (#579), The rule, What happened, What this does NOT cover, Why not the obvious alternative, AccountSuspensionService, AccountSuspensionTests (+2 more)
 
-### Community 260 - "Distributed IP Rate Limiter"
-Cohesion: 0.13
-Nodes (16): RateLimiter, RateLimiterStatistics, RateLimitLease, RateLimitPartition, HttpContext, TimeProvider, DistributedIpFixedWindowRateLimiter, IdleDuration (+8 more)
+### Community 255 - "Regex"
+Cohesion: 0.04
+Nodes (47): How it is enforced, Skip the web and image jobs on documentation-only pull requests (#782), The rule, What happened, What this does NOT cover, Why not the obvious alternative, The lock order, 1b. GREEN — the model walk (PROTECTED) (+39 more)
 
-### Community 261 - "Cross-Tenant Isolation Guard Design"
-Cohesion: 0.25
-Nodes (7): Files (create-or-append; all checked for existence first), Goal, Open owner decisions (folded or pending), Out of scope (per issue), Part 1b — Review amendments (invariants reviewer, round 1; all verified against the resolved EF Core 10.0.11 dll), Part 3 — What the walk may fix, T8 #536 — Cross-tenant isolation hardening: enumerating guard + two-farm E2E matrix
+### Community 256 - "UpdateCustomerHandler.HandleAsync"
+Cohesion: 0.35
+Nodes (7): UpdateCustomerHandler, UpdateCustomerHandlerTests, FakeAuditWriter, Calls, FakeCustomerRepository, FakeUnitOfWork, SaveChangesCallCount
 
-### Community 262 - "Account Rename Docs Guards"
-Cohesion: 0.21
-Nodes (5): RenameAccountDocsRepoRootTests, RenameAccountDocsTests, Fact, InlineData, Theory
+### Community 257 - "A write-contract change must update its non-CI callers (#394)"
+Cohesion: 0.31
+Nodes (9): A write-contract change must update its non-CI callers (#394), Amendment, 2026-09-11: the Playwright half stopped being true, authHeaders(), getMe(), safeJson(), authedGetExpect403(), authedPost(), dailyEntryScreen() (+1 more)
 
-### Community 263 - "Credential Epoch Race Barriers"
-Cohesion: 0.17
-Nodes (14): DbCommandInterceptor, CredentialEpochRaceFactory, Barrier, CredentialResetBarrier, Hasher, CredentialResetBarrierInterceptor, EpochReplayBarrierInterceptor, CancellationToken (+6 more)
-
-### Community 264 - "Logging and Provisioning Runbooks"
-Cohesion: 0.03
-Nodes (61): Transient-DB retry, and where it stops (#269), 9. Provisioning: two verbs, one Owner-creation core, Facts this runbook asserts (all read from the base commit — trust these over your assumptions), 2. Stable structured security events, Log redaction + security-event policy, What the deployment/ops repo must provide (requirement, not configuration), 2. Application layer, 4a. Rolling deploys: the check has to exist everywhere before the mutations do (+53 more)
-
-### Community 265 - "Shared State Namespace Wiring"
-Cohesion: 0.08
-Nodes (16): 2. Choose your depth, Task, TimeSpan, NamespaceFactory, SharedStateNamespaceWiringTests, Fact, IWebHostBuilder, Task (+8 more)
-
-### Community 266 - "Job Worker Leader Gate"
-Cohesion: 0.26
-Nodes (11): Lane A — `DurableJobWorkerLeaderGateTests` (Leader_Polls :77, Follower_NeverPolls :67), IServiceScopeFactory, CountingScopeFactory, Creates, DurableJobWorkerLeaderGateTests, StubLease, ThrowingLease, CancellationToken (+3 more)
-
-### Community 267 - "Farm Locale Settings"
-Cohesion: 0.50
-Nodes (4): Farm Settings (#123), Operational Day (farm-local dates), Farm Localization Settings, Formatting Boundary (farm locale, not UI language)
-
-### Community 268 - "Daily Entry Endpoints"
+### Community 259 - "IAccessLookup"
 Cohesion: 0.14
-Nodes (23): Cluckwork.Api.Modules.EggOperations.DailyEntries, Task 3: Extend the API contract and align Daily Entry and adjustment UI, Data model, AdjustDailyEntryRequest, DailyEntryEndpoints, DailyEntryResponse, GradeLineResponse, GradeQuantityRequest (+15 more)
+Nodes (6): IAccessLookup, AccessLookupTests, FlockRow, SeededFarm, AccessSeedLookupTests, PrefixedEmailNormalizer
 
-### Community 269 - "Create Flock Validation"
-Cohesion: 0.30
-Nodes (7): CreateFlockCommand, DateOnly, CreateFlockValidator, CreateFlockValidatorTests, DateOnly, Fact, Task
+### Community 260 - "DistributedIpFixedWindowRateLimiter"
+Cohesion: 0.20
+Nodes (5): DistributedIpFixedWindowRateLimiter, DistributedLease, IsAcquired, MetadataNames, IdleDuration
 
-### Community 270 - "Report Concurrency Gate Tests"
-Cohesion: 0.17
-Nodes (13): GateReportQueries, ReportGate, AdmittedCount, ReportsConcurrencyLimitFactory, ReportsConcurrencyLimitTests, CancellationToken, DateOnly, Fact (+5 more)
+### Community 261 - "system_text_regularexpressions"
+Cohesion: 0.13
+Nodes (4): Cluckwork.Application.Tests.Documentation, SecurityDevelopmentFactory, SecurityHeadersDevelopmentTests, EnvironmentMutatingCollection
 
-### Community 271 - "Docs-Only Path Detection"
+### Community 263 - "CredentialEpochRaceTests"
+Cohesion: 0.13
+Nodes (10): CredentialEpochRaceFactory, Barrier, BeforeCommand, CredentialResetBarrier, Hasher, CredentialEpochRaceTests, CredentialResetBarrierInterceptor, BeforeCommandHook (+2 more)
+
+### Community 264 - "Disable a user, and change a user's email address"
 Cohesion: 0.09
-Nodes (26): DOCUMENTATION_FILES, DOCUMENTATION_PREFIXES, isDocsOnly(), isDocumentation(), isRootMarkdown(), isSuspicious(), main(), parsePaths() (+18 more)
+Nodes (22): Decisions, Delivery, Disable a user, and change a user's email address, Disable is one flag serving both offboarding and suspension, Problem, `recover-admin` re-enables, and gains a lookup that does not need the email, Revoking refresh tokens is not enough on its own, Scope (+14 more)
 
-### Community 272 - "Source Preprocessor Guard"
-Cohesion: 0.23
-Nodes (8): What this does NOT cover, What this does NOT cover, SourcePreprocessorTests, ClassDeclarationSyntax, Fact, InlineData, List, Theory
+### Community 265 - "public.OpenIddictApplications"
+Cohesion: 0.11
+Nodes (16): Columns, Constraints, Indexes, public.OpenIddictApplications, Relations, Triggers, Columns, Constraints (+8 more)
 
-### Community 273 - "Egg Stock Endpoints"
-Cohesion: 0.18
-Nodes (15): Task 2: 8 query filters on `AppDbContext`, EggLotResponse, EggMovementResponse, RecordEggLotMovementRequest, RecordEggLotMovementResponse, StockEndpoints, StockResponse, CancellationToken (+7 more)
+### Community 266 - "UsersPage.resetTwoFactor.test.tsx"
+Cohesion: 0.14
+Nodes (14): ADMIN, dialog(), ENROLLED, inspector(), mockListUsers, mockReset, mockStepUp, openAndSubmit() (+6 more)
 
-### Community 274 - "Report Concurrency Limiting"
-Cohesion: 0.06
-Nodes (30): CancellationTokenSource, EndpointFilterDelegate, EndpointFilterInvocationContext, IEndpointFilter, ReportConcurrencyLimitFilter, ValueTask, RouteGroupBuilder, DistributedReportConcurrencyLimiter (+22 more)
-
-### Community 275 - "MCP Server Design Synthesis"
+### Community 268 - "Cluckwork.Infrastructure.csproj"
 Cohesion: 0.12
-Nodes (17): An existing guard that starts applying on day one, Domain surface, Arena synthesis note — #770 MCP server design, Base: candidate 2 (fable), Dropouts, Grafted from candidate 3 (sonnet), Rejected, Verification performed by the orchestrator (primary sources, not candidate summaries) (+9 more)
+Nodes (16): Microsoft.AspNetCore.DataProtection.EntityFrameworkCore, Microsoft.AspNetCore.Identity.EntityFrameworkCore, Microsoft.EntityFrameworkCore, Npgsql.EntityFrameworkCore.PostgreSQL, OpenIddict.EntityFrameworkCore, OpenIddict.Server.AspNetCore, OpenIddict.Server.DataProtection, OpenIddict.Validation.AspNetCore (+8 more)
 
-### Community 276 - "Bootstrap Lock Continuity"
-Cohesion: 0.08
-Nodes (32): ConnectionState, IDbTransactionInterceptor, BootstrapBackendLossFailsClosedTests, BootstrapLockContinuityFactory, Interceptor, BootstrapLockContinuityInterceptor, CreateAttempts, KilledPid (+24 more)
+### Community 270 - "Func"
+Cohesion: 0.11
+Nodes (8): Armed, RecordingLogger, Entries, ReportsConcurrencyLimitFactory, ReportsConcurrencyLimitTests, ActorExpectation, ThrowingLogger, Calls
+
+### Community 271 - "Runbook — #357: let Owners change a user's login email"
+Cohesion: 0.13
+Nodes (14): Closed file scope, Documentation/runtime surfaces, Full foreground gates and PR, Increment 1 — backend contract and mutation, Increment 2 — dedicated SPA dialog and guidance, Prerequisites and observed baseline, PROTECTED — API client, PROTECTED — application shapes (+6 more)
+
+### Community 272 - "jobs"
+Cohesion: 0.13
+Nodes (14): name, runs-on, timeout-minutes, name, runs-on, timeout-minutes, if, name (+6 more)
+
+### Community 273 - "publish"
+Cohesion: 0.13
+Nodes (15): publish, digest, image, permissions, attestations, contents, id-token, packages (+7 more)
+
+### Community 274 - "InProcessLease"
+Cohesion: 0.07
+Nodes (18): DistributedReportConcurrencyLimiter, SlotGrant, RenewOutcome, Faulted, Lost, Renewed, ReportConcurrencyPermit, ILease (+10 more)
+
+### Community 275 - "ReadsRequestBodyAttribute"
+Cohesion: 0.17
+Nodes (5): An existing guard that starts applying on day one, 4. No bounded-result contract, and two mechanisms were conflated (major), ReadsRequestBodyAttribute, MaxRequestBodyBytesMetadata, IgnoresAmbientPrincipalAttribute
+
+### Community 276 - "ValueTask"
+Cohesion: 0.05
+Nodes (32): AsyncDisposableAction, BootstrapLockContinuityInterceptor, CreateAttempts, KilledPid, LockHeldByCreateBackend, ProofQueries, StateAtCreateTransactionStart, UserTableCommandsAfterFault (+24 more)
 
 ### Community 277 - "Production Log Format"
+Cohesion: 0.12
+Nodes (3): Production logs: compact JSON on stdout; base layer argument-free (#404), CredentialEpochMiddlewareOrderTests, ProductionLogFormatTests
+
+### Community 278 - "Cluckwork.Infrastructure.Persistence"
+Cohesion: 0.02
+Nodes (37): Cluckwork.Application.Modules.Access.Users.DisableUser, Cluckwork.Application.Modules.Access.Users.ChangeOwnPassword, Cluckwork.Application.Modules.Access.Users.AssignFlock, Cluckwork.Infrastructure.Persistence, Cluckwork.Application.Modules.Access.Users.SetUserPassword, Cluckwork.Infrastructure.Modules.Access.OAuth, Cluckwork.Domain.Modules.Farm.Contracts, Cluckwork.Application.Modules.Access.Users.SetLanguage (+29 more)
+
+### Community 279 - "with"
+Cohesion: 0.13
+Nodes (15): with, client-id, config-file, manifest-file, permission-contents, permission-issues, permission-pull-requests, persist-credentials (+7 more)
+
+### Community 281 - "TimeSpan"
 Cohesion: 0.14
-Nodes (12): ActivitySpanId, Production logs: compact JSON on stdout; base layer argument-free (#404), ITextFormatter, LogEventLevel, ProductionLogFormatTests, ActivityTraceId, DirectoryInfo, Fact (+4 more)
+Nodes (4): FixedWindowResult, RecordingCounter, Keys, SpentFailureBudgetCounter
 
-### Community 278 - "Auth and Identity Modules"
-Cohesion: 0.04
-Nodes (28): Cluckwork.Infrastructure.Time, Cluckwork.Application.Modules.Access.Users, Cluckwork.Infrastructure.Modules.Access.Identity, Cluckwork.Api, Cluckwork.Domain.Modules.Farm.Accounts, Cluckwork.Api.Middleware, Cluckwork.Domain.Tests.Accounts, Cluckwork.Application.Tests.FlockScoping (+20 more)
+### Community 282 - "ProductUnit"
+Cohesion: 0.13
+Nodes (13): CreateProductValidator, ProductUnit, Bird, Carton, Case, Dozen, Egg, Flat (+5 more)
 
-### Community 279 - "Idempotency Replay Tests"
-Cohesion: 0.46
-Nodes (4): IdempotencyReplayTests, Fact, Guid, Task
-
-### Community 280 - "Simulation Seed Command Tests"
-Cohesion: 0.18
-Nodes (11): SimulationSeedCommandFixture, AdminEmail, CastPassword, SimulationSeedCommandTests, ExitCode, Fact, Process, Stderr (+3 more)
-
-### Community 281 - "In-Process Fixed Window Counter"
-Cohesion: 0.11
-Nodes (19): InProcessFixedWindowCounter, CancellationToken, Count, DateTimeOffset, Dictionary, TimeProvider, TimeSpan, ValueTask (+11 more)
-
-### Community 282 - "Product Types and Handlers"
-Cohesion: 0.06
-Nodes (30): CancellationToken, Guid, Task, CancellationToken, Guid, IReadOnlyCollection, IReadOnlyDictionary, Task (+22 more)
-
-### Community 283 - "Multi-Instance Rate Limit Tests"
-Cohesion: 0.26
-Nodes (7): New finding: the login bucket key is shared across concurrently running test classes, MultiInstanceRateLimitTests, Fact, ProcessStartInfo, RedisContainer, Task, TimeSpan
+### Community 283 - "name"
+Cohesion: 0.36
+Nodes (14): steps, steps, steps, steps, steps, steps, steps, id (+6 more)
 
 ### Community 284 - "Refresh Tokens Table Schema"
-Cohesion: 0.33
-Nodes (6): Columns, Constraints, Indexes, public.refresh_tokens, Relations, Viewpoints
-
-### Community 285 - "UserRoleAssignments Table Schema"
 Cohesion: 0.29
-Nodes (7): Columns, Constraints, Indexes, public.UserRoleAssignments, Relations, Triggers, Viewpoints
+Nodes (6): Columns, Constraints, Indexes, public.refresh_tokens, Relations, Viewpoints
 
 ### Community 286 - "UI Tests TypeScript Config"
 Cohesion: 0.11
 Nodes (18): compilerOptions, esModuleInterop, exactOptionalPropertyTypes, isolatedModules, lib, module, moduleResolution, noEmit (+10 more)
 
-### Community 287 - "Process Role Guard Tests"
-Cohesion: 0.16
-Nodes (12): ServingGuard, ProcessRoleGuardTests, CoveredGuardTokens, ServingGuard, Action, IReadOnlyList, MemberData, Process (+4 more)
+### Community 287 - "ProcessRoleGuardTests"
+Cohesion: 0.08
+Nodes (8): ServingSubprocess, BaseUrl, ChildExitedBeforeReadyException, LostItsPort, MultiInstanceRateLimitTests, ProcessRoleGuardTests, CoveredGuardTokens, ServingGuard
 
 ### Community 288 - "Release Rehearsal Sim Harness"
-Cohesion: 0.15
-Nodes (13): #243 Release-Rehearsal Sim Harness, Baseline orchestrator (`run-baseline.sh`, #243 Task 9), Files, KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370, `pg_stat_statements`, Quickstart, SAFETY: the `cluckwork-sim` project, Sanctioned deviations from Production config (+5 more)
+Cohesion: 0.12
+Nodes (17): #243 Release-Rehearsal Sim Harness, Baseline orchestrator (`run-baseline.sh`, #243 Task 9), Files, KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370, Local OTLP metrics sink, `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh`, Monitoring (#243 Task 8) (+9 more)
 
-### Community 289 - "Postgres Leader Lease"
-Cohesion: 0.27
-Nodes (10): Acquired, BackendPid, PostgresLeaderLease, BackendProcessId, CancellationToken, Func, ILogger, NpgsqlConnection (+2 more)
+### Community 289 - "PostgresLeaderLease"
+Cohesion: 0.14
+Nodes (9): S1: advisory-lock gate, LeaseStatus, Faulted, Follower, Leader, PostgresLeaderLease, BackendProcessId, HappyPathStillReleasesTheLockTests (+1 more)
 
-### Community 290 - "AspNetRoleClaims Table Schema"
-Cohesion: 0.33
-Nodes (6): Columns, Constraints, Indexes, public.AspNetRoleClaims, Relations, Viewpoints
+### Community 290 - "Actor"
+Cohesion: 0.22
+Nodes (6): EggGradeFloorPolicy, LowStockFloorTests, Actor, ConnectedApp, Email, UserId
 
-### Community 291 - "Trusted Proxy Boot Guard"
-Cohesion: 0.24
-Nodes (6): TrustedProxyGuardTests, TrustedProxyOptOutFactory, Exception, Fact, IWebHostBuilder, Task
+### Community 291 - "InventoryCategory"
+Cohesion: 0.14
+Nodes (12): CreateInventoryItemValidator, InventoryCategory, Additive, Bedding, EquipmentPart, Feed, Medication, Other (+4 more)
 
 ### Community 292 - "AspNetRoles Table Schema"
 Cohesion: 0.33
 Nodes (6): Columns, Constraints, Indexes, public.AspNetRoles, Relations, Viewpoints
 
-### Community 293 - "Claim-Once Store Contract"
-Cohesion: 0.30
-Nodes (6): ClaimOnceContractTests, Fixture, Clock, Store, Fact, TimeProvider
+### Community 293 - "Fixture"
+Cohesion: 0.40
+Nodes (4): ClaimOnceContractTests, Fixture, Clock, Store
 
 ### Community 294 - "Maskable App Icon Branding"
 Cohesion: 0.67
@@ -2035,10 +2288,6 @@ Nodes (4): Cluckwork Egg Brand Mark, Cluckwork Web App Manifest Icon Declaration
 Cohesion: 0.67
 Nodes (3): API-level scenario seeding with bearer token + Idempotency-Key, verify skill: runtime E2E verification workflow, dev Postgres service (loopback :5432)
 
-### Community 300 - "Session Token Auth"
-Cohesion: 0.67
-Nodes (3): Session Tokens (#145/#169/#176), ASP.NET Identity + JWT behind IIdentityProvider (KD-5), SPA Auth Flow (memory token + cookie refresh)
-
 ### Community 301 - "i18n Catalog Parity"
 Cohesion: 0.67
 Nodes (3): Catalog Parity Enforcement, Typed English Catalog (en.ts source of truth), i18n Key Naming (namespace:camelCaseKey)
@@ -2056,148 +2305,132 @@ Cohesion: 0.67
 Nodes (3): Cluckwork Egg Branding Motif, PWA Icon 512, PWA Manifest Icon Integration
 
 ### Community 305 - "HSTS Over TLS Tests"
-Cohesion: 0.16
-Nodes (13): IServer, IServerAddressesFeature, HstsOverRealTlsTests, TlsKestrelFactory, HttpPort, HttpsPort, Fact, HttpClient (+5 more)
+Cohesion: 0.12
+Nodes (7): HstsOverRealTlsTests, TlsKestrelFactory, HttpPort, HttpsPort, RawPathKestrelFactory, Port, SpaShellRawPathTests
 
-### Community 310 - "Customer Repository"
-Cohesion: 0.07
-Nodes (43): AuditCall, ICustomerRepository, CancellationToken, Guid, IReadOnlyCollection, IReadOnlyDictionary, IReadOnlyList, Task (+35 more)
+### Community 310 - "IReadOnlyDictionary"
+Cohesion: 0.03
+Nodes (45): The rule, 3. Invariants, D2 — root cause, Invariants, Why it is reachable rather than theoretical, 1a. RED — add the two failing tests, Caller ledger, CommerceTools (+37 more)
 
 ### Community 311 - "CI Security Gate Decisions"
-Cohesion: 0.06
-Nodes (29): CI security gates, lock-file healing, Dependabot, action pinning (#146), Dependabot NuGet PRs: automatic lock-file healing, Pin third-party Actions to a commit SHA, Container image hardening (#267), The rule, The scan gate was reversed (2026-10-02, #1006), Why third-party scan Actions are SHA-pinned, Alternatives and accepted costs (+21 more)
+Cohesion: 0.05
+Nodes (42): How it is enforced, Require seven CI checks on `main`, tested against the latest `main` (#1182), The rule, What happened, What this does NOT cover, Why not the obvious alternative, CI security gates, lock-file healing, Dependabot, action pinning (#146), Dependabot NuGet PRs: automatic lock-file healing (+34 more)
 
 ### Community 313 - "AspNetUsers Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.AspNetUsers, Relations, Triggers, Viewpoints
 
 ### Community 319 - "User Display Name Tests"
-Cohesion: 0.24
-Nodes (12): StepUpDto, UserNameTests, UserRow, AccountId, Admin, DateTimeOffset, Fact, Guid (+4 more)
+Cohesion: 0.26
+Nodes (3): UserNameTests, StepUpDto, UserRow
 
 ### Community 320 - "Sales Order Ceiling Tests"
-Cohesion: 0.28
-Nodes (5): SalesOrderCeilingTests, Fact, Guid, InlineData, Theory
+Cohesion: 0.15
+Nodes (9): DiscountCeiling, BasisPoints, Percent, CeilingBreach, LineCeilingStatus, Exceeds, Unmeasurable, Within (+1 more)
 
 ### Community 321 - "k6 Capacity Baseline Script"
 Cohesion: 0.10
 Nodes (19): ALL_USERS, CAPACITY_DURATION_SECONDS, CAPACITY_LOGIN_JITTER_SECONDS, CAPACITY_VUS, capacityUserOwner, countOf(), extractTrend(), FLOW_ORDER (+11 more)
 
-### Community 326 - "Chronology Migration Triggers"
+### Community 326 - "env"
 Cohesion: 0.15
-Nodes (13): Actions, EntityType, OrderBy, DateTimeOffset, IEnumerable, MigrationBuilder, Table, AddBusinessRecordChronology (+5 more)
+Nodes (13): DIGEST, GH_TOKEN, GHCR_TOKEN, IMAGE, INPUT_SHA, INPUT_TAG, PUSH_SHA, PUSH_TAG (+5 more)
 
 ### Community 328 - "Table Owner Test Fixtures"
-Cohesion: 0.12
-Nodes (15): Cluckwork.Application.Tests.Architecture.TableOwnerFixtures, Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue.Models, Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue, tableownerfixtures, Child, Id, Name, ParentId (+7 more)
-
-### Community 329 - "Migrate Command Tests"
-Cohesion: 0.26
-Nodes (8): MigrateCommandTests, ExitCode, Fact, Process, Stderr, Stdout, Task, TimeSpan
+Cohesion: 0.09
+Nodes (19): Cluckwork.Application.Tests.Architecture.TableOwnerFixtures, Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue.Models, Cluckwork.Application.Tests.Architecture.TableOwnerFixtures.Blue, Child, Id, Name, ParentId, Other (+11 more)
 
 ### Community 330 - "Module Seam Surface Scanner"
-Cohesion: 0.12
-Nodes (19): BindingFlags, Matches, Fact, Type, Fact, ScanRules, IsContract, SeamSurfaceReport (+11 more)
+Cohesion: 0.13
+Nodes (7): SeamSurfaceRealAssemblyTests, ApplicationAssembly, SeamSurfaceReport, SeamSurfaceScanner, ScanRules, IsContract, SeamSurfaceViolation
 
 ### Community 331 - "BirdMovements Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.BirdMovements, Relations, Triggers, Viewpoints
 
-### Community 332 - "Account Roles"
-Cohesion: 0.11
-Nodes (17): EffectiveAccountRole, Denied, Manager, Owner, ReadOnly, Sales, Worker, IEnumerable (+9 more)
+### Community 332 - "EffectiveAccountRole"
+Cohesion: 0.13
+Nodes (14): Arena synthesis note — #770 MCP server design, Base: candidate 2 (fable), Dropouts, Grafted from candidate 1 (opus), Grafted from candidate 3 (sonnet), Rejected, EffectiveAccountRole, Denied (+6 more)
 
 ### Community 333 - "Sales Order Settlement Scope"
-Cohesion: 0.15
-Nodes (9): SettlementScope, Hidden, UnpaidOnly, Visible, SalesOrderListQueryTests, Fact, InlineData, IReadOnlyList (+1 more)
+Cohesion: 0.19
+Nodes (6): Tools are domain questions, not route mirrors, SettlementScope, Hidden, UnpaidOnly, Visible, SalesOrderListQueryTests
 
 ### Community 334 - "Customers Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.Customers, Relations, Triggers, Viewpoints
 
 ### Community 335 - "Design-Time Migration Connection"
-Cohesion: 0.06
-Nodes (25): Design-time migration connection, fail-closed (#318), The rule, The TLS floor applies here too, Why not a localhost default, GSS/Kerberos negotiation off by default (#332), IDesignTimeDbContextFactory, AppDbContextDesignTimeFactory, PostgresConnectionString (+17 more)
-
-### Community 336 - "Flock Schema Docs"
-Cohesion: 0.12
-Nodes (15): Columns, Constraints, Indexes, public.DailyEntries, Relations, Triggers, Viewpoints, Description (+7 more)
+Cohesion: 0.07
+Nodes (7): Design-time migration connection, fail-closed (#318), The rule, The TLS floor applies here too, Why not a localhost default, GSS/Kerberos negotiation off by default (#332), PostgresConnectionString, PostgresConnectionStringTests
 
 ### Community 337 - "DailyEntryGrades Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.DailyEntryGrades, Relations, Triggers, Viewpoints
 
-### Community 338 - "Farm Directory Contract"
-Cohesion: 0.10
-Nodes (18): How it is enforced, Put farm settings behind a Farm contract; keep identity and the account seam outside it (#851), The rule, What happened, FarmListing, FarmTimeZone, CancellationToken, Guid (+10 more)
+### Community 338 - ".tbls.yml"
+Cohesion: 0.15
+Nodes (12): desc, disableOutputSchema, docPath, er, format, format, sort, name (+4 more)
 
 ### Community 339 - "EF Migrations History Table"
 Cohesion: 0.33
 Nodes (5): Columns, Constraints, Indexes, public.__EFMigrationsHistory, Relations
 
-### Community 340 - "Revoke Fault Interceptor"
-Cohesion: 0.47
-Nodes (6): RevokeUpdateFaultInterceptor, CommandEventData, DbCommand, DbDataReader, InterceptionResult, ValueTask
-
 ### Community 341 - "EggGrades Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.EggGrades, Relations, Triggers, Viewpoints
 
-### Community 342 - "Break-Glass Recovery Runbook"
-Cohesion: 0.25
-Nodes (8): Expected output (exit code `0`), Failure (exit code `1`), Post-recovery verification (drill this on staging before you need it), Preventing the lockout in the first place, Procedure, Runbook: break-glass account recovery (`recover-admin`), What it does (atomically, in one transaction), When to use this
+### Community 342 - "AuthEndpoints"
+Cohesion: 0.29
+Nodes (3): AuthEndpoints, EnrolmentStartResponse, RecoveryCodesResponse
 
-### Community 343 - "Idempotency Record Model"
-Cohesion: 0.09
-Nodes (21): IdempotencyModelBuilderExtensions, IdempotencyRecord, AccountId, CompletedAt, ContentType, CreatedAt, EndpointHash, Id (+13 more)
+### Community 343 - "McpCallContext"
+Cohesion: 0.03
+Nodes (83): MCP writes share #307's idempotency unit, not the REST route (#809), The rule, What happened, What this does NOT cover, Why not the obvious alternative, Alternatives considered, Connecting, Discovery is role-filtered, not merely enforced (+75 more)
 
-### Community 344 - "Refresh Token Purge Sweep"
-Cohesion: 0.36
-Nodes (7): RefreshTokenPurgeSweepTests, DateTimeOffset, Fact, Guid, HttpClient, Task, WebApplicationFactoryClientOptions
+### Community 345 - "FakeCoverageTrackers.cs"
+Cohesion: 0.17
+Nodes (6): Coverlet.Core.Instrumentation.Tracker.CluckworkFixture, Counter, Instance, ReturnsValue, TakesLong, WrongName
 
-### Community 345 - "Test JWT Key Generation"
-Cohesion: 0.38
-Nodes (6): PrivateKeyPem, PublicKeyPem, TestJwtKeys, PrivateKeyPem, PublicKeyPem, Lazy
+### Community 346 - "services"
+Cohesion: 0.17
+Nodes (11): image, services, redis, traefik, command, image, ports, profiles (+3 more)
 
-### Community 346 - "Login Request Validation"
-Cohesion: 0.42
-Nodes (4): LoginRequest, LoginRequestValidator, LoginRequestValidatorTests, Fact
-
-### Community 347 - "Deployment Bootstrap Script"
-Cohesion: 0.52
-Nodes (5): gen_db_password(), gen_password(), pem_to_escaped(), rand_chars(), bootstrap.sh script
+### Community 347 - "#798, #799, #800: OAuth screen directions"
+Cohesion: 0.17
+Nodes (11): #798, #799, #800: OAuth screen directions, A, B and C (history), Accessibility in the mockups, Audit provenance (#800), Connected apps on Account (#799, the user's own), Consent (#798), Login, continuing to consent, Naming (+3 more)
 
 ### Community 348 - "Postgres Snapshot Script"
 Cohesion: 0.60
 Nodes (5): psql_(), read_env_value(), pg-snapshot.sh script, ts(), usage()
 
 ### Community 349 - "Egg Inventory Movements Schema"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.EggInventoryMovements, Relations, Triggers, Viewpoints
 
 ### Community 350 - "EggLots Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.EggLots, Relations, Triggers, Viewpoints
 
-### Community 351 - "Module Ledger And CI Matrix Decisions"
-Cohesion: 0.10
-Nodes (17): Amendment, 2026-10-06: module folders replace the namespace lists (#1087), Cross-module references are declared in the module ledger (#514, #842), How it is enforced, The rule, What happened, What this does NOT cover, Why not the obvious alternative, How it is enforced, and what is NOT enforced (+9 more)
+### Community 351 - "#277 — session report"
+Cohesion: 0.17
+Nodes (11): #277 — session report, Deferred, with reasons, Findings filed rather than absorbed, Honest notes, If this is picked up again, Round 2 — ran, and it mattered, Round 3 — and a result of mine that had to be withdrawn, The blocker I caused, and its remediation (+3 more)
 
 ### Community 352 - "Egg Unit Conversions Schema"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.EggUnitConversions, Relations, Triggers, Viewpoints
 
-### Community 353 - "Exports and Save States"
-Cohesion: 0.05
-Nodes (38): Confirm-dialog handoff model, Save pending states design v3 (#236), ApiError, downloadExportCsv(), downloadFullBackup(), EXPORT_DATASETS, putMeLanguage(), putMeStepperUnit() (+30 more)
+### Community 353 - "ExportPage.test.tsx"
+Cohesion: 0.18
+Nodes (9): downloadExportCsv(), downloadFullBackup(), EXPORT_DATASETS, saveBlob(), errText(), ExportPage(), anchorClicks, mockBackup (+1 more)
 
-### Community 354 - "Expense Schema Docs"
-Cohesion: 0.12
-Nodes (14): Columns, Constraints, Indexes, public.ExpenseCategories, Relations, Triggers, Viewpoints, Columns (+6 more)
+### Community 354 - "public.ExpenseCategories"
+Cohesion: 0.29
+Nodes (7): Columns, Constraints, Indexes, public.ExpenseCategories, Relations, Triggers, Viewpoints
 
-### Community 355 - "Payment Endpoints"
+### Community 355 - "CluckworkEndpointGroups.MapCluckworkEndpointGroups"
 Cohesion: 0.11
-Nodes (22): Cluckwork.Api.Modules.Commerce.Sales, CustomerBalanceResponse, CustomerBalancesResponse, OrderPaymentsResponse, PaymentEndpoints, PaymentResponse, RecordPaymentRequest, VoidPaymentRequest (+14 more)
+Nodes (6): Out of scope, CluckworkIdentityRegistration, FarmBannerUploadCapMetadata, FarmLogoUploadCapMetadata, ConfirmSaleRequest, AuditEndpoints
 
 ### Community 356 - "FeedUsages Table Schema"
 Cohesion: 0.29
@@ -2207,45 +2440,37 @@ Nodes (7): Columns, Constraints, Indexes, public.FeedUsages, Relations, Triggers
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.Flocks, Relations, Triggers, Viewpoints
 
-### Community 358 - "Inventory Schema Docs"
-Cohesion: 0.13
-Nodes (14): Columns, Constraints, Indexes, public.InventoryLots, Relations, Triggers, Viewpoints, Columns (+6 more)
+### Community 358 - "public.InventoryLots"
+Cohesion: 0.29
+Nodes (7): Columns, Constraints, Indexes, public.InventoryLots, Relations, Triggers, Viewpoints
 
-### Community 359 - "Request Logging Tests"
-Cohesion: 0.25
-Nodes (8): Test plan, RequestLoggingTests, ActivityTraceId, Fact, HttpClient, HttpRequestMessage, IReadOnlyList, Task
+### Community 359 - "RequestLoggingTests"
+Cohesion: 0.10
+Nodes (9): LoginRequest, LoginRequestValidator, LoginRequestValidatorTests, HangingLoginValidator, Entered, RequestLoggingTests, TimeoutThenHangUpLoginValidator, Entered (+1 more)
 
 ### Community 360 - "Aspire AppHost Design"
-Cohesion: 0.11
-Nodes (17): A. Minimal AppHost plus a small telemetry resolver — selected, Aspire AppHost design for issue #565, B. Generic configuration-overlay abstraction, C. ServiceDefaults/client-integration adoption, Configuration tests, Constraints and non-goals, Documentation, Goal (+9 more)
-
-### Community 361 - "Future-Dated Lot Stock Test"
-Cohesion: 0.50
-Nodes (3): Fact, List, Task
+Cohesion: 0.10
+Nodes (20): A. Minimal AppHost plus a small telemetry resolver — selected, Aspire AppHost design for issue #565, B. Generic configuration-overlay abstraction, C. ServiceDefaults/client-integration adoption, Configuration tests, Constraints and non-goals, Deliberate security clarification to the issue wording, Documentation (+12 more)
 
 ### Community 362 - "Currency Catalog and Brands"
-Cohesion: 0.09
-Nodes (15): FrozenDictionary, CurrencyCatalog, CurrencyInfo, FarmBrands, All, IReadOnlyList, AccountSettingsTests, DayOfWeek (+7 more)
+Cohesion: 0.08
+Nodes (12): Accepted costs, Proof, The farm's connected-apps switch refuses; it never revokes (#1146), The rule, What happened, 4.2 `Account` — one nullable column, FarmBrands, All (+4 more)
 
 ### Community 363 - "Docker Stats Sampler"
 Cohesion: 0.83
 Nodes (3): compose(), docker-stats-sampler.sh script, usage()
 
 ### Community 364 - "Sim Stack Reset Script"
-Cohesion: 0.60
-Nodes (5): compose(), read_env_value(), rotate_owner_password(), reset.sh script, verify_owner_farm()
+Cohesion: 0.52
+Nodes (6): add_enrolled_owner(), compose(), read_env_value(), rotate_owner_password(), reset.sh script, verify_owner_farm()
 
 ### Community 366 - "Idempotency Record Purge Tests"
-Cohesion: 0.42
-Nodes (5): IdempotencyRecordPurgeSweepTests, DateTimeOffset, Fact, Guid, Task
+Cohesion: 0.31
+Nodes (4): IdempotencyStatus, Completed, InProgress, IdempotencyRecordPurgeSweepTests
 
-### Community 367 - "Persistent Step-Up Grant Registry"
-Cohesion: 0.14
-Nodes (17): PersistentStepUpGrantRegistry, PersistentStepUpGrantRegistryRegistration, CancellationToken, DateTimeOffset, Guid, IServiceCollection, Task, LogoutOnClaimClaimOnceStore (+9 more)
-
-### Community 368 - "Login Rate Limit Bucket Probe"
-Cohesion: 0.13
-Nodes (12): IsolatedLoginBucket, IWebHostBuilder, ValueTask, LoginCounterKeyProbeTests, BurstKeyPattern, Dictionary, Fact, IConnectionMultiplexer (+4 more)
+### Community 368 - "LoginCounterKeyProbeTests"
+Cohesion: 0.29
+Nodes (3): IsolatedLoginBucket, LoginCounterKeyProbeTests, BurstKeyPattern
 
 ### Community 369 - "Payments Table Schema"
 Cohesion: 0.29
@@ -2259,29 +2484,25 @@ Nodes (7): Columns, Constraints, Indexes, public.Products, Relations, Triggers, 
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.SalesOrderAllocations, Relations, Triggers, Viewpoints
 
-### Community 372 - "Single-Instance Shared Stores"
-Cohesion: 0.06
-Nodes (40): How this list was derived, because it was twice derived wrongly, ServiceProvider, Deploy invariant: exactly ONE serving API instance (#271), ReportConcurrencyCapRegistration, TimeSpan, IClaimOnceStore, TimeSpan, FixedWindowResult (+32 more)
-
-### Community 373 - "Distributed Rate Limiter Wiring"
-Cohesion: 0.10
-Nodes (25): Lane B — `MultiInstanceRateLimitTests` / `DistributedRateLimiterWiringTests` (expected 429, got 401), The probe ran — and its first result was a bug in the probe, CollectingSink, Events, DistributedRateLimiterWiringFactory, Primary, Sink, DistributedRateLimiterWiringTests (+17 more)
-
-### Community 374 - "Vite and Aspire Frontend Tooling"
+### Community 372 - "IFixedWindowCounter"
 Cohesion: 0.07
-Nodes (29): Task 5: Make Vite honor Aspire's dynamic endpoint, @emotion/cache, @emotion/react, @emotion/styled, @fontsource-variable/inter, jsdom, react-dom, @types/react (+21 more)
+Nodes (27): Accepted risks (declined on purpose), AGENTS.md: `src/`, Conventions (follow these), Data and correctness, Deploy invariant: exactly ONE serving API instance (#271), Operations and callers, IClaimOnceStore, IFixedWindowCounter (+19 more)
 
-### Community 375 - "Retry Boundary Tests"
-Cohesion: 0.20
-Nodes (10): RecordedDto, RetryBoundaryTests, SubmitDto, Exception, Fact, Guid, List, Task (+2 more)
+### Community 373 - "DistributedRateLimiterWiringTests"
+Cohesion: 0.18
+Nodes (10): Lane B — `MultiInstanceRateLimitTests` / `DistributedRateLimiterWiringTests` (expected 429, got 401), New finding: the login bucket key is shared across concurrently running test classes, The probe ran — and its first result was a bug in the probe, DistributedRateLimiterWiringFactory, Primary, Sink, ToggleablePrimary, IsDown (+2 more)
+
+### Community 375 - "RetryBoundaryTests"
+Cohesion: 0.06
+Nodes (17): TransientCommitFaultInterceptor, Commits, TransientFault, ClaimCounter, Count, McpIdempotencyFaultFactory, Claims, CommitFault (+9 more)
 
 ### Community 376 - "SalesOrderItems Table Schema"
 Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.SalesOrderItems, Relations, Triggers, Viewpoints
 
-### Community 377 - "EF Persistence and Migrations"
-Cohesion: 0.03
-Nodes (54): Cluckwork.Infrastructure.Persistence, Cluckwork.Infrastructure.Providers, Cluckwork.Infrastructure.Persistence.Migrations, Cluckwork.Infrastructure.Providers.Postgres, Cluckwork.Infrastructure.Persistence.Interceptors, What has to line up, microsoft_entityframeworkcore_design, microsoft_entityframeworkcore_infrastructure (+46 more)
+### Community 377 - "MigrationBuilder"
+Cohesion: 0.04
+Nodes (20): What has to line up, AddDailyEntryStepperUnitPreferences, AddFarmBannerColumns, AddUserStepUpLogoutEpoch, AddAccountSlug, AccountScopedIdentityIndexes, AddAccountIdToUserRoles, AddAuditEventSequence (+12 more)
 
 ### Community 378 - "SalesOrders Table Schema"
 Cohesion: 0.29
@@ -2292,476 +2513,436 @@ Cohesion: 0.29
 Nodes (7): Columns, Constraints, Indexes, public.WaterUsages, Relations, Triggers, Viewpoints
 
 ### Community 380 - "Flock Scope Step-up Plan"
-Cohesion: 0.18
-Nodes (10): Final verification and handoff, Fixed contracts, Implementation plan — #606 step-up for durable flock scope, Increment 1 — fail-closed application and HTTP boundary, Increment 4 — user-visible boundary and canonical documentation, Task 1.2: Put proof validation first in both application handlers, Task 1.4: Make the backend increment green, Task 4.1: Update semantic documentation tests first (+2 more)
+Cohesion: 0.13
+Nodes (14): Final verification and handoff, Fixed contracts, Implementation plan — #606 step-up for durable flock scope, Increment 1 — fail-closed application and HTTP boundary, Increment 2 — explicit trusted simulation provisioning, Increment 4 — user-visible boundary and canonical documentation, Task 1.1: Add red integration guards for both mutation routes, Task 1.2: Put proof validation first in both application handlers (+6 more)
 
 ### Community 381 - "Farm Logo Upload Options"
-Cohesion: 0.23
-Nodes (9): FarmLogoOptions, MaxUploadBytes, FarmLogoOptionsValidator, ValidateOptionsResult, FarmLogoOptionsTests, Fact, InlineData, Theory (+1 more)
+Cohesion: 0.20
+Nodes (7): FarmBannerOptions, MaxUploadBytes, FarmBannerOptionsValidator, FarmLogoOptions, MaxUploadBytes, FarmLogoOptionsValidator, FarmLogoOptionsTests
 
 ### Community 382 - "Speckit Prerequisite Scripts"
 Cohesion: 0.13
 Nodes (29): check-prerequisites.sh script, check_dir(), check_file(), find_specify_root(), format_speckit_command(), get_current_branch(), get_feature_paths(), get_invoke_separator() (+21 more)
 
 ### Community 383 - "Feature Task List"
-Cohesion: 0.07
-Nodes (27): Dependencies & Execution Order, Format: `[ID] [P?] [Story] Description`, Implementation for User Story 2, Implementation for User Story 4, Implementation for User Story 5, Implementation Strategy, Incremental Delivery, Notes (+19 more)
+Cohesion: 0.09
+Nodes (22): Format: `[ID] [P?] [Story] Description`, Implementation for User Story 2, Implementation for User Story 4, Implementation for User Story 5, Implementation Strategy, Incremental Delivery, Notes, Parallel Examples (+14 more)
 
-### Community 384 - "Feed Usage Repository"
-Cohesion: 0.07
-Nodes (26): CancellationToken, DateOnly, Guid, IReadOnlyList, Task, FeedUsage, CreatedAtUtc, DailyEntryId (+18 more)
+### Community 384 - "styles.bare-elements.test.ts"
+Cohesion: 0.24
+Nodes (11): bareElementRules(), BareRule, chainReadings(), compoundGroups(), compoundReadings(), css, DELIBERATE, DEMOTED (+3 more)
 
 ### Community 385 - "Sales Discount Reason Tests"
-Cohesion: 0.18
-Nodes (16): AuditRow, IdDto, OrderDto, OrderItemDto, SalesDiscountReasonTests, AccountId, Client, Fact (+8 more)
+Cohesion: 0.17
+Nodes (4): SalesDiscountReasonTests, AuditRow, IdDto, OrderItemDto
 
 ### Community 386 - "Command Validators"
-Cohesion: 0.14
-Nodes (19): AbstractValidator, RecordPaymentValidator, CreateExpenseCategoryCommand, CreateExpenseCommand, DateOnly, Guid, AdjustExpenseValidator, CreateExpenseValidator (+11 more)
+Cohesion: 0.17
+Nodes (6): CreateSalesOrderValidator, RecordPaymentValidator, AdjustExpenseValidator, CreateExpenseValidator, UpdateFlockValidator, FarmLocalDateRuleTests
 
 ### Community 387 - "Insights Module Namespaces"
-Cohesion: 0.09
-Nodes (16): Cluckwork.Api.Modules.Insights.Audit, Cluckwork.Application.Modules.Insights.Export, Cluckwork.Api.Modules.Insights.Export, Cluckwork.Application.Modules.Insights.Reports, Cluckwork.Infrastructure.Modules.Insights.Repositories, Cluckwork.Application.Modules.Insights.Contracts, Cluckwork.Api.Modules.Insights, Cluckwork.Application.Modules.Insights.Audit (+8 more)
-
-### Community 388 - "Void Sale Tests"
-Cohesion: 0.26
-Nodes (10): ItemDto, OrderDto, VoidSaleTests, DateOnly, Fact, Guid, HttpClient, HttpResponseMessage (+2 more)
-
-### Community 389 - "Seeded Audit Actor Design"
-Cohesion: 0.07
-Nodes (19): Announcement — the blog post before the feature, Problem, Product decision — DECIDED 2026-08-11: option A, Product: seeded records name a real person (#500), Screens, Success metric, Gates 1 and 2 — the documents approved unreviewed, Review of Gates 1, 2 and 4 — findings and dispositions (+11 more)
-
-### Community 391 - "Flock Entity"
-Cohesion: 0.06
-Nodes (39): EnumerableQuery, Flock, ArchivedOn, Breed, CreatedAtUtc, DepletedOn, FarmId, HouseId (+31 more)
-
-### Community 392 - "Access Seed Lookup"
 Cohesion: 0.05
-Nodes (52): Counts, Seed composition, FailedOwnerRead, ILookupNormalizer, OwnerReadFailure, PrefixedEmailNormalizer, AccessActor, AccessUserSummary (+44 more)
+Nodes (9): Cluckwork.Api.Modules.Insights.Audit, Cluckwork.Api.Modules.Insights.Reports, Cluckwork.Application.Modules.Insights.Export, Cluckwork.Api.Modules.Insights.Export, Cluckwork.Application.Modules.Insights.Reports, Cluckwork.Application.Modules.Insights.Contracts, Cluckwork.Application.Modules.Insights.Audit, ReportConcurrencyLimitFilter (+1 more)
 
-### Community 393 - "Customer Reference Repository"
-Cohesion: 0.17
-Nodes (11): Phase 2: Foundational (Blocking Prerequisites), CustomerReference, Guid, CustomerRepository, CancellationToken, Guid, IReadOnlyCollection, IReadOnlyDictionary (+3 more)
+### Community 388 - "Fix increment 2 — #562 / PR #671, round-2 findings (comments and one assertion message only)"
+Cohesion: 0.18
+Nodes (10): 8a. `tests/Cluckwork.Api.IntegrationTests/AccountIdConcurrencyTokenModelTests.cs` — the selector comment, 8b. Same file — the assertion message, 8c. `tests/Cluckwork.Api.IntegrationTests/TenantWriteRefusalLoggingTests.cs` — the new test's comment, 8d. Build, test, commit, push, Files you may edit (complete allow-list), Fix increment 2 — #562 / PR #671, round-2 findings (comments and one assertion message only), Gates (same rows as the first runbook), INCREMENT 8 — the guard's comment and message say what the code does (Mechanical) (+2 more)
 
-### Community 394 - "Global User Lookup Guard"
-Cohesion: 0.42
-Nodes (4): GlobalUserLookupGuardTests, Fact, IEnumerable, List
+### Community 389 - "plans/README.md"
+Cohesion: 0.03
+Nodes (54): Gate 3 review round 2 — findings and dispositions, Recorded as accepted limitations, not defects, The method defect — this one matters more than any single finding, Gates 1 and 2 — the documents approved unreviewed, Review of Gates 1, 2 and 4 — findings and dispositions, Facts that decay, Lessons — #585 + #587: farm-qualified credentials and revocable remembered farms, PART 1 — CAPTURE (+46 more)
 
-### Community 395 - "Inventory Endpoints"
-Cohesion: 0.20
-Nodes (18): Cluckwork.Api.Modules.GeneralInventory.Inventory, CreateInventoryItemRequest, FeedUsageResponse, InventoryEndpoints, InventoryItemResponse, InventoryLotResponse, InventoryMovementResponse, RecordAdjustmentRequest (+10 more)
+### Community 391 - "Flock"
+Cohesion: 0.04
+Nodes (42): How it is enforced, Name resolution, and the one behaviour change, Allow-list rows carry a token hash (#1072), Phase 2: Foundational (Blocking Prerequisites), VoidDailyEntryCommand, VoidDailyEntryResponse, FlockEligibility, Active (+34 more)
 
-### Community 397 - "MCP Server Design Record"
-Cohesion: 0.11
-Nodes (18): Decisions still open, Decisions the owner made before this design, MCP server support — design record (#770), What changed relative to the issue, Candidate 2 is RIGHT and the severity is higher than candidates 1 and 3 stated., Candidate 3's "single load-bearing line" framing is WRONG., FINDING 1 — #271 is touched. Candidates 1 and 3 are WRONG; candidate 2 is RIGHT., FINDING 2 — The SDK already sets `ScopeRequests = false` under Stateless. (+10 more)
+### Community 392 - "SimulationDataSeeder.ComputeCountsAsync"
+Cohesion: 0.39
+Nodes (7): SimulationDailyEntryStates, SimulationExpectedCounts, SimulationFlockStates, SimulationInventoryMovementStates, SimulationLifecycleStates, SimulationManifestCounts, SimulationSalesOrderStates
 
-### Community 398 - "Binding Failure Response"
+### Community 393 - "Procedure"
+Cohesion: 0.18
+Nodes (11): 1. Raise the setting, 2. After a rollback, raise it before you redeploy, 3. Lower it again, 4. Switch the requirement off, 5. Switch the requirement back on, Drill, How the grace period works, If it fails (+3 more)
+
+### Community 394 - "GlobalUserLookupGuardTests"
 Cohesion: 0.22
-Nodes (10): Endpoint, BindingFailureResponse, HttpContext, IAcceptsMetadata, IApplicationBuilder, IExceptionHandlerFeature, ConcernsRequestBodyTests, Fact (+2 more)
+Nodes (3): GlobalUserLookupGuardTests, ScanResult, TwoFactorTokens
 
-### Community 399 - "Logout Refresh Race Tests"
-Cohesion: 0.28
-Nodes (8): Live, GraceInspectionBarrierInterceptor, Hits, LogoutRefreshLineageRaceTests, Fact, Guid, Task, WebApplicationFactoryClientOptions
+### Community 395 - "sha"
+Cohesion: 0.18
+Nodes (11): sha, on, pull_request, push, workflow_dispatch, branches, branches, description (+3 more)
+
+### Community 397 - "e2e-smoke.yml"
+Cohesion: 0.18
+Nodes (10): concurrency, cancel-in-progress, group, jobs, name, on, pull_request, permissions (+2 more)
+
+### Community 399 - "CodeSet"
+Cohesion: 0.25
+Nodes (3): CodeSet, RecoveryCodes, RedactedCodeSet
 
 ### Community 400 - "Write Denial Implementation Runbook"
 Cohesion: 0.13
 Nodes (14): 0. Read, preflight, and stop conditions, 1.1 Write the integration guards first, 1.2 Implement the application gate, 1.3 Implement the HTTP adapter and adapt all seven raw writes, 1.4 Run and record backend mutations, 1. Backend denial guards, commands, handlers, and endpoints, 2.1 Add the focused real-Postgres characterization guard, 2.3 Run and record simulation mutations (+6 more)
 
-### Community 401 - "MCP Server Design Review"
+### Community 401 - "Fixture"
+Cohesion: 0.18
+Nodes (11): Fixture, ActiveIds, AllCount, AllFlockIds, ArchivedIds, CustomerIds, DepletedIds, EligibleCount (+3 more)
+
+### Community 402 - "SeedCommandRunner.RunToCompletionAsync"
 Cohesion: 0.08
-Nodes (25): 1. The identity bridge screened parameters, not the dependency graph (major), 2. The extracted idempotency port had no success/failure contract (major), 3. Name-addressed writes had no ambiguity contract (major), 5. Two guards could not go red on their stated mutations (minor), Adversarial review of the synthesized design (#770), Claims the reviewer checked and found sound, Not covered, One suggestion it refuted (+17 more)
+Nodes (16): Then stop enumerating: assert the property, Baseline findings, Checkout and method, Correction: the 25.8% figure is not a speedup, Diagnostic repeat before optimization, Files changed, Final validation and comparison, Integration suite wall clock, issue #839 (+8 more)
 
-### Community 402 - "Integration Suite Performance"
-Cohesion: 0.08
-Nodes (24): Baseline findings, Checkout and method, Correction: the 25.8% figure is not a speedup, Diagnostic repeat before optimization, Files changed, Final validation and comparison, Integration suite wall clock, issue #839, Optimized diagnostic run (+16 more)
-
-### Community 403 - "Schema Docs Guards"
-Cohesion: 0.11
-Nodes (18): Column, Def, Default, Rules, Task 3: Generalize immutable container-image guards, Nullable, SchemaDocsTests, Count (+10 more)
-
-### Community 404 - "Docs and Runbooks Index"
+### Community 403 - "SchemaDocsTests"
 Cohesion: 0.13
-Nodes (11): Documentation map, Which file does a rule go in?, Rules, Runbooks, What separates a runbook from a wiki page, Checklist, How it was verified, What and why (+3 more)
+Nodes (8): Amendment, 2026-09-25: `AppHost.Tests` is in CI; the required-key set is not (#956), Aspire is local orchestration, and it is a second database (#565), How it is enforced, The rule, What happened, What this does NOT cover, Why not the obvious alternative, SchemaDocsTests
 
-### Community 405 - "Exception Handler Re-Execution Tests"
-Cohesion: 0.26
-Nodes (9): ExceptionHandlerReExecutionTests, AccountId, CategoryId, Client, Fact, Guid, HttpClient, List (+1 more)
+### Community 404 - "simulation-fixture-on-a-dev-database.md"
+Cohesion: 0.07
+Nodes (26): Documentation map, Which file does a rule go in?, Expected output (exit code `0`), Failure (exit code `1`), Post-recovery verification (drill this on staging before you need it), Preventing the lockout in the first place, Procedure, Runbook: break-glass account recovery (`recover-admin`) (+18 more)
 
-### Community 406 - "Redis Fixed Window Counter"
-Cohesion: 0.14
-Nodes (16): RedisKey, RedisFixedWindowCounter, CancellationToken, IConnectionMultiplexer, TimeSpan, ValueTask, RedisFixedWindowCounterContractTests, ArgumentOutOfRangeException (+8 more)
+### Community 407 - "SimulationDataSeeder"
+Cohesion: 0.02
+Nodes (66): Both profiles require an Owner, and sign what they seed (#500), Seed command and simulation profile (#280, #284, #279), Seed composition, The rule, Post-PR review rounds (codex on #517), Slices, Status: seeded audit events carry a real actor (#500), Flow (+58 more)
 
-### Community 407 - "Seed and Simulation Profile"
-Cohesion: 0.03
-Nodes (78): DemoProduct, Both profiles require an Owner, and sign what they seed (#500), Seed command and simulation profile (#280, #284, #279), What this does NOT do: existing databases are not repaired, Slice 1 — tracer bullet: nothing is unattributed, Gate 4 — the slice plan, 2. The Owner was looked up twice (local agent, product, P3), 3. `ResolveTenantAndActor` hardcoded `Roles.Owner` (local agent, tests, low) (+70 more)
+### Community 408 - "Threat model and design — #606: step-up for durable flock scope"
+Cohesion: 0.20
+Nodes (9): Assets and trust boundaries, Design options, Design-review claims to attack, Evidence and exposure, Intent, scope, and non-goals, Scope-ownership map, State-transition conflict table, Threat model and design — #606: step-up for durable flock scope (+1 more)
 
-### Community 408 - "Product Audit Payload Tests"
-Cohesion: 0.24
-Nodes (12): AuditRow, IdDto, ProductAuditPayloadTests, AccountId, Client, EggGradeId, Fact, Guid (+4 more)
-
-### Community 409 - "Transaction Holder Disposal"
-Cohesion: 0.22
-Nodes (7): IAsyncDisposable, Holder, IDbContextTransaction, ValueTask, Holder, IDbContextTransaction, ValueTask
+### Community 409 - "ClientMetadataFetcher.FetchAsync"
+Cohesion: 0.04
+Nodes (36): Accept client ID metadata documents beside registration (#1148), Configuration, How a metadata client is stored, How it is enforced, The consent screen, The disconnect route, The fetch budget, The fetcher (+28 more)
 
 ### Community 410 - "TOC Verification Script"
-Cohesion: 0.12
-Nodes (22): collections, csv, datetime, json, os, pathlib, re, subprocess (+14 more)
+Cohesion: 0.11
+Nodes (11): _on_pre_tool_call(), register(), _terminal_place(), main(), code(), collapse_seam(), convert(), main() (+3 more)
 
-### Community 411 - "Playwright CSP and Dashboard Specs"
-Cohesion: 0.06
-Nodes (57): expectOverItsDay(), Placement, placementIn(), runSequence(), open(), FieldScan, LANGUAGE_OPTION, WITNESS_KEYS (+49 more)
+### Community 411 - "src/fixtures.ts"
+Cohesion: 0.03
+Nodes (124): The two-factor Owner (#1281), barHeights(), layRateCard(), openPicker(), pickAllFlocks(), pickerDialog(), pinnedAllFlocksChoice(), ReportDay (+116 more)
 
 ### Community 412 - "Account-Scoped Identity Migration"
-Cohesion: 0.11
-Nodes (25): Base reference data via guarded raw-SQL migrations, not `HasData` (#283), NpgsqlException, AccountScopedIdentityMigrationTests, Fact, IMigrator, InlineData, PostgresException, Task (+17 more)
+Cohesion: 0.14
+Nodes (10): AccountMaxDiscountMigrationTests, AccountScopedIdentityMigrationTests, AccountSlugMigrationTests, BaseReferenceDataMigrationTests, BusinessRecordChronologyMigrationTests, CredentialEpochFloorConstraintTests, FarmBannerMigrationDowngradeTests, ConnectionString (+2 more)
 
-### Community 413 - "In-Process Lease"
-Cohesion: 0.08
-Nodes (28): Entry, InProcessLease, DateTimeOffset, Dictionary, TimeProvider, TimeSpan, NullScope, RecordingLogger (+20 more)
+### Community 413 - "FakeTimeProvider"
+Cohesion: 0.12
+Nodes (9): DistributedIpFixedWindowRateLimiterTests, FakeCounter, AsyncCalls, NextCount, SyncCalls, FakeTimeProvider, UtcNow, FixedWindowCounterContractTests (+1 more)
 
-### Community 414 - "Rate Limiter Unit Tests"
-Cohesion: 0.19
-Nodes (12): FakeCounter, DistributedIpFixedWindowRateLimiterTests, FakeCounter, AsyncCalls, NextCount, SyncCalls, ArgumentOutOfRangeException, CancellationToken (+4 more)
+### Community 414 - "env"
+Cohesion: 0.20
+Nodes (10): BASE_REF, BASE_SHA, DOCS_ONLY, GH_TOKEN, GHCR_TOKEN, IMAGE_RESULT, INPUT_SHA, REPO (+2 more)
 
-### Community 415 - "Account User Validator Tests"
-Cohesion: 0.24
-Nodes (10): AccountScopedUserValidatorTests, Count, Fact, Guid, IdentityResult, InlineData, Result, Task (+2 more)
+### Community 415 - "canary"
+Cohesion: 0.20
+Nodes (10): default, description, type, canary, slow, workflow_dispatch, default, description (+2 more)
 
 ### Community 416 - "Module Compatibility Exceptions"
+Cohesion: 0.09
+Nodes (11): CompatibilityExceptionTests, MappedOrder, Due, Id, Paid, MappingDb, SpecialOrder, Note (+3 more)
+
+### Community 417 - "e2e"
 Cohesion: 0.20
-Nodes (5): CompatibilityExceptionTests, Fact, InlineData, IReadOnlyList, Theory
+Nodes (10): env, name, runs-on, strategy, timeout-minutes, PLAYWRIGHT_IMAGE, e2e, shard (+2 more)
 
-### Community 417 - "User Roles Account Runbook"
-Cohesion: 0.13
-Nodes (14): 2a. The scanner's split rule, stated as it now is, 2b. AGENTS.md — the rule gains one sentence, 2c. The decision record, 2d. This runbook, 2e. Build, the FULL suite in the foreground, commit, Caller ledger — driver fills before dispatch, Documentation surfaces — driver fills before dispatch, FINISH — push + PR (+6 more)
+### Community 419 - "with"
+Cohesion: 0.20
+Nodes (10): with, cache, cache-dependency-path, if-no-files-found, key, name, node-version, path (+2 more)
 
-### Community 418 - "Auth Refresh Cookies"
-Cohesion: 0.15
-Nodes (19): CookieOptions, AuthCookies, Action, Guid, HttpRequest, HttpResponse, IReadOnlyList, AccessTokenResponse (+11 more)
+### Community 421 - "with"
+Cohesion: 0.20
+Nodes (10): with, category, merge-multiple, name, path, pattern, persist-credentials, retention-days (+2 more)
 
-### Community 419 - "Update Customer Validator Tests"
-Cohesion: 0.41
-Nodes (3): UpdateCustomerValidatorTests, Fact, Task
+### Community 422 - "SharedStateOptions"
+Cohesion: 0.29
+Nodes (5): SharedStateOptions, Redis, RedisOptions, ConnectionString, KeyNamespace
 
-### Community 420 - "Egg Lot Movement Validation"
-Cohesion: 0.27
-Nodes (8): RecordEggLotMovementCommand, Guid, RecordEggLotMovementValidator, RecordEggLotMovementValidatorTests, Fact, InlineData, Task, Theory
+### Community 423 - "Error.Domain"
+Cohesion: 0.06
+Nodes (9): Cluckwork.Domain.Tests.Common, Test plan, The audited action set — derived, not assumed, Money, IsNegative, ExpectedItem, ExpectedOrder, MoneyTests (+1 more)
 
-### Community 421 - "OTLP Configuration Resolution"
-Cohesion: 0.19
-Nodes (11): Dependency Graph, Task 1: Resolve canonical and standard OTLP transport profiles, Task 4: Build and guard the Aspire resource model, Task 6: Document the workflow and prove the real stack, Task 7: Run adversarial mutations and the full verification gate, OtlpConfigurationResolver, OtlpTransportProfileSource, Canonical (+3 more)
-
-### Community 422 - "Shared State Redis Options"
-Cohesion: 0.18
-Nodes (9): RedisOptions, RedisOptions, ConnectionString, KeyNamespace, SharedStateOptions, Redis, CluckworkSharedStateServiceCollectionExtensions, IConfiguration (+1 more)
-
-### Community 423 - "Sales Order Domain Tests"
-Cohesion: 0.17
-Nodes (6): SalesOrderTests, ArgumentException, ArgumentOutOfRangeException, Fact, InlineData, Theory
-
-### Community 424 - "Background Jobs and Leader Lease"
-Cohesion: 0.17
-Nodes (12): CluckworkJobServiceCollectionExtensions, ILogger, IServiceCollection, AlwaysLeaderLease, ILeaderLease, LeaderLeaseConnectionString, LeaseStatus, Faulted (+4 more)
+### Community 424 - "groom"
+Cohesion: 0.22
+Nodes (10): deployment, name, environment, if, name, needs, runs-on, timeout-minutes (+2 more)
 
 ### Community 425 - "Farm Timezone Availability"
-Cohesion: 0.14
-Nodes (12): Farm timezone, and the tzdata/ICU image constraint (#264), How it is enforced, The rule, Why the image constraint follows, Boot guards and process roles, FarmSettingsRules, TimeZoneAvailability, TimeZoneAvailabilityTests (+4 more)
+Cohesion: 0.24
+Nodes (5): Farm timezone, and the tzdata/ICU image constraint (#264), How it is enforced, Why the image constraint follows, TimeZoneAvailability, TimeZoneAvailabilityTests
 
-### Community 426 - "Credential Epoch Tests"
-Cohesion: 0.26
-Nodes (4): CredentialEpochTests, Fact, Guid, Task
-
-### Community 427 - "Auth Rate Limiting Tests"
-Cohesion: 0.38
-Nodes (6): RateLimitingTests, Fact, HttpClient, HttpResponseMessage, JsonElement, Task
+### Community 426 - "ProblemDetails"
+Cohesion: 0.09
+Nodes (3): CredentialEpochFreshReadTests, ActiveBearer, CredentialEpochTests
 
 ### Community 428 - "Playwright UI Package Config"
 Cohesion: 0.09
-Nodes (22): description, devDependencies, @playwright/test, @types/node, typescript, @types/node, typescript, name (+14 more)
+Nodes (22): description, devDependencies, @playwright/test@^1.62.1, @types/node@^26.1.2, typescript@^7.0.2, @types/node, typescript, name (+14 more)
 
-### Community 429 - "Aggregate Root and Seams"
-Cohesion: 0.09
-Nodes (18): How it is enforced, No persistence type crosses an Application seam (#514, #847), The rule, What happened, What this does NOT cover, Why not the obvious alternative, AggregateRoot, DomainEvents (+10 more)
+### Community 429 - "Entity"
+Cohesion: 0.08
+Nodes (14): How it is enforced, No persistence type crosses an Application seam (#514, #847), The rule, What happened, What this does NOT cover, Why not the obvious alternative, AggregateRoot, DomainEvents (+6 more)
 
-### Community 430 - "Ambient Principal Login Tests"
+### Community 430 - "sha"
+Cohesion: 0.20
+Nodes (10): sha, tag, workflow_dispatch, description, required, type, description, required (+2 more)
+
+### Community 431 - "totp.js"
+Cohesion: 0.29
+Nodes (8): code(), CODE_STEP_HINT, decodeBase32(), RFC-6238, MAX_CODE_ATTEMPTS, nextCode(), stepNow(), withCodes()
+
+### Community 432 - "RateLimitingOptions"
+Cohesion: 0.06
+Nodes (26): 6. The code step has its own per-address policy and a durable daily budget of wrong authenticator codes, CluckworkRateLimitingServiceCollectionExtensions, RateLimitingOptions, AllowNoTrustedProxies, ClientErrors, ConcurrencyPolicy, PermitLimit, QueueLimit (+18 more)
+
+### Community 433 - "Fixture"
 Cohesion: 0.36
-Nodes (5): AmbientPrincipalOnLoginTests, Fact, Guid, HttpClient, Task
-
-### Community 431 - "Postgres Leader Lease Tests"
-Cohesion: 0.23
-Nodes (7): IAsyncLifetime, PostgresLeaderLeaseTests, Fact, Task, ServingGuardDatabaseFixture, ConnectionString, Task
-
-### Community 432 - "Rate Limiting Options"
-Cohesion: 0.11
-Nodes (22): ConcurrencyPolicy, FixedWindow, ConcurrencyPolicy, PermitLimit, QueueLimit, FixedWindow, PermitLimit, WindowSeconds (+14 more)
-
-### Community 433 - "Leader Lease Abstraction"
-Cohesion: 0.10
-Nodes (13): ILease, TimeSpan, DisposedLease, ThrowingLease, ToggleableLease, Down, TimeSpan, Fixture (+5 more)
+Nodes (4): LeaseContractTests, Fixture, Clock, Lease
 
 ### Community 434 - "Namespace Move Script"
 Cohesion: 0.12
-Nodes (28): add_using(), block_start(), block_usings(), code_files(), declarations(), folder_namespace(), ide0005(), index() (+20 more)
+Nodes (20): add_using(), block_start(), block_usings(), code_files(), declarations(), folder_namespace(), ide0005(), index() (+12 more)
 
 ### Community 435 - "Account Rename Domain Runbook"
-Cohesion: 0.16
-Nodes (11): 1a. RED — add the failing domain tests, 1b. GREEN — the domain method, 1c. RED/GREEN — pin the Version token with two tracked snapshots, 1d. Build and re-run, 1e. Commit Increment 1, INCREMENT 1 — `Account.Rename` (domain): validate, no-op, bump Version, AccountSlugTests, ArgumentException (+3 more)
+Cohesion: 0.14
+Nodes (7): 1a. RED — add the failing domain tests, 1b. GREEN — the domain method, 1c. RED/GREEN — pin the Version token with two tracked snapshots, 1d. Build and re-run, 1e. Commit Increment 1, INCREMENT 1 — `Account.Rename` (domain): validate, no-op, bump Version, AccountSlugTests
 
 ### Community 436 - "SPA E2E Suite Docs"
 Cohesion: 0.07
 Nodes (19): Accessibility assertions must go through CDP (#501), SPA E2E lives in `tools/simulation/ui/` (#277/#385), The PR run is three shards, one stack each (#966), The suite runs at two widths (#814), Browsers — the NixOS split, Conventions that are load-bearing, Known gaps, stated rather than implied, Layout (+11 more)
 
-### Community 437 - "Module Adapter Reach Rules"
-Cohesion: 0.03
-Nodes (92): How it is enforced, The rule, Declare adapter tiers before the surfaces that need them exist (#843), How it is enforced, The rule, What happened, Why not the obvious alternative, Derived owners (#1074) (+84 more)
+### Community 437 - "AdapterReachRealTreeTests"
+Cohesion: 0.05
+Nodes (31): Amendment, 2026-10-06: module folders replace the namespace lists (#1087), Cross-module references are declared in the module ledger (#514, #842), How it is enforced, The rule, What happened, What this does NOT cover, Why not the obvious alternative, Declare adapter tiers before the surfaces that need them exist (#843) (+23 more)
 
 ### Community 438 - "Break-Glass Admin Recovery"
 Cohesion: 0.40
 Nodes (5): Break-glass recovery: `recover-admin` (#265), The rule, Where the code lives, Why it is not environment-gated, Why not accept a password on the command line
 
-### Community 439 - "Discount Visibility Design"
-Cohesion: 0.13
-Nodes (14): 0. What already shipped, read from the code at `cffed5e`, 1. Simplicity ceiling, 2. Scope-ownership map, 3. Conflict table, 4. Invariants, 5.1 `orderDiscount()` — one new pure helper beside `lineDiscount()`, 5.2 Order screen (#723) — `Main.png`, 5.3 Orders table (#724) — `HistoryBadge.png` (+6 more)
+### Community 439 - "SalesPage.test.tsx"
+Cohesion: 0.03
+Nodes (173): 1. Simplicity ceiling, 0. What already shipped, read from the code at `cffed5e`, 1. Simplicity ceiling, 2. Scope-ownership map, 3. Conflict table, 4. Invariants, 5.1 `orderDiscount()` — one new pure helper beside `lineDiscount()`, 5.2 Order screen (#723) — `Main.png` (+165 more)
 
 ### Community 440 - "Screen Reader Verification Runbook"
 Cohesion: 0.20
 Nodes (8): 1. Set up, 2. Reaching the two triggers, 3. Scenarios, 4. What the result decides, 5. Constraints — do not "fix" a finding by breaking these, 6. Reporting, Getting a message to arrive WHILE a dialog is open, Runbook: verifying an announcement with a real screen reader
 
 ### Community 441 - "Business Record Contributions"
-Cohesion: 0.13
-Nodes (17): What happened, IReadOnlyEntityType, IReadOnlyProperty, PropertyBuilder, CommerceBusinessRecords, EggOperationsBusinessRecords, FinanceBusinessRecords, FlockManagementBusinessRecords (+9 more)
+Cohesion: 0.20
+Nodes (5): CommerceBusinessRecords, EggOperationsBusinessRecords, BusinessRecordContribution, BusinessRecordModel, PlatformBusinessRecords
 
-### Community 442 - "Product Catalog Endpoints"
-Cohesion: 0.13
-Nodes (19): Cluckwork.Api.Modules.Commerce.Catalog, CreateProductRequest, EggUnitConversionResponse, ProductEndpoints, ProductResponse, UpdateEggUnitConversionRequest, UpdateProductRequest, CancellationToken (+11 more)
+### Community 442 - "UpdateEggUnitConversionValidator"
+Cohesion: 0.36
+Nodes (3): UpdateEggUnitConversionValidator, UpdateProductValidator, CatalogUpdateVersionValidatorTests
 
-### Community 443 - "Rate Limit Keying"
-Cohesion: 0.38
-Nodes (4): IPAddress, RateLimitKey, RateLimitKeyTests, Fact
+### Community 443 - "HttpContext"
+Cohesion: 0.04
+Nodes (19): The rule, OwnerGraceOptions, OwnerGraceDays, RequireForOwners, CluckworkMcp, RequiredOrigin, OAuthApiAddressLimits, InFlightAuthentication (+11 more)
 
 ### Community 444 - "Non-Seekable Stream Helper"
-Cohesion: 0.14
-Nodes (8): Stream, NonSeekableStream, CanRead, CanSeek, CanWrite, Length, Position, SeekOrigin
+Cohesion: 0.11
+Nodes (6): NonSeekableStream, CanRead, CanSeek, CanWrite, Length, Position
 
 ### Community 445 - "Commerce Test Fixture"
-Cohesion: 0.19
-Nodes (11): CommerceFixtureCounts, ICommerceFixture, CancellationToken, DateOnly, Guid, Task, CommerceFixture, CancellationToken (+3 more)
+Cohesion: 0.12
+Nodes (3): CommerceFixtureCounts, ICommerceFixture, CommerceFixture
 
-### Community 446 - "Flock Lookup Tests"
-Cohesion: 0.16
-Nodes (14): FlockLookup, FlockLookupTests, StubFlocks, Ambiguous, CancellationToken, Fact, Guid, InlineData (+6 more)
+### Community 446 - "plan.md"
+Cohesion: 0.22
+Nodes (5): Content Quality, Feature Readiness, Notes, Requirement Completeness, Specification Quality Checklist: Searchable Paged Entity Picker
 
 ### Community 447 - "Fake IndexedDB Test Double"
 Cohesion: 0.19
 Nodes (5): createFakeIndexedDb(), FakeDatabase, FakeRequest, FakeTransaction, Listener
 
 ### Community 448 - "Fake OTLP Collector Runbook"
-Cohesion: 0.11
-Nodes (17): 1a. Apply the code — PROTECTED, 1b. Add the regression test — PROTECTED, 1c. Build and run, 1d. Commit, 2b. GREEN — apply the code — PROTECTED, 2c. Build and re-run, 2d. Commit, Documentation surfaces (+9 more)
+Cohesion: 0.10
+Nodes (19): 1a. Apply the code — PROTECTED, 1b. Add the regression test — PROTECTED, 1c. Build and run, 1d. Commit, 2b. GREEN — apply the code — PROTECTED, 2c. Build and re-run, 2d. Commit, Documentation surfaces (+11 more)
 
 ### Community 449 - "UI Component Library Docs"
 Cohesion: 0.15
-Nodes (12): Farm Palette (curated accent set), OpenAPI-Generated Typed Client (KD-6), SPA i18n Conventions Guide, Hardcoded-String Scan (count ratchet), Aubergine Primary (#4a154b chromatic monotheism), PWA App Icon Sources README (#142), Maskable PWA Icon Variant, SPA index.html shell (+4 more)
+Nodes (10): Farm Palette (curated accent set), SPA i18n Conventions Guide, Hardcoded-String Scan (count ratchet), PWA App Icon Sources README (#142), Maskable PWA Icon Variant, SPA index.html shell, theme-init.js (external pre-paint theme script), Cluckwork Web SPA README (+2 more)
 
-### Community 450 - "Confirm Sale Validator Tests"
-Cohesion: 0.35
-Nodes (4): ConfirmSaleValidatorTests, Fact, InlineData, Theory
+### Community 450 - "ConfirmSaleCommand"
+Cohesion: 0.14
+Nodes (16): 0. What already shipped, read from the code at `ea84801`, 2.1 The data shape: two nullable columns, paired by the domain, 2.2 The rule lives on the aggregate, because the data does, 2.3 The wire: an optional body on the existing endpoint, 2.4 The dialog: a third shape on `useConfirm`, not a second primitive, 2. Design decisions, 3. The epic's open questions, answered, 4. Guards this change must satisfy (+8 more)
 
-### Community 451 - "Transaction Delegate Shape Guard"
-Cohesion: 0.18
-Nodes (11): InScopeDelegate, InScopeDelegate, TransactionDelegateShapeTests, Fact, File, IEnumerable, InvocationExpressionSyntax, IReadOnlyList (+3 more)
+### Community 454 - "Page Adoption Contract"
+Cohesion: 0.20
+Nodes (10): Customer Links, Documentation Contract, Page Adoption Contract, Preserved Native Selectors and Out-of-Scope Surfaces, Sales URL Rules, 9. Page-Owned Lifecycle and Sales URL State, Implementation for User Story 3, Phase 5: User Story 3 - Recover From Loading and Availability Changes (Priority: P2) (+2 more)
 
-### Community 452 - "Credential Epoch Race Tests"
-Cohesion: 0.31
-Nodes (6): CredentialEpochRaceTests, Fact, Guid, InlineData, Task, Theory
+### Community 456 - "CountingPasswordHasher"
+Cohesion: 0.09
+Nodes (17): AuthBodyLimitFactory, Hasher, CountingPasswordHasher, HashCount, VerifyCount, AuthRateLimitLoggingCollection, AuthRateLimitLoggingFactory, Sink (+9 more)
 
-### Community 453 - "Flock Scope Filter Discovery"
-Cohesion: 0.16
-Nodes (17): Conjuncts, ExpressionType, IProperty, MemberExpression, MemberInfo, ParameterExpression, TenantConjunct, FlockScopeDiscoveryTests (+9 more)
-
-### Community 454 - "Telemetry Registration"
-Cohesion: 0.13
-Nodes (13): DiagnosticContext, Deliberate security clarification to the issue wording, SDK environment parsing, Telemetry compatibility boundary, OtlpExportProtocol, CluckworkTelemetryRegistration, IConfiguration, IDiagnosticContext (+5 more)
-
-### Community 455 - "User Index Model Tests"
-Cohesion: 0.49
-Nodes (3): ApplicationUserIndexModelTests, Fact, IEntityType
-
-### Community 456 - "Identity User Configuration"
-Cohesion: 0.05
-Nodes (51): FailedCount, IdentityError, IdentityErrorDescriber, IdentityUser, IPasswordHasher, IUserValidator, LockedOut, PasswordHasher (+43 more)
-
-### Community 457 - "Schema Docs and Worker Runbook"
+### Community 457 - "InitialCreate"
 Cohesion: 0.04
-Nodes (46): Generated PostgreSQL schema documentation (#417), Decision records, Index, #612 Worker Sale-Allocation Policy — Implementation Runbook, Global constraints, Handoff, Task 1: Persist and expose the setting, Task 2: Make assignments plain-Worker-only (+38 more)
+Nodes (41): Branches and PRs, Changing the database schema, Commit messages, Contributing, Dependencies, Local development, Once per clone, Resetting the dev database (+33 more)
 
-### Community 458 - "Non-Seekable Stream Wrapper"
-Cohesion: 0.17
-Nodes (7): NonSeekableStream, CanRead, CanSeek, CanWrite, Length, Position, SeekOrigin
+### Community 458 - "IFlockStore"
+Cohesion: 0.20
+Nodes (5): HandlerContractFixture, IFlockStore, IRepositoryContractFixture, IStore, RepositoryEnvelope
 
-### Community 459 - "Egg Movement Types"
-Cohesion: 0.08
-Nodes (27): EggMovementType, Adjustment, Discard, InternalUse, Production, Reconciliation, Sale, Transfer (+19 more)
+### Community 459 - "EggMovementType"
+Cohesion: 0.20
+Nodes (9): EggMovementType, Adjustment, Discard, InternalUse, Production, Reconciliation, Sale, Transfer (+1 more)
 
 ### Community 460 - "First-Run Provisioning Status"
-Cohesion: 0.10
-Nodes (21): FirstRunProvisioningLatch, IsProvisioned, FirstRunStatusService, CancellationToken, ILookupNormalizer, Task, TemporaryPassword, FirstRunLoginNoticeTests (+13 more)
+Cohesion: 0.17
+Nodes (6): FirstRunProvisioningLatch, IsProvisioned, FirstRunStatusService, TemporaryPassword, FirstRunLoginNoticeTests, TemporaryPasswordTests
 
-### Community 461 - "Playwright Configs and Dashboard"
+### Community 461 - "canary.spec.ts"
 Cohesion: 0.06
-Nodes (55): ref_node_crypto, @playwright/test, { executablePath }, requested, { executablePath }, { executablePath }, { executablePath }, barHeights() (+47 more)
+Nodes (29): @playwright/test, { executablePath }, requested, { executablePath }, { executablePath }, { executablePath }, assertScreenIsCorrect(), CanaryLocator (+21 more)
 
 ### Community 462 - "List Screens Implementer Runbook"
-Cohesion: 0.12
-Nodes (15): 1a. RED — the helper's tests first, 1b. GREEN — the helper, 1c. Commit, 2a., 2c. Tests, then commit, 4a. Which sites are empty states, 4b. The component, 4c. Tests (+7 more)
+Cohesion: 0.10
+Nodes (20): 1a. RED — the helper's tests first, 1b. GREEN — the helper, 1c. Commit, 2a., 2b. Callers, 2c. Tests, then commit, 4a. Which sites are empty states, 4b. The component (+12 more)
 
-### Community 463 - "User Email Change Handout"
-Cohesion: 0.04
-Nodes (46): 1. Dispatch contract (owner-approved 2026-08-25), 2. Review loop, 3. Locked design (owner-approved 2026-08-25), 4. Increment plan, 5. Standing repo rules that bite here, 6. Acceptance criteria, 7. Merge evidence, 8. First moves (+38 more)
+### Community 463 - "UserName"
+Cohesion: 0.06
+Nodes (30): #1276: tenant guard and storage, #1277: enrolment routes and the Security section, #1279: step-up, #1280: turn off and reset, #1281: Owners must enrol, Evidence, Guard tests each slice adds, What Identity 10.0.13 does, item by item (+22 more)
 
-### Community 465 - "EF Migration Snapshot 2"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 464 - "services"
+Cohesion: 0.20
+Nodes (9): name, command, image, ports, volumes, services, otel-collector, volumes (+1 more)
 
-### Community 466 - "Tenant Write Guard"
-Cohesion: 0.25
-Nodes (9): TenantWriteMismatchException, ActualAccountId, EntityType, ExpectedAccountId, Guid, TenantWriteGuardTests, Fact, Guid (+1 more)
+### Community 465 - "TestDataProtectionCertificate"
+Cohesion: 0.22
+Nodes (7): TestDataProtectionCertificate, CertificatePem, EcdsaCertificatePem, EcdsaPrivateKeyPem, PreviousCertificatePem, PreviousPrivateKeyPem, PrivateKeyPem
 
-### Community 467 - "Credential Epoch Floor"
-Cohesion: 0.17
-Nodes (17): The stored-epoch floor (#1031), CredentialEpochFloorConstraintTests, CredentialEpochFloorTests, TokenRow, AccountId, DateTimeOffset, Email, Fact (+9 more)
+### Community 466 - "environment"
+Cohesion: 0.28
+Nodes (9): environment, AllowedHosts, ASPNETCORE_URLS, ConnectionStrings__Default, Database__AllowInsecureConnection, Database__Provider, RateLimiting__TrustedProxies__0, SharedState__Redis__ConnectionString (+1 more)
+
+### Community 467 - "#1278: login, and enrolment without routes"
+Cohesion: 0.06
+Nodes (13): #1278: login, and enrolment without routes, StepUpRequest, StepUpRequestValidator, CreateUserRequest, SetUserPasswordRequest, Totp, TotpMatch, TotpMatcher (+5 more)
 
 ### Community 468 - "Export Row Types"
-Cohesion: 0.12
-Nodes (19): DailyEntryRow, The last compatibility exception, ExpenseList, ExpenseRow, F, FeedRow, FlockNamedRow, NameRow (+11 more)
+Cohesion: 0.07
+Nodes (11): NamedRowProjectionTests, AssignmentRow, DailyEntryRow, ExpenseList, ExpenseRow, FeedRow, FlockRow, NameRow (+3 more)
 
-### Community 469 - "SPA Raw Path Tests"
-Cohesion: 0.20
-Nodes (8): RawPathKestrelFactory, Port, SpaShellRawPathTests, Fact, IWebHostBuilder, Raw, Status, Task
+### Community 469 - "674 — Adopt a UI component library, and which one"
+Cohesion: 0.22
+Nodes (9): 674 — Adopt a UI component library, and which one, Amendment (2026-09-14), Consequences, The constraint everyone expected to be decisive, and why it was not, The cost, measured rather than predicted, The decision, What is NOT decided here, What the spike proved about migration cost (+1 more)
 
-### Community 470 - "Report Queries Contract"
-Cohesion: 0.14
-Nodes (18): Amendment, 2026-10-06: the Contracts folder is the contract (#1087), ProfitReport, SalesSummary, IReportQueries, CancellationToken, DateOnly, Guid, Task (+10 more)
+### Community 470 - "ExportQueries.GetDataset"
+Cohesion: 0.04
+Nodes (35): What happened, Amendment, 2026-10-06: the Contracts folder is the contract (#1087), Reach a contracted module only through its contract (#849), The rule, What happened, What this does NOT cover, Amendment, 2026-10-06: CW1004 is an error (#1116), Fixture (+27 more)
 
-### Community 471 - "Payment Repository"
-Cohesion: 0.05
-Nodes (45): CustomerBalance, Guid, IPaymentRepository, CancellationToken, Guid, IReadOnlyList, Task, PaymentMethod (+37 more)
+### Community 471 - "Payment"
+Cohesion: 0.03
+Nodes (33): Bounded results, and a budget for the one route that carries everything, CustomerBalance, RecordPaymentCommand, SalesOrderListFilter, VoidSaleCommand, VoidSaleResponse, SalesOrderListRow, Payment (+25 more)
 
 ### Community 472 - "Runbook Template"
 Cohesion: 0.25
 Nodes (7): 1. Confirm you are in the right situation, 2. <Step>, Drill, If it fails, Procedure, Runbook: <what this recovers or performs>, Verify
 
-### Community 473 - "Process Role Boot Checks"
-Cohesion: 0.09
-Nodes (26): How it is pinned, Process role, not statement order (#347), The mechanism's first consumer: #510, Then stop enumerating: assert the property, What shipped, Both JWT keys are checked at boot, and the check is serving-only (#510), How it is enforced, The rule (+18 more)
+### Community 473 - "IConfiguration"
+Cohesion: 0.06
+Nodes (32): How it is pinned, Process role, not statement order (#347), The mechanism's first consumer: #510, What shipped, What was rejected, What was wrong, Both JWT keys are checked at boot, and the check is serving-only (#510), How it is enforced (+24 more)
 
-### Community 474 - "List Accounts CLI Tests"
-Cohesion: 0.12
-Nodes (17): SeedCommandRunner, ExitCode, Process, Stderr, Stdout, Task, TimeSpan, Fact (+9 more)
+### Community 474 - "Fix increment 2 — review findings on head `a1966740`"
+Cohesion: 0.22
+Nodes (8): 1. `git checkout -- docs/images/` is too broad (Major — real), 2. Markdown lint (real), 3. Unchecked checkbox (real, cosmetic), 4. NOT a defect — the alt text finding is stale. Do not change it., Commit and push, Fix increment 2 — review findings on head `a1966740`, Gates, Report back
 
-### Community 475 - "Transient DB Retry Tests"
-Cohesion: 0.16
-Nodes (12): BoundedRetryFactory, FaultInjectingUnitOfWork, TransientDbResilienceTests, TransientFaultFactory, CommandFault, FaultState, TransientFaultState, CancellationToken (+4 more)
+### Community 475 - "TransientFaultFactory.ConfigureWebHost"
+Cohesion: 0.27
+Nodes (7): UnitOfWork, BoundedRetryFactory, FaultInjectingUnitOfWork, TransientFaultFactory, CommandFault, FaultState, TransientFaultState
 
-### Community 476 - "EF Migration Snapshot 3"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 476 - "Releasing & container images"
+Cohesion: 0.22
+Nodes (9): 1. Merging a PR into `main`, 2. Merging the Release PR, Deploying, Forcing a version, Hotfix releases, Notes, Releasing & container images, What decides the version (+1 more)
 
-### Community 477 - "EF Migration Snapshot 4"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 477 - "web"
+Cohesion: 0.22
+Nodes (9): run, web, working-directory, defaults, if, name, needs, runs-on (+1 more)
 
-### Community 478 - "EF Migration Snapshot 5"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 478 - "dry_run"
+Cohesion: 0.22
+Nodes (9): default, description, type, dry_run, on, schedule, workflow_dispatch, cron (+1 more)
 
-### Community 479 - "EF Migration Snapshot 6"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 479 - "env"
+Cohesion: 0.22
+Nodes (9): ARCH, DRY_RUN, GH_TOKEN, GHCR_TOKEN, IMAGE, INDEX, RUN_URL, SHA (+1 more)
 
-### Community 480 - "Edge Security Configuration"
-Cohesion: 0.20
-Nodes (8): ForwardedHeadersOptions, HostFilteringOptions, microsoft_aspnetcore_hostfiltering, microsoft_aspnetcore_httpoverrides, CluckworkEdgeSecurityServiceCollectionExtensions, IPNetwork, IReadOnlyCollection, IServiceCollection
+### Community 480 - "McpToolErrors"
+Cohesion: 0.11
+Nodes (5): CluckworkEdgeSecurityServiceCollectionExtensions, ForwardedHeadersTrust, McpToolErrors, Node, Refusal
 
 ### Community 481 - "Tasks Template"
 Cohesion: 0.07
 Nodes (26): Dependencies & Execution Order, Format: `[ID] [P?] [Story] Description`, Implementation for User Story 1, Implementation for User Story 2, Implementation for User Story 3, Implementation Strategy, Incremental Delivery, MVP First (User Story 1 Only) (+18 more)
 
-### Community 482 - "Business Record Ordering"
-Cohesion: 0.40
-Nodes (6): IOrderedQueryable, BusinessRecordOrdering, DateOnly, Expression, Func, IQueryable
+### Community 482 - "scan"
+Cohesion: 0.22
+Nodes (9): scan, arch, name, needs, runs-on, strategy, timeout-minutes, fail-fast (+1 more)
 
-### Community 483 - "Query Shape Warning Tests"
+### Community 483 - "QueryShapeWarningTests"
 Cohesion: 0.11
-Nodes (24): IncludeAllocation, IncludeItem, IncludeOrder, SiblingIncludeContext, IncludeAllocation, Id, SalesOrderId, IncludeItem (+16 more)
+Nodes (13): QueryShapeWarningTests, IncludeAllocation, Id, SalesOrderId, IncludeItem, Id, SalesOrderId, IncludeOrder (+5 more)
 
-### Community 484 - "Egg Operations Module API"
-Cohesion: 0.19
-Nodes (11): AdjustDailyEntryResponse, Guid, VoidDailyEntryResponse, Guid, EggOperationsModule, CancellationToken, DateOnly, Guid (+3 more)
+### Community 484 - "release-please.yml"
+Cohesion: 0.22
+Nodes (8): concurrency, cancel-in-progress, group, jobs, name, on, push, branches
 
 ### Community 485 - "Backend Coverage Decision"
-Cohesion: 0.25
+Cohesion: 0.29
 Nodes (7): Backend test coverage measurement, report only (#776), How it is enforced, The rule, Verified: the migrations exclusion took effect, What happened, What this does NOT cover, Why not the obvious alternative
 
-### Community 486 - "Egg Lot Lock Ordering"
-Cohesion: 0.15
-Nodes (18): Earlier, EntryVersion, High, Later, Low, Created, EggLotLockOrderTests, EntryVersion (+10 more)
+### Community 486 - "EggLotLockOrderTests"
+Cohesion: 0.23
+Nodes (3): EggLotLockOrderTests, Created, EntryVersion
 
-### Community 487 - "Farm Banner Endpoints"
-Cohesion: 0.17
-Nodes (12): FarmBannerRequestBodyCap, FarmBannerUploadCapMetadata, IApplicationBuilder, IHttpMaxRequestBodySizeFeature, IOptionsSnapshot, FarmBannerEndpoints, CancellationToken, HttpContext (+4 more)
-
-### Community 488 - "Finance Module Expenses"
-Cohesion: 0.11
-Nodes (19): FinanceModuleServiceCollectionExtensions, IServiceCollection, IValidator, AdjustExpenseCommand, DateOnly, Guid, UpdateExpenseCategoryCommand, Guid (+11 more)
-
-### Community 489 - "Egg Operations Contract"
-Cohesion: 0.04
-Nodes (69): Daily entry, Sale, The egg loop, Put Egg Operations behind a contract and pin the egg lot lock order (#853), The stock seam waits for Commerce, What happened, Why three interfaces, not one, The stock port (+61 more)
-
-### Community 490 - "First Admin Provisioning Runbook"
-Cohesion: 0.25
-Nodes (8): 1. Production host, 2. Local Docker stack, 3. Compose dev database, API run from the IDE / CLI, 4. Aspire AppHost stack, Drill, If it fails, Runbook: provisioning the first admin (`bootstrap-admin`), Verify
-
-### Community 491 - "Idempotency Records Table Schema"
-Cohesion: 0.33
-Nodes (6): Columns, Constraints, Indexes, public.idempotency_records, Relations, Viewpoints
-
-### Community 492 - "Serving Guard Coverage Tests"
+### Community 487 - "release-please"
 Cohesion: 0.22
-Nodes (6): ServingGuardCoverageTests, Fact, IEnumerable, InlineData, Theory, Type
+Nodes (9): release-please, release_created, sha, tag_name, if, name, outputs, runs-on (+1 more)
 
-### Community 493 - "Owner-Only Farm Configuration Decision"
-Cohesion: 0.33
-Nodes (5): Keep farm configuration and identity Owner-only (#729), The rule, What happened, What this does not cover, Why not keep the `AdminOnly` policy
+### Community 488 - "States"
+Cohesion: 0.22
+Nodes (8): Adjusted, Daily entry, Draft, Information kept, Locked, States, Submitted, Voided
+
+### Community 489 - "The stock port"
+Cohesion: 0.08
+Nodes (14): The stock port, ConsentSelection, Scopes, IEggStockReservation, PlannedEggLotDraw, SaleAllocationPlan, SaleDemandLine, Reservation (+6 more)
+
+### Community 490 - "app"
+Cohesion: 0.29
+Nodes (8): build, env_file, labels, ports, context, dockerfile, build, app
+
+### Community 491 - "healthcheck"
+Cohesion: 0.46
+Nodes (8): healthcheck, healthcheck, interval, retries, start_period, test, timeout, healthcheck
+
+### Community 493 - "OAuth screens: selected directions"
+Cohesion: 0.25
+Nodes (7): Connected apps on Account: C, Consent D, with the maintainer's change, Login B, OAuth screens: selected directions, Reconnect, Terms, The Owner's farm-wide view: C
 
 ### Community 494 - "Web Style and i18n Rules"
-Cohesion: 0.17
-Nodes (9): Help prose naming a control: checked by review, not by a guard (#688), How it is enforced, Retire style guards with a named successor (#824), The rule, What happened, What this does NOT cover, Why not the obvious alternative, AGENTS.md — `web/` (+1 more)
+Cohesion: 0.14
+Nodes (11): Help prose naming a control: checked by review, not by a guard (#688), How it is enforced, Retire style guards with a named successor (#824), The rule, What happened, What this does NOT cover, Why not the obvious alternative, AGENTS.md: `web/` (+3 more)
 
-### Community 495 - "Egg Grade Condition Guard"
-Cohesion: 0.11
-Nodes (20): ConditionGradeGuard, CancellationToken, Guid, IEnumerable, Task, CancellationToken, Guid, Task (+12 more)
+### Community 495 - "#863: splitting the shared integration collection"
+Cohesion: 0.25
+Nodes (7): #863: splitting the shared integration collection, Recommendation, U1: why now, and what changed, U3: correctness — each half alone, U5: proving each run measured the intended code, U6: local measurement, U7: CI measurement
 
 ### Community 496 - "Architecture Enforcement Decisions"
 Cohesion: 0.12
-Nodes (15): Generate the coupling matrix from live evidence (#848), How it is enforced, The rule, What happened, What this does NOT cover, Why not the obvious alternative, Blast radius, measured, Gate two C# style rules at build time (#985) (+7 more)
+Nodes (12): App architecture and components, Code layers, Deployment, Feature modules, Generate the coupling matrix from live evidence (#848), How it is enforced, The rule, What happened (+4 more)
 
 ### Community 497 - "SPA Shell CSP Nonce"
-Cohesion: 0.12
-Nodes (14): Amendment (2026-09-14): CSP — MUI's styles need a nonce, and the policy stays strict, The finding, The invariant, The three options, and why the third won, Two consequences worth knowing before you touch this, SpaShell, SpaShellExtensions, HttpContext (+6 more)
+Cohesion: 0.15
+Nodes (8): Amendment (2026-09-14): CSP — MUI's styles need a nonce, and the policy stays strict, The finding, The invariant, The three options, and why the third won, Two consequences worth knowing before you touch this, SpaShell, SpaShellExtensions, SecurityHeaders
 
 ### Community 498 - "Screenshot Capture Script"
 Cohesion: 0.29
-Nodes (5): DESK, errs, PHONE, SHOTS, ref
+Nodes (4): DESK, errs, PHONE, SHOTS
 
-### Community 499 - "Flock Module API"
-Cohesion: 0.16
-Nodes (15): What happened, FlockModule, CancellationToken, Guid, IReadOnlyCollection, IReadOnlyDictionary, IReadOnlyList, Task (+7 more)
+### Community 499 - "steps"
+Cohesion: 0.36
+Nodes (8): steps, steps, steps, id, if, name, run, uses
 
 ### Community 500 - "Arena Synthesis Record"
-Cohesion: 0.25
-Nodes (7): #822 design doc: arena synthesis record, Base, Dropouts, Grafts, Grill (interrogate pass), Rejected, Verification
+Cohesion: 0.22
+Nodes (8): #822 design doc: arena synthesis record, Base, Disagreements, and which the code supported, Dropouts, Grafts, Grill (interrogate pass), Rejected, Verification
 
 ### Community 501 - "AspNetUserLogins Table Schema"
 Cohesion: 0.33
@@ -2777,75 +2958,59 @@ Nodes (7): Columns, Constraints, Indexes, public.InventoryItems, Relations, Trig
 
 ### Community 504 - "Aspire AppHost Packages"
 Cohesion: 0.25
-Nodes (6): Aspire.Hosting.JavaScript, Aspire.Hosting.PostgreSQL, Aspire.Hosting.Redis, Aspire.Hosting.Testing, Aspire.AppHost.Sdk/13.5.0, Microsoft.NET.Sdk
+Nodes (6): Aspire.Hosting.JavaScript, Aspire.Hosting.PostgreSQL, Aspire.Hosting.Redis, Aspire.Hosting.Testing, Aspire.AppHost.Sdk, Microsoft.NET.Sdk
 
-### Community 505 - "Farm Logo Repository"
-Cohesion: 0.15
-Nodes (9): IFarmLogoRepository, CancellationToken, Task, FarmBrandingHashes, FarmLogoContent, DateTimeOffset, FarmLogoRepository, CancellationToken (+1 more)
+### Community 505 - "resolve"
+Cohesion: 0.25
+Nodes (8): resolve, image, index, sha, name, outputs, runs-on, timeout-minutes
 
-### Community 506 - "Integration Collection Split"
-Cohesion: 0.05
-Nodes (49): D2: what the collection shared before repair, D7: repair and post-repair measurement, #863: splitting the shared integration collection, Recommendation, U1: why now, and what changed, U2: the change, U3: correctness — each half alone, U4: correctness — the vacuous-pass audit (+41 more)
+### Community 506 - "CluckworkWebApplicationFactory"
+Cohesion: 0.02
+Nodes (48): 22. Which login callers change, and how, D2: what the collection shared before repair, D6: correctness boundary for a future split, U2: the change, Task 6: Two-farm E2E matrix, FOR UPDATE depth (Q1, as reviewed), Negative isolation (the load-bearing half), Part 2 — Two-farm E2E matrix (+40 more)
 
-### Community 507 - "SQL Capture Interceptor Review"
-Cohesion: 0.12
-Nodes (18): 1. The #787 backstop claim covered writes and was asserted for reads (major), 2. Three operative statements still said "unreachable" (major), 3. Row 31b named a mechanism that cannot measure what it requires (minor), Round 3 — attacking the round-2 fixes, Three rounds, one pattern, What round 3 cleared, and two counts it corrected, CapturedCommand, SqlCaptureInterceptor (+10 more)
-
-### Community 508 - "Inventory Test Fixture"
-Cohesion: 0.22
-Nodes (11): IInventoryFixture, InventoryFixtureCounts, CancellationToken, DateOnly, Guid, Task, InventoryFixture, CancellationToken (+3 more)
-
-### Community 509 - "Inventory Lot Repository"
-Cohesion: 0.11
-Nodes (21): CancellationToken, DateOnly, Guid, IReadOnlyList, Task, InventoryLot, CreatedAtUtc, ExpiryDate (+13 more)
-
-### Community 510 - "Mutable Test Clock"
+### Community 507 - "Round 3 — attacking the round-2 fixes"
 Cohesion: 0.33
-Nodes (6): MutableClock, Today, TodayUtc, UtcNow, DateOnly, DateTime
+Nodes (6): 1. The #787 backstop claim covered writes and was asserted for reads (major), 2. Three operative statements still said "unreachable" (major), 3. Row 31b named a mechanism that cannot measure what it requires (minor), Round 3 — attacking the round-2 fixes, Three rounds, one pattern, What round 3 cleared, and two counts it corrected
+
+### Community 508 - "promote"
+Cohesion: 0.25
+Nodes (8): GH_REPO, promote, env, if, name, needs, runs-on, timeout-minutes
+
+### Community 509 - "steps"
+Cohesion: 0.46
+Nodes (8): steps, steps, steps, id, if, name, run, uses
+
+### Community 510 - "States"
+Cohesion: 0.25
+Nodes (7): Cancelled, Confirmed, Draft, Information kept, Sales order, States, Voided
 
 ### Community 511 - "Farm Logo and Banner"
-Cohesion: 0.08
-Nodes (24): FarmLogo, BannerByteLength, BannerContent, BannerContentHash, BannerContentType, BannerHeight, BannerUpdatedAt, BannerWidth (+16 more)
-
-### Community 512 - "EF Model Snapshot"
-Cohesion: 0.22
-Nodes (8): Blast radius, ModelSnapshot, AppDbContextModelSnapshot, DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+Cohesion: 0.07
+Nodes (23): FarmLogo, BannerByteLength, BannerContent, BannerContentHash, BannerContentType, BannerHeight, BannerUpdatedAt, BannerWidth (+15 more)
 
 ### Community 513 - "Egg Lot Domain Tests"
-Cohesion: 0.20
-Nodes (3): EggLotTests, DateOnly, Fact
+Cohesion: 0.15
+Nodes (5): Global constraints, Task 2: Make assignments plain-Worker-only, Task 3: Apply the policy during confirmation, Task 4: Finish UI, callers, docs, and verification, EggLotTests
 
-### Community 514 - "Host Pinning and Security Headers"
-Cohesion: 0.16
-Nodes (10): HostPinningTests, SecurityHeadersForwardedProxyTests, SecurityHeadersTests, Fact, HttpClient, HttpStatusCode, InlineData, Regex (+2 more)
-
-### Community 515 - "Discount Reason Vocabulary"
-Cohesion: 0.19
-Nodes (9): DiscountReasonCode, DamagedStock, LongStandingCustomer, ManagerApproved, Other, Volume, DiscountReasonVocabularyTests, Fact (+1 more)
+### Community 514 - "SpaShellTests"
+Cohesion: 0.12
+Nodes (3): SecurityHeadersTests, SpaShellTests, StaticCachingFactory
 
 ### Community 516 - "Runtime Verification Skill"
 Cohesion: 0.29
 Nodes (6): Cleanup, Doctor, Evidence, Launch, The dev-server path (debugging, not evidence), Verifying Cluckwork at runtime
 
-### Community 517 - "Module Edge Analyzer"
-Cohesion: 0.11
-Nodes (17): AnalysisContext, DiagnosticAnalyzer, DiagnosticDescriptor, Attribution, Owner, Scope, Symbol, ModuleEdgeAnalyzer (+9 more)
-
-### Community 518 - "Farm Module Options"
-Cohesion: 0.09
-Nodes (20): The currency probe, The currency probe waits for Commerce, IValidateOptions, FarmBannerOptions, MaxUploadBytes, FarmBannerOptionsValidator, ValidateOptionsResult, FarmModuleServiceCollectionExtensions (+12 more)
-
-### Community 519 - "Named Row Projection Probes"
-Cohesion: 0.07
-Nodes (24): Entry, NamedRowProjectionFactory, Probe, IWebHostBuilder, Entry, ParameterText, ParameterValues, ShapeProbe (+16 more)
-
-### Community 520 - "Tenant Bypass Allow-List"
-Cohesion: 0.23
-Nodes (8): Allow-list rows carry a token hash (#1072), Task 2: Allow-list semantics (unlisted red, stale red, predicate red, wrapper red), Mutation matrix (M8) — each mutant dies on its OWN named assertion, TenantBypassAllowListTests, Fact, InlineData, IReadOnlyList, Theory
-
-### Community 521 - "Cross-Tenant Isolation Guard Plan"
+### Community 517 - "ModuleEdgeAnalyzer"
 Cohesion: 0.06
-Nodes (31): Global Constraints, Self-review (post invariants-review, round 1), T8 #536 Implementation Plan, Task 0: Baseline ledger (BEFORE any guard test exists), Task 1: Guard scaffold — discovery floor + Roslyn walk skeleton, Task 4: Raw-SQL `FOR UPDATE` predicate walk, Task 5: Mutation matrix (M8) — recorded run, Task 7: (b)-local pre-runs on the four uncovered FOR UPDATE surfaces (+23 more)
+Nodes (13): AdapterScope, ModuleContracts, ModuleEdgeAnalyzer, Attribution, Namespace, Owner, Scope, Symbol (+5 more)
+
+### Community 519 - "Window"
+Cohesion: 0.18
+Nodes (5): Window, Marked, MarkedParameterCounts, MarkedParameters, Statements
+
+### Community 521 - "SetConnectedAppsCommand"
+Cohesion: 0.39
+Nodes (3): SetConnectedAppsValidator, SetConnectedAppsCommand, SetConnectedAppsValidatorTests
 
 ### Community 522 - "AspNetUserClaims Table Schema"
 Cohesion: 0.33
@@ -2855,333 +3020,313 @@ Nodes (6): Columns, Constraints, Indexes, public.AspNetUserClaims, Relations, Vi
 Cohesion: 0.33
 Nodes (6): Columns, Constraints, Indexes, public.AspNetUserRoles, Relations, Viewpoints
 
-### Community 524 - "Account CLI Commands"
-Cohesion: 0.06
-Nodes (35): SlugResolution, Task, WebApplication, ProvisionAccountCliCommand, Name, Task, WebApplication, Task (+27 more)
+### Community 524 - "ICliCommand"
+Cohesion: 0.07
+Nodes (28): Container health probe: the `healthcheck` verb (#266), How it is enforced, Escalated to the owner — Gate 1 backtrack, Gate 3 review round 1 — findings and dispositions, BootstrapAdminCliCommand, Name, CliDispatcher, ICliCommand (+20 more)
 
 ### Community 525 - "User Roles Tenant Column"
-Cohesion: 0.10
-Nodes (32): 1a. RED — add the regression tests and the model guards, 1c. Build and observe: the seam is GREEN, the backfill is still RED, 1d. GREEN — the two hand-inserted SQL steps (PROTECTED), 1e. Generated artifact — regenerate the schema docs, 1f. Commit Increment 1, INCREMENT 1 — a tenant column on AspNetUserRoles, covered by the existing two layers (INV-1..INV-5), MUTATION CHECKS — prove the guards bite, 3a. The two tests (PROTECTED) — no RED phase: they pin behaviour that already holds (+24 more)
+Cohesion: 0.06
+Nodes (35): 1a. RED — add the regression tests and the model guards, 1c. Build and observe: the seam is GREEN, the backfill is still RED, 1d. GREEN — the two hand-inserted SQL steps (PROTECTED), 1e. Generated artifact — regenerate the schema docs, 1f. Commit Increment 1, 2a. The scanner's split rule, stated as it now is, 2b. AGENTS.md — the rule gains one sentence, 2c. The decision record (+27 more)
 
-### Community 526 - "EF Module Configurations"
-Cohesion: 0.12
-Nodes (9): Cluckwork.Infrastructure.Modules.Access.Configurations, Cluckwork.Infrastructure.Modules.Finance.Configurations, Cluckwork.Infrastructure.Modules.FlockManagement.Configurations, Cluckwork.Infrastructure.Modules.EggOperations.Configurations, Cluckwork.Infrastructure.Modules.Commerce.Configurations, Cluckwork.Infrastructure.Persistence.Configurations, Cluckwork.Infrastructure.Modules.Farm.Configurations, Cluckwork.Infrastructure.Modules.GeneralInventory.Configurations (+1 more)
+### Community 526 - "Cluckwork.Domain.Modules.Farm.Accounts"
+Cohesion: 0.03
+Nodes (27): Cluckwork.Infrastructure.Modules.Farm.Repositories, Cluckwork.Application.Modules.Farm.Accounts.SetConnectedApps, Cluckwork.Application.Tests.Accounts, Cluckwork.Application.Modules.Farm.Accounts.UpdateFarmSettings, Cluckwork.Infrastructure.Modules.Access.Configurations, Cluckwork.Application.Modules.Farm.Accounts.RemoveFarmLogo, Cluckwork.Application.Modules.Farm.Accounts.SetFarmLogo, Cluckwork.Api.Cli (+19 more)
 
 ### Community 527 - "AspNetUserTokens Table Schema"
 Cohesion: 0.33
 Nodes (6): Columns, Constraints, Indexes, public.AspNetUserTokens, Relations, Viewpoints
 
-### Community 529 - "Named Row Projection Tests"
-Cohesion: 0.12
-Nodes (21): Fixture, The defensive `null` name on a non-null id, AssignmentRow, DailyEntryRow, ExpenseRow, FeedRow, FlockNamedRow, FlockRow (+13 more)
+### Community 529 - "PaymentMethod"
+Cohesion: 0.25
+Nodes (7): PaymentMethod, BankTransfer, Card, Cash, Check, MobilePayment, Other
 
-### Community 530 - "AuditEvents Table Schema"
-Cohesion: 0.33
-Nodes (6): Columns, Constraints, Indexes, public.AuditEvents, Relations, Viewpoints
+### Community 530 - "mcp/mutation-check.sh"
+Cohesion: 0.54
+Nodes (7): build(), mutate(), restore(), run_tests(), mutation-check.sh script, suite(), verdict()
 
 ### Community 531 - "SPA Elevation and Caps Runbook"
-Cohesion: 0.08
-Nodes (25): 1a. RED — add the elevation guard, 1b. GREEN — apply the elevation and radius changes, 1c. Commit, 2a. RED — add the caps guard, 2b. GREEN — apply the caps changes, 2c. Commit, Caller ledger, Documentation surfaces (+17 more)
+Cohesion: 0.10
+Nodes (19): 1a. RED — add the elevation guard, 1b. GREEN — apply the elevation and radius changes, 1c. Commit, 2a. RED — add the caps guard, 2b. GREEN — apply the caps changes, 2c. Commit, Caller ledger, Documentation surfaces (+11 more)
 
-### Community 532 - "Remembered-Farm Removal Plan"
-Cohesion: 0.40
-Nodes (4): #587 remembered-farm removal Implementation Plan, Global constraints, Handoff, Tracker and PR actions
+### Community 532 - "oauth/mutation-check.sh"
+Cohesion: 0.50
+Nodes (7): build(), mutate(), restore(), run_tests(), mutation-check.sh script, suite_green(), verdict()
 
-### Community 533 - "Analyzers and Architecture Tests"
-Cohesion: 0.06
-Nodes (26): aspire_hosting, aspire_hosting_applicationmodel, aspire_hosting_testing, Cluckwork.Application.Tests.Eggs, Cluckwork.Analyzers, Cluckwork.Application.Tests.Architecture, Cluckwork.Application.Tests.TenantBypass, Cluckwork.Application.Tests.Documentation (+18 more)
-
-### Community 534 - "Audit Price Payload Design"
-Cohesion: 0.02
-Nodes (127): The rule, Named invariants and enforcement sites, 3.2 `UpdateOrderItemHandler.cs:30`, 3.3 The enum is written as a NAME, not a number, 3. The design, 4. Invariants, 5. Ownership map (epic #719), 6. Conflict table (+119 more)
-
-### Community 535 - "Logout Refresh Lineage Race"
+### Community 533 - "Cluckwork.Application.Tests.Architecture"
 Cohesion: 0.09
-Nodes (13): LogoutAncestorSeverBarrierInterceptor, Hits, LogoutRefreshLineageRaceFactory, GraceInspection, LogoutAncestorSever, LogoutTipUpdate, LogoutZeroRowReread, RefreshRotation (+5 more)
+Nodes (10): Cluckwork.Application.Tests.Eggs, Cluckwork.Analyzers, Cluckwork.Application.Tests.Architecture, Cluckwork.Application.Tests.TenantBypass, Change, IntegrationCollectionOrderer, FilterFreeSetSite, Key (+2 more)
 
-### Community 536 - "Simulation Seed State Table"
-Cohesion: 0.33
-Nodes (6): Columns, Constraints, Indexes, public.simulation_seed_state, Relations, Viewpoints
+### Community 534 - "Task"
+Cohesion: 0.01
+Nodes (49): Transient-DB retry, and where it stops (#269), First-run admin provisioning: the `bootstrap-admin` verb (#283), The verb's own audit row names a system actor (#500), Part 2 implementation resolution (2026-08-22), AccountLifecycleOutcome, AccountProvisionOutcome, AccountRenameOutcome, AdminRecoveryResult (+41 more)
 
-### Community 537 - "Fake OTLP Collector"
-Cohesion: 0.12
-Nodes (18): Channel, Caller ledger, Fix runbook 1 — #672 review round 1: an aborted export must not read as "no export arrived", Why this exists, HttpListener, HttpListenerRequest, CapturedOtlpRequest, FakeOtlpCollector (+10 more)
+### Community 535 - "TaskCompletionSource"
+Cohesion: 0.06
+Nodes (20): GradeReadRendezvousInterceptor, GraceInspectionBarrierInterceptor, Hits, LogoutAncestorSeverBarrierInterceptor, Hits, LogoutRefreshLineageRaceFactory, GraceInspection, LogoutAncestorSever (+12 more)
 
-### Community 538 - "Idempotency Claim Outcomes"
-Cohesion: 0.33
-Nodes (6): ClaimKind, Claimed, Completed, HashConflict, LiveLease, Retry
+### Community 536 - "db"
+Cohesion: 0.25
+Nodes (8): command, environment, image, volumes, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, db
+
+### Community 537 - "healthcheck"
+Cohesion: 0.36
+Nodes (8): healthcheck, interval, retries, test, timeout, healthcheck, image, redis
+
+### Community 538 - "migrate"
+Cohesion: 0.29
+Nodes (7): condition, db, command, depends_on, env_file, restart, migrate
 
 ### Community 539 - "Screenshot Pipeline Runbook"
 Cohesion: 0.11
 Nodes (18): 1a. Capture, 1b. Commit the image and reference it, 1c. Commit, 2a. A separate, uncommitted capture, 2b. Run it, and LOOK at the output, 2c. Commit, 3a. `AGENTS.md`, 3b. The runbook note (+10 more)
 
-### Community 540 - "Reference Data Comparison"
-Cohesion: 0.36
-Nodes (6): ReferenceDataComparison, Dictionary, Func, IEntityType, IEnumerable, IReadOnlySet
+### Community 540 - "Gate two C# style rules at build time (#985)"
+Cohesion: 0.29
+Nodes (7): Blast radius, measured, Gate two C# style rules at build time (#985), How the sweep was made reviewable, The two exemptions, What was decided, Why gate rather than leave it a preference, Why outside rather than inside
 
-### Community 541 - "Two-Farm Isolation Matrix"
-Cohesion: 0.24
-Nodes (9): Fixture, FOR UPDATE depth (Q1, as reviewed), Negative isolation (the load-bearing half), Part 2 implementation resolution (2026-08-22), Part 2 — Two-farm E2E matrix, TwoFarmIsolationMatrixTests, Fact, HttpClient (+1 more)
+### Community 541 - "Product: seeded records name a real person (#500)"
+Cohesion: 0.29
+Nodes (6): Announcement — the blog post before the feature, Problem, Product decision — DECIDED 2026-08-11: option A, Product: seeded records name a real person (#500), Screens, Success metric
 
-### Community 542 - "Credential Middleware Order Guard"
-Cohesion: 0.38
-Nodes (3): CredentialEpochMiddlewareOrderTests, DirectoryInfo, Fact
+### Community 542 - "public.DailyEntries"
+Cohesion: 0.29
+Nodes (7): Columns, Constraints, Indexes, public.DailyEntries, Relations, Triggers, Viewpoints
 
-### Community 543 - "Account Id Probe Entities"
-Cohesion: 0.11
-Nodes (19): ConvertedAccountIdEntity, ConvertedKeyEntity, DbContext, IdentityUserRole, NullableAccountIdEntity, PlainAccountIdEntity, Guid, ModelBuilder (+11 more)
+### Community 543 - "public.Expenses"
+Cohesion: 0.29
+Nodes (7): Columns, Constraints, Indexes, public.Expenses, Relations, Triggers, Viewpoints
 
-### Community 544 - "EF Migration Snapshot 7"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 544 - "public.InventoryMovements"
+Cohesion: 0.29
+Nodes (7): Columns, Constraints, Indexes, public.InventoryMovements, Relations, Triggers, Viewpoints
 
 ### Community 545 - "Audit Actor Implementation Runbook"
-Cohesion: 0.08
-Nodes (23): 3b. GREEN — the verb, 3c. GREEN — teach the #347 minimal-config suite the new verb (REQUIRED, not optional), 4b. GREEN — the three maps and three catalogs, 4c. GREEN — the Audit UI offers it, 4d. Run — DO NOT COMMIT until increment 5, 5a. Find out what the guard actually wants — do not guess the key, 5b. Add the rows it printed, 5c. Run and commit (+15 more)
+Cohesion: 0.14
+Nodes (13): 4a. RED — pin the new action's label in every locale, 4b. GREEN — the three maps and three catalogs, 4d. Run — DO NOT COMMIT until increment 5, 5a. Find out what the guard actually wants — do not guess the key, 5b. Add the rows it printed, 5c. Run and commit, 7a. RED — the help page must name the new system actor, 7b. GREEN — three catalogs, two strings each (+5 more)
 
-### Community 546 - "CLI Verbs and Healthcheck"
-Cohesion: 0.08
-Nodes (26): Container health probe: the `healthcheck` verb (#266), What was rejected, What was wrong, Transport: stateless, and what that does to #271, BootstrapAdminCliCommand, Name, CliDispatcher, Task (+18 more)
+### Community 546 - "changes"
+Cohesion: 0.29
+Nodes (7): continue-on-error, name, outputs, runs-on, timeout-minutes, changes, docs_only
 
-### Community 547 - "Money Value Object"
-Cohesion: 0.19
-Nodes (6): Cluckwork.Domain.Tests.Common, Money, IsNegative, MoneyTests, Fact, InvalidOperationException
+### Community 547 - "image-scan.yml"
+Cohesion: 0.29
+Nodes (6): concurrency, cancel-in-progress, group, jobs, name, permissions
 
-### Community 548 - "Tenant Resolution Middleware Tests"
-Cohesion: 0.19
-Nodes (14): BodyLength, ContentType, DownstreamInvocations, TenantResolved, TenantResolutionMiddlewareTests, Action, DefaultHttpContext, Fact (+6 more)
+### Community 548 - "CurrentUserContext"
+Cohesion: 0.06
+Nodes (25): Notes for a fresh session, FlockScopeResolutionMiddleware, TenantResolutionMiddleware, AccessLookup, CurrentUserContext, ConnectedApp, Email, IsResolved (+17 more)
 
-### Community 549 - "Feed Usage Lock Ordering"
-Cohesion: 0.15
-Nodes (19): LotCreated, Created, FeedUsageLockOrderTests, LotCreated, AccountId, Available, Client, DateOnly (+11 more)
-
-### Community 550 - "k6 Simulation Fixture Runbook"
-Cohesion: 0.18
-Nodes (11): Drill, If it fails, k1. Generate the cast — `bootstrap.sh`, k3. Seed with those values, k4. Raise the rate limits, k5. Run k6, Known gap: the `staticAssets` flow 404s, Preparing this database for k6 (+3 more)
-
-### Community 551 - "Canary Screen E2E Vitals"
-Cohesion: 0.19
-Nodes (9): assertScreenIsCorrect(), CanaryLocator, CanaryPage, CanaryScreen, SCREENS, installVitals(), readVitals(), ScreenSample (+1 more)
-
-### Community 552 - "Filter-Free Set Identity Tests"
+### Community 549 - "FeedUsageLockOrderTests"
 Cohesion: 0.26
-Nodes (3): FilterFreeSetIdentityTests, Fact, IReadOnlyCollection
+Nodes (3): FeedUsageLockOrderTests, Created, LotCreated
 
-### Community 553 - "Logout Tip Barrier Interceptor"
-Cohesion: 0.32
-Nodes (8): LogoutTipUpdateBarrierInterceptor, Hits, CancellationToken, CommandEventData, DbCommand, DbDataReader, InterceptionResult, ValueTask
+### Community 550 - "DeepSimulationSeedFactory"
+Cohesion: 0.08
+Nodes (23): 1. Confirm the target database is clean, and is the one you mean, 2. Choose your depth, 3a. Form A — Compose dev database, API run from the IDE / CLI, 3b. Form B — Aspire AppHost stack, 4. The knobs, Drill, If it fails, k1. Generate the cast — `bootstrap.sh` (+15 more)
 
-### Community 554 - "Access Authorization Contract"
-Cohesion: 0.11
-Nodes (20): Proof, AccessAuthorizationContractTests, AdmissionCommands, FailAssignments, Recording, TargetReads, Proof, CancellationToken (+12 more)
+### Community 551 - "permissions"
+Cohesion: 0.33
+Nodes (7): permissions, contents, issues, packages, security-events, permissions, permissions
+
+### Community 552 - "contents"
+Cohesion: 0.29
+Nodes (7): permissions, permissions, actions, contents, packages, permissions, permissions
+
+### Community 553 - "Submit a fully graded day"
+Cohesion: 0.29
+Nodes (6): Condition grades, Decision points, Edge cases, Outcome, Submit a fully graded day, Trigger
+
+### Community 554 - "States"
+Cohesion: 0.29
+Nodes (6): Active, Archived, Depleted, Flock, Information kept, States
 
 ### Community 555 - "Farm Provisioning Runbook"
-Cohesion: 0.25
-Nodes (8): 1. Choose and verify the farm code, 2. Provision the farm, Crash after commit, If it fails, Procedure, Provisioning drill, Runbook: provisioning a new farm (`provision-account`), Verify
+Cohesion: 0.15
+Nodes (13): 1. Choose and verify the farm code, 2. Provision the farm, Crash after commit, If it fails, If it fails, If you lost the output, Procedure, Procedure (+5 more)
 
-### Community 556 - "EF Migration Snapshot 8"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 557 - "Seed and List-Accounts CLI"
-Cohesion: 0.08
-Nodes (22): What this does NOT cover, Confirmed by review, and NOT a defect, Gate 3 review round 1 — findings and dispositions, Task 3: Populate the real allow-list (the enumeration), ListAccountsCliCommand, Name, Task, WebApplication (+14 more)
-
-### Community 558 - "EF Migration Snapshot 9"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 559 - "EF Migration Snapshot 10"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 560 - "FarmLogos Table Schema"
+### Community 558 - "WrongGrant"
 Cohesion: 0.29
-Nodes (7): Columns, Constraints, Indexes, public.FarmLogos, Relations, Triggers, Viewpoints
+Nodes (7): WrongGrant, AccessToken, Malformed, Missing, OtherFarmGrant, RefreshToken, SameFarmGrant
 
-### Community 561 - "Egg Grade Enums"
-Cohesion: 0.06
-Nodes (33): Guid, IReadOnlyList, DailyEntryKind, Cracked, Dirty, Manual, EggGradeType, Custom (+25 more)
+### Community 560 - "viewpoint-4.md"
+Cohesion: 0.05
+Nodes (35): Columns, Constraints, Indexes, public.AuditEvents, Relations, Viewpoints, Columns, Constraints (+27 more)
 
-### Community 562 - "Detached Tenant Write Tests"
-Cohesion: 0.27
-Nodes (10): accountA, accountB, 1a. RED — add the regression tests and the model guard, DetachedTenantWriteTests, DateOnly, Exception, Fact, Func (+2 more)
+### Community 561 - "DailyEntryKind"
+Cohesion: 0.08
+Nodes (19): Task 3: Extend the API contract and align Daily Entry and adjustment UI, Daily Entry Reconciliation and Saleable Quality Eggs, Data model, Decisions, Goal, Out of scope, UI and pricing, Write path (+11 more)
 
-### Community 563 - "EF Migration Snapshot 11"
+### Community 563 - "Outcome"
+Cohesion: 0.29
+Nodes (4): IOutcomeContractFixture, Outcome, Clean, Leaky
+
+### Community 564 - "app"
+Cohesion: 0.29
+Nodes (7): build, labels, ports, volumes, context, dockerfile, app
+
+### Community 565 - "depends_on"
+Cohesion: 0.29
+Nodes (7): depends_on, condition, db, otel-collector, redis, condition, condition
+
+### Community 566 - "[0.1.0](https://github.com/mforce/cluckwork/compare/v0.0.4...v0.1.0) (2026-09-12)"
 Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 564 - "Module Compatibility Exceptions"
-Cohesion: 0.19
-Nodes (13): Amendment, 2026-10-06: no `Implementations` allowance (#1087), Register every read of a contracted module's tables from outside it (#850), The rule, What this does NOT cover, Why not the obvious alternative, ExpenseCategoryRepository, ExpenseRepository, CancellationToken (+5 more)
-
-### Community 565 - "EF Migration Snapshot 12"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 566 - "Frozen Test Clock"
-Cohesion: 0.40
-Nodes (5): FrozenClock, TodayUtc, UtcNow, DateOnly, DateTime
+Nodes (6): [0.1.0](https://github.com/mforce/cluckwork/compare/v0.0.4...v0.1.0) (2026-09-12), ⚠ BREAKING CHANGES, Bug fixes, Documentation, Features, Refactoring
 
 ### Community 567 - "Paged Row Lookup Detector"
 Cohesion: 0.27
 Nodes (15): callArguments(), comparableSizes(), FIXTURE_LENGTH, intConstants(), maskProseAndLiterals(), mountsAPageSizeFixture(), pageSizes(), rowByAccessibleName (+7 more)
 
-### Community 568 - "Test TLS Certificate"
-Cohesion: 0.40
-Nodes (5): TestTlsCertificate, Certificate, Sha256Thumbprint, Lazy, X509Certificate2
+### Community 568 - "[0.1.5](https://github.com/mforce/cluckwork/compare/v0.1.4...v0.1.5) (2026-10-07)"
+Cohesion: 0.33
+Nodes (6): [0.1.5](https://github.com/mforce/cluckwork/compare/v0.1.4...v0.1.5) (2026-10-07), Bug fixes, Documentation, Features, Performance, Refactoring
 
-### Community 569 - "Audit Order Delivery Contract"
-Cohesion: 0.13
-Nodes (21): 1. Identity, 2. Approved scope, 3. Invariants, 4. Ownership map, 5. Baseline, 6. Agents (the Phase 0 answers), 7. Merge authority, Delivery contract — #508 (+13 more)
+### Community 569 - "[1.1.0](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.1.0) (2026-10-14)"
+Cohesion: 0.33
+Nodes (6): [1.1.0](https://github.com/mforce/cluckwork/compare/v1.0.0...v1.1.0) (2026-10-14), Bug fixes, Documentation, Features, Performance, Refactoring
 
-### Community 570 - "Changelog Releases"
-Cohesion: 0.05
-Nodes (38): 0.0.1 (2026-08-02), [0.0.2](https://github.com/mforce/cluckwork/compare/v0.0.1...v0.0.2) (2026-08-03), [0.0.3](https://github.com/mforce/cluckwork/compare/v0.0.2...v0.0.3) (2026-08-08), [0.0.4](https://github.com/mforce/cluckwork/compare/v0.0.3...v0.0.4) (2026-08-13), [0.1.0](https://github.com/mforce/cluckwork/compare/v0.0.4...v0.1.0) (2026-09-12), [0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12), [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16), [0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-26) (+30 more)
+### Community 570 - "Changelog"
+Cohesion: 0.18
+Nodes (10): 0.0.1 (2026-08-02), [0.0.3](https://github.com/mforce/cluckwork/compare/v0.0.2...v0.0.3) (2026-08-08), [1.0.0](https://github.com/mforce/cluckwork/compare/v0.1.5...v1.0.0) (2026-10-08), Bug fixes, Bug fixes, Changelog, CI, Documentation (+2 more)
 
 ### Community 571 - "Entity Picker Data Model"
-Cohesion: 0.11
-Nodes (19): Additive Row Response Fields, Admission Rules, Backend Read Concepts, CustomerReference, Discovery Generation, DiscoveryState&lt;T&gt;, FlockEligibility, FlockReference (+11 more)
-
-### Community 572 - "Tracked Repository Read Guard"
-Cohesion: 0.27
-Nodes (6): TrackedMutationReadTests, Fact, MethodDeclarationSyntax, SimpleNameSyntax, Task, TypeDeclarationSyntax
-
-### Community 573 - "Flock Reference Design Review"
-Cohesion: 0.08
-Nodes (31): Claude Sonnet — architect, Design review disposition — #606, Owner decision, Pi DeepSeek v4 Flash 0731 — contrarian, Pi Qwen3.8 27B Q5 XL — repository/test specialist, Reconciliation result, FlockReference, Guid (+23 more)
-
-### Community 574 - "Tenant Write Refusal Logging"
 Cohesion: 0.12
-Nodes (23): 2a. RED — the vocabulary entry and the logging tests, 5a. RED — the fault-injected logger test (PROTECTED), 5b. GREEN — the guarded logging path (PROTECTED), 5c. Commit, INCREMENT 5 — the logging path never changes the exception (INV-5a) — Design, MUTATION CHECK — M8, ILogger, TenantWriteRefusalLoggingTests (+15 more)
+Nodes (16): Additive Row Response Fields, Admission Rules, Backend Read Concepts, CustomerReference, Discovery Generation, DiscoveryState&lt;T&gt;, FlockEligibility, FlockReference (+8 more)
+
+### Community 572 - "[1.1.2](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.1.2) (2026-10-19)"
+Cohesion: 0.33
+Nodes (6): [1.1.2](https://github.com/mforce/cluckwork/compare/v1.1.1...v1.1.2) (2026-10-19), Bug fixes, Chores, Documentation, Features, Performance
+
+### Community 573 - "Design review disposition — #606"
+Cohesion: 0.29
+Nodes (6): Claude Sonnet — architect, Design review disposition — #606, Owner decision, Pi DeepSeek v4 Flash 0731 — contrarian, Pi Qwen3.8 27B Q5 XL — repository/test specialist, Reconciliation result
+
+### Community 574 - "[1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.3...v1.2.0) (2026-11-14)"
+Cohesion: 0.33
+Nodes (6): [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.3...v1.2.0) (2026-11-14), Bug fixes, Dependencies, Documentation, Features, Refactoring
 
 ### Community 575 - "Combined Design Direction"
 Cohesion: 0.40
 Nodes (4): Combined direction: candidate 1's dashboard bones in candidate 2's colour and type, From candidate 1 (structure, controls), From candidate 2 (colour, type, rules, daily entry, phone shell), Rejected
 
-### Community 576 - "Flock Test Fixture"
-Cohesion: 0.23
-Nodes (11): FlockFixtureCounts, IFlockFixture, CancellationToken, DateOnly, Guid, Task, FlockFixture, CancellationToken (+3 more)
+### Community 576 - "Architecture: Entity-scoped audit history"
+Cohesion: 0.33
+Nodes (5): Architecture: Entity-scoped audit history, Data, Endpoints, External, Fit
 
-### Community 577 - "Expense Aggregate"
-Cohesion: 0.11
-Nodes (19): Expense, AmountMinorUnits, CreatedAtUtc, CurrencyCode, CurrencyMinorUnit, Date, Description, ExpenseCategoryId (+11 more)
+### Community 578 - "public.DataProtectionKeys"
+Cohesion: 0.33
+Nodes (5): Columns, Constraints, Indexes, public.DataProtectionKeys, Relations
 
-### Community 578 - "Transient Command Fault Interceptor"
-Cohesion: 0.25
-Nodes (9): TransientCommandFaultInterceptor, Matches, CancellationToken, CommandEventData, CommandExecutedEventData, DbCommand, DbDataReader, InterceptionResult (+1 more)
-
-### Community 579 - "Inventory Item Integration Tests"
-Cohesion: 0.24
-Nodes (13): LotDto, Created, InventoryTests, ItemDto, LotDto, MovementDto, DateOnly, Fact (+5 more)
-
-### Community 580 - "Egg Operations Test Fixture"
-Cohesion: 0.19
-Nodes (13): EggOperationsFixtureCounts, IEggOperationsFixture, CancellationToken, DateOnly, Guid, IReadOnlyList, Task, EggOperationsFixture (+5 more)
+### Community 579 - "public.OpenIddictScopes"
+Cohesion: 0.33
+Nodes (5): Columns, Constraints, Indexes, public.OpenIddictScopes, Relations
 
 ### Community 581 - "Expanded Lay Rate Chart"
 Cohesion: 0.40
 Nodes (4): #941 — the expanded Lay rate chart: concept C, Regenerating the renders, What the owner decided, Where the lab and the shipped chart deliberately differ
 
-### Community 582 - "Discovery Test Fixture Data"
-Cohesion: 0.05
-Nodes (34): Fixture, AccountId, ActiveFlock, ActiveName, ArchivedFlock, ArchivedName, CategoryId, CustomerA (+26 more)
+### Community 582 - "image-summary"
+Cohesion: 0.33
+Nodes (6): if, name, needs, runs-on, timeout-minutes, image-summary
 
 ### Community 583 - "Feature Spec Template"
 Cohesion: 0.15
 Nodes (12): Assumptions, Edge Cases, Feature Specification: [FEATURE NAME], Functional Requirements, Key Entities *(include if feature involves data)*, Measurable Outcomes, Requirements *(mandatory)*, Success Criteria *(mandatory)* (+4 more)
 
-### Community 584 - "Ambient Principal Attributes"
-Cohesion: 0.09
-Nodes (20): Attribute, Amendment, 2026-10-06: what the attributes carry after #1087, AmbientPrincipalMiddleware, IgnoresAmbientPrincipalAttribute, HttpContext, RequestDelegate, Task, RouteGroupBuilder (+12 more)
+### Community 584 - "Attribute"
+Cohesion: 0.05
+Nodes (34): Amendment, 2026-10-06: what the attributes carry after #1087, MirrorsRouteAttribute, RouteNames, CredentialAttribute, AdapterRootsAttribute, Namespaces, PersistenceForbiddenNamespaces, TopLevelPrograms (+26 more)
 
 ### Community 585 - "Entity Picker Specification"
-Cohesion: 0.11
-Nodes (17): Content Quality, Feature Readiness, Notes, Requirement Completeness, Specification Quality Checklist: Searchable Paged Entity Picker, Assumptions, Dependencies, Edge Cases (+9 more)
+Cohesion: 0.17
+Nodes (12): Assumptions, Dependencies, Edge Cases, Feature Specification: Searchable Paged Entity Picker, Measurable Outcomes, Success Criteria *(mandatory)*, User Scenarios & Testing *(mandatory)*, User Story 1 - Find and Select Any Eligible Name (Priority: P1) (+4 more)
 
-### Community 586 - "Style Guard Tests"
-Cohesion: 0.05
-Nodes (34): @babel/parser, ref_node_fs, ref_postcss, postcss-selector-parser, SRC, bareElementRules(), BareRule, chainReadings() (+26 more)
+### Community 586 - "ref_node_fs"
+Cohesion: 0.02
+Nodes (102): What changed, cache, checkout, errors, here, out, results, shell (+94 more)
 
-### Community 587 - "Audit Event Ordering Diagnosis"
-Cohesion: 0.10
-Nodes (17): ArchivedB, #508 — diagnosis: same-instant audit events order by a random Guid, D1 — reproduced, D2b — the diagnosis was reviewed before the owner saw it, Rejected alternatives (do not re-propose), The seam, Verified by running it, not asserted, What this fix does and does not buy (+9 more)
+### Community 587 - "#508 — diagnosis: same-instant audit events order by a random Guid"
+Cohesion: 0.17
+Nodes (10): 2. Why did the suite not catch this?, #508 — diagnosis: same-instant audit events order by a random Guid, Blast radius, D1 — reproduced, Rejected alternatives (do not re-propose), The seam, Two deliverables a feature does not have, Verified by running it, not asserted (+2 more)
 
-### Community 588 - "Local Monitoring Sinks"
-Cohesion: 0.40
-Nodes (5): Local OTLP metrics sink, `monitor/docker-stats-sampler.sh`, `monitor/pg-snapshot.sh`, Monitoring (#243 Task 8), Why no host-writable path for the collector, and where output lands
+### Community 588 - "steps"
+Cohesion: 0.33
+Nodes (6): steps, if, name, run, uses, working-directory
 
-### Community 589 - "Finance Expense Handlers"
-Cohesion: 0.19
-Nodes (9): Cluckwork.Application.Modules.Finance.Expenses.CreateExpense, Cluckwork.Application.Tests.Expenses, Cluckwork.Application.Modules.Finance.Expenses.UpdateExpenseCategory, Cluckwork.Application.Modules.Finance.Expenses.CreateExpenseCategory, Cluckwork.Infrastructure.Modules.Finance.Repositories, Cluckwork.Application.Modules.Finance.Contracts, Cluckwork.Application.Modules.Finance.Expenses, Cluckwork.Application.Modules.Finance.Expenses.AdjustExpense (+1 more)
+### Community 589 - "Confirm as a Worker with assigned flocks"
+Cohesion: 0.33
+Nodes (5): Confirm as a Worker with assigned flocks, Decision points, Outcome, Trigger, Worker sale allocation
 
-### Community 590 - "Mortality Ledger Atomicity Tests"
-Cohesion: 0.16
-Nodes (18): How it is enforced, Movements, FaultingAuditWriter, FlockDto, IdDto, MortalityLedgerAtomicityTests, AccountId, CancellationToken (+10 more)
+### Community 590 - "Egg grade"
+Cohesion: 0.33
+Nodes (5): Active, Egg grade, Inactive, Information kept, States
 
 ### Community 591 - "Aspire Config"
 Cohesion: 0.50
 Nodes (3): appHost, path, $schema
 
-### Community 592 - "Production Report Rows"
-Cohesion: 0.50
-Nodes (4): DayRow, GradeRow, ProductionDto, List
+### Community 592 - "Expense category"
+Cohesion: 0.33
+Nodes (5): Active, Expense category, Inactive, Information kept, States
 
-### Community 593 - "Sales Allocation Repository"
-Cohesion: 0.05
-Nodes (50): Entity, FaultPoint, Snapshot, ISalesOrderAllocationRepository, CancellationToken, Guid, IReadOnlyList, Task (+42 more)
+### Community 593 - "EntityTypeBuilder"
+Cohesion: 0.04
+Nodes (33): Cluckwork.Infrastructure.Modules.GeneralInventory.Configurations, DailyEntryGrade, CreatedAtUtc, DailyEntryId, EggGradeId, Quantity, UpdatedAtUtc, ApplicationUserConfiguration (+25 more)
 
-### Community 594 - "Expense Report Queries"
-Cohesion: 0.16
-Nodes (14): Minor, ExpenseCategoryTotal, Guid, ExpenseSummary, IReadOnlyList, ReportQueries, CancellationToken, Code (+6 more)
+### Community 594 - "Farm"
+Cohesion: 0.33
+Nodes (5): Active, Farm, Information kept, States, Suspended
 
 ### Community 595 - "Entity Picker Research"
-Cohesion: 0.20
-Nodes (9): 10. Verification, Fixture, CI, and Documentation, 1. Extend Existing List Contracts, 2. Literal Case-Insensitive Search, 3. Flock Eligibility and Compatibility, 4. Exact Resolution and Defaults, 5. Row-Owned Current Display Data, 7. Two Independent Generations, 8. Accessibility and Keyboard Model (+1 more)
+Cohesion: 0.18
+Nodes (10): 10. Verification, Fixture, CI, and Documentation, 1. Extend Existing List Contracts, 2. Literal Case-Insensitive Search, 3. Flock Eligibility and Compatibility, 4. Exact Resolution and Defaults, 5. Row-Owned Current Display Data, 6. One Narrow Picker Engine, Two Typed Adapters, 7. Two Independent Generations (+2 more)
 
-### Community 596 - "Farm Logo And Banner Removal"
-Cohesion: 0.09
-Nodes (16): RemoveFarmBannerHandler, CancellationToken, IFarmLogoRepository, Task, RemoveFarmLogoHandler, CancellationToken, IFarmLogoRepository, Task (+8 more)
+### Community 596 - "Inventory item"
+Cohesion: 0.33
+Nodes (5): Active, Inactive, Information kept, Inventory item, States
 
 ### Community 597 - "Design Selection Proposals"
 Cohesion: 0.50
 Nodes (3): Login banner proposal — not an authorization change, Requested refinements, Settings and support — selected compositions
 
-### Community 598 - "Identity Access Schema Docs"
-Cohesion: 0.50
-Nodes (4): Description, Identity & access, Relations, Tables
+### Community 598 - "Payment"
+Cohesion: 0.33
+Nodes (5): Information kept, Payment, Recorded, States, Voided
 
-### Community 599 - "Platform Operations Schema Docs"
-Cohesion: 0.50
-Nodes (4): Description, Platform & operations, Relations, Tables
+### Community 599 - "Product"
+Cohesion: 0.33
+Nodes (5): Active, Inactive, Information kept, Product, States
+
+### Community 600 - "States"
+Cohesion: 0.33
+Nodes (5): Disabled, Enabled, Information kept, States, User
 
 ### Community 601 - "Trusted Forwarded Header Tests"
-Cohesion: 0.15
-Nodes (13): ForwardedRequests, TrustedMultiHopForwardedHeaderTests, TrustedPeerForwardedHeaderTests, TrustedPeerKestrelFactory, TrustedTwoHopKestrelFactory, UntrustedPeerForwardedHeaderTests, UntrustedPeerKestrelFactory, Fact (+5 more)
-
-### Community 602 - "Kestrel Response Write Tests"
-Cohesion: 0.42
-Nodes (6): IdDto, KestrelResponseWriteTests, Fact, Guid, HttpClient, Task
-
-### Community 603 - "Scoped Update Source Scanner"
 Cohesion: 0.12
-Nodes (11): ArrowExpressionClauseSyntax, Verification (Definition of Done), PropertyDeclarationSyntax, IReadOnlyList, Match, MethodDeclarationSyntax, TenantBypassRealTreeTests, Fact (+3 more)
+Nodes (7): ForwardedRequests, TrustedMultiHopForwardedHeaderTests, TrustedPeerForwardedHeaderTests, TrustedPeerKestrelFactory, TrustedTwoHopKestrelFactory, UntrustedPeerForwardedHeaderTests, UntrustedPeerKestrelFactory
 
-### Community 604 - "Tenant Write Token Fixes"
+### Community 602 - "scenarioKinds"
+Cohesion: 0.33
+Nodes (5): scenarioKinds, colorSlot, description, id, name
+
+### Community 603 - "SeedStatus"
+Cohesion: 0.33
+Nodes (5): SeedStatus, AlreadySeeded, Failed, PrerequisitesMissing, Seeded
+
+### Community 604 - "TenantWriteRefusalLoggingTests"
 Cohesion: 0.09
-Nodes (25): ConcurrencyExceptionEventData, DbContextEventData, MUTATION CHECKS — prove the guards bite, Files you may edit (complete allow-list), FINISH — push (no new PR), Fix increment 1 — #562 / PR #671, round-1 findings, Gates — the SAME rows as the first runbook, cited by ID, INCREMENT 6 — the model guard names a non-Guid AccountId (Mechanical, test only) (+17 more)
+Nodes (23): 1a. RED — add the regression tests and the model guard, 2a. RED — the vocabulary entry and the logging tests, MUTATION CHECKS — prove the guards bite, 5a. RED — the fault-injected logger test (PROTECTED), 5b. GREEN — the guarded logging path (PROTECTED), 5c. Commit, Files you may edit (complete allow-list), FINISH — push (no new PR) (+15 more)
 
 ### Community 605 - "Project Constitution"
-Cohesion: 0.17
-Nodes (11): Additional Constraints, Cluckwork Constitution, Core Principles, Development Workflow and Quality Gates, Governance, I. Domain Integrity and Layered Boundaries, II. Tenant Isolation and Credential Safety, III. Fail-Closed Data and Operations (+3 more)
+Cohesion: 0.15
+Nodes (12): Additional Constraints, Cluckwork Constitution, Core Principles, Development Workflow and Quality Gates, Governance, I. Domain Integrity and Layered Boundaries, II. Tenant Isolation and Credential Safety, III. Fail-Closed Data and Operations (+4 more)
 
-### Community 606 - "Idempotency Options"
-Cohesion: 0.50
-Nodes (3): IdempotencyOptions, LeaseDurationSeconds, MaxWaitSeconds
+### Community 606 - "RegistryEnvelope"
+Cohesion: 0.33
+Nodes (3): IFlockRegistry, IRegistryContractFixture, RegistryEnvelope
 
-### Community 607 - "Refresh Token Flow Tests"
-Cohesion: 0.18
-Nodes (12): TokenPairDto, RefreshTokenForDirectCall, DateTimeOffset, RefreshGraceDisabledFactory, RefreshGraceDisabledTests, RefreshTokenFlowTests, Fact, Guid (+4 more)
+### Community 607 - "AuthCookieContractTests"
+Cohesion: 0.07
+Nodes (7): AuthCookieContractTests, RefreshClockAnomalyGraceDisabledFactory, RefreshClockAnomalyGraceDisabledTests, RefreshGraceClockRaceTests, RefreshGraceDisabledFactory, RefreshGraceDisabledTests, RefreshTokenFlowTests
 
 ### Community 608 - "Constitution Template"
 Cohesion: 0.18
@@ -3191,533 +3336,957 @@ Nodes (10): Core Principles, Governance, [PRINCIPLE_1_NAME], [PRINCIPLE_2_NAME],
 Cohesion: 0.18
 Nodes (10): Accessibility Contract, CustomerPicker, Discovery Contract, FlockPicker, Keyboard Contract, Public Surface, Selection and Exploration Contract, Shared Snapshot (+2 more)
 
-### Community 610 - "Credential Epoch Revocation"
-Cohesion: 0.08
-Nodes (27): Credential epoch revocation (#364), Where the read lives (#857), CredentialEpochMiddleware, HttpContext, IExceptionHandlerFeature, PathString, RequestDelegate, Task (+19 more)
+### Community 610 - "CredentialEpochMiddleware"
+Cohesion: 0.03
+Nodes (80): The request pipeline, 16. `recover-admin` clears two-factor in its own transaction and forces a password change, 18. A new Owner goes from the generated password to the forced change, then to enrolment, 19. Audit vocabulary, 1. The pending credential is a signed JWT with its own audience, 20. Security events, 2. The challenge lives 5 minutes and completes one sign-in, 3. The challenge binds account, user, epoch and stamp, not the logout epoch (+72 more)
 
 ### Community 611 - "OTLP Collector Fix Runbook"
 Cohesion: 0.15
 Nodes (12): 7a. RED — add the in-flight guard first — PROTECTED, 7b. GREEN — apply the collector changes — PROTECTED, 7c. Stop the aborted-export test racing the serve loop — PROTECTED, 7d. Build and run, 7e. Commit, Fix runbook 2 — #672 review round 2, Increment 7 — the accept faults, a stalled export is visible, the test stops racing, Increment 8 — the two documentation corrections round 2 raised (+4 more)
 
-### Community 612 - "Handler Logging Tests"
-Cohesion: 0.19
-Nodes (15): CreatedDto, CreatedDto, HandlerLoggingTests, AccountId, Client, Dictionary, Fact, FarmId (+7 more)
+### Community 612 - "IFlockTag"
+Cohesion: 0.33
+Nodes (4): IFlockTag, IMarker, ITagContractFixture, TagEnvelope
 
-### Community 613 - "Worker Sale-Allocation Policy"
+### Community 613 - "ListPriceBasis"
 Cohesion: 0.05
-Nodes (56): Accepted cost and non-goals, Confirmation, Contract, Design — #612 Worker sale-allocation policy, Goal, Privacy and UI, Required proof, Roles and assignments (+48 more)
+Nodes (36): Accepted cost and non-goals, Confirmation, Contract, Design — #612 Worker sale-allocation policy, Goal, Privacy and UI, Required proof, Roles and assignments (+28 more)
 
-### Community 615 - "Fixed Farm Clock"
-Cohesion: 0.50
-Nodes (4): FixedFarmClock, CancellationToken, DateOnly, Task
+### Community 615 - "PropertyEnvelope"
+Cohesion: 0.33
+Nodes (4): IPropertyContractFixture, PropertyEnvelope, PropertyPayload, Entity
+
+### Community 616 - "FarmBrand.styles.test.ts"
+Cohesion: 0.40
+Nodes (5): allRules(), block(), brandLogoRules, css, parseDeclarations()
 
 ### Community 618 - "Entity Picker Implementation Plan"
-Cohesion: 0.22
-Nodes (9): Complexity Tracking, Constitution Check, Documentation (this feature), Implementation Plan: Searchable Paged Entity Picker, Post-Design Re-check, Pre-Design Gate, Project Structure, Source Code (repository root) (+1 more)
+Cohesion: 0.20
+Nodes (10): Complexity Tracking, Constitution Check, Documentation (this feature), Implementation Plan: Searchable Paged Entity Picker, Post-Design Re-check, Pre-Design Gate, Project Structure, Source Code (repository root) (+2 more)
 
 ### Community 619 - "Page Adoption Contract Docs"
-Cohesion: 0.12
-Nodes (15): Customer Links, Documentation Contract, Page Adoption Contract, Preserved Native Selectors and Out-of-Scope Surfaces, Sales URL Rules, 1. Static Contract Checks, 2. Real-Postgres API and Scope Contract, 3. Picker and Page Tests (+7 more)
+Cohesion: 0.20
+Nodes (10): 1. Static Contract Checks, 2. Real-Postgres API and Scope Contract, 3. Picker and Page Tests, 4. Manual API Probes, 5. Built-SPA Scenario Over #627 Fixture, 6. First-Time User Usability Protocol, 7. Full Gates, 8. Caller Audit (+2 more)
 
 ### Community 620 - "Entity Picker Requirements"
 Cohesion: 0.20
 Nodes (10): Customer Links and Sales URL State, Discovery, Search, and Compatibility, Functional Requirements, Key Entities, Keyboard and Accessibility, Requirements *(mandatory)*, Row-Owned Display Data, Scope and Documentation (+2 more)
 
-### Community 622 - "Insights Read-Only Guards"
-Cohesion: 0.15
-Nodes (13): IMethodSymbol, InterpolatedStringTextSyntax, ExternalWriteProbe, InsightsReadOnlyTests, RepoRoot, Fact, HashSet, IdentifierNameSyntax (+5 more)
+### Community 621 - "[0.0.4](https://github.com/mforce/cluckwork/compare/v0.0.3...v0.0.4) (2026-08-13)"
+Cohesion: 0.40
+Nodes (5): [0.0.4](https://github.com/mforce/cluckwork/compare/v0.0.3...v0.0.4) (2026-08-13), Bug fixes, Documentation, Features, Refactoring
 
-### Community 623 - "Ledger Theme Contrast Spec"
-Cohesion: 0.11
-Nodes (16): assertContrast(), BRANDS, channelOf(), contrastOf(), expensesManageCategories(), historyAdjust(), inventoryChooseAnother(), inventoryOpen() (+8 more)
+### Community 622 - "InsightsReadOnlyTests"
+Cohesion: 0.13
+Nodes (5): InsightsReadOnlyTests, ExternalWriteProbe, RepoRoot, FarmDirectoryCallerTests, FindBySlugCallerTests
 
-### Community 624 - "Module Peer Contract Tests"
-Cohesion: 0.20
-Nodes (7): IDisposable, BoundedTransientRetryTests, PeerContractTests, Fact, InlineData, IReadOnlyList, Theory
+### Community 623 - "[0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16)"
+Cohesion: 0.40
+Nodes (5): [0.1.2](https://github.com/mforce/cluckwork/compare/v0.1.1...v0.1.2) (2026-09-16), Bug fixes, Documentation, Features, Performance
 
-### Community 625 - "Insights Export Queries"
-Cohesion: 0.11
-Nodes (16): IServiceCollection, IExportQueries, Datasets, CancellationToken, IAsyncDisposable, IReadOnlyList, Task, RecordingExportQueries (+8 more)
+### Community 625 - "[1.1.1](https://github.com/mforce/cluckwork/compare/v1.1.0...v1.1.1) (2026-10-15)"
+Cohesion: 0.40
+Nodes (5): [1.1.1](https://github.com/mforce/cluckwork/compare/v1.1.0...v1.1.1) (2026-10-15), Bug fixes, Chores, Documentation, Features
 
 ### Community 626 - "Plan Template"
 Cohesion: 0.22
 Nodes (8): Complexity Tracking, Constitution Check, Documentation (this feature), Implementation Plan: [FEATURE], Project Structure, Source Code (repository root), Summary, Technical Context
 
-### Community 627 - "Expense Repositories"
-Cohesion: 0.21
-Nodes (10): CancellationToken, Guid, Task, IExpenseCategoryRepository, IExpenseRepository, CancellationToken, DateOnly, Guid (+2 more)
+### Community 627 - "[1.1.3](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.1.3) (2026-10-27)"
+Cohesion: 0.40
+Nodes (5): [1.1.3](https://github.com/mforce/cluckwork/compare/v1.1.2...v1.1.3) (2026-10-27), Bug fixes, Chores, Dependencies, Documentation
 
-### Community 628 - "Database TLS Floor Guard"
-Cohesion: 0.28
-Nodes (5): ConnectionTlsFloorWiringTests, ProductionInsecureDbFactory, Exception, Fact, IWebHostBuilder
+### Community 628 - "depends_on"
+Cohesion: 0.40
+Nodes (5): depends_on, migrate, redis, condition, condition
 
 ### Community 629 - "Module Map Rules"
-Cohesion: 0.10
-Nodes (10): Cluckwork.Domain.Common.Architecture, AccessModuleRules, CommerceModuleRules, EggOperationsModuleRules, FarmModuleRules, FinanceModuleRules, FlockManagementModuleRules, GeneralInventoryModuleRules (+2 more)
+Cohesion: 0.11
+Nodes (9): Cluckwork.Domain.Common.Architecture, AccessModuleRules, CommerceModuleRules, EggOperationsModuleRules, FinanceModuleRules, FlockManagementModuleRules, GeneralInventoryModuleRules, InsightsModuleRules (+1 more)
 
-### Community 630 - "Account Settings Endpoints"
-Cohesion: 0.18
-Nodes (12): 4.6 `GET /account` — a derived, per-caller field, AccountEndpoints, AccountResponse, FarmSettingsResponse, UpdateFarmSettingsRequest, CancellationToken, Guid, IOptionsSnapshot (+4 more)
+### Community 630 - "Two-factor authentication screen directions"
+Cohesion: 0.40
+Nodes (5): Existing behaviour to preserve, Render and inspect, Selected directions and alternatives, State coverage, Two-factor authentication screen directions
 
-### Community 631 - "Sales Order Repository"
-Cohesion: 0.23
-Nodes (10): SalesOrderListFilter, DateOnly, Guid, SalesOrderListRow, SalesOrderRepository, CancellationToken, Guid, IQueryable (+2 more)
+### Community 631 - "env"
+Cohesion: 0.40
+Nodes (5): CLUCKWORK_E2E_BUNDLED_BROWSER, CLUCKWORK_E2E_SLOW, CLUCKWORK_SIM_REUSE_IMAGE, Jwt__AccessTokenMinutes, env
 
-### Community 632 - "Tracked Entry Snapshot"
-Cohesion: 0.20
-Nodes (7): PropertyValues, TrackedEntrySnapshot, EntityEntry, EntityState, IReadOnlyDictionary, IReadOnlySet, TrackedEntrySnapshot
+### Community 632 - "TestHarness.ResolveTenantAndActor"
+Cohesion: 0.09
+Nodes (5): TrackedEntrySnapshot, ChangeUserEmailRaceTests, StepUpDto, TrackedEntryState, WrapperConsumer
 
-### Community 633 - "EF Migration Snapshot 13"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 633 - "issues"
+Cohesion: 0.40
+Nodes (5): name, needs, runs-on, timeout-minutes, issues
 
-### Community 634 - "EF Migration Snapshot 14"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 634 - "plugin.yaml"
+Cohesion: 0.40
+Nodes (4): description, name, provides_hooks, version
 
-### Community 635 - "Daily Entry Repository"
-Cohesion: 0.21
-Nodes (11): DailyEntryLookup, CancellationToken, DateOnly, Guid, Task, IDailyEntryRepository, CancellationToken, DateOnly (+3 more)
+### Community 635 - "Add a line"
+Cohesion: 0.40
+Nodes (4): Add a line, Edge cases, Outcome, Trigger
 
 ### Community 636 - "Markdown TOC Generator"
-Cohesion: 0.18
-Nodes (18): argparse, Path, content_lines(), headings(), main(), Yield `(index, line)` for prose: outside fences, frontmatter and the ToC., Yield `(line index, level, raw text)` for every heading outside the ToC., Line numbers (1-based) of setext underlines this tool refuses to model. A… (+10 more)
-
-### Community 637 - "Customer API Endpoints"
-Cohesion: 0.22
-Nodes (11): Cluckwork.Api.Modules.Commerce.Customers, CreateCustomerRequest, CustomerEndpoints, CustomerResponse, UpdateCustomerRequest, CancellationToken, Guid, IResult (+3 more)
-
-### Community 638 - "Module Edge Analyzer Map"
-Cohesion: 0.15
-Nodes (12): SemanticModelAnalysisContext, ConcurrentDictionary, ModuleMap, Edges, Dictionary, From, HashSet, Owner (+4 more)
-
-### Community 639 - "Durable Jobs Table Schema"
-Cohesion: 0.33
-Nodes (6): Columns, Constraints, Indexes, public.durable_jobs, Relations, Viewpoints
-
-### Community 640 - "Confirm Sale Order Lock Tests"
-Cohesion: 0.14
-Nodes (15): ConfirmCommands, Sequence, ConfirmSaleOrderBoundaryTests, CancellationToken, CommandEventData, ConcurrentQueue, DateOnly, DbCommand (+7 more)
-
-### Community 641 - "Static Asset Caching Tests"
-Cohesion: 0.30
-Nodes (6): StaticAssetCachingTests, Fact, HttpResponseMessage, InlineData, Task, Theory
-
-### Community 642 - "Aspire Local Development"
-Cohesion: 0.15
-Nodes (12): AppHost host endpoints, Aspire local development, Compose fallback, Drill, Host ports, Persistence and reset, Prerequisites, Start and observe (+4 more)
-
-### Community 644 - "Current User Endpoints"
 Cohesion: 0.19
-Nodes (12): MeEndpoints, MeResponse, SetLanguageRequest, Language, SetStepperUnitRequest, Unit, CancellationToken, Guid (+4 more)
+Nodes (9): content_lines(), headings(), main(), rebuild(), render(), self_test(), setext_underlines(), slugify() (+1 more)
 
-### Community 645 - "Body-Reading Endpoint Guard"
-Cohesion: 0.17
-Nodes (13): Candidate, EndpointDataSource, EndpointMetadataCollection, HttpMethodMetadata, RouteEndpoint, BodyReadingEndpointTests, Candidate, Dictionary (+5 more)
+### Community 637 - "Refuse a line whose list price moved"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a line whose list price moved, Trigger
+
+### Community 638 - "Adjust a submitted day"
+Cohesion: 0.40
+Nodes (4): Adjust a submitted day, Edge cases, Outcome, Trigger
+
+### Community 639 - "Refuse an adjustment below what a lot has sold, allocated or written off"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse an adjustment below what a lot has sold, allocated or written off, Trigger
+
+### Community 640 - "Refuse assigning a flock to someone who is not a Worker"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse assigning a flock to someone who is not a Worker, Trigger
+
+### Community 641 - "Browse the farm's audit events"
+Cohesion: 0.40
+Nodes (4): Browse the farm's audit events, Edge cases, Outcome, Trigger
+
+### Community 642 - "Browse customers and what they owe"
+Cohesion: 0.40
+Nodes (4): Browse customers and what they owe, Edge cases, Outcome, Trigger
+
+### Community 643 - "List customers through a connected app"
+Cohesion: 0.40
+Nodes (4): Edge cases, List customers through a connected app, Outcome, Trigger
+
+### Community 644 - "Browse History"
+Cohesion: 0.40
+Nodes (4): Browse History, Edge cases, Outcome, Trigger
+
+### Community 645 - "McpRouteParityTests"
+Cohesion: 0.04
+Nodes (26): How it is enforced, MCP write tools: one scope per permission, no drafts, a correction hint (#1311, #1313), The rule, What happened, What this does NOT cover, Why not the obvious alternative, How it is enforced, The MCP endpoint: OAuth only, bound to /mcp, stateless (#806) (+18 more)
 
 ### Community 647 - "Farm Code Rename Enforcement"
-Cohesion: 0.16
-Nodes (13): A farm code changes only through `rename-account` (#732), How it is enforced, What happened, What this does NOT cover, Why not the obvious alternative, 3d. Build and run — DO NOT COMMIT until increment 5, 6a. Replace the runbook section, 6b. Correct the two glossary claims and the epic (+5 more)
+Cohesion: 0.11
+Nodes (16): A farm code changes only through `rename-account` (#732), How it is enforced, The rule, What happened, What this does NOT cover, Why not the obvious alternative, 3a. RED — the CLI contract, through the real binary, 3b. GREEN — the verb (+8 more)
 
 ### Community 648 - "Mutation Check Script"
 Cohesion: 0.25
 Nodes (8): EXPECT_MSG_FOR, FALSE_KILLS, GREP_FOR, MUST_STAY_GREEN_ON, PROJECT_FOR, rule(), mutation-check.sh script, SPEC_FOR
 
-### Community 649 - "CSS Mutation Test Harness"
-Cohesion: 0.33
-Nodes (3): Mutant, MUTANT_ENV, MUTANTS
+### Community 649 - "Browse orders as a Worker"
+Cohesion: 0.40
+Nodes (4): Browse orders as a Worker, Edge cases, Outcome, Trigger
 
-### Community 650 - "Export Snapshot Source Guard"
-Cohesion: 0.16
-Nodes (12): FieldDeclarationSyntax, SwitchExpressionSyntax, ExportSnapshotSourceTests, ExportQueriesPath, ClassDeclarationSyntax, Fact, IdentifierNameSyntax, InlineData (+4 more)
+### Community 650 - "ExportSnapshotSourceTests.FindViolations"
+Cohesion: 0.19
+Nodes (3): ExportSnapshotSourceTests, ExportQueriesPath, SourcePreprocessorTests
 
-### Community 651 - "Water Usage Endpoints"
+### Community 651 - "Change a farm's code"
+Cohesion: 0.40
+Nodes (4): Change a farm's code, Edge cases, Outcome, Trigger
+
+### Community 653 - "ReloadableFilteredConfiguration"
+Cohesion: 0.09
+Nodes (7): RedactingLoggerPipeline, ReloadableFilteredConfiguration, Providers, this[], FixturePortProbe, Report, StartupHook
+
+### Community 654 - "FirstRunAdminUnlockCleanupFactory"
 Cohesion: 0.25
-Nodes (11): RecordWaterUsageRequest, UpdateWaterUsageRequest, WaterUsageEndpoints, WaterUsageResponse, CancellationToken, DateOnly, Guid, IResult (+3 more)
-
-### Community 652 - "Module Edge Analyzer Tests"
-Cohesion: 0.30
-Nodes (7): CSharpAnalyzerTest, DefaultVerifier, ModuleEdgeAnalyzerTests, Fact, Lazy, MetadataReference, Task
-
-### Community 653 - "Fixture Port Probe"
-Cohesion: 0.16
-Nodes (9): DiagnosticListener, IObserver, FixturePortProbe, Report, Exception, IHostEnvironment, KeyValuePair, Type (+1 more)
-
-### Community 654 - "First-Run Admin Lock Tests"
-Cohesion: 0.17
-Nodes (10): S1: advisory-lock gate, FirstRunAdminUnlockCleanupFactory, Interceptor, GenuineProvisioningFailureStillFailsTests, HappyPathStillReleasesTheLockTests, UnlockFailureAfterCommitTests, Fact, IWebHostBuilder (+2 more)
+Nodes (4): FirstRunAdminUnlockCleanupFactory, Interceptor, GenuineProvisioningFailureStillFailsTests, SimulatedProvisioningFaultException
 
 ### Community 655 - "Checklist Template"
 Cohesion: 0.40
 Nodes (4): [Category 1], [Category 2], [CHECKLIST TYPE] Checklist: [FEATURE NAME], Notes
 
-### Community 656 - "Flock Scope Test Fixture"
-Cohesion: 0.15
-Nodes (13): Fixture, ActiveIds, AllCount, AllFlockIds, ArchivedIds, CustomerIds, DepletedIds, EligibleCount (+5 more)
+### Community 656 - "Refuse a currency change once amounts exist"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a currency change once amounts exist, Trigger
 
 ### Community 657 - "SPA Elevation and Caps Design"
 Cohesion: 0.17
 Nodes (11): 10. Out of scope, 1. What already shipped — the fact base, 2. Live inventory — every `box-shadow` in the stylesheet, 3. Live inventory — every `text-transform: uppercase`, 4. Decisions, and the facts behind them, 5. Guards — walk everything, exclude deliberately, #651 + #652 — Elevation hierarchy and the end of tracked all-caps, 6. Callers — what #394 says to read rather than run (+3 more)
 
-### Community 658 - "Daily Entry Lock Pass"
-Cohesion: 0.15
-Nodes (11): DailyEntryLockPass, IReadOnlyList, LockedDailyEntry, DateOnly, Guid, RefusedDailyEntryLock, Error, Guid (+3 more)
+### Community 658 - "LockDueDailyEntriesHandler.HandleAsync"
+Cohesion: 0.39
+Nodes (3): DailyEntryLockPass, LockedDailyEntry, RefusedDailyEntryLock
 
-### Community 659 - "Auth Session Contract Tests"
-Cohesion: 0.27
-Nodes (7): AuthSessionContractTests, Fact, HttpResponseMessage, IReadOnlyList, LogEvent, Task, WebApplicationFactory
+### Community 659 - "Save farm settings"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Save farm settings, Trigger
 
-### Community 660 - "JWT Options and Auth Logging"
-Cohesion: 0.06
-Nodes (40): Clock, Host, ManualTimeProvider, Program, AuthSecurityEventLogger, ClientIp, IHttpContextAccessor, ILogger (+32 more)
+### Community 660 - "McpConnection.IssueAsync"
+Cohesion: 0.07
+Nodes (7): Program, DataProtectionPreviousCertificateTests, ConnectedAppToken, McpAuthorizationTests, McpConnection, Page, McpPartialConsentTests
 
 ### Community 661 - "Release-Please Configuration"
 Cohesion: 0.40
 Nodes (4): bootstrap-sha, draft, packages, $schema
 
-### Community 662 - "Operator Verb Contract Tests"
-Cohesion: 0.23
-Nodes (9): OperatorVerbContractTests, ExitCode, Fact, Guid, HttpResponseMessage, Stderr, Stdout, Task (+1 more)
+### Community 663 - "Refuse a wrong current password"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a wrong current password, Trigger
 
-### Community 663 - "Bird Movement Repository"
-Cohesion: 0.23
-Nodes (10): 1. Where else does this pattern occur?, 2. Why did the suite not catch this?, Two deliverables a feature does not have, BirdMovementRepository, CancellationToken, Dictionary, Guid, IReadOnlyCollection (+2 more)
+### Community 664 - "Change language and counting unit"
+Cohesion: 0.40
+Nodes (4): Change language and counting unit, Edge cases, Outcome, Trigger
 
-### Community 664 - "Paged Result Pagination"
-Cohesion: 0.33
-Nodes (4): CursorPage, PagedResult, IReadOnlyList, IPagedResultReturnFixture
+### Community 665 - "ContractFixtureResolution"
+Cohesion: 0.12
+Nodes (11): Cluckwork.Application.Modules.ContractFixture.Contracts, ContractFixtureCommand, ContractFixtureInternalRoot, Child, ContractFixtureResolution, Found, Hidden, Internals (+3 more)
 
-### Community 665 - "Module Contract Derivation"
-Cohesion: 0.17
-Nodes (10): Cluckwork.Application.Modules.ContractFixture.Contracts, ContractFixtureCommand, ContractFixtureResolution, Found, IContractFixtureModule, Missing, Guid, ContractDerivationTests (+2 more)
-
-### Community 666 - "Egg Lot Lock Order"
-Cohesion: 0.24
-Nodes (8): The lock order, Sql, EggLotLockSqlTests, Fact, GeneratedRegex, List, Regex, Where
+### Community 666 - "Change a login email"
+Cohesion: 0.40
+Nodes (4): Change a login email, Edge cases, Outcome, Trigger
 
 ### Community 667 - "Fake OTLP Collector Fixes"
-Cohesion: 0.20
-Nodes (9): 4a. RED — add the guard test first — PROTECTED, 4b. GREEN — apply the collector changes — PROTECTED, 4c. Build and re-run, 4d. Commit, INCREMENT 4 — an aborted export is counted and reported, INCREMENT 5 — correct the committed runbook's stale cross-reference, INCREMENT 6 — gates, MUTATION CHECK (+1 more)
+Cohesion: 0.17
+Nodes (11): 4a. RED — add the guard test first — PROTECTED, 4b. GREEN — apply the collector changes — PROTECTED, 4c. Build and re-run, 4d. Commit, Fix runbook 1 — #672 review round 1: an aborted export must not read as "no export arrived", INCREMENT 4 — an aborted export is counted and reported, INCREMENT 5 — correct the committed runbook's stale cross-reference, INCREMENT 6 — gates (+3 more)
 
-### Community 668 - "Flock Name Resolution Tests"
-Cohesion: 0.32
-Nodes (8): Found, FlockNameResolutionTests, Ambiguous, Fact, Guid, IReadOnlyCollection, NotFound, Task
+### Community 669 - "Change a person's role"
+Cohesion: 0.40
+Nodes (4): Change a person's role, Edge cases, Outcome, Trigger
 
-### Community 669 - "Audit Event Reads"
-Cohesion: 0.18
-Nodes (10): CancellationToken, DateOnly, Guid, IReadOnlyCollection, IReadOnlyDictionary, IReadOnlyList, Task, AuditEventRead (+2 more)
+### Community 670 - "UpdateEggGradeCommand"
+Cohesion: 0.41
+Nodes (4): CreateEggGradeCommand, UpdateEggGradeCommand, CreateEggGradeValidator, UpdateEggGradeValidator
 
-### Community 670 - "Egg Grade Commands"
-Cohesion: 0.12
-Nodes (18): CreateEggGradeCommand, StockByGrade, BelowFloor, Guid, UpdateEggGradeCommand, Guid, CreateEggGradeValidator, UpdateEggGradeValidator (+10 more)
-
-### Community 671 - "Flock Scoping and Tenant Plans"
-Cohesion: 0.06
-Nodes (32): #388 Worker Flock Read-Scoping — Implementation Plan, Global Constraints, Task 3: Raw-SQL flock-scope predicates, Task 4: Docs + E2E, 8a. `tests/Cluckwork.Api.IntegrationTests/AccountIdConcurrencyTokenModelTests.cs` — the selector comment, 8b. Same file — the assertion message, 8c. `tests/Cluckwork.Api.IntegrationTests/TenantWriteRefusalLoggingTests.cs` — the new test's comment, 8d. Build, test, commit, push (+24 more)
+### Community 671 - "AppDbContext"
+Cohesion: 0.03
+Nodes (70): 1. Topology: one shared database, row-level `AccountId`, How it is enforced, How it is enforced, How it is enforced, The rule, Walk table ownership from the EF model (#845), What happened, What this does NOT cover (+62 more)
 
 ### Community 672 - "Drop-Shadow Fix Runbooks"
 Cohesion: 0.06
 Nodes (40): Files, Fix increment 1 — close the `filter: drop-shadow()` bypass in the elevation guard, Report back, Step 1 — RED, Step 2 — the new mutation rows, Step 3 — gates and commit, Step 4 — reply on the review thread, The finding (+32 more)
 
-### Community 673 - "Docs-Only CI Gating Decision"
-Cohesion: 0.09
-Nodes (22): How it is enforced, Skip the web and image jobs on documentation-only pull requests (#782), The rule, What happened, What this does NOT cover, Why not the obvious alternative, Documentation surfaces — driver fills before dispatch, 4a. The decision record, §5 (+14 more)
+### Community 673 - "Confirm an order sold below list price"
+Cohesion: 0.40
+Nodes (4): Confirm an order sold below list price, Edge cases, Outcome, Trigger
 
 ### Community 674 - "Runbook Fence Fix Plan"
 Cohesion: 0.18
 Nodes (10): 5a. `01-implementer-runbook.md`, Increment 1f, 5b. `01-implementer-runbook.md`, Increment 2e, 5c. `02-fix-increment-1.md`, COMMIT and PUSH, 5d. Build, commit, push, INCREMENT 5 — the three fences, Report back, Rules (unchanged), Runbook — #670 fix increment 3: three runbook fences expected an empty porcelain right after `git add` (+2 more)
 
-### Community 675 - "Egg Grade Repository"
-Cohesion: 0.33
-Nodes (7): EggGradeRepository, CancellationToken, Guid, IReadOnlyCollection, IReadOnlyDictionary, IReadOnlyList, Task
+### Community 675 - "Confirm an order"
+Cohesion: 0.40
+Nodes (4): Confirm an order, Edge cases, Outcome, Trigger
 
-### Community 676 - "Account Max Discount Migration"
-Cohesion: 0.32
-Nodes (7): AccountMaxDiscountMigrationTests, Fact, IMigrator, InlineData, PostgresException, Task, Theory
+### Community 676 - "Confirm past lots under withdrawal restriction"
+Cohesion: 0.40
+Nodes (4): Confirm past lots under withdrawal restriction, Edge cases, Outcome, Trigger
 
-### Community 677 - "Entity Provenance Lookup"
-Cohesion: 0.20
-Nodes (9): EntityProvenance, DateTimeOffset, CancellationToken, DateOnly, Guid, IReadOnlyCollection, IReadOnlyDictionary, IReadOnlyList (+1 more)
+### Community 677 - "Refuse a below-list order without a reason"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a below-list order without a reason, Trigger
 
-### Community 678 - "Analyzer Namespace Symbol Walk"
-Cohesion: 0.18
-Nodes (7): CompilationStartAnalysisContext, INamespaceSymbol, Compilation, Compilation, IEnumerable, ImmutableArray, INamedTypeSymbol
+### Community 678 - "Refuse a Worker whose assigned flocks lack the stock"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a Worker whose assigned flocks lack the stock, Trigger
 
 ### Community 679 - "Tenant Write Token Fixes"
 Cohesion: 0.20
 Nodes (9): 9a. `docs/plans/562-tenant-write-token/03-fix-increment-2.md` — heading level, 9b. `tests/Cluckwork.Api.IntegrationTests/AccountIdConcurrencyTokenModelTests.cs` — the message, 9c. Build, test, commit, push, Files you may edit (complete allow-list), Fix increment 3 — #562 / PR #671, round-3 findings (one heading level, one message string), Gates (same rows as the first runbook), INCREMENT 9 — two wording fixes (Mechanical), Report back (+1 more)
 
-### Community 680 - "Refresh Token Purge Batching"
-Cohesion: 0.22
-Nodes (8): CountingFactory, PurgeDeleteCounter, CountingFactory, Counter, RefreshTokenPurgeBatchTests, Fact, IWebHostBuilder, Task
+### Community 680 - "Refuse a line beyond the farm's discount ceiling"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a line beyond the farm's discount ceiling, Trigger
 
-### Community 681 - "Refresh Token Fault Interceptor"
-Cohesion: 0.44
-Nodes (7): ThrowingRefreshTokenUpdateInterceptor, CancellationToken, CommandEventData, DbCommand, DbDataReader, InterceptionResult, ValueTask
+### Community 681 - "Approve an app"
+Cohesion: 0.40
+Nodes (4): Approve an app, Edge cases, Outcome, Trigger
 
 ### Community 682 - "Badge Caps Fix Plan"
 Cohesion: 0.20
 Nodes (9): Files, Fix increment 4 — two badge strings that relied on CSS to capitalise them, Report back, Step 1 — the strings, Step 2 — the guard, Step 3 — the two pinned assertions, Step 4 — mutation rows, Step 5 — gates and commit (+1 more)
 
 ### Community 683 - "List Empty-State Fix Plan"
-Cohesion: 0.22
-Nodes (8): Commit, Copy, Fix increment 1 — the two empty-state variants say the same sentence, Gates, Report back, The finding, The guard, What exists and what is missing
-
-### Community 684 - "Admin Recovery Service"
-Cohesion: 0.19
-Nodes (13): Why not the obvious alternative, UpdateInventoryItemHandler, IInventoryItemRepository, AdminRecoveryService, UserManager, AdminRecoveryServiceTests, BreakGlassRecoveryFixture, AdminEmail (+5 more)
-
-### Community 686 - "Contributing Guide"
 Cohesion: 0.20
-Nodes (10): Branches and PRs, Changing the database schema, Commit messages, Contributing, Dependencies, Local development, Once per clone, Resetting the dev database (+2 more)
+Nodes (9): Commit, Copy, Fix increment 1 — the two empty-state variants say the same sentence, Gates, Not in scope, Report back, The finding, The guard (+1 more)
 
-### Community 687 - "Transient Commit Fault Injection"
-Cohesion: 0.20
-Nodes (7): DbTransactionInterceptor, TransientCommitFaultInterceptor, Commits, RetryBoundaryFactory, CommandFault, CommitFault, IWebHostBuilder
+### Community 684 - "Approve only some of the permissions an app asks for"
+Cohesion: 0.40
+Nodes (4): Approve only some of the permissions an app asks for, Edge cases, Outcome, Trigger
 
-### Community 688 - "Seam Surface Scan Rules"
-Cohesion: 0.53
-Nodes (5): ScanRules, SeamSurfaceViolation, HashSet, List, MethodInfo
+### Community 686 - "Reconnect an app that asks for nothing new"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Reconnect an app that asks for nothing new, Trigger
 
-### Community 689 - "CSV Export Writer"
-Cohesion: 0.24
-Nodes (5): CsvExport, CancellationToken, IEnumerable, Stream, Task
+### Community 687 - "Refuse a correction out of range"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a correction out of range, Trigger
+
+### Community 688 - "Correct a water record"
+Cohesion: 0.40
+Nodes (4): Correct a water record, Edge cases, Outcome, Trigger
+
+### Community 689 - "Create a category"
+Cohesion: 0.40
+Nodes (4): Create a category, Edge cases, Outcome, Trigger
 
 ### Community 690 - "List Screens Filter Fix"
 Cohesion: 0.22
 Nodes (8): 1. CI is red — and it is right (#394), 2. A real functional bug — the status filter is invisible to the empty state, 3. The guard proves less than it claims, 4. Documentation, Commit and push, Fix increment 2 — a red CI check, a real filter bug, and a guard that proves less than it claims, Gates, Report back
 
-### Community 691 - "Log Event Collecting Sink"
-Cohesion: 0.22
-Nodes (8): CollectingSink, Events, KestrelBackedFactory, Sink, CollectingSink, ConcurrentQueue, IWebHostBuilder, LogEvent
+### Community 691 - "Create an item"
+Cohesion: 0.40
+Nodes (4): Create an item, Edge cases, Outcome, Trigger
 
-### Community 692 - "Slug Lookup Caller Guard"
-Cohesion: 0.29
-Nodes (6): FindBySlugCallerTests, Fact, IdentifierNameSyntax, IEnumerable, InlineData, Theory
+### Community 692 - "Refuse an email already on the farm"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse an email already on the farm, Trigger
 
 ### Community 695 - "Simulation Date Helpers"
 Cohesion: 0.38
 Nodes (6): daysAgo(), isoDate(), REPORT_RANGE_DAYS, reportRangeEnd(), reportRangeStart(), OFFSETS_MINUTES
 
-### Community 696 - "Database Snapshot Tables"
-Cohesion: 0.22
-Nodes (8): Accounts, BirdMovements, Customers, DailyEntries, EggLots, Flocks, InventoryMovements, SalesOrders
+### Community 696 - "Disconnect one's own app"
+Cohesion: 0.40
+Nodes (4): Disconnect one's own app, Edge cases, Outcome, Trigger
 
-### Community 697 - "Request Logging Sink Tests"
-Cohesion: 0.25
-Nodes (8): Slice 5 code review (2 rounds, stopped — 2 consecutive clean/resolved rounds), CollectingSink, Events, RequestLoggingFactory, Sink, CollectingSink, ConcurrentQueue, LogEvent
+### Community 697 - "Edit a customer"
+Cohesion: 0.40
+Nodes (4): Edge cases, Edit a customer, Outcome, Trigger
 
-### Community 698 - "Screenshot Pipeline Fix Plan"
-Cohesion: 0.22
-Nodes (8): Commit, Files, Fix increment 1 — #660 is not met yet, If it is still not right, Report back, Steps, The fix, What #660 actually requires
+### Community 698 - "Edit a grade"
+Cohesion: 0.40
+Nodes (4): Edge cases, Edit a grade, Outcome, Trigger
 
 ### Community 699 - "Screenshot Pipeline Fixes"
-Cohesion: 0.10
-Nodes (35): 1. `git checkout -- docs/images/` is too broad (Major — real), 2. Markdown lint (real), 3. Unchecked checkbox (real, cosmetic), 4. NOT a defect — the alt text finding is stale. Do not change it., Commit and push, Fix increment 2 — review findings on head `a1966740`, Gates, Report back (+27 more)
-
-### Community 700 - "EF Migration Snapshot 15"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 701 - "Egg Grade Lookup"
-Cohesion: 0.33
-Nodes (6): EggGradeLookup, CancellationToken, Guid, IReadOnlyCollection, IReadOnlyDictionary, Task
-
-### Community 702 - "Production Report Model"
-Cohesion: 0.22
-Nodes (6): GradeTotal, Guid, ProductionDay, DateOnly, ProductionReport, IReadOnlyList
-
-### Community 704 - "Transient Postgres Fault"
-Cohesion: 0.25
-Nodes (6): TransientFault, DbTransaction, Exception, PostgresException, Task, TransactionEndEventData
-
-### Community 705 - "Discovery Validation Tests"
-Cohesion: 0.36
-Nodes (4): HttpResponseMessage, InlineData, Theory, ValidationProblem
-
-### Community 706 - "OTLP Exporter Validation"
-Cohesion: 0.33
-Nodes (3): OtlpExporterHostValidationTests, Fact, Task
-
-### Community 707 - "Distributed IP Rate Limiter"
-Cohesion: 0.25
-Nodes (8): IRateLimiterPolicy, OnRejectedContext, DistributedIpFixedWindowPolicy, OnRejected, CancellationToken, Func, TimeSpan, ValueTask
-
-### Community 708 - "Serving Subprocess Harness"
 Cohesion: 0.16
-Nodes (15): InvalidOperationException, ChildExitedBeforeReadyException, LostItsPort, ServingSubprocess, BaseUrl, ExitCode, Func, Process (+7 more)
+Nodes (27): STATUS_BADGE_CLASSES, DAY_SLOT_KINDS, AstNode, cartesian(), combinations(), consultedDynamicValues, containerName(), declaredClasses() (+19 more)
 
-### Community 709 - "Refresh Token Storage"
-Cohesion: 0.12
-Nodes (18): 1. Storage, Rollback fails open unless it is done deliberately, RefreshToken, AccountId, ConcurrencyStamp, CreatedAt, ExpiresAt, Id (+10 more)
+### Community 700 - "Edit a flock"
+Cohesion: 0.40
+Nodes (4): Edge cases, Edit a flock, Outcome, Trigger
 
-### Community 710 - "EF Migration Snapshot 16"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 701 - "Edit a line"
+Cohesion: 0.40
+Nodes (4): Edge cases, Edit a line, Outcome, Trigger
 
-### Community 711 - "EF Migration Snapshot 17"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
+### Community 702 - "Edit a packed unit"
+Cohesion: 0.40
+Nodes (4): Edge cases, Edit a packed unit, Outcome, Trigger
 
-### Community 712 - "EF Mapping Test Model"
-Cohesion: 0.25
-Nodes (7): MappedOrder, SpecialOrder, MappingDb, SpecialOrder, Note, DbContextOptions, ModelBuilder
+### Community 704 - "Lock submitted entries after seven farm days"
+Cohesion: 0.40
+Nodes (4): Edge cases, Lock submitted entries after seven farm days, Outcome, Trigger
 
-### Community 713 - "Roslyn Symbol Binding"
-Cohesion: 0.36
-Nodes (5): IEnumerable, INamedTypeSymbol, ISymbol, ITypeSymbol, SemanticModel
+### Community 705 - "Record an expense"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Record an expense, Trigger
+
+### Community 706 - "Record an expense through a connected app"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Record an expense through a connected app, Trigger
+
+### Community 707 - "Log feed for a flock"
+Cohesion: 0.40
+Nodes (4): Edge cases, Log feed for a flock, Outcome, Trigger
+
+### Community 708 - "InvalidOperationException"
+Cohesion: 0.27
+Nodes (3): Enforced rules and their records, AppDbContextDesignTimeFactory, AppDbContextDesignTimeFactoryTests
+
+### Community 709 - "RefreshToken"
+Cohesion: 0.06
+Nodes (29): Libraries evaluated (#788), The rejected PAT design, kept for reference, What ASP.NET Core 10 gives for free, 1. Storage, Rollback fails open unless it is done deliberately, RefreshRevocationReason, CredentialsChanged, FarmSuspended (+21 more)
+
+### Community 710 - "Record feed through a connected app"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Record feed through a connected app, Trigger
+
+### Community 711 - "Refuse feed beyond the stock on hand that day"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse feed beyond the stock on hand that day, Trigger
+
+### Community 712 - "Refuse a payment above the outstanding amount"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a payment above the outstanding amount, Trigger
+
+### Community 713 - "Receive a purchase"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Receive a purchase, Trigger
 
 ### Community 714 - "Toolbar Fix Increment Runbook"
 Cohesion: 0.29
 Nodes (6): Files, Fix increment 5 — say in the stylesheet that `.toolbar` is waiting for #653, Report back, Step 1, Step 2 — gates and commit, The finding
 
-### Community 715 - "Sales Order Status"
-Cohesion: 0.25
-Nodes (7): SalesOrderStatus, Cancelled, Confirmed, Draft, Invoiced, Shipped, Voided
-
-### Community 716 - "Job Worker Heartbeat"
-Cohesion: 0.29
-Nodes (5): DurableJobWorkerHeartbeat, LastSuccessfulPoll, StartedAt, DateTimeOffset, TimeProvider
-
-### Community 717 - "Sale Confirmation Assignment Read"
-Cohesion: 0.39
-Nodes (6): ConfirmSaleAssignmentReadTests, Created, DateOnly, Fact, Guid, Task
-
-### Community 718 - "Migrate-on-Startup Disabled Tests"
-Cohesion: 0.25
-Nodes (6): MigrateOnStartupDisabledTests, NoBootMigrateFactory, MigrateSchemaOnInitialize, Fact, IWebHostBuilder, Task
-
-### Community 719 - "Purge Delete Counter"
-Cohesion: 0.25
-Nodes (7): PurgeDeleteCounter, RowsDeleted, CancellationToken, CommandExecutedEventData, ConcurrentQueue, DbCommand, ValueTask
-
-### Community 720 - "Namespace Folder Agreement"
-Cohesion: 0.32
-Nodes (5): NamespaceFolderAgreementTests, BaseNamespaceDeclarationSyntax, Fact, InlineData, Theory
-
-### Community 721 - "Font Optical Size Tests"
-Cohesion: 0.29
-Nodes (7): entry, entryCss, faceFiles, loadedFontEntry(), packageRoot, source(), webRoot
-
-### Community 722 - "Audit Details Column Design"
-Cohesion: 0.29
-Nodes (6): #745 — the audit Details column · design, Existing tests this changes, Invariants, Prediction to test, Scope, The one rule this slice must not break
-
-### Community 723 - "Aspire AppHost Implementation Plan"
-Cohesion: 0.29
-Nodes (6): Aspire AppHost Implementation Plan, File Structure, Global Constraints, Modified files, New files, Self-Review Checklist
-
-### Community 724 - "Daily Entry Status States"
-Cohesion: 0.29
-Nodes (6): DailyEntryStatus, Draft, Locked, ManagerAdjusted, Submitted, Voided
-
-### Community 725 - "Logout Token Revocation"
-Cohesion: 0.48
-Nodes (4): CancellationToken, DateTimeOffset, Guid, Task
-
-### Community 726 - "Dialog Session Scope Typing"
+### Community 715 - "Record a purchase through a connected app"
 Cohesion: 0.40
-Nodes (4): Accepted limits, Type dialog session helpers and retain the runtime default (#703), Verification, Why no development assertion
+Nodes (4): Edge cases, Outcome, Record a purchase through a connected app, Trigger
 
-### Community 727 - "Baseline Currency Seed Tests"
-Cohesion: 0.29
-Nodes (6): BaselineSeedCurrencyTests, SettingsDto, TokenDto, Fact, Task, TokenDto
+### Community 716 - "Record water through a connected app"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Record water through a connected app, Trigger
 
-### Community 728 - "Account ID Key Conversion"
-Cohesion: 0.33
-Nodes (6): AccountKey, ConvertedAccountIdEntity, AccountId, Id, ConvertedKeyEntity, AccountId
+### Community 717 - "Refuse readings that disagree with the quantity"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse readings that disagree with the quantity, Trigger
 
-### Community 729 - "OTLP Collector Lint Fix 3"
-Cohesion: 0.33
-Nodes (5): Fix runbook 3 — #672 review round 3: markdown lint in the committed runbooks, Increment 10 — four lint corrections, Increment 11 — commit and gates, Report back, Why this exists
+### Community 718 - "Register with a name and return addresses"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Register with a name and return addresses, Trigger
 
-### Community 730 - "OTLP Collector Lint Fix 4"
-Cohesion: 0.33
-Nodes (5): Fix runbook 4 — #672: the same lint class in the first runbook, Increment 12 — three lines in `docs/plans/672-fake-otlp-collector/01-implementer-runbook.md`, Increment 13 — commit and gates, Report back, Why this exists
+### Community 719 - "Record a draft through a connected app"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Record a draft through a connected app, Trigger
+
+### Community 720 - "Refuse a day the flock no longer accepts"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a day the flock no longer accepts, Trigger
+
+### Community 721 - "Refuse grading beyond the sellable count"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse grading beyond the sellable count, Trigger
+
+### Community 722 - "Save a new day as a draft"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Save a new day as a draft, Trigger
+
+### Community 723 - "Dependency Graph"
+Cohesion: 0.14
+Nodes (12): Aspire AppHost Implementation Plan, Dependency Graph, File Structure, Global Constraints, Modified files, New files, Self-Review Checklist, Task 3: Generalize immutable container-image guards (+4 more)
+
+### Community 724 - "Refuse an unsafe or oversized image"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse an unsafe or oversized image, Trigger
+
+### Community 725 - "Refuse wrong credentials"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse wrong credentials, Trigger
+
+### Community 726 - "react"
+Cohesion: 0.03
+Nodes (192): 2.1 Components and their call sites, D2. Component mapping, pair by pair, SPA and documentation, SPA interaction and stale-continuation rule, Increment 3 — SPA transport, password lifetime, and stale continuations, Task 3.1: Add red client and dialog tests, Task 3.2: Carry the grant through the typed client, Task 3.3: Make the dialog erase-first and generation-safe (+184 more)
+
+### Community 727 - "Sign in to a farm"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Sign in to a farm, Trigger
+
+### Community 728 - "Refuse a day whose grading does not add up"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a day whose grading does not add up, Trigger
+
+### Community 729 - "Submit a draft through a connected app"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Submit a draft through a connected app, Trigger
+
+### Community 730 - "Suspend an active farm"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Suspend an active farm, Trigger
 
 ### Community 731 - "AuditEvents Partitioning Question"
 Cohesion: 0.33
 Nodes (6): Answer: no, and not merely "not yet", `AuditEvents` is not time-partitioned (#505), Current size, for the record, If it ever does bite, in order, Question, Separate, and real
 
-### Community 732 - "Aspire Second Database Decision"
-Cohesion: 0.33
-Nodes (6): Amendment, 2026-09-25: `AppHost.Tests` is in CI; the required-key set is not (#956), Aspire is local orchestration, and it is a second database (#565), The rule, What happened, What this does NOT cover, Why not the obvious alternative
+### Community 732 - "Switch connected apps off"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Switch connected apps off, Trigger
 
 ### Community 733 - "Decision Record Template"
 Cohesion: 0.33
 Nodes (6): How it is enforced, <Short imperative title> (#<issue>), The rule, What happened, What this does NOT cover, Why not the obvious alternative
 
-### Community 734 - "Owned Value Test Entity"
-Cohesion: 0.33
-Nodes (6): OwnedValue, Parent, Id, Name, Note, Value
-
-### Community 735 - "EF Migration Snapshot 18"
-Cohesion: 0.33
-Nodes (5): DateOnly, DateTime, DateTimeOffset, Guid, ModelBuilder
-
-### Community 736 - "Unit of Work Transactions"
-Cohesion: 0.47
-Nodes (4): UnitOfWork, CancellationToken, Func, Task
-
-### Community 737 - "Integration Test Setup Fixture"
-Cohesion: 0.33
-Nodes (5): AccountId, Client, Dictionary, Grades, HttpClient
-
-### Community 738 - "OpenAPI Generated Client"
-Cohesion: 1.00
-Nodes (3): KD-6 Generated Client Drift Finding, OpenAPI-Generated Typed Client (KD-6), Cluckwork Web SPA README
-
-### Community 739 - "Logger Implementation"
-Cohesion: 0.33
-Nodes (4): EventId, Exception, Func, LogLevel
-
-### Community 740 - "Mapped Order Payment Totals"
-Cohesion: 0.33
-Nodes (6): MappedOrder, Due, Id, Paid, Guid, Total
-
-### Community 741 - "Farm Directory Caller Guard"
-Cohesion: 0.53
-Nodes (3): FarmDirectoryCallerTests, Fact, IdentifierNameSyntax
-
-### Community 742 - "Filter-Free Query Sites"
+### Community 734 - "Remove an assignment"
 Cohesion: 0.40
-Nodes (5): FilterFreeSetSite, Key, FilterFreeSetSites, All, IReadOnlyList
+Nodes (4): Edge cases, Outcome, Remove an assignment, Trigger
+
+### Community 735 - "View the morning dashboard"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Trigger, View the morning dashboard
+
+### Community 736 - "View revenue, expenses and profit"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Trigger, View revenue, expenses and profit
+
+### Community 737 - "View daily production"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Trigger, View daily production
+
+### Community 738 - "View stock by grade"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Trigger, View stock by grade
+
+### Community 739 - "Refuse voiding a day whose eggs have left its lots"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse voiding a day whose eggs have left its lots, Trigger
+
+### Community 740 - "Void a submitted day"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Trigger, Void a submitted day
+
+### Community 741 - "Void a confirmed order"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Trigger, Void a confirmed order
+
+### Community 742 - "Refuse a correction outside the lot's range"
+Cohesion: 0.40
+Nodes (4): Edge cases, Outcome, Refuse a correction outside the lot's range, Trigger
 
 ### Community 743 - "Proxy-Trust Boot Guard"
 Cohesion: 0.40
 Nodes (5): Proxy-trust boot guard (#260), Scope, The opt-out, and its one legitimate use, The rule, Why failing the boot rather than warning
 
-### Community 744 - "Adjust Daily Entry Command"
+### Community 744 - "Write off lost eggs"
 Cohesion: 0.40
-Nodes (4): AdjustDailyEntryCommand, Guid, IReadOnlyList, AdjustDailyEntryValidator
+Nodes (4): Edge cases, Outcome, Trigger, Write off lost eggs
 
-### Community 745 - "Flock Eligibility Filter"
+### Community 745 - "Product model"
 Cohesion: 0.40
-Nodes (4): FlockEligibility, Active, ActiveAndDepleted, All
+Nodes (4): How to read it, Keeping it current, Product model, When the model and the code disagree
 
-### Community 746 - "EF Query Shape Warnings"
+### Community 747 - "Dependencies & Execution Order"
 Cohesion: 0.40
-Nodes (3): QueryShapeWarnings, Enabled, WarningsConfigurationBuilder
+Nodes (5): Dependencies & Execution Order, Parallel Opportunities, Phase Dependencies, User Story Dependency Graph, Within Each User Story
 
-### Community 747 - "Farm Time Zone Clock"
-Cohesion: 0.60
-Nodes (3): CancellationToken, DateOnly, Task
+### Community 749 - "Fault"
+Cohesion: 0.40
+Nodes (5): Fault, Cancelled, None, Permanent, TransientOnce
 
-### Community 748 - "List Filter Test Seeding"
+### Community 750 - "FieldEnvelope"
+Cohesion: 0.40
+Nodes (3): FieldEnvelope, FieldPayload, IFieldContractFixture
+
+### Community 751 - "LookupEnvelope"
+Cohesion: 0.40
+Nodes (3): IFlockLookup, ILookupContractFixture, LookupEnvelope
+
+### Community 752 - "Node"
+Cohesion: 0.40
+Nodes (4): ISelfExpandingGenericFixture, Node, Next, Value
+
+### Community 754 - "[0.0.2](https://github.com/mforce/cluckwork/compare/v0.0.1...v0.0.2) (2026-08-03)"
 Cohesion: 0.50
-Nodes (3): CreateId, AccountId, UpdateId
+Nodes (4): [0.0.2](https://github.com/mforce/cluckwork/compare/v0.0.1...v0.0.2) (2026-08-03), Bug fixes, Documentation, Features
 
-### Community 749 - "Egg Lot Movement Result"
+### Community 755 - "[0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-26)"
 Cohesion: 0.50
-Nodes (3): RecordEggLotMovementResult, DateTimeOffset, Guid
+Nodes (4): [0.1.3](https://github.com/mforce/cluckwork/compare/v0.1.2...v0.1.3) (2026-09-26), Bug fixes, Documentation, Features
 
-### Community 750 - "Daily Entry Submit Response"
+### Community 757 - "db"
 Cohesion: 0.50
-Nodes (3): SubmitDailyEntryResponse, Guid, IReadOnlyList
+Nodes (4): env_file, image, volumes, db
 
-### Community 751 - "Void Daily Entry Command"
+### Community 758 - "Flocks & egg production"
 Cohesion: 0.50
-Nodes (3): VoidDailyEntryCommand, Guid, VoidDailyEntryValidator
+Nodes (4): Description, Flocks & egg production, Relations, Tables
+
+### Community 759 - "Feed & supply inventory"
+Cohesion: 0.50
+Nodes (4): Description, Feed & supply inventory, Relations, Tables
+
+### Community 760 - "pull_request_template.md"
+Cohesion: 0.50
+Nodes (3): Checklist, How it was verified, What and why
+
+### Community 761 - "Activate a grade"
+Cohesion: 0.50
+Nodes (3): Activate a grade, Outcome, Trigger
+
+### Community 762 - "Activate an item"
+Cohesion: 0.50
+Nodes (3): Activate an item, Outcome, Trigger
+
+### Community 763 - "Activate a product"
+Cohesion: 0.50
+Nodes (3): Activate a product, Outcome, Trigger
+
+### Community 764 - "Adjust a locked day"
+Cohesion: 0.50
+Nodes (3): Adjust a locked day, Outcome, Trigger
+
+### Community 765 - "Adjust a day again"
+Cohesion: 0.50
+Nodes (3): Adjust a day again, Outcome, Trigger
+
+### Community 766 - "Refuse adjusting a day of an archived flock"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse adjusting a day of an archived flock, Trigger
+
+### Community 767 - "Archive a depleted flock"
+Cohesion: 0.50
+Nodes (3): Archive a depleted flock, Outcome, Trigger
+
+### Community 768 - "Archive a flock created by mistake"
+Cohesion: 0.50
+Nodes (3): Archive a flock created by mistake, Outcome, Trigger
+
+### Community 769 - "Assign a flock"
+Cohesion: 0.50
+Nodes (3): Assign a flock, Outcome, Trigger
+
+### Community 770 - "Show only actions through connected apps"
+Cohesion: 0.50
+Nodes (3): Outcome, Show only actions through connected apps, Trigger
+
+### Community 771 - "Read what customers owe through a connected app"
+Cohesion: 0.50
+Nodes (3): Outcome, Read what customers owe through a connected app, Trigger
+
+### Community 772 - "List daily entries through a connected app"
+Cohesion: 0.50
+Nodes (3): List daily entries through a connected app, Outcome, Trigger
+
+### Community 773 - "List egg lots through a connected app"
+Cohesion: 0.50
+Nodes (3): List egg lots through a connected app, Outcome, Trigger
+
+### Community 774 - "Trace a grade's lots and a lot's movements"
+Cohesion: 0.50
+Nodes (3): Outcome, Trace a grade's lots and a lot's movements, Trigger
+
+### Community 775 - "List an order's payments through a connected app"
+Cohesion: 0.50
+Nodes (3): List an order's payments through a connected app, Outcome, Trigger
+
+### Community 776 - "Review an order's payments"
+Cohesion: 0.50
+Nodes (3): Outcome, Review an order's payments, Trigger
+
+### Community 777 - "Browse orders and what they owe"
+Cohesion: 0.50
+Nodes (3): Browse orders and what they owe, Outcome, Trigger
+
+### Community 778 - "List orders through a connected app"
+Cohesion: 0.50
+Nodes (3): List orders through a connected app, Outcome, Trigger
+
+### Community 779 - "Cancel a draft order"
+Cohesion: 0.50
+Nodes (3): Cancel a draft order, Outcome, Trigger
+
+### Community 780 - "Change one's own password"
+Cohesion: 0.50
+Nodes (3): Change one's own password, Outcome, Trigger
+
+### Community 781 - "Replace a one-time password"
+Cohesion: 0.50
+Nodes (3): Outcome, Replace a one-time password, Trigger
+
+### Community 782 - "Refuse demoting the last Owner"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse demoting the last Owner, Trigger
+
+### Community 783 - "Clear the banner"
+Cohesion: 0.50
+Nodes (3): Clear the banner, Outcome, Trigger
+
+### Community 784 - "Clear the logo"
+Cohesion: 0.50
+Nodes (3): Clear the logo, Outcome, Trigger
+
+### Community 785 - "Refuse an order short of stock"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse an order short of stock, Trigger
+
+### Community 786 - "Refuse every app while connected apps are off"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse every app while connected apps are off, Trigger
+
+### Community 787 - "Correct an expense"
+Cohesion: 0.50
+Nodes (3): Correct an expense, Outcome, Trigger
+
+### Community 788 - "Refuse a correction made against a stale copy"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a correction made against a stale copy, Trigger
+
+### Community 789 - "Correct an inventory lot"
+Cohesion: 0.50
+Nodes (3): Correct an inventory lot, Outcome, Trigger
+
+### Community 790 - "Create a customer"
+Cohesion: 0.50
+Nodes (3): Create a customer, Outcome, Trigger
+
+### Community 791 - "Refuse a customer without name or phone"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a customer without name or phone, Trigger
+
+### Community 792 - "Create a grade"
+Cohesion: 0.50
+Nodes (3): Create a grade, Outcome, Trigger
+
+### Community 793 - "Refuse a duplicate grade name"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a duplicate grade name, Trigger
+
+### Community 794 - "Create a flock"
+Cohesion: 0.50
+Nodes (3): Create a flock, Outcome, Trigger
+
+### Community 795 - "Create a flock while recording a day"
+Cohesion: 0.50
+Nodes (3): Create a flock while recording a day, Outcome, Trigger
+
+### Community 796 - "Refuse a flock without breed or birds"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a flock without breed or birds, Trigger
+
+### Community 797 - "Create a product"
+Cohesion: 0.50
+Nodes (3): Create a product, Outcome, Trigger
+
+### Community 798 - "Refuse a duplicate product name"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a duplicate product name, Trigger
+
+### Community 799 - "Create a draft order"
+Cohesion: 0.50
+Nodes (3): Create a draft order, Outcome, Trigger
+
+### Community 800 - "Refuse an order dated in the future"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse an order dated in the future, Trigger
+
+### Community 801 - "Create a person"
+Cohesion: 0.50
+Nodes (3): Create a person, Outcome, Trigger
+
+### Community 802 - "Deactivate a grade"
+Cohesion: 0.50
+Nodes (3): Deactivate a grade, Outcome, Trigger
+
+### Community 803 - "Deactivate a category"
+Cohesion: 0.50
+Nodes (3): Deactivate a category, Outcome, Trigger
+
+### Community 804 - "Deactivate an item"
+Cohesion: 0.50
+Nodes (3): Deactivate an item, Outcome, Trigger
+
+### Community 805 - "Deactivate a product"
+Cohesion: 0.50
+Nodes (3): Deactivate a product, Outcome, Trigger
+
+### Community 806 - "Deplete an active flock"
+Cohesion: 0.50
+Nodes (3): Deplete an active flock, Outcome, Trigger
+
+### Community 807 - "Disable a person"
+Cohesion: 0.50
+Nodes (3): Disable a person, Outcome, Trigger
+
+### Community 808 - "Refuse disabling oneself or the last Owner"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse disabling oneself or the last Owner, Trigger
+
+### Community 809 - "Disconnect a colleague's app as the Owner"
+Cohesion: 0.50
+Nodes (3): Disconnect a colleague's app as the Owner, Outcome, Trigger
+
+### Community 810 - "Download one dataset"
+Cohesion: 0.50
+Nodes (3): Download one dataset, Outcome, Trigger
+
+### Community 811 - "Download everything"
+Cohesion: 0.50
+Nodes (3): Download everything, Outcome, Trigger
+
+### Community 812 - "Set a grade's low-stock floor"
+Cohesion: 0.50
+Nodes (3): Outcome, Set a grade's low-stock floor, Trigger
+
+### Community 813 - "Edit an item"
+Cohesion: 0.50
+Nodes (3): Edit an item, Outcome, Trigger
+
+### Community 814 - "Refuse changing the unit of a stocked item"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse changing the unit of a stocked item, Trigger
+
+### Community 815 - "Edit a product"
+Cohesion: 0.50
+Nodes (3): Edit a product, Outcome, Trigger
+
+### Community 816 - "Rename a person"
+Cohesion: 0.50
+Nodes (3): Outcome, Rename a person, Trigger
+
+### Community 817 - "Enable a person"
+Cohesion: 0.50
+Nodes (3): Enable a person, Outcome, Trigger
+
+### Community 818 - "List the server's farms"
+Cohesion: 0.50
+Nodes (3): List the server's farms, Outcome, Trigger
+
+### Community 819 - "Provision a new farm"
+Cohesion: 0.50
+Nodes (3): Outcome, Provision a new farm, Trigger
+
+### Community 820 - "Refuse a reserved or taken farm code"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a reserved or taken farm code, Trigger
+
+### Community 821 - "Create the first Owner"
+Cohesion: 0.50
+Nodes (3): Create the first Owner, Outcome, Trigger
+
+### Community 822 - "Do nothing when an Owner exists"
+Cohesion: 0.50
+Nodes (3): Do nothing when an Owner exists, Outcome, Trigger
+
+### Community 823 - "Reactivate a category"
+Cohesion: 0.50
+Nodes (3): Outcome, Reactivate a category, Trigger
+
+### Community 824 - "Reactivate a suspended farm"
+Cohesion: 0.50
+Nodes (3): Outcome, Reactivate a suspended farm, Trigger
+
+### Community 825 - "Reactivate a depleted flock"
+Cohesion: 0.50
+Nodes (3): Outcome, Reactivate a depleted flock, Trigger
+
+### Community 826 - "Reactivate an archived flock"
+Cohesion: 0.50
+Nodes (3): Outcome, Reactivate an archived flock, Trigger
+
+### Community 827 - "Record a cull"
+Cohesion: 0.50
+Nodes (3): Outcome, Record a cull, Trigger
+
+### Community 828 - "Record a recount that adds birds back"
+Cohesion: 0.50
+Nodes (3): Outcome, Record a recount that adds birds back, Trigger
+
+### Community 829 - "Refuse an invalid bird movement"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse an invalid bird movement, Trigger
+
+### Community 830 - "Record a payment"
+Cohesion: 0.50
+Nodes (3): Outcome, Record a payment, Trigger
+
+### Community 831 - "Refuse a purchase of an inactive item"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse a purchase of an inactive item, Trigger
+
+### Community 832 - "Log water for a flock"
+Cohesion: 0.50
+Nodes (3): Log water for a flock, Outcome, Trigger
+
+### Community 833 - "Refuse recovering a disabled person"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse recovering a disabled person, Trigger
+
+### Community 834 - "Reset a locked-out Owner"
+Cohesion: 0.50
+Nodes (3): Outcome, Reset a locked-out Owner, Trigger
+
+### Community 835 - "Identify with a client metadata document"
+Cohesion: 0.50
+Nodes (3): Identify with a client metadata document, Outcome, Trigger
+
+### Community 836 - "Remove a line"
+Cohesion: 0.50
+Nodes (3): Outcome, Remove a line, Trigger
+
+### Community 837 - "Refuse resetting one's own password this way"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse resetting one's own password this way, Trigger
+
+### Community 838 - "Set a colleague's password"
+Cohesion: 0.50
+Nodes (3): Outcome, Set a colleague's password, Trigger
+
+### Community 839 - "Refuse saving over an official day"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse saving over an official day, Trigger
+
+### Community 840 - "Save over an existing draft"
+Cohesion: 0.50
+Nodes (3): Outcome, Save over an existing draft, Trigger
+
+### Community 841 - "Upload a banner"
+Cohesion: 0.50
+Nodes (3): Outcome, Trigger, Upload a banner
+
+### Community 842 - "Upload a logo"
+Cohesion: 0.50
+Nodes (3): Outcome, Trigger, Upload a logo
+
+### Community 843 - "Refuse signing in to a suspended farm"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse signing in to a suspended farm, Trigger
+
+### Community 844 - "Refuse an unknown farm code"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse an unknown farm code, Trigger
+
+### Community 845 - "Sign in with a one-time password"
+Cohesion: 0.50
+Nodes (3): Outcome, Sign in with a one-time password, Trigger
+
+### Community 846 - "Sign out"
+Cohesion: 0.50
+Nodes (3): Outcome, Sign out, Trigger
+
+### Community 847 - "Submit a day where every egg was lost"
+Cohesion: 0.50
+Nodes (3): Outcome, Submit a day where every egg was lost, Trigger
+
+### Community 848 - "Switch connected apps on"
+Cohesion: 0.50
+Nodes (3): Outcome, Switch connected apps on, Trigger
+
+### Community 849 - "Read stock through a connected app"
+Cohesion: 0.50
+Nodes (3): Outcome, Read stock through a connected app, Trigger
+
+### Community 850 - "Void a locked day"
+Cohesion: 0.50
+Nodes (3): Outcome, Trigger, Void a locked day
+
+### Community 851 - "Void a payment"
+Cohesion: 0.50
+Nodes (3): Outcome, Trigger, Void a payment
+
+### Community 852 - "Refuse voiding an order that has payments"
+Cohesion: 0.50
+Nodes (3): Outcome, Refuse voiding an order that has payments, Trigger
+
+### Community 853 - "Add eggs back after a recount"
+Cohesion: 0.50
+Nodes (3): Add eggs back after a recount, Outcome, Trigger
+
+### Community 854 - "config.yaml"
+Cohesion: 0.50
+Nodes (3): schema, sdd, paths
+
+### Community 855 - "Sell eggs to a customer"
+Cohesion: 0.50
+Nodes (3): Goal, Sell eggs to a customer, Success criterion
+
+### Community 856 - "Sell eggs as a Worker"
+Cohesion: 0.50
+Nodes (3): Outcome, Sell eggs as a Worker, Trigger
+
+### Community 857 - "Sell eggs as a Sales user"
+Cohesion: 0.50
+Nodes (3): Outcome, Sell eggs as a Sales user, Trigger
+
+### Community 866 - "coupling-matrix.md"
+Cohesion: 0.50
+Nodes (3): Cells the generator cannot observe, Cross-owner foreign keys, Observable differences
+
+### Community 867 - "InheritedStaticFieldEnvelope"
+Cohesion: 0.50
+Nodes (3): IInheritedStaticFieldContractFixture, InheritedStaticFieldEnvelope, StaticFieldBase
+
+### Community 868 - "DtoWithQueryableProperty"
+Cohesion: 0.50
+Nodes (3): DtoWithQueryableProperty, Items, IDtoWithQueryablePropertyFixture
+
+### Community 871 - "[0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12)"
+Cohesion: 0.67
+Nodes (3): [0.1.1](https://github.com/mforce/cluckwork/compare/v0.1.0...v0.1.1) (2026-09-12), Bug fixes, Documentation
+
+### Community 872 - "[0.1.4](https://github.com/mforce/cluckwork/compare/v0.1.3...v0.1.4) (2026-09-28)"
+Cohesion: 0.67
+Nodes (3): [0.1.4](https://github.com/mforce/cluckwork/compare/v0.1.3...v0.1.4) (2026-09-28), Bug fixes, Features
 
 ## Ambiguous Edges - Review These
 - `Customers Import Type` → `Sales History Import Type`  [AMBIGUOUS]
@@ -3738,24 +4307,28 @@ Nodes (3): VoidDailyEntryCommand, Guid, VoidDailyEntryValidator
   graphify-out/memory/query_20260729_075455_what_is_the_exact_relationship_between_the_spa_s_h.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **3275 isolated node(s):** `IEventHandlerTypeFixture`, `IIndexerParameterFixture`, `IInterfaceConstraintFixture`, `IStaticAbstractOperatorFixture`, `BrandSplashProps` (+3270 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 6536 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **39 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **1286 isolated node(s):** `netstandard2.0`, `Microsoft.CodeAnalysis.CSharp`, `Microsoft.NET.Sdk`, `SupportedDiagnostics`, `Scope` (+1281 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 7392 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **381 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
+
+- **Why does `22. Which login callers change, and how` connect `CluckworkWebApplicationFactory` to `CredentialEpochMiddleware`, `TestHarness.CreateAuthedClient`, `api/client.ts`, `OAuthFailClosedTests`, `OwnerTwoFactorGateTests`, `ChangeUserEmailTests`, `IWebHostBuilder`, `ReadsRequestBodyAttribute`, `#1278: login, and enrolment without routes`, `src/fixtures.ts`, `Guid`, `ApplicationUser`, `TwoFactorCredentials`?**
+  _High betweenness centrality (0.067) - this node is a cross-community bridge._
+- **Are the 91 inferred relationships involving `AppDbContext` (e.g. with `How a metadata client is stored` and `#1278: login, and enrolment without routes`) actually correct?**
+  _`AppDbContext` has 91 INFERRED edges - model-reasoned connections that need verification._
+- **What connects `netstandard2.0`, `Microsoft.CodeAnalysis.CSharp`, `Microsoft.NET.Sdk` to the rest of the system?**
+  _1286 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Sales and Catalog Handlers` be split into smaller, more focused modules?**
+  _Cohesion score 0.032053316407489686 - nodes in this community are weakly interconnected._
+- **Why does `ApiError` connect `api/client.ts` to `ExportPage.test.tsx`, `ExpensesPage.tsx`, `@mui/material`, `SettingsPage.test.tsx`, `UsersPage.resetTwoFactor.test.tsx`, `Production Day Strip`, `react`, `SalesPage.test.tsx`, `UsersPage.test.tsx`, `CluckworkWebApplicationFactory`, `WaterPage.tsx`, `index.ts`?**
+  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+
+### Low-confidence Hints
+_AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
 
 - **What is the exact relationship between `Customers Import Type` and `Sales History Import Type`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **What is the exact relationship between `Sales History Import Type` and `Legacy Import Wizard`?**
   _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
-- **What is the exact relationship between `Alerts Badge` and `Withdrawal Period Indicator`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Sales Nav Item` and `Customers Screen Wireframe`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Sales Nav Item` and `Customers Screen Wireframe`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Restricted Egg Lots (Sale Blocked)` and `Sidebar Navigation`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Cluckwork Web SPA README` and `OpenAPI-Generated Typed Client (KD-6)`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
