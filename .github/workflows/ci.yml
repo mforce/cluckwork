@@ -249,14 +249,11 @@ jobs:
           path: ~/.aspire
           key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
 
-      # The same setup the AppHost build runs when it finds no bundle, done
-      # here so the fingerprint check below runs before anything uses it. It
-      # also runs when a restored cache's bundle link points at another home.
+      # Sets up the bundle here, not inside the build, so the fingerprint check
+      # below runs before anything uses it.
       - name: Fetch Aspire CLI bundle
         if: matrix.group == 'apphost'
-        env:
-          ASPIRE_VERSION: ${{ steps.aspire.outputs.version }}
-        run: test -d ~/.aspire/bundle || dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
+        run: .github/scripts/aspire-bundle-fetch.sh ~/.aspire
 
       - name: Check Aspire CLI bundle fingerprint
         if: matrix.group == 'apphost'
@@ -361,13 +358,10 @@ jobs:
           path: ~/.aspire
           key: aspire-bundle-${{ runner.os }}-${{ steps.aspire.outputs.version }}
 
-      # The same setup the AppHost build runs when it finds no bundle, done
-      # here so the fingerprint check below runs before anything uses it. It
-      # also runs when a restored cache's bundle link points at another home.
+      # Sets up the bundle here, not inside the build, so the fingerprint check
+      # below runs before anything uses it.
       - name: Fetch Aspire CLI bundle
-        env:
-          ASPIRE_VERSION: ${{ steps.aspire.outputs.version }}
-        run: test -d ~/.aspire/bundle || dnx --yes "aspire.cli@$ASPIRE_VERSION" -- setup --install-path ~/.aspire
+        run: .github/scripts/aspire-bundle-fetch.sh ~/.aspire
 
       - name: Check Aspire CLI bundle fingerprint
         run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle

@@ -9,7 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -125,4 +125,56 @@ test("a name that folds in a deleted file's line fails", (t) => {
   mkdirSync(forged, { recursive: true });
   writeFileSync(join(forged, "aspire-managed"), "dcp binary", { mode: 0o755 });
   assert.equal(f.check().status, 1);
+});
+
+// aspire-bundle-fetch.sh, the step before the check in every AppHost job. A
+// stub `dnx` first on PATH logs its call and lays out a bundle at --install-path.
+const FETCH = fileURLToPath(new URL("./aspire-bundle-fetch.sh", import.meta.url));
+
+function fetchFixture(t) {
+  const root = mkdtempSync(join(tmpdir(), "aspire-fetch-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = join(root, "bin");
+  mkdirSync(bin);
+  const log = join(root, "dnx.log");
+  writeFileSync(join(bin, "dnx"), [
+    "#!/bin/sh",
+    `echo "ASPIRE_HOME=$ASPIRE_HOME $*" >> "${log}"`,
+    'while [ "$1" != --install-path ]; do shift; done',
+    'mkdir -p "$2/versions/v1" && ln -sfn "$2/versions/v1" "$2/bundle"',
+    "",
+  ].join("\n"), { mode: 0o755 });
+  const props = join(root, "Directory.Packages.props");
+  writeFileSync(props, '<PackageVersion Include="Aspire.Hosting.AppHost" Version="17.0.0" />\n');
+  const home = join(root, "home", ".aspire");
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, PACKAGES_PROPS: props };
+  const fetch = () => spawnSync("bash", [FETCH, home], { encoding: "utf8", env });
+  const calls = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n") : []);
+  return { root, home, fetch, calls };
+}
+
+test("fetch sets up the bundle when the Aspire home is missing", (t) => {
+  const f = fetchFixture(t);
+  const result = f.fetch();
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(f.calls(), [`ASPIRE_HOME=${f.home} --yes aspire.cli@17.0.0 -- setup --install-path ${f.home}`]);
+});
+
+test("fetch sets up the bundle again when a restored link points at another home", (t) => {
+  const f = fetchFixture(t);
+  mkdirSync(join(f.home, "versions", "v1"), { recursive: true });
+  symlinkSync("/home/other-runner/.aspire/versions/v1", join(f.home, "bundle"));
+  const result = f.fetch();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(f.calls().length, 1);
+  assert.equal(existsSync(join(f.home, "bundle")), true);
+});
+
+test("fetch skips setup when the bundle link resolves", (t) => {
+  const f = fetchFixture(t);
+  mkdirSync(join(f.home, "versions", "v1"), { recursive: true });
+  symlinkSync(join(f.home, "versions", "v1"), join(f.home, "bundle"));
+  const result = f.fetch();
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(f.calls(), []);
 });
