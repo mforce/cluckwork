@@ -37,7 +37,13 @@ environment inherits it and loses these checks.
 
 ## Local development
 
-Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**.
+Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**, **Aspire CLI 17.0**.
+
+`dotnet build Cluckwork.slnx` compiles the Aspire AppHost, which takes its
+dashboard and orchestrator from the Aspire CLI bundle. With no `aspire` on
+`PATH`, the build runs `dnx aspire.cli@17.0.0 setup` instead. That fallback
+needs Microsoft's portable .NET SDK. A distro-built SDK fails it with
+`ASPIRE009`, so install the CLI there.
 
 **Frontend:**
 
