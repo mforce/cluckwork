@@ -2,7 +2,10 @@
 #
 # Dependabot bumps a package in ONE project and regenerates only THAT project's
 # lock file; every downstream project's lock then fails CI's `--locked-mode`
-# restore with NU1004. This heals them automatically.
+# restore with NU1004. This heals them automatically. When the bump moves
+# Aspire.Hosting.AppHost, it also regenerates .github/aspire-bundle.fingerprint
+# (the CI check on the Aspire CLI bundle) and pushes it with the locks; a manual
+# Aspire bump uses the command that check prints.
 #
 # SECURITY MODEL (see docs/superpowers/specs/2026-07-25-dependabot-lockfix-design.md):
 #   - Runs `on: workflow_run`, so the job definition comes from the DEFAULT
@@ -71,6 +74,15 @@ jobs:
           # documented poisoning surface, and this job restores fresh anyway.
           cache: false
 
+      # Runs before the restore, so no PR-controlled build code has run in this
+      # job yet. The script comes from the PR checkout, the same trust level as
+      # the restore below; the commit job only accepts its output in the pinned
+      # format. Without an Aspire version change it downloads nothing. A PR
+      # branched before the fingerprint existed has nothing to refresh.
+      - name: Refresh the Aspire bundle fingerprint
+        if: hashFiles('.github/aspire-bundle.fingerprint') != ''
+        run: .github/scripts/aspire-bundle-fingerprint.sh --refresh "$RUNNER_TEMP/aspire-bundle"
+
       - name: Regenerate every lock file
         env:
           # Restore into a throwaway dir, not the shared global cache.
@@ -84,9 +96,12 @@ jobs:
         with:
           name: lockfiles
           if-no-files-found: error
+          # The fingerprint lives under .github/, which upload-artifact skips by default.
+          include-hidden-files: true
           retention-days: 1
-          # These 10 paths (every project in Cluckwork.slnx; the two AppHost ones
-          # were missing from the hand-written #203 list) span both src/ and tests/, so the artifact's
+          # These 10 lock paths (every project in Cluckwork.slnx; the two AppHost ones
+          # were missing from the hand-written #203 list) and the Aspire fingerprint
+          # span src/, tests/ and .github/, so the artifact's
           # least-common-ancestor is the repo root: each file is preserved with
           # its full repo-relative path. lockfix-apply.sh relies on this — it
           # reads each lock back out at $ARTIFACT_DIR/<repo-relative-path>.
@@ -101,6 +116,7 @@ jobs:
             tests/Cluckwork.Application.Tests/packages.lock.json
             tests/Cluckwork.Api.IntegrationTests/packages.lock.json
             tests/Cluckwork.AppHost.Tests/packages.lock.json
+            .github/aspire-bundle.fingerprint
 
   commit:
     name: Commit and push the refreshed locks

@@ -13,7 +13,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { changedPaths, classify, LOCK_FILES } from "./lockfix.mjs";
+import { changedPaths, classify, LOCK_FILES, PINNED_FILES } from "./lockfix.mjs";
 
 // Build a `git status --porcelain -z` stream: each record is `XY <path>` and
 // the stream is NUL-terminated per record.
@@ -109,11 +109,15 @@ test("the CLI classifies when invoked through a symlink", () => {
 
 // Two directories deep, like every lock, so TO_APPLY_SH climbs out of pr/.
 const LOCK = LOCK_FILES[0];
+const [FINGERPRINT] = PINNED_FILES;
+const FINGERPRINT_BODY = `# header\nversion 17.0.0\nlinux-x86_64 ${"a".repeat(64)}\n`;
 
 // Runs lockfix-apply.sh in a scratch workspace laid out like the commit job:
 // trusted/ scripts, a pr/ checkout of a pushed branch, and an artifact of new
 // locks. `tamper(pr, commit, scripts)` shapes the workspace before the run.
-function runApply(tamper = () => {}, env = {}) {
+// The artifact's fingerprint equals the committed one unless `artFingerprint`
+// is given, as for every NuGet bump that leaves Aspire alone.
+function runApply(tamper = () => {}, env = {}, artFingerprint = FINGERPRINT_BODY) {
   const dir = mkdtempSync(join(scratch, "apply-"));
   const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
   const scripts = join(dir, "trusted/.github/scripts");
@@ -130,6 +134,10 @@ function runApply(tamper = () => {}, env = {}) {
       writeFileSync(join(root, lock), body);
     }
   }
+  for (const [root, body] of [[pr, FINGERPRINT_BODY], [join(dir, "art"), artFingerprint]]) {
+    mkdirSync(dirname(join(root, FINGERPRINT)), { recursive: true });
+    writeFileSync(join(root, FINGERPRINT), body);
+  }
   const commit = (msg) => {
     git(pr, "add", "-A");
     git(pr, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", msg);
@@ -143,8 +151,15 @@ function runApply(tamper = () => {}, env = {}) {
     encoding: "utf8",
     env: { ...process.env, ARTIFACT_DIR: join(dir, "art"), HEAD_BRANCH: "pr", ...env },
   });
-  const pushed = spawnSync("git", ["-C", join(dir, "remote.git"), "show", `pr:${LOCK}`], { encoding: "utf8" });
-  return { run, pushed: pushed.stdout, applyScript: readFileSync(join(scripts, "lockfix-apply.sh"), "utf8") };
+  const show = (path) => spawnSync("git", ["-C", join(dir, "remote.git"), "show", `pr:${path}`], { encoding: "utf8" }).stdout;
+  const changed = spawnSync("git", ["-C", join(dir, "remote.git"), "diff", "--name-only", "main", "pr"], { encoding: "utf8" }).stdout;
+  return {
+    run,
+    pushed: show(LOCK),
+    pushedFingerprint: show(FINGERPRINT),
+    changed: changed.split("\n").filter(Boolean),
+    applyScript: readFileSync(join(scripts, "lockfix-apply.sh"), "utf8"),
+  };
 }
 
 const APPLY_SH = readFileSync(new URL("./lockfix-apply.sh", import.meta.url), "utf8");
@@ -221,5 +236,63 @@ test("apply: git status fails after printing a lock-only diff -> refuse", () => 
   const { run, pushed } = runApply(undefined, { PATH: `${bin}:${process.env.PATH}` });
   assert.notEqual(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /git status failed \(exit 128\)/);
+  assert.equal(pushed, "");
+});
+
+test("the Aspire bundle fingerprint is allowed beside the locks, and a sibling path is not", () => {
+  assert.deepEqual(PINNED_FILES, [".github/aspire-bundle.fingerprint"]);
+  const r = classify(z(" M .github/aspire-bundle.fingerprint", " M src/Cluckwork.AppHost/packages.lock.json"));
+  assert.equal(r.action, "commit");
+  assert.equal(classify(z(" M .github/aspire-bundle.fingerprint.bak")).action, "abort");
+  assert.equal(classify(z(" M .github/scripts/aspire-bundle-fingerprint.sh")).action, "abort");
+});
+
+test("apply: a non-Aspire bump leaves the fingerprint untouched", () => {
+  const { run, changed } = runApply();
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.ok(changed.length > 0);
+  assert.ok(!changed.includes(FINGERPRINT), changed.join(", "));
+});
+
+test("apply: a regenerated fingerprint is pushed with the locks", () => {
+  const body = `# header\nversion 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\n`;
+  const { run, pushedFingerprint, changed } = runApply(undefined, {}, body);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.equal(pushedFingerprint, body);
+  assert.ok(changed.includes(LOCK));
+});
+
+test("apply: a fingerprint outside the pinned format -> abort", () => {
+  for (const body of [
+    `version 17.1.0\nlinux-x86_64 ${"b".repeat(63)}\n`,
+    `version 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\nrun: curl evil\n`,
+    `linux-x86_64 ${"b".repeat(64)}\n`,
+  ]) {
+    const { run, pushed, pushedFingerprint } = runApply(undefined, {}, body);
+    assert.notEqual(run.status, 0, body);
+    assert.match(run.stdout, /not in its expected format/);
+    assert.equal(pushed, "");
+    assert.equal(pushedFingerprint, "");
+  }
+});
+
+test("apply: a PR branched before the fingerprint existed still gets its locks", () => {
+  const { run, pushed, pushedFingerprint } = runApply((pr, save) => {
+    rmSync(join(pr, FINGERPRINT));
+    save("no fingerprint yet");
+  });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.equal(pushed, '{"new":1}\n');
+  assert.equal(pushedFingerprint, "");
+});
+
+test("apply: a fingerprint tracked as a symlink -> abort without writing through it", () => {
+  const { run, pushed, applyScript } = runApply((pr, save) => {
+    rmSync(join(pr, FINGERPRINT));
+    symlinkSync("../trusted/.github/scripts/lockfix-apply.sh", join(pr, FINGERPRINT));
+    save("symlink");
+  }, {}, `version 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\n`);
+  assert.notEqual(run.status, 0);
+  assert.equal(applyScript, APPLY_SH);
   assert.equal(pushed, "");
 });

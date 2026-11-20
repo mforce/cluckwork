@@ -10,7 +10,7 @@
 // It reads `git status --porcelain -z` on stdin — NUL-delimited, so a path with
 // a space or newline is a single field, not several — and answers with an exit
 // code:
-//   4  every changed path is one of the known lock files -> commit
+//   4  every changed path is a known lock file or pinned file -> commit
 //   2  a path OUTSIDE that set is dirty -> abort, do not commit (fail closed)
 //   3  nothing changed -> no-op
 // Any other exit the caller also treats as abort: a crash, or 0 from a run
@@ -39,7 +39,11 @@ export const LOCK_FILES = Object.freeze([
   "tests/Cluckwork.AppHost.Tests/packages.lock.json",
 ]);
 
-const ALLOW = new Set(LOCK_FILES);
+// Pins that restore does not write but an Aspire bump must move with the locks:
+// the compute job rewrites the bundle fingerprint when the Aspire version changes.
+export const PINNED_FILES = Object.freeze([".github/aspire-bundle.fingerprint"]);
+
+const ALLOW = new Set([...LOCK_FILES, ...PINNED_FILES]);
 
 // Parse `git status --porcelain -z`. Records are `XY <path>`; a rename/copy
 // (X or Y is 'R'/'C') is followed by the source path as its own NUL field. We
