@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/mforce/cluckwork/compare/v1.2.0...v1.3.0) (2026-11-20)
+
+
+### Documentation
+
+* **glossary:** define passkeys as a second factor ([#1445](https://github.com/mforce/cluckwork/issues/1445)) ([204585d](https://github.com/mforce/cluckwork/commit/204585d56f508bd3ea3d178c2f2acf4c6179ac47))
+
 ## [1.2.0](https://github.com/mforce/cluckwork/compare/v1.1.3...v1.2.0) (2026-11-14)
 
 
