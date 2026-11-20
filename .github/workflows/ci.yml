@@ -255,6 +255,22 @@ jobs:
         if: matrix.group == 'apphost'
         run: .github/scripts/aspire-bundle-fetch.sh ~/.aspire
 
+      # On a Dependabot NuGet PR, hand this bundle's fingerprint, in the
+      # committed format for the PR's Aspire version, to the Dependabot lockfix
+      # workflow. Before the check, so it exists when an Aspire bump fails it.
+      - name: Write the Aspire bundle fingerprint for the lockfix
+        if: matrix.group == 'apphost' && startsWith(github.head_ref, 'dependabot/nuget/')
+        run: .github/scripts/aspire-bundle-fingerprint.sh --emit ~/.aspire/bundle "$RUNNER_TEMP/aspire-fingerprint/aspire-bundle.fingerprint"
+
+      - name: Upload the Aspire bundle fingerprint for the lockfix
+        if: matrix.group == 'apphost' && startsWith(github.head_ref, 'dependabot/nuget/')
+        uses: actions/upload-artifact@v7
+        with:
+          name: aspire-bundle-fingerprint
+          path: ${{ runner.temp }}/aspire-fingerprint/aspire-bundle.fingerprint
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Check Aspire CLI bundle fingerprint
         if: matrix.group == 'apphost'
         run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle

@@ -13,9 +13,12 @@
 #
 #   aspire-bundle-fingerprint.sh <bundle-dir>           print and check
 #   aspire-bundle-fingerprint.sh --print <bundle-dir>   print only
-#   aspire-bundle-fingerprint.sh --refresh <work-dir>   when the Aspire version
-#     differs from the committed one, set up that version's bundle under
-#     <work-dir> and rewrite the fingerprint file (the Dependabot lockfix job)
+#   aspire-bundle-fingerprint.sh --emit <bundle-dir> <out-file>
+#     write the fingerprint file for this bundle and the props' Aspire version
+#     to <out-file> (PR CI, for the Dependabot lockfix)
+#   aspire-bundle-fingerprint.sh --adopt <ci-file>      replace the fingerprint
+#     file with <ci-file> when that names the props' Aspire version and the
+#     committed file names another (the lockfix compute job; runs no Aspire code)
 #   aspire-bundle-fingerprint.sh --validate <file>      exit 0 only for a file in
 #     the fingerprint grammar (the lockfix commit job runs this on its artifact)
 #
@@ -38,11 +41,10 @@ valid_file() {
 }
 
 mode=check
-if [[ "${1:-}" == "--print" || "${1:-}" == "--refresh" || "${1:-}" == "--validate" ]]; then
-  mode="${1#--}"
-  shift
-fi
-target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--refresh|--validate] <path>}"
+case "${1:-}" in
+  --print | --emit | --adopt | --validate) mode="${1#--}"; shift ;;
+esac
+target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--emit|--adopt|--validate] <path> [<out-file>]}"
 
 if [[ "$mode" == validate ]]; then
   valid_file "$target" || {
@@ -52,13 +54,35 @@ if [[ "$mode" == validate ]]; then
   exit 0
 fi
 
-scripts="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo="$(cd "$scripts/../.." && pwd)"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 props="${PACKAGES_PROPS:-$repo/Directory.Packages.props}"
 fingerprint_file="${FINGERPRINT_FILE:-$repo/.github/aspire-bundle.fingerprint}"
 version="$(sed -n 's/.*"Aspire\.Hosting\.AppHost" Version="\([^"]*\)".*/\1/p' "$props")"
 platform="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
 committed() { awk -v key="$1" '$1 == key { print $2 }' "$fingerprint_file"; }
+
+if [[ "$mode" == adopt ]]; then
+  if [[ ! -f "$target" ]]; then
+    echo "CI left no Aspire bundle fingerprint; keeping the committed one."
+    exit 0
+  fi
+  if ! valid_file "$target"; then
+    echo "::warning::The fingerprint file from CI breaks the grammar; keeping the committed one."
+    exit 0
+  fi
+  from_ci="$(awk '$1 == "version" { print $2 }' "$target")"
+  if [[ "$from_ci" != "$version" ]]; then
+    echo "::warning::CI fingerprinted Aspire '$from_ci', but Directory.Packages.props has '$version'; keeping the committed one."
+    exit 0
+  fi
+  if [[ "$(committed version)" == "$version" ]]; then
+    echo "Aspire $version is already fingerprinted; keeping the committed file."
+    exit 0
+  fi
+  cp "$target" "$fingerprint_file"
+  echo "Adopted CI's fingerprint for Aspire $version."
+  exit 0
+fi
 
 manifest() {
   # errexit is off inside the caller's command substitution, so stop here.
@@ -87,23 +111,18 @@ fingerprint() {
   (manifest "$1") | sha256sum | cut -d' ' -f1
 }
 
-if [[ "$mode" == refresh ]]; then
-  if [[ "$(committed version)" == "$version" ]]; then
-    echo "Aspire $version is already fingerprinted; nothing to refresh."
-    exit 0
-  fi
-  # A temp HOME keeps the CLI's caches off the runner's own home.
-  mkdir -p "$target/home"
-  HOME="$target/home" "$scripts/aspire-bundle-fetch.sh" "$target/aspire"
-  value="$(fingerprint "$target/aspire/bundle")"
+if [[ "$mode" == emit ]]; then
+  out="${2:?usage: aspire-bundle-fingerprint.sh --emit <bundle-dir> <out-file>}"
+  value="$(fingerprint "$target")"
+  mkdir -p "$(dirname "$out")"
   awk -v version="$version" -v key="$platform" -v value="$value" '
     $1 == "version" { print "version " version; next }
     $1 == key { print key " " value; seen = 1; next }
     { print }
     END { if (!seen) print key " " value }
-  ' "$fingerprint_file" > "$fingerprint_file.new"
-  mv "$fingerprint_file.new" "$fingerprint_file"
-  echo "Fingerprinted Aspire $version on $platform: $value"
+  ' "$fingerprint_file" > "$out"
+  valid_file "$out"
+  echo "Wrote the fingerprint for Aspire $version on $platform: $value"
   exit 0
 fi
 

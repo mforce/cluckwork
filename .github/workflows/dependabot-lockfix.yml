@@ -3,16 +3,21 @@
 # Dependabot bumps a package in ONE project and regenerates only THAT project's
 # lock file; every downstream project's lock then fails CI's `--locked-mode`
 # restore with NU1004. This heals them automatically. When the bump moves
-# Aspire.Hosting.AppHost, it also regenerates .github/aspire-bundle.fingerprint
-# (the CI check on the Aspire CLI bundle) and pushes it with the locks; a manual
-# Aspire bump uses the command that check prints.
+# Aspire.Hosting.AppHost, it also pushes the new .github/aspire-bundle.fingerprint
+# (the CI check on the Aspire CLI bundle), which the PR's own CI computed from the
+# bundle it downloaded; this workflow runs no Aspire code. A manual Aspire bump
+# uses the command that check prints.
 #
 # SECURITY MODEL (see docs/superpowers/specs/2026-07-25-dependabot-lockfix-design.md):
 #   - Runs `on: workflow_run`, so the job definition comes from the DEFAULT
 #     branch, never the PR — the PR author cannot change what executes.
-#   - `compute` runs the untrusted restore with NO credentials; `commit` holds
-#     the write token and runs ZERO project code. A restore-time exploit thus
-#     has no token to steal and no push rights.
+#   - `compute` runs the untrusted restore with no write credentials (only
+#     `actions: read`, to fetch CI's fingerprint artifact from a public repo);
+#     `commit` holds the write token and runs ZERO project code. A restore-time
+#     exploit thus has no token to push with.
+#   - `commit` takes from the artifact only the 10 lock files (each must parse as
+#     JSON) and the fingerprint file (it must pass the fingerprint grammar, checked
+#     by the trusted script).
 #   - The push uses a GitHub App token, not GITHUB_TOKEN: a GITHUB_TOKEN push
 #     would NOT re-trigger CI (recursion prevention), so the PR would never go
 #     green. The App identity != dependabot[bot], so the re-triggered CI is
@@ -56,7 +61,8 @@ jobs:
       github.event.workflow_run.run_attempt == 1 &&
       startsWith(github.event.workflow_run.head_branch, 'dependabot/nuget/') &&
       github.event.workflow_run.head_repository.id == github.event.repository.id
-    permissions: {}
+    permissions:
+      actions: read # the Aspire bundle fingerprint artifact of the CI run that triggered this
     steps:
       - name: Check out the exact commit CI ran on
         uses: actions/checkout@v7
@@ -74,14 +80,25 @@ jobs:
           # documented poisoning surface, and this job restores fresh anyway.
           cache: false
 
-      # Runs before the restore, so no PR-controlled build code has run in this
-      # job yet. The script comes from the PR checkout, the same trust level as
-      # the restore below; the commit job only accepts its output in the pinned
-      # format. Without an Aspire version change it downloads nothing. A PR
-      # branched before the fingerprint existed has nothing to refresh.
-      - name: Refresh the Aspire bundle fingerprint
+      # The PR's own CI fingerprinted the Aspire bundle it downloaded and left the
+      # file as an artifact (ci.yml, AppHost leg). This job runs no Aspire code:
+      # it takes that file only when it names the PR's Aspire version and the
+      # committed one names another. A run without the artifact keeps the
+      # committed file. Like the restore, the script runs from the PR checkout;
+      # the commit job accepts the result only in the fingerprint grammar.
+      - name: Download the Aspire bundle fingerprint CI wrote
         if: hashFiles('.github/aspire-bundle.fingerprint') != ''
-        run: .github/scripts/aspire-bundle-fingerprint.sh --refresh "$RUNNER_TEMP/aspire-bundle"
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: aspire-bundle-fingerprint
+          path: ${{ runner.temp }}/ci-fingerprint
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Take CI's fingerprint when the Aspire version changed
+        if: hashFiles('.github/aspire-bundle.fingerprint') != ''
+        run: .github/scripts/aspire-bundle-fingerprint.sh --adopt "$RUNNER_TEMP/ci-fingerprint/aspire-bundle.fingerprint"
 
       - name: Regenerate every lock file
         env:
