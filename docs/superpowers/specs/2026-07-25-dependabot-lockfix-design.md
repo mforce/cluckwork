@@ -259,9 +259,18 @@ supersedes the statements above where they differ.
 - **What the pin proves.** It hashes what NuGet served for that version to a job that ran no
   PR restore and read no cache. It stops later drift, such as a cache serving other bytes for
   the same version, not a bad upstream release.
-- **Residual risk.** `compute` runs the PR's restore in the default branch's context. Code
-  that runs there could replace the fingerprint file before the upload, and could also write
-  a cache entry in that scope for the new version, which the AppHost leg would then restore
-  instead of downloading. The pin is therefore only as trustworthy as that job. That is why a
+- **Residual risk.**
+  - `compute` takes whichever artifact named `aspire-bundle-fingerprint` the triggering CI
+    run holds. Another job in the same run, which runs PR code, could upload one first.
+  - `compute` runs the PR's restore, and code that runs there can still change its own
+    artifact, the fingerprint file included, before the upload.
+  - Either way a forged pin cannot pass on `main`. The AppHost leg there downloads the bundle
+    in `main`'s own cache scope, and the check compares those bytes with the pin.
+  - Writing a cache entry in the default branch's scope from `compute` is not possible as
+    configured. GitHub gives `workflow_run` jobs read-only cache access unless a write-capable
+    cache mode is enabled, and this workflow enables none
+    ([cache access for low-trust triggers](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#cache-access-for-low-trust-workflow-triggers)).
+
+  The pin is therefore only as trustworthy as the run that produced it. That is why a
   Dependabot PR that changes the fingerprint file is merged by the maintainer, who sees the
   new hash in its diff (`.github/AGENTS.md`).
