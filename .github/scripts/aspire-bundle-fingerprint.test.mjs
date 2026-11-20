@@ -38,12 +38,17 @@ function fixture(t) {
   writeFileSync(props, '<Project><ItemGroup><PackageVersion Include="Aspire.Hosting.AppHost" Version="17.0.0" /></ItemGroup></Project>\n');
   const fingerprintFile = join(root, "aspire-bundle.fingerprint");
   const env = { ...process.env, PACKAGES_PROPS: props, FINGERPRINT_FILE: fingerprintFile };
-  const run = (...args) => spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env });
+  // A working directory with one regular file, so a walk that escapes into it
+  // would succeed and print a fingerprint.
+  const cwd = join(root, "cwd");
+  mkdirSync(cwd);
+  writeFileSync(join(cwd, "plain"), "plain");
+  const run = (...args) => spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env, cwd });
   const recorded = run("--print", bundle).stdout.trim();
   assert.match(recorded, /^[0-9a-f]{64}$/);
   const commit = (version) => writeFileSync(fingerprintFile, `# comment\nversion ${version}\n${PLATFORM} ${recorded}\n`);
   commit("17.0.0");
-  return { root, versionDir, bundle, recorded, commit, check: () => run(bundle) };
+  return { root, versionDir, bundle, recorded, commit, run, check: () => run(bundle) };
 }
 
 test("a bundle that matches the committed fingerprint passes", (t) => {
@@ -88,6 +93,15 @@ test("runtime lease files are ignored", (t) => {
   writeFileSync(join(f.versionDir, ".leases", "12345"), "lease");
   const result = f.check();
   assert.equal(result.status, 0, result.stderr);
+});
+
+test("a missing bundle directory fails instead of hashing the working directory", (t) => {
+  const f = fixture(t);
+  const missing = join(f.root, "no-such-bundle");
+  for (const result of [f.run("--print", missing), f.run(missing)]) {
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(result.stdout, /[0-9a-f]{64}/);
+  }
 });
 
 test("an added internal symlink fails", (t) => {

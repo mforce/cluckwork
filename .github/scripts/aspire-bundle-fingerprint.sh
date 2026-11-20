@@ -36,7 +36,8 @@ platform="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
 committed() { awk -v key="$1" '$1 == key { print $2 }' "$fingerprint_file"; }
 
 manifest() {
-  cd -P "$1"
+  # errexit is off inside the caller's command substitution, so stop here.
+  cd -P "$1" || return 1
   local other
   other="$(find . ! -path './.leases/*' ! -type f ! -type d -print -quit)"
   if [[ -n "$other" ]]; then
