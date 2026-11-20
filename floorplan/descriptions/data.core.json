@@ -1,0 +1,88 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Persistence/AmbientTransaction.cs": {
+      "name": "Shared save group",
+      "description": "Lets a whole request's changes and its retry record save together or not at all."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/AppDbContext.cs": {
+      "name": "Main database connection",
+      "description": "The app's single door to the database, defining every kind of record and how farms are kept apart."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/AppDbContextDesignTimeFactory.cs": {
+      "name": "Database tooling setup",
+      "description": "Lets database change tools connect, and refuses to unless told explicitly which database to use."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/BusinessRecordModel.cs": {
+      "name": "Business record list",
+      "description": "Lists which records count as a farm's business data, so each module's records are covered by the same rules."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/BusinessRecordOrdering.cs": {
+      "name": "Business record ordering",
+      "description": "Puts business record types in a fixed order so they are always handled the same way."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Configurations/AuditEventConfiguration.cs": {
+      "name": "Audit log record settings",
+      "description": "Sets how audit log entries, the history of who changed what, are stored."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/CurrentTransaction.cs": {
+      "name": "Current save group",
+      "description": "Small holder that gives code access to the database save group currently in progress."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/CurrentUserContext.cs": {
+      "name": "Current user",
+      "description": "Remembers who is acting during a request, for access checks and the audit log."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/FlockScope.cs": {
+      "name": "Flock access limit",
+      "description": "Records which flocks the current person may see for this request, and refuses changes once set."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/IdempotencyRecord.cs": {
+      "name": "Duplicate request record",
+      "description": "Stores a claim and the saved answer for each write request so a retry does not do the work twice."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Interceptors/TenantStampInterceptor.cs": {
+      "name": "Farm stamp on saves",
+      "description": "Stamps every new record with its farm and blocks any save that would touch another farm's data."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/PlatformBusinessRecords.cs": {
+      "name": "Platform business records",
+      "description": "Lists the shared records that belong to the platform rather than a module, such as audit and retry records."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SingleAttemptExecution.cs": {
+      "name": "No-retry guard",
+      "description": "Marks work that must run only once, so a database retry cannot repeat it."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/TenantAccountIdShapeException.cs": {
+      "name": "Bad farm ID error",
+      "description": "The error raised when a record's farm ID is not the expected plain ID type."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/TenantContext.cs": {
+      "name": "Current farm",
+      "description": "Remembers which farm the current request belongs to, and refuses to be changed once set."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/TenantReassignmentException.cs": {
+      "name": "Farm switch error",
+      "description": "The error raised when something tries to change the farm of a request already assigned."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/TenantWriteMismatchException.cs": {
+      "name": "Wrong-farm save error",
+      "description": "The error raised when a save would write a record belonging to a different farm."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/UnitOfWork.cs": {
+      "name": "Save changes",
+      "description": "Saves everything a task changed to the database in one step."
+    },
+    "src/Cluckwork.Infrastructure/Repositories/AuditWriter.cs": {
+      "name": "Audit log writer",
+      "description": "Adds an entry to the audit log in the same save as the change it records."
+    },
+    "src/Cluckwork.Infrastructure/Repositories/LiteralSearch.cs": {
+      "name": "Plain-text search",
+      "description": "Treats what someone types in a name search as plain text, so special characters do not change the search."
+    },
+    "src/Cluckwork.Infrastructure/Repositories/ReferenceMarkers.cs": {
+      "name": "Lookup shape tags",
+      "description": "Tags database lookups with the shape they promise, such as one grouped read per page, so tests can check it."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/api/client.test.ts": {
+      "name": "Server request tests",
+      "description": "Checks that the app's shared way of talking to the server sends requests, handles sign-in expiry and reports failures correctly."
+    },
+    "web/src/api/enrolmentRequired.test.ts": {
+      "name": "Two-step sign-in setup required tests",
+      "description": "Checks that the app notices when the server says a user must set up two-step sign-in first."
+    },
+    "web/src/api/errorReport.test.ts": {
+      "name": "Error report tests",
+      "description": "Checks that problems in the app are packaged up and sent to the server as error reports."
+    },
+    "web/src/api/farmLogo.test.ts": {
+      "name": "Farm logo fetch tests",
+      "description": "Checks that the farm's logo image is requested from the server and handled when missing."
+    },
+    "web/src/api/formatMoney.test.ts": {
+      "name": "Money display tests",
+      "description": "Checks that amounts of money are shown with the right currency symbol and decimals."
+    },
+    "web/src/api/listAuditEvents.test.ts": {
+      "name": "Activity history request tests",
+      "description": "Checks that the request for the list of recorded activity is built with the right filters."
+    },
+    "web/src/api/listCustomers.test.ts": {
+      "name": "Customer list request tests",
+      "description": "Checks that the request for the customer list is built correctly and its reply is read properly."
+    },
+    "web/src/api/listFlocks.test.ts": {
+      "name": "Flock list request tests",
+      "description": "Checks that the request for the list of flocks is built correctly and its reply is read properly."
+    },
+    "web/src/api/oauth.test.ts": {
+      "name": "Connected app approval tests",
+      "description": "Checks the calls used when an outside app asks to be allowed into a farm's account."
+    },
+    "web/src/api/resetUserTwoFactor.test.ts": {
+      "name": "Reset two-step sign-in tests",
+      "description": "Checks the request an admin uses to reset another user's two-step sign-in."
+    },
+    "web/src/api/twoFactor.test.ts": {
+      "name": "Two-step sign-in request tests",
+      "description": "Checks the calls for setting up, confirming and turning off two-step sign-in."
+    },
+    "web/src/App.recoveryCodes.test.tsx": {
+      "name": "App recovery codes tests",
+      "description": "Checks that recovery codes show up and behave correctly when the whole app is running."
+    },
+    "web/src/App.reports.test.tsx": {
+      "name": "App reports tests",
+      "description": "Checks that the reports screens open and load correctly inside the whole app."
+    },
+    "web/src/auth/AuthContext.lifecycle.test.tsx": {
+      "name": "Sign-in lifecycle tests",
+      "description": "Checks how the signed-in state starts, refreshes and ends over time."
+    },
+    "web/src/auth/AuthContext.test.tsx": {
+      "name": "Sign-in state tests",
+      "description": "Checks that the app tracks who is signed in and shares that with every screen."
+    },
+    "web/src/auth/claims.test.ts": {
+      "name": "Sign-in details reading tests",
+      "description": "Checks that a user's role and farm are read correctly from their sign-in token."
+    },
+    "web/src/auth/farmCodeCache.test.ts": {
+      "name": "Remembered farm code tests",
+      "description": "Checks that the farm code a user typed is remembered and cleared properly."
+    },
+    "web/src/auth/returnPath.test.ts": {
+      "name": "Return to page tests",
+      "description": "Checks that after signing in the user is sent back to the page they wanted, and only safe ones."
+    },
+    "web/src/auth/sessionSignal.test.ts": {
+      "name": "Session signal tests",
+      "description": "Checks that browser tabs tell each other when someone signs in or out."
+    },
+    "web/src/auth/tokenStore.test.ts": {
+      "name": "Sign-in token storage tests",
+      "description": "Checks that the sign-in token is stored, read and wiped correctly."
+    },
+    "web/src/auth/useAuth.test.tsx": {
+      "name": "Use sign-in hook tests",
+      "description": "Checks that screens can read the current user and sign-in actions."
+    },
+    "web/src/components/AppNotice.test.tsx": {
+      "name": "App notice tests",
+      "description": "Checks that notice banners display their message and can be dismissed."
+    },
+    "web/src/components/AuthShell.test.tsx": {
+      "name": "Sign-in page frame tests",
+      "description": "Checks the shared frame around sign-in and account-recovery pages."
+    },
+    "web/src/components/BottomNav.test.tsx": {
+      "name": "Bottom menu tests",
+      "description": "Checks the phone-style bottom menu shows the right links for each user."
+    },
+    "web/src/components/BrandSplash.test.tsx": {
+      "name": "Startup splash tests",
+      "description": "Checks the branded loading screen shown while the app starts."
+    },
+    "web/src/components/BusyButton.test.tsx": {
+      "name": "Busy button tests",
+      "description": "Checks that buttons show a working state and block double clicks."
+    },
+    "web/src/components/DayStrip.focus.test.ts": {
+      "name": "Day strip keyboard focus tests",
+      "description": "Checks that keyboard focus moves correctly along the strip of days."
+    },
+    "web/src/components/DayStrip.styles.test.ts": {
+      "name": "Day strip styling tests",
+      "description": "Checks the day strip's visual rules are present in the stylesheet."
+    },
+    "web/src/components/DayStrip.test.tsx": {
+      "name": "Day strip tests",
+      "description": "Checks that the strip for picking a day shows and selects dates correctly."
+    },
+    "web/src/components/Dialog.test.tsx": {
+      "name": "Dialog tests",
+      "description": "Checks that pop-up dialogs open, close and trap focus correctly."
+    },
+    "web/src/components/DialogError.test.tsx": {
+      "name": "Dialog error tests",
+      "description": "Checks that error messages inside dialogs are shown and announced."
+    },
+    "web/src/components/EmptyState.test.tsx": {
+      "name": "Empty state tests",
+      "description": "Checks the friendly message shown when a list has nothing in it yet."
+    },
+    "web/src/components/ErrorBoundary.test.tsx": {
+      "name": "Crash screen tests",
+      "description": "Checks that a failing screen shows a recovery message instead of a blank page."
+    },
+    "web/src/components/ExpandedLayRate.styles.test.ts": {
+      "name": "Lay rate detail styling tests",
+      "description": "Checks the expanded laying-rate view's visual rules are in the stylesheet."
+    },
+    "web/src/components/ExpandedLayRate.test.tsx": {
+      "name": "Lay rate detail tests",
+      "description": "Checks the expanded laying-rate view shows its figures correctly."
+    },
+    "web/src/components/FarmBrand.styles.test.ts": {
+      "name": "Farm branding styling tests",
+      "description": "Checks the farm logo and name area's visual rules are in the stylesheet."
+    },
+    "web/src/components/FarmBrand.test.tsx": {
+      "name": "Farm branding tests",
+      "description": "Checks the farm's logo and name show correctly in the header."
+    },
+    "web/src/components/FarmDate.test.tsx": {
+      "name": "Farm date tests",
+      "description": "Checks that dates are shown in the farm's own day and format."
+    },
+    "web/src/components/FieldConsole.test.tsx": {
+      "name": "Field entry panel tests",
+      "description": "Checks the quick data-entry panel used out in the coops."
+    },
+    "web/src/components/FilterBar.test.tsx": {
+      "name": "Filter bar tests",
+      "description": "Checks that list filters can be set, shown and cleared."
+    }
+  }
+}

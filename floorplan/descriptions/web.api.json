@@ -1,0 +1,112 @@
+{
+  "files": {
+    "web/src/api/authCookieLock.ts": {
+      "name": "Sign-in cookie lock",
+      "description": "Makes sure only one browser tab at a time changes the sign-in cookie, with a time limit."
+    },
+    "web/src/api/client.ts": {
+      "name": "API client entry",
+      "description": "Entry point to the server client."
+    },
+    "web/src/api/cluckwork.ts": {
+      "name": "Farm API index",
+      "description": "Gathers all the farm data request files in one place."
+    },
+    "web/src/api/cluckwork/account.ts": {
+      "name": "Account requests",
+      "description": "Reads and updates the farm account and the person's settings, including currency and date formats."
+    },
+    "web/src/api/cluckwork/audit.ts": {
+      "name": "Audit requests",
+      "description": "Fetches the history of who changed what."
+    },
+    "web/src/api/cluckwork/catalog.ts": {
+      "name": "Product requests",
+      "description": "Lists, adds, edits, activates and deactivates products and egg unit conversions."
+    },
+    "web/src/api/cluckwork/dailyEntries.ts": {
+      "name": "Daily entry requests",
+      "description": "Records, submits and corrects daily egg entries."
+    },
+    "web/src/api/cluckwork/eggGrades.ts": {
+      "name": "Egg grade requests",
+      "description": "Lists, adds, edits and removes egg grades, including low-stock levels."
+    },
+    "web/src/api/cluckwork/expenses.ts": {
+      "name": "Expense requests",
+      "description": "Lists and records expenses and expense categories, and adjusts them."
+    },
+    "web/src/api/cluckwork/exports.ts": {
+      "name": "Export requests",
+      "description": "Downloads data as CSV files."
+    },
+    "web/src/api/cluckwork/flocks.ts": {
+      "name": "Flock requests",
+      "description": "Lists and manages flocks and their bird movements."
+    },
+    "web/src/api/cluckwork/inventory.ts": {
+      "name": "Inventory requests",
+      "description": "Manages supply items, purchases, lots and stock movements."
+    },
+    "web/src/api/cluckwork/reports.ts": {
+      "name": "Report requests",
+      "description": "Fetches production, sales, expense and profit reports."
+    },
+    "web/src/api/cluckwork/sales.ts": {
+      "name": "Sales requests",
+      "description": "Manages customers and sales orders."
+    },
+    "web/src/api/cluckwork/shared.ts": {
+      "name": "Shared request helpers",
+      "description": "Common pieces such as who created or changed a record and reading money amounts."
+    },
+    "web/src/api/cluckwork/stock.ts": {
+      "name": "Stock requests",
+      "description": "Fetches egg stock, lots and movements, and records stock corrections."
+    },
+    "web/src/api/cluckwork/twoFactor.ts": {
+      "name": "Two-step sign-in requests",
+      "description": "Checks, starts and manages two-step sign-in setup."
+    },
+    "web/src/api/cluckwork/users.ts": {
+      "name": "Staff requests",
+      "description": "Lists staff, their flock assignments, and the apps connected to accounts."
+    },
+    "web/src/api/errorReport.ts": {
+      "name": "Error reporting",
+      "description": "Sends the server a report when something breaks in the browser."
+    },
+    "web/src/api/errors.ts": {
+      "name": "Error parsing",
+      "description": "Turns the server's error replies into errors screens can show."
+    },
+    "web/src/api/oauth.ts": {
+      "name": "App connection requests",
+      "description": "Asks the server about, and approves, requests from outside apps to connect."
+    },
+    "web/src/api/refresh.ts": {
+      "name": "Session refresh",
+      "description": "Keeps the person signed in by renewing their session, shared across requests and on page load."
+    },
+    "web/src/api/request.ts": {
+      "name": "Request basics",
+      "description": "Sends requests to the server with the needed safety header."
+    },
+    "web/src/api/session.ts": {
+      "name": "Session management",
+      "description": "Handles sign-in, sign-out and session renewal as one coordinated process."
+    },
+    "web/src/api/sessionState.ts": {
+      "name": "Session events",
+      "description": "Lets the app react when sign-in ends or the session is renewed."
+    },
+    "web/src/api/trace.ts": {
+      "name": "Request tracing",
+      "description": "Attaches a fresh tracing ID to each request and remembers the latest."
+    },
+    "web/src/api/types.ts": {
+      "name": "Sign-in types",
+      "description": "Describes the sign-in request and reply shapes."
+    }
+  }
+}

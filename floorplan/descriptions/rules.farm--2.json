@@ -1,0 +1,16 @@
+{
+  "files": {
+    "src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.Shared.cs": {
+      "name": "Picture cleaner (shared)",
+      "description": "Shared helpers used by the JPEG, PNG and WebP picture checks."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.Webp.cs": {
+      "name": "Picture cleaner (WebP)",
+      "description": "The WebP part of the picture cleaner: checks the file's structure and strips hidden metadata and trailing extras."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Media/SanitizedImage.cs": {
+      "name": "Cleaned picture",
+      "description": "A logo or banner that has passed checking: a known format, structure verified, hidden metadata and trailing extras removed."
+    }
+  }
+}

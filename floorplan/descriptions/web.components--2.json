@@ -1,0 +1,48 @@
+{
+  "files": {
+    "web/src/components/ThemeToggle.tsx": {
+      "name": "Light/night switch",
+      "description": "The button that switches the app between light and night appearance."
+    },
+    "web/src/components/useConfirm.tsx": {
+      "name": "Confirm prompt",
+      "description": "The app's own replacement for the browser's confirm and prompt boxes, including pick-one-of-several choices."
+    },
+    "web/src/components/useCopy.tsx": {
+      "name": "Copy feedback",
+      "description": "Announces to the person, including screen-reader users, that something was copied or downloaded."
+    },
+    "web/src/components/useDayStrip.ts": {
+      "name": "Day strip scrolling",
+      "description": "Handles scrolling and which days are visible in the day strip."
+    },
+    "web/src/components/useDialogAction.ts": {
+      "name": "Dialog save helper",
+      "description": "One shared way for pop-up forms to save, so a replaced or abandoned attempt cannot affect the newer one."
+    },
+    "web/src/components/useDialogErrors.ts": {
+      "name": "Dialog error slots",
+      "description": "Keeps one place for error messages on the page and one for each pop-up."
+    },
+    "web/src/components/useDialogSession.ts": {
+      "name": "Dialog session tracker",
+      "description": "Marks each opening of a pop-up so a late result from an earlier opening is ignored."
+    },
+    "web/src/components/useLatestLoad.ts": {
+      "name": "Latest data loader",
+      "description": "Loads data for a screen and keeps only the answer to the most recent request."
+    },
+    "web/src/components/useMissedAnnouncement.ts": {
+      "name": "Missed announcement",
+      "description": "Provides hidden text for screen readers to cover messages that could not be spoken while a pop-up was open."
+    },
+    "web/src/components/usePagedList.ts": {
+      "name": "Paged list loader",
+      "description": "One shared way for lists to load pages, load more, and ignore out-of-date answers."
+    },
+    "web/src/components/usePendingAction.ts": {
+      "name": "Pending action guard",
+      "description": "Prevents a save or other change from being triggered twice while one is already running."
+    }
+  }
+}

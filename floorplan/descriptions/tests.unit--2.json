@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Application.Tests/Architecture/SourcePreprocessorTests.cs": {
+      "name": "Conditional code tests",
+      "description": "Checks that the code scanners read the right branch of build-specific code."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/SpellingScannerRatchetTests.cs": {
+      "name": "Name-matching scanner limit",
+      "description": "Stops new checks being added that match code by spelling instead of by meaning."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/TableOwnerRealModelTests.cs": {
+      "name": "Record ownership check",
+      "description": "Checks that every kind of stored record in the real app has one owning module."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/TableOwnerScanner.cs": {
+      "name": "Record ownership scanner",
+      "description": "Scans the stored-record layout to find links that cross from one module's records to another's."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/TableOwnerTests.cs": {
+      "name": "Record ownership tests",
+      "description": "Checks on small samples that cross-module record links are caught."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/TwoFactorOwnershipTests.cs": {
+      "name": "Two-step sign-in ownership tests",
+      "description": "Checks that one place decides if two-step sign-in is required and one place enforces it."
+    },
+    "tests/Cluckwork.Application.Tests/Catalog/CatalogUpdateVersionValidatorTests.cs": {
+      "name": "Catalog edit version tests",
+      "description": "Checks that editing a product or pack size must carry the version the editor loaded."
+    },
+    "tests/Cluckwork.Application.Tests/Common/AuditVocabularyCoverageTests.cs": {
+      "name": "Audit log wording check",
+      "description": "Checks that every action and record type in the audit log has a matching entry in the screens' filter lists."
+    },
+    "tests/Cluckwork.Application.Tests/Common/FarmLocalDateRuleTests.cs": {
+      "name": "Farm date rule tests",
+      "description": "Checks that date rules use the farm's own local today, not the server's."
+    },
+    "tests/Cluckwork.Application.Tests/Common/FixedFarmClock.cs": {
+      "name": "Fixed farm clock",
+      "description": "Provides a frozen farm-local today so date rules can be tested."
+    },
+    "tests/Cluckwork.Application.Tests/Customers/CustomerValidatorParityTests.cs": {
+      "name": "Customer rule matching tests",
+      "description": "Checks that creating and editing a customer enforce the same rules on the same five fields."
+    },
+    "tests/Cluckwork.Application.Tests/Customers/UpdateCustomerHandlerTests.cs": {
+      "name": "Customer edit tests",
+      "description": "Checks the steps that save changes to a customer."
+    },
+    "tests/Cluckwork.Application.Tests/Customers/UpdateCustomerValidatorTests.cs": {
+      "name": "Customer edit rule tests",
+      "description": "Checks the rules that reject bad values when a customer is edited."
+    },
+    "tests/Cluckwork.Application.Tests/DailyEntries/RecordDailyEntryValidatorTests.cs": {
+      "name": "Daily entry rule tests",
+      "description": "Checks the rules that reject bad values when a day's egg and flock numbers are recorded."
+    },
+    "tests/Cluckwork.Application.Tests/Documentation/RenameAccountDocsTests.cs": {
+      "name": "Account rename docs check",
+      "description": "Checks that the written explanation of renaming an account matches what the code does."
+    },
+    "tests/Cluckwork.Application.Tests/Documentation/TenancyDocsFreshnessTests.cs": {
+      "name": "Farm separation docs check",
+      "description": "Checks that the documents on keeping farms' data apart are up to date."
+    },
+    "tests/Cluckwork.Application.Tests/EggGrades/LowStockFloorTests.cs": {
+      "name": "Low-stock floor tests",
+      "description": "Checks who may change a low-stock floor and what counts as below it."
+    },
+    "tests/Cluckwork.Application.Tests/EggLots/RecordEggLotMovementValidatorTests.cs": {
+      "name": "Egg lot movement rule tests",
+      "description": "Checks the rules that reject bad values when egg stock is moved in or out."
+    },
+    "tests/Cluckwork.Application.Tests/Eggs/EggLotLockSqlTests.cs": {
+      "name": "Egg lot locking order check",
+      "description": "Checks that every lock on egg lots is taken in the same order, so two actions cannot block each other."
+    },
+    "tests/Cluckwork.Application.Tests/Eggs/EggOperationsModuleTests.cs": {
+      "name": "Egg operations read tests",
+      "description": "Checks that reading egg records copies each field to the right place."
+    },
+    "tests/Cluckwork.Application.Tests/Expenses/FinanceModuleTests.cs": {
+      "name": "Finance read tests",
+      "description": "Checks that reading expense records copies each field to the right place."
+    },
+    "tests/Cluckwork.Application.Tests/Flocks/CreateFlockValidatorTests.cs": {
+      "name": "New flock rule tests",
+      "description": "Checks the rules that reject bad values when a flock is created."
+    },
+    "tests/Cluckwork.Application.Tests/Flocks/FlockLookupTests.cs": {
+      "name": "Flock lookup tests",
+      "description": "Checks that looking up a flock copies each field to the right place."
+    },
+    "tests/Cluckwork.Application.Tests/Flocks/MortalityLedgerTests.cs": {
+      "name": "Flock loss record tests",
+      "description": "Checks that recording bird losses adds the right kind of entry and leaves saving to the caller."
+    },
+    "tests/Cluckwork.Application.Tests/FlockScoping/FlockScopeDiscoveryTests.cs": {
+      "name": "Flock filter coverage check",
+      "description": "Works out from the stored-record layout which records are limited by flock and checks each is covered."
+    },
+    "tests/Cluckwork.Application.Tests/FlockScoping/FlockScopeGuardTests.cs": {
+      "name": "Flock filter guard tests",
+      "description": "Checks the guard that limits what workers see to their own flocks."
+    },
+    "tests/Cluckwork.Application.Tests/GlobalUsings.cs": {
+      "name": "Shared test imports",
+      "description": "Sets the common imports every test file in this group uses."
+    },
+    "tests/Cluckwork.Application.Tests/Inventory/InventoryModuleTests.cs": {
+      "name": "Inventory read tests",
+      "description": "Checks that reading stock records copies each field to the right place."
+    },
+    "tests/Cluckwork.Application.Tests/Sales/AddOrderItemHandlerTests.cs": {
+      "name": "Add order line tests",
+      "description": "Checks that a line added to an order in a different unit gets the product's price converted correctly."
+    },
+    "tests/Cluckwork.Application.Tests/Sales/CommerceModuleTests.cs": {
+      "name": "Sales read tests",
+      "description": "Checks that reading sales records copies each field to the right place."
+    },
+    "tests/Cluckwork.Application.Tests/Sales/ConfirmSaleValidatorTests.cs": {
+      "name": "Confirm sale rule tests",
+      "description": "Checks the rules that reject a sale confirmation with a bad discount."
+    },
+    "tests/Cluckwork.Application.Tests/Sales/DiscountReasonVocabularyTests.cs": {
+      "name": "Discount reason list check",
+      "description": "Checks that the discount reasons in the server match the list the confirm-sale screen shows."
+    },
+    "tests/Cluckwork.Application.Tests/Sales/SaleAllocationPlannerTests.cs": {
+      "name": "Sale stock allocation tests",
+      "description": "Checks that a whole order is filled from the oldest egg stock first."
+    },
+    "tests/Cluckwork.Application.Tests/Sales/TransactionDelegateShapeTests.cs": {
+      "name": "Transaction code shape check",
+      "description": "Checks the code's shape so work done inside a transaction is written the expected way."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/BypassAllowList.cs": {
+      "name": "Farm filter bypass list",
+      "description": "Lists the places allowed to read data without the one-farm-only filter."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/FarmDirectoryCallerTests.cs": {
+      "name": "Farm directory use check",
+      "description": "Checks that only allowed code reads the list of every farm."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/FilterFreeSetIdentityTests.cs": {
+      "name": "Unfiltered lookup identity tests",
+      "description": "Checks that each unfiltered lookup is identified in a stable way that cannot excuse a second one."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/FilterFreeSetSites.cs": {
+      "name": "Unfiltered lookup list",
+      "description": "Lists each place that reads records without the farm filter, with its classification."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/FindBySlugCallerTests.cs": {
+      "name": "Farm code lookup check",
+      "description": "Checks that only allowed code finds an account by farm code, which ignores the farm filter."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/GuardScanner.cs": {
+      "name": "Farm filter bypass scanner",
+      "description": "Scans the code for reads that skip the one-farm-only filter and compares them with the allowed list."
+    }
+  }
+}

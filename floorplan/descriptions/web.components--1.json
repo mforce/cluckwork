@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/components/AppNotice.tsx": {
+      "name": "Notice strip",
+      "description": "Shows a short message strip above the current screen, and keeps it visible when the person moves to another screen."
+    },
+    "web/src/components/AuthShell.tsx": {
+      "name": "Sign-in page frame",
+      "description": "The branded page layout around sign-in forms, with the farm's brand panel and a hint of what happens after signing in."
+    },
+    "web/src/components/BottomNav.tsx": {
+      "name": "Phone bottom menu",
+      "description": "The row of main navigation buttons along the bottom of the screen on a phone."
+    },
+    "web/src/components/BrandSplash.tsx": {
+      "name": "Welcome splash",
+      "description": "Shows the farm's banner full-size once after each sign-in, before the person reaches the app."
+    },
+    "web/src/components/BusyButton.tsx": {
+      "name": "Busy button",
+      "description": "A button that turns off and shows it is working while a save is under way, so it cannot be pressed twice."
+    },
+    "web/src/components/ConnectedApps.tsx": {
+      "name": "Connected apps list",
+      "description": "Lists the outside apps a person has linked to their account, flags ones unused for a long time, and lets them disconnect one after confirming."
+    },
+    "web/src/components/CustomerPicker.tsx": {
+      "name": "Customer picker",
+      "description": "A search-and-choose box for picking a customer when recording or filtering sales."
+    },
+    "web/src/components/DaySlots.tsx": {
+      "name": "Day slots",
+      "description": "Draws the row of one-per-day boxes that the day strip and lay-rate bars are built on."
+    },
+    "web/src/components/DayStrip.tsx": {
+      "name": "Dashboard day strip",
+      "description": "The Dashboard's day-by-day lay rate strip, with a readout for the chosen day and a legend explaining the fill styles."
+    },
+    "web/src/components/Dialog.tsx": {
+      "name": "Pop-up dialog",
+      "description": "The shared pop-up window used for forms and confirmations, which also keeps the rest of the page unreachable while it is open."
+    },
+    "web/src/components/DialogError.tsx": {
+      "name": "Dialog error message",
+      "description": "Shows the error a pop-up raised inside that same pop-up."
+    },
+    "web/src/components/EmptyState.tsx": {
+      "name": "Empty list message",
+      "description": "Shown when a list or table has nothing in it: an icon, one sentence, and the main action button when there is one."
+    },
+    "web/src/components/EntryRow.tsx": {
+      "name": "Entry row",
+      "description": "One row of egg-count entry with plus and minus buttons, stacked to fit narrow phone dialogs."
+    },
+    "web/src/components/ErrorBoundary.tsx": {
+      "name": "Error catcher",
+      "description": "Catches a screen that breaks, shows a friendly fallback with a link back to the dashboard, and recovers when the person navigates."
+    },
+    "web/src/components/ExpandedLayRate.tsx": {
+      "name": "Expanded lay-rate chart",
+      "description": "The larger lay-rate chart view with its own date range choices and per-day detail."
+    },
+    "web/src/components/ExpandedRangePicker.tsx": {
+      "name": "Chart date range picker",
+      "description": "Lets the person choose preset or custom start and end dates for the expanded chart, up to one year."
+    },
+    "web/src/components/FarmBrand.tsx": {
+      "name": "Farm name and logo",
+      "description": "Shows the farm's own name and logo, if set, in the app's header."
+    },
+    "web/src/components/FarmDate.tsx": {
+      "name": "Farm date",
+      "description": "Shows a calendar date in lists using the farm's chosen date format."
+    },
+    "web/src/components/FieldConsole.tsx": {
+      "name": "Field console",
+      "description": "Shared styling and layout pieces for the console-style panels, including distinct looks for edit links and destructive actions like deactivate or archive."
+    },
+    "web/src/components/FilterBar.tsx": {
+      "name": "Filter bar",
+      "description": "The row of filter controls above a list, including a date field."
+    },
+    "web/src/components/FlockPicker.tsx": {
+      "name": "Flock picker",
+      "description": "A choose-a-flock box used on capture and filter screens."
+    },
+    "web/src/components/GlossaryLink.tsx": {
+      "name": "Glossary link",
+      "description": "A small question mark next to a label that jumps to that term's explanation on the Help page."
+    },
+    "web/src/components/GradingChip.tsx": {
+      "name": "Grading remainder chip",
+      "description": "Shows how many eggs are still unaccounted for while grading, and lets the person hand all of them to one grade by tap or drag."
+    },
+    "web/src/components/HenDayOver100Flag.tsx": {
+      "name": "Hen-day warning flag",
+      "description": "Flags a hen-day percentage above 100, which is impossible and means the egg records and bird counts disagree."
+    },
+    "web/src/components/NamedEntityPicker.tsx": {
+      "name": "Search-and-pick box",
+      "description": "The shared box for finding and choosing a named record such as a flock or customer, loading matches from the server as the person types."
+    },
+    "web/src/components/namedEntityPicker/engineTypes.ts": {
+      "name": "Picker starting state",
+      "description": "Defines the picker's working state and its starting values."
+    },
+    "web/src/components/namedEntityPicker/PickerClosedState.tsx": {
+      "name": "Picker closed view",
+      "description": "What the pick box looks like before it is opened, showing the current choice."
+    },
+    "web/src/components/namedEntityPicker/PickerOpenState.tsx": {
+      "name": "Picker open view",
+      "description": "The open pick box with its search field and list of matches."
+    },
+    "web/src/components/namedEntityPicker/PickerPaper.tsx": {
+      "name": "Picker dropdown panel",
+      "description": "The dropdown panel under the pick box, built once so typing does not make it flicker."
+    },
+    "web/src/components/namedEntityPicker/types.ts": {
+      "name": "Picker shared types",
+      "description": "Describes the shapes the pick box works with, including the three flock eligibility choices."
+    },
+    "web/src/components/namedEntityPicker/usePickerDiscovery.ts": {
+      "name": "Picker match loader",
+      "description": "Fetches matching records for the pick box as the person types and loads more on request."
+    },
+    "web/src/components/namedEntityPicker/usePickerSelection.ts": {
+      "name": "Picker selection",
+      "description": "Tracks which record the pick box has chosen and applies a new choice."
+    },
+    "web/src/components/NumberField.tsx": {
+      "name": "Number field",
+      "description": "A number entry box made for barn use, with large steppers and friendly input handling."
+    },
+    "web/src/components/PanelPager.tsx": {
+      "name": "Panel pager",
+      "description": "Previous and next controls for paging through a Dashboard panel's list instead of scrolling inside it."
+    },
+    "web/src/components/PhoneLedger.tsx": {
+      "name": "Phone ledger list",
+      "description": "Compact list rows used instead of tables on phones, each with a title, a second line and a way to open details."
+    },
+    "web/src/components/ProvenanceCell.tsx": {
+      "name": "Record origin note",
+      "description": "Shows where a record came from and whether it has been officially submitted, in a table cell or the phone details dialog."
+    },
+    "web/src/components/SecondFactorCodeField.tsx": {
+      "name": "Security code field",
+      "description": "The single box for entering an authenticator or recovery code at sign-in and when confirming sensitive actions."
+    },
+    "web/src/components/StatusBadge.tsx": {
+      "name": "Status badge",
+      "description": "A small coloured label showing a record's status, such as active or archived, so states read at a glance."
+    },
+    "web/src/components/StepUpProofFields.tsx": {
+      "name": "Confirm-it's-you fields",
+      "description": "The password (and security code, when set up) fields shown before a sensitive action, with a note on who is signed in."
+    },
+    "web/src/components/StockBar.tsx": {
+      "name": "Stock bar",
+      "description": "A stacked bar showing how much stock there is in each egg grade."
+    }
+  }
+}

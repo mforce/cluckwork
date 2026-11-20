@@ -1,0 +1,28 @@
+{
+  "files": {
+    ".hermes/plugins/git-guard/__init__.py": {
+      "name": "Hermes git guard",
+      "description": "Runs the git guard before every terminal command in Hermes and blocks the git writes and merges it refuses."
+    },
+    ".pi/extensions/git-guard.ts": {
+      "name": "Pi git guard",
+      "description": "Runs the git guard before each Pi shell command and blocks refused ones, refusing PowerShell outright."
+    },
+    "tools/agent-guard/git_guard_test.py": {
+      "name": "Git guard tests",
+      "description": "Checks the git guard with example commands in each assistant tool's format."
+    },
+    "tools/agent-guard/git_guard.py": {
+      "name": "Git guard",
+      "description": "Stops AI agents pushing to main, force-pushing, or merging pull requests except through the approved command."
+    },
+    "tools/agent-guard/git_hooks_test.py": {
+      "name": "Git hooks tests",
+      "description": "Checks the commit and push hooks with real git against local sample repositories, and the docs warning on push."
+    },
+    "tools/agent-guard/pi_extension_test.mjs": {
+      "name": "Pi guard test",
+      "description": "Drives the Pi extension the way Pi does to check it blocks refused commands."
+    }
+  }
+}

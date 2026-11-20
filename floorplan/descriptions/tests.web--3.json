@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/lib/format.test.ts": {
+      "name": "Number and text formatting tests",
+      "description": "Checks that quantities, percentages and other values display in a consistent way."
+    },
+    "web/src/lib/grading.test.ts": {
+      "name": "Egg grading tests",
+      "description": "Checks the egg size and quality grade rules and labels."
+    },
+    "web/src/lib/ids.test.ts": {
+      "name": "Identifier tests",
+      "description": "Checks that unique identifiers are created and recognised correctly."
+    },
+    "web/src/lib/languageHint.test.ts": {
+      "name": "Language hint tests",
+      "description": "Checks the saved language preference is read and written correctly."
+    },
+    "web/src/lib/layRateRange.test.ts": {
+      "name": "Lay rate range tests",
+      "description": "Checks the range used to judge whether a laying rate is normal."
+    },
+    "web/src/lib/productionReportSplit.test.ts": {
+      "name": "Production report split tests",
+      "description": "Checks how production figures are divided up for the report."
+    },
+    "web/src/lib/relativeTime.test.ts": {
+      "name": "Time-ago tests",
+      "description": "Checks wording such as 'five minutes ago' is correct."
+    },
+    "web/src/lib/secondFactorMessage.test.ts": {
+      "name": "Two-step sign-in message tests",
+      "description": "Checks the messages shown for two-step sign-in problems."
+    },
+    "web/src/lib/stepperUnit.test.ts": {
+      "name": "Plus and minus step tests",
+      "description": "Checks the step size for plus and minus buttons on quantities."
+    },
+    "web/src/lib/theme.test.ts": {
+      "name": "Theme tests",
+      "description": "Checks the light, dark or automatic appearance choice is saved and applied."
+    },
+    "web/src/lib/themeInit.test.ts": {
+      "name": "Early theme setup tests",
+      "description": "Checks the chosen appearance is applied right at startup to avoid a flash."
+    },
+    "web/src/lib/traceparent.test.ts": {
+      "name": "Request tracing tests",
+      "description": "Checks the tracking code added to server requests for troubleshooting."
+    },
+    "web/src/opticalSize.test.ts": {
+      "name": "Text sizing tests",
+      "description": "Checks the font size adjustments used for readable text."
+    },
+    "web/src/pwa/appVersion.test.ts": {
+      "name": "App version tests",
+      "description": "Checks that the running version of the app is read correctly."
+    },
+    "web/src/pwa/registerServiceWorker.test.ts": {
+      "name": "Offline support setup tests",
+      "description": "Checks the background helper that lets the app work offline is set up safely."
+    },
+    "web/src/pwa/UpdatePrompt.integration.test.tsx": {
+      "name": "Update prompt flow tests",
+      "description": "Checks the whole flow of being told a new version is ready and applying it."
+    },
+    "web/src/pwa/UpdatePrompt.menuAction.integration.test.tsx": {
+      "name": "Update from menu tests",
+      "description": "Checks that updating the app from the menu works."
+    },
+    "web/src/pwa/UpdatePrompt.test.tsx": {
+      "name": "Update prompt tests",
+      "description": "Checks the message offering a new app version appears and responds to clicks."
+    },
+    "web/src/pwa/updateStore.test.ts": {
+      "name": "Update state tests",
+      "description": "Checks that the app remembers whether an update is waiting."
+    },
+    "web/src/routes/account/recoveryCodes.crossTab.test.tsx": {
+      "name": "Recovery codes across tabs tests",
+      "description": "Checks recovery codes stay in step when the account is open in two tabs."
+    },
+    "web/src/routes/account/recoveryCodes.slot.test.tsx": {
+      "name": "Recovery codes placement tests",
+      "description": "Checks recovery codes appear in the right spot on the page."
+    },
+    "web/src/routes/account/recoveryCodes.test.tsx": {
+      "name": "Recovery codes tests",
+      "description": "Checks that backup sign-in codes are shown, copied and regenerated correctly."
+    },
+    "web/src/routes/account/Security.test.tsx": {
+      "name": "Account security page tests",
+      "description": "Checks the security section for password and two-step sign-in."
+    },
+    "web/src/routes/account/TwoFactorQr.test.ts": {
+      "name": "Two-step sign-in QR code tests",
+      "description": "Checks the QR code used to link an authenticator app is built correctly."
+    },
+    "web/src/routes/account/useTwoFactor.test.tsx": {
+      "name": "Two-step sign-in setup tests",
+      "description": "Checks the steps for turning two-step sign-in on and off."
+    },
+    "web/src/routes/AccountPage.languageReload.test.tsx": {
+      "name": "Account language change tests",
+      "description": "Checks changing language on the account page updates the screen."
+    },
+    "web/src/routes/AccountPage.test.tsx": {
+      "name": "Account page tests",
+      "description": "Checks the user's own account page shows and saves their details."
+    },
+    "web/src/routes/AppLayout.integration.test.tsx": {
+      "name": "App frame flow tests",
+      "description": "Checks the menu and page frame work together when navigating."
+    },
+    "web/src/routes/AppLayout.signOut.test.tsx": {
+      "name": "Sign-out tests",
+      "description": "Checks that signing out from the app frame clears the session."
+    },
+    "web/src/routes/AppLayout.test.tsx": {
+      "name": "App frame tests",
+      "description": "Checks the menu, header and page frame show the right items for each user."
+    },
+    "web/src/routes/AuditPage.test.tsx": {
+      "name": "Activity history page tests",
+      "description": "Checks the page listing who did what on the farm."
+    },
+    "web/src/routes/ConnectedApps.test.tsx": {
+      "name": "Connected apps page tests",
+      "description": "Checks the page listing outside apps allowed into the account."
+    },
+    "web/src/routes/ConnectPage.test.tsx": {
+      "name": "Connect page tests",
+      "description": "Checks the page where an outside app asks for access."
+    },
+    "web/src/routes/CustomersPage.test.tsx": {
+      "name": "Customers page tests",
+      "description": "Checks the customer list and customer forms work."
+    },
+    "web/src/routes/DailyEntryPage.test.tsx": {
+      "name": "Daily entry page tests",
+      "description": "Checks recording the day's eggs and other daily numbers."
+    },
+    "web/src/routes/Dashboard.test.tsx": {
+      "name": "Dashboard tests",
+      "description": "Checks the dashboard overview shows the right figures."
+    },
+    "web/src/routes/emptyStates.guard.test.ts": {
+      "name": "Empty state coverage check",
+      "description": "Checks every list page has a friendly message for when it is empty."
+    },
+    "web/src/routes/ExpensesPage.test.tsx": {
+      "name": "Expenses page tests",
+      "description": "Checks the page for recording and listing farm expenses."
+    },
+    "web/src/routes/ExportPage.test.tsx": {
+      "name": "Export page tests",
+      "description": "Checks the page for downloading farm data."
+    },
+    "web/src/routes/FeedPage.test.tsx": {
+      "name": "Feed page tests",
+      "description": "Checks the page for tracking feed stock and use."
+    }
+  }
+}

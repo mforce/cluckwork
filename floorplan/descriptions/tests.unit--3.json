@@ -1,0 +1,112 @@
+{
+  "files": {
+    "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassAllowListTests.cs": {
+      "name": "Bypass list tests",
+      "description": "Checks how the farm-filter bypass list treats allowed, missing and stale entries."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassDiscoveryTests.cs": {
+      "name": "Bypass coverage check",
+      "description": "Works out from the stored-record layout which records the guard must protect and checks it covers all of them."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassRealTreeTests.cs": {
+      "name": "Farm data separation check",
+      "description": "Checks the real code for any read that skips the one-farm-only filter without being on the allowed list."
+    },
+    "tests/Cluckwork.Application.Tests/TenantBypass/TenantBypassWalkTests.cs": {
+      "name": "Bypass scanner tests",
+      "description": "Checks on small samples that the scanner finds code skipping the farm filter."
+    },
+    "tests/Cluckwork.Application.Tests/Validation/PasswordMaxLengthValidatorTests.cs": {
+      "name": "Password length cap tests",
+      "description": "Checks that every sign-in rule caps how long a password can be."
+    },
+    "tests/Cluckwork.Application.Tests/Validation/ValidatorErrorCodeCoverageTests.cs": {
+      "name": "Error code coverage check",
+      "description": "Checks that every validation rule gives its error a clear code."
+    },
+    "tests/Cluckwork.Domain.Tests/Accounts/AccountSettingsTests.cs": {
+      "name": "Account settings tests",
+      "description": "Checks a farm's settings, including the currency lock and the currency worked out when it is open."
+    },
+    "tests/Cluckwork.Domain.Tests/Accounts/AccountSlugTests.cs": {
+      "name": "Farm code and suspension tests",
+      "description": "Checks farm codes and suspending and reactivating a farm."
+    },
+    "tests/Cluckwork.Domain.Tests/Accounts/CurrencyCatalogTests.cs": {
+      "name": "Currency list tests",
+      "description": "Checks how a farm's currency is worked out from its settings."
+    },
+    "tests/Cluckwork.Domain.Tests/Accounts/FarmLogoTests.cs": {
+      "name": "Farm logo and banner tests",
+      "description": "Checks that the farm logo and banner share a record and its version."
+    },
+    "tests/Cluckwork.Domain.Tests/Accounts/RolesTests.cs": {
+      "name": "Staff role tests",
+      "description": "Checks the one place that decides which roles are limited to their own flocks."
+    },
+    "tests/Cluckwork.Domain.Tests/Common/MoneyTests.cs": {
+      "name": "Money tests",
+      "description": "Checks the money amounts the app works with."
+    },
+    "tests/Cluckwork.Domain.Tests/Eggs/DailyEntryTests.cs": {
+      "name": "Daily entry tests",
+      "description": "Checks the rules for a day's egg and flock record."
+    },
+    "tests/Cluckwork.Domain.Tests/Eggs/EggGradeDefaultsTests.cs": {
+      "name": "Egg grade default tests",
+      "description": "Checks the egg grades every new farm starts with."
+    },
+    "tests/Cluckwork.Domain.Tests/Eggs/EggGradeTests.cs": {
+      "name": "Egg grade tests",
+      "description": "Checks that cracked and dirty eggs go to the right grade even if the farm renames it."
+    },
+    "tests/Cluckwork.Domain.Tests/Eggs/EggLotTests.cs": {
+      "name": "Egg lot tests",
+      "description": "Checks the rules for batches of eggs in stock."
+    },
+    "tests/Cluckwork.Domain.Tests/Expenses/ExpenseTests.cs": {
+      "name": "Expense tests",
+      "description": "Checks the rules for expenses and expense categories."
+    },
+    "tests/Cluckwork.Domain.Tests/Flocks/FlockTests.cs": {
+      "name": "Flock tests",
+      "description": "Checks the rules for a flock of birds."
+    },
+    "tests/Cluckwork.Domain.Tests/GlobalUsings.cs": {
+      "name": "Shared test imports",
+      "description": "Sets the common imports every test file in this group uses."
+    },
+    "tests/Cluckwork.Domain.Tests/Inventory/InventoryTests.cs": {
+      "name": "Inventory tests",
+      "description": "Checks the rules for stock of supplies."
+    },
+    "tests/Cluckwork.Domain.Tests/Media/ImageSanitizerTests.cs": {
+      "name": "Logo upload tests",
+      "description": "Checks what a farm logo upload is allowed to be and that unsafe images are rejected."
+    },
+    "tests/Cluckwork.Domain.Tests/Sales/CustomerTests.cs": {
+      "name": "Customer tests",
+      "description": "Checks the rules for a customer record."
+    },
+    "tests/Cluckwork.Domain.Tests/Sales/DiscountCeilingTests.cs": {
+      "name": "Discount limit tests",
+      "description": "Checks the maximum discount a sale may take with a shared set of cases."
+    },
+    "tests/Cluckwork.Domain.Tests/Sales/PaymentTests.cs": {
+      "name": "Payment tests",
+      "description": "Checks the rules for recording a payment."
+    },
+    "tests/Cluckwork.Domain.Tests/Sales/SalesOrderCeilingTests.cs": {
+      "name": "Order discount limit tests",
+      "description": "Checks the largest discount an order can carry."
+    },
+    "tests/Cluckwork.Domain.Tests/Sales/SalesOrderDiscountReasonTests.cs": {
+      "name": "Order discount reason tests",
+      "description": "Checks that an order needing a discount reason cannot be confirmed without one."
+    },
+    "tests/Cluckwork.Domain.Tests/Sales/SalesOrderTests.cs": {
+      "name": "Sales order tests",
+      "description": "Checks the rules for an order from start to confirmed."
+    }
+  }
+}

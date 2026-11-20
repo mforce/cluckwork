@@ -1,0 +1,164 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/CreateProduct/CreateProductHandler.cs": {
+      "name": "Adding a product",
+      "description": "Adds a new product to the farm's catalogue, and for egg products ties it to the egg grades it is sold from."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/CreateProduct/CreateProductValidator.cs": {
+      "name": "New product checks",
+      "description": "Checks a new product's details are filled in properly before it is added."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/EggUnitConversionLookup.cs": {
+      "name": "Eggs per pack lookup",
+      "description": "Tells other parts of the app how many eggs go into each packed unit, such as a carton."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/ICatalogRepositories.cs": {
+      "name": "Product and pack-size records",
+      "description": "Lists how products and eggs-per-pack settings are looked up and saved in the database."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/SetProductActive/SetProductActiveHandler.cs": {
+      "name": "Turn product on or off",
+      "description": "Switches a product on or off for sale without deleting it."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/UpdateEggUnitConversion/UpdateEggUnitConversionHandler.cs": {
+      "name": "Changing eggs per pack",
+      "description": "Changes how many eggs a packed unit holds, such as the number in a carton."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/UpdateEggUnitConversion/UpdateEggUnitConversionValidator.cs": {
+      "name": "Eggs per pack checks",
+      "description": "Checks an eggs-per-pack change is valid before it is saved."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/UpdateProduct/UpdateProductHandler.cs": {
+      "name": "Editing a product",
+      "description": "Changes a product's details, such as its name, unit and default price."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Catalog/UpdateProduct/UpdateProductValidator.cs": {
+      "name": "Product edit checks",
+      "description": "Checks a product's changed details are valid before they are saved."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/AddOrderItemCommand.cs": {
+      "name": "Add order line request",
+      "description": "The details needed to add a product line to an order; unit and price fall back to the product's defaults."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/ConfirmSaleCommand.cs": {
+      "name": "Confirm sale request",
+      "description": "The details needed to confirm an order as a sale, including any discount and its reason, and the reply sent back."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/CreateCustomerCommand.cs": {
+      "name": "New customer request",
+      "description": "The details needed to add a customer."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/CreateProductCommand.cs": {
+      "name": "New product request",
+      "description": "The details needed to add a product."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/CreateSalesOrderCommand.cs": {
+      "name": "New order request",
+      "description": "The details needed to start a new sales order."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/CustomerBalance.cs": {
+      "name": "Customer balance",
+      "description": "Holds the amount a customer still owes."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/CustomerReference.cs": {
+      "name": "Customer name card",
+      "description": "Holds a customer's current name and contact details so order lists can show who each order is for."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/ICommerceFixture.cs": {
+      "name": "Sales sample data access",
+      "description": "Lets the sample-data loaders read and write customers, products and orders; not available in the live system."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/ICommerceModule.cs": {
+      "name": "Sales module front door",
+      "description": "Lists what other parts of the app can ask the sales side for, with the shapes of products, customers, orders and payments."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/IEggUnitConversionLookup.cs": {
+      "name": "Eggs per pack for other modules",
+      "description": "Lets other parts of the app look up how many eggs a packed unit holds."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/IEggUnitConversionProvisioning.cs": {
+      "name": "Starting pack sizes",
+      "description": "Lets farm setup create the first eggs-per-pack settings for a new account."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/RecordPaymentCommand.cs": {
+      "name": "Record payment request",
+      "description": "The details needed to record a customer's payment against an order."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/SalesOrderListFilter.cs": {
+      "name": "Order list filter",
+      "description": "The choices staff can use to narrow the list of sales orders."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/SettlementScope.cs": {
+      "name": "Settlement visibility",
+      "description": "Sets how much of the money-still-owed figure a particular lookup is allowed to show."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/UpdateCustomerCommand.cs": {
+      "name": "Edit customer request",
+      "description": "The details needed to change a customer's record."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/UpdateEggUnitConversionCommand.cs": {
+      "name": "Change eggs per pack request",
+      "description": "The details needed to change how many eggs a packed unit holds."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/UpdateOrderItemCommand.cs": {
+      "name": "Edit order line request",
+      "description": "The details needed to change a line on an order."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/UpdateProductCommand.cs": {
+      "name": "Edit product request",
+      "description": "The details needed to change a product."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/VoidPaymentCommand.cs": {
+      "name": "Cancel payment request",
+      "description": "The details needed to cancel a payment recorded by mistake."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Contracts/VoidSaleCommand.cs": {
+      "name": "Cancel sale request",
+      "description": "The details needed to undo a confirmed sale, and the reply sent back."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Customers/CreateCustomer/CreateCustomerHandler.cs": {
+      "name": "Adding a customer",
+      "description": "Adds a new customer to the farm's customer list."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Customers/CreateCustomer/CreateCustomerValidator.cs": {
+      "name": "New customer checks",
+      "description": "Checks a new customer has the required details before being added."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Customers/ICustomerRepository.cs": {
+      "name": "Customer records",
+      "description": "Lists how customers are looked up and saved in the database."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Customers/UpdateCustomer/UpdateCustomerHandler.cs": {
+      "name": "Editing a customer",
+      "description": "Changes an existing customer's details."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Customers/UpdateCustomer/UpdateCustomerValidator.cs": {
+      "name": "Customer edit checks",
+      "description": "Checks a customer's changed details are valid before they are saved."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/AddOrderItem/AddOrderItemHandler.cs": {
+      "name": "Adding a line to an order",
+      "description": "Adds a product line to a draft order, filling in the product's default unit and price and recording the list price and any discount against it."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/AddOrderItem/AddOrderItemValidator.cs": {
+      "name": "Order line checks",
+      "description": "Checks a new order line has a valid product, quantity and price before it is added."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/CancelSalesOrder/CancelSalesOrderHandler.cs": {
+      "name": "Cancelling an order",
+      "description": "Cancels an order that has not yet been confirmed."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/CommerceModule.cs": {
+      "name": "Sales module",
+      "description": "Carries out the sales side's work for other parts of the app: products, customers, orders and payments."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/ConfirmSale/ConfirmSaleHandler.cs": {
+      "name": "Confirming a sale",
+      "description": "Confirms an order as a sale, takes the eggs from stock oldest first, records the discount, and refuses if stock is short."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/ConfirmSale/ConfirmSaleValidator.cs": {
+      "name": "Confirm sale checks",
+      "description": "Checks the discount on a sale is filled in properly before it is confirmed."
+    }
+  }
+}

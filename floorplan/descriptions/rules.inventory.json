@@ -1,0 +1,144 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/CreateInventoryItemCommand.cs": {
+      "name": "New item request",
+      "description": "The request to add a new item, such as a feed type, to the inventory list."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/IInventoryFixture.cs": {
+      "name": "Inventory test data access",
+      "description": "Reads sample inventory data for the simulation setup; not available in production."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/IInventoryModule.cs": {
+      "name": "Inventory contract",
+      "description": "Lists everything the rest of the app can ask the inventory area to do, such as items, stock lots, movements, feed and water use."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/RecordAdjustmentCommand.cs": {
+      "name": "Stock correction request",
+      "description": "The request to correct stock up or down, or to write off spoiled stock."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/RecordFeedUsageCommand.cs": {
+      "name": "Feeding request",
+      "description": "The request to record feed given to a flock on a day, and the reply with its cost."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/RecordPurchaseCommand.cs": {
+      "name": "Stock purchase request",
+      "description": "The request to record stock bought, with quantity, cost and supplier details."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/RecordWaterUsageCommand.cs": {
+      "name": "Water use request",
+      "description": "The request to record water used by a flock on a day, from a quantity or from meter readings."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/UpdateInventoryItemCommand.cs": {
+      "name": "Edit item request",
+      "description": "The request to change an inventory item's details."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Contracts/UpdateWaterUsageCommand.cs": {
+      "name": "Water correction request",
+      "description": "The request to correct a water record; its flock and date stay fixed."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/CreateInventoryItem/CreateInventoryItemHandler.cs": {
+      "name": "Add inventory item",
+      "description": "Adds a new item to the inventory list."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/CreateInventoryItem/CreateInventoryItemValidator.cs": {
+      "name": "New item check",
+      "description": "Checks a new inventory item has valid details before it is added."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/IFeedUsageRepository.cs": {
+      "name": "Feed use storage",
+      "description": "Describes how feeding records are saved; they can only be added, and mistakes are fixed through stock corrections."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/IInventoryItemRepository.cs": {
+      "name": "Item storage",
+      "description": "Describes how inventory items are loaded and saved, including total stock on hand per item."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/IInventoryLotRepository.cs": {
+      "name": "Stock lot storage",
+      "description": "Describes how received batches of stock are loaded and saved."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/IInventoryMovementRepository.cs": {
+      "name": "Stock history storage",
+      "description": "Describes how the stock history is saved; entries can only be added, never edited or removed."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/InventoryModule.cs": {
+      "name": "Inventory service",
+      "description": "Carries out inventory requests such as adding items, receiving stock, feeding and water records."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/IWaterUsageRepository.cs": {
+      "name": "Water use storage",
+      "description": "Describes how water records are loaded and saved; unlike feed records they can be corrected in place."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordAdjustment/RecordAdjustmentHandler.cs": {
+      "name": "Correct stock",
+      "description": "Fixes a wrong purchase or writes off spoiled stock by adding a correcting entry, leaving the original untouched."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordAdjustment/RecordAdjustmentValidator.cs": {
+      "name": "Stock correction check",
+      "description": "Checks a stock correction has valid details before it is recorded."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordFeedUsage/RecordFeedUsageHandler.cs": {
+      "name": "Record feeding",
+      "description": "Records feed given to a flock, using up the oldest stock first and noting which batches were used."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordFeedUsage/RecordFeedUsageValidator.cs": {
+      "name": "Feeding check",
+      "description": "Checks a feeding record has valid details before it is saved."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordPurchase/RecordPurchaseHandler.cs": {
+      "name": "Receive stock",
+      "description": "Records stock bought by creating the new batch and its history entry together."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordPurchase/RecordPurchaseValidator.cs": {
+      "name": "Purchase check",
+      "description": "Checks a stock purchase has valid details before it is recorded."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordWaterUsage/RecordWaterUsageHandler.cs": {
+      "name": "Record water use",
+      "description": "Records the water a flock used on a day."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/RecordWaterUsage/RecordWaterUsageValidator.cs": {
+      "name": "Water use check",
+      "description": "Checks a water record is valid, including that meter readings agree with the quantity."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/SetInventoryItemActiveHandler.cs": {
+      "name": "Turn item on or off",
+      "description": "Marks an inventory item as in use or retired."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/UpdateInventoryItem/UpdateInventoryItemHandler.cs": {
+      "name": "Edit inventory item",
+      "description": "Changes an inventory item's details, refusing if someone else edited it first."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/UpdateInventoryItem/UpdateInventoryItemValidator.cs": {
+      "name": "Edit item check",
+      "description": "Checks edited item details are valid before saving."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/UpdateWaterUsage/UpdateWaterUsageHandler.cs": {
+      "name": "Correct water record",
+      "description": "Corrects an existing water record, refusing if someone else changed it first."
+    },
+    "src/Cluckwork.Application/Modules/GeneralInventory/Inventory/UpdateWaterUsage/UpdateWaterUsageValidator.cs": {
+      "name": "Water correction check",
+      "description": "Checks a corrected water record is valid before saving."
+    },
+    "src/Cluckwork.Domain/Modules/GeneralInventory/Inventory/FeedUsage.cs": {
+      "name": "Feeding record",
+      "description": "One feeding event: how much of an item a flock ate on a day."
+    },
+    "src/Cluckwork.Domain/Modules/GeneralInventory/Inventory/InventoryItem.cs": {
+      "name": "Inventory item",
+      "description": "An entry in the inventory list, such as a feed type; other categories like medicine are planned for later."
+    },
+    "src/Cluckwork.Domain/Modules/GeneralInventory/Inventory/InventoryLot.cs": {
+      "name": "Stock lot",
+      "description": "One received batch of an item, with its own cost, optional supplier batch number and expiry date."
+    },
+    "src/Cluckwork.Domain/Modules/GeneralInventory/Inventory/InventoryMovement.cs": {
+      "name": "Stock history entry",
+      "description": "One line in the permanent stock history (purchase, use, correction); entries are never edited or deleted."
+    },
+    "src/Cluckwork.Domain/Modules/GeneralInventory/Inventory/WaterUsage.cs": {
+      "name": "Water use record",
+      "description": "Water used by a flock on a day, with its source and optional meter readings."
+    }
+  }
+}

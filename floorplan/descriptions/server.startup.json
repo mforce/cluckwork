@@ -1,0 +1,124 @@
+{
+  "files": {
+    "src/Cluckwork.Api/Configuration/FarmBannerOptions.cs": {
+      "name": "Banner size setting",
+      "description": "Sets the largest banner image allowed and stops the server starting if the value is invalid."
+    },
+    "src/Cluckwork.Api/Configuration/FarmLogoOptions.cs": {
+      "name": "Logo size setting",
+      "description": "Sets the largest logo image allowed and stops the server starting if the value is invalid."
+    },
+    "src/Cluckwork.Api/Configuration/OtlpOptions.cs": {
+      "name": "Monitoring export settings",
+      "description": "Holds where and how the server sends its monitoring data, if turned on."
+    },
+    "src/Cluckwork.Api/Configuration/OwnerGraceOptions.cs": {
+      "name": "Owner grace period setting",
+      "description": "Sets how many days an Owner may go without two-step verification."
+    },
+    "src/Cluckwork.Api/Configuration/SharedStateOptions.cs": {
+      "name": "Shared storage settings",
+      "description": "Holds the connection settings for the Redis store used to share state between servers."
+    },
+    "src/Cluckwork.Api/HealthChecks/DatabaseReadyHealthCheck.cs": {
+      "name": "Database ready check",
+      "description": "Reports ready only when the database can be reached and its structure is up to date."
+    },
+    "src/Cluckwork.Api/HealthChecks/DurableJobWorkerHealthCheck.cs": {
+      "name": "Background job check",
+      "description": "Warns when the background job runner has silently stalled."
+    },
+    "src/Cluckwork.Api/Hosting/BindingFailureResponse.cs": {
+      "name": "Bad request reply",
+      "description": "Replies with a clear message when a request is malformed and cannot be read."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkEdgeSecurityServiceCollectionExtensions.cs": {
+      "name": "Front-door security setup",
+      "description": "Decides which proxies are trusted to pass on the visitor's real address and protocol."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkHealthServiceCollectionExtensions.cs": {
+      "name": "Health check setup",
+      "description": "Registers the checks that say whether the server is alive and ready."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkIdentityServiceCollectionExtensions.cs": {
+      "name": "Sign-in setup",
+      "description": "Sets up sign-in, tokens, roles and the rules for who may do what."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkJobServiceCollectionExtensions.cs": {
+      "name": "Background job setup",
+      "description": "Registers the background job runner."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkPersistenceServiceCollectionExtensions.cs": {
+      "name": "Database setup",
+      "description": "Connects the server to its Postgres database."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkRateLimitingServiceCollectionExtensions.cs": {
+      "name": "Request limit setup",
+      "description": "Sets the caps on how often sign-in, app and general requests may be made."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkSharedStateServiceCollectionExtensions.cs": {
+      "name": "Shared storage setup",
+      "description": "Connects the shared Redis store and checks its connection setting before serving."
+    },
+    "src/Cluckwork.Api/Hosting/CluckworkTelemetryServiceCollectionExtensions.cs": {
+      "name": "Monitoring setup",
+      "description": "Turns on the server's metrics and traces and exports them when configured."
+    },
+    "src/Cluckwork.Api/Hosting/DefaultResponseCaching.cs": {
+      "name": "Default no-cache rule",
+      "description": "Tells browsers and proxies not to store responses unless a page says it is safe."
+    },
+    "src/Cluckwork.Api/Hosting/FarmBannerRequestBodyCap.cs": {
+      "name": "Banner upload size cap",
+      "description": "Rejects banner uploads over the size limit before they are fully received."
+    },
+    "src/Cluckwork.Api/Hosting/FarmLogoRequestBodyCap.cs": {
+      "name": "Logo upload size cap",
+      "description": "Rejects logo uploads over the size limit before they are fully received."
+    },
+    "src/Cluckwork.Api/Hosting/OtlpConfigurationResolver.cs": {
+      "name": "Monitoring settings resolver",
+      "description": "Works out the final monitoring export settings from the configuration."
+    },
+    "src/Cluckwork.Api/Hosting/PlaintextDataProtectionKeyGuard.cs": {
+      "name": "Unencrypted key guard",
+      "description": "Refuses to run if stored encryption keys are unencrypted, as a database backup could then forge sign-in data."
+    },
+    "src/Cluckwork.Api/Hosting/ProcessRole.cs": {
+      "name": "Run mode",
+      "description": "Decides once at start whether this run is the web server or a one-off command."
+    },
+    "src/Cluckwork.Api/Hosting/RequestBodyLimit.cs": {
+      "name": "Request size limit",
+      "description": "Rejects requests whose body is bigger than the allowed size."
+    },
+    "src/Cluckwork.Api/Hosting/ServingBootGuards.cs": {
+      "name": "Production safety checks",
+      "description": "Checks the live server's security settings at start and refuses to run if unsafe."
+    },
+    "src/Cluckwork.Api/Hosting/SpaShell.cs": {
+      "name": "Web app page host",
+      "description": "Serves the web app's main page with matching security headers."
+    },
+    "src/Cluckwork.Api/Hosting/StaticAssetCaching.cs": {
+      "name": "Web file caching",
+      "description": "Sets how long browsers keep the web app's files."
+    },
+    "src/Cluckwork.Api/Logging/ExceptionRedactingSink.cs": {
+      "name": "Error text scrubber",
+      "description": "Hides secrets found in error text before logs are written."
+    },
+    "src/Cluckwork.Api/Logging/RedactingLoggerPipeline.cs": {
+      "name": "Safe logging pipeline",
+      "description": "Builds the log setup so every log passes through the scrubber first."
+    },
+    "src/Cluckwork.Api/Logging/SensitiveDataRedactionEnricher.cs": {
+      "name": "Log secret remover",
+      "description": "Removes passwords, tokens, cookies, connection strings and emails from log lines."
+    },
+    "src/Cluckwork.Api/Program.cs": {
+      "name": "Server start-up",
+      "description": "Starts the server: picks a mode, sets up services, adds checks in order and serves the app or runs a command."
+    }
+  }
+}

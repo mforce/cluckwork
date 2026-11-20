@@ -1,0 +1,64 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Insights/Audit/IAuditEventRepository.cs": {
+      "name": "Activity log lookup outline",
+      "description": "Describes how the activity log of who did what is read back, without saying how the database does it."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/AuditEventRead.cs": {
+      "name": "Activity log entry",
+      "description": "One line of the activity log: when it happened, who did it, what was done, to what, any reason given, and the connected app involved if any."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/EntityProvenance.cs": {
+      "name": "Record history summary",
+      "description": "Works out, from the activity log, who first created a record and who last changed it. It is never stored separately."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/ExpenseCategoryTotal.cs": {
+      "name": "Spending per category",
+      "description": "The total spent in one expense category over a period."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/ExpenseSummary.cs": {
+      "name": "Expense summary",
+      "description": "The expense report: total per category, the grand total and the currency."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/ExportDataset.cs": {
+      "name": "Export table",
+      "description": "One table of data for a backup download: column headings plus rows that are read one at a time so large exports do not fill memory."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/FlockTotal.cs": {
+      "name": "Per-flock production row",
+      "description": "One flock's line in the production report's breakdown for the chosen period."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/GradeTotal.cs": {
+      "name": "Eggs per grade",
+      "description": "How many eggs there were in one egg grade."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/IInsightsModule.cs": {
+      "name": "Reports and activity log outline",
+      "description": "Lists what the reporting area offers: production, sales, expense and profit reports, data exports, the activity log and record history."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/ProductionDay.cs": {
+      "name": "Production day",
+      "description": "One day's egg production, including the hand-graded sellable eggs left after cracked, dirty and discarded ones are taken out."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/ProductionReport.cs": {
+      "name": "Production report",
+      "description": "The egg production report for a period: daily figures, totals per grade and flock, and the figures behind the period's laying rate so it can be checked."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/ProfitReport.cs": {
+      "name": "Profit report",
+      "description": "A basic profit figure: confirmed sales minus recorded expenses, shown with both numbers and feed cost, including feed cost per dozen eggs. It does not value stock."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Contracts/SalesSummary.cs": {
+      "name": "Sales summary",
+      "description": "Sales for a period: confirmed and voided orders, revenue, amount paid, amount still owed, and eggs sold overall and by grade."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Export/IExportQueries.cs": {
+      "name": "Data export outline",
+      "description": "Describes how the farm's data is fetched, table by table, for manual backup downloads."
+    },
+    "src/Cluckwork.Application/Modules/Insights/Reports/IReportQueries.cs": {
+      "name": "Report lookup outline",
+      "description": "Describes the read-only report questions: production, sales, expenses and profit for a date range."
+    }
+  }
+}

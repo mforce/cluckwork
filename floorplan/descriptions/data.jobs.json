@@ -1,0 +1,36 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Jobs/DailyEntryLockSweep.cs": {
+      "name": "Daily entry auto-lock",
+      "description": "Locks submitted daily entries once they are over 7 days old, counted in the farm's own time zone."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/DurableJobWorker.cs": {
+      "name": "Background job runner",
+      "description": "Runs queued background tasks and recurring clean-ups, only on the one server currently in charge."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/DurableJobWorkerHeartbeat.cs": {
+      "name": "Job runner heartbeat",
+      "description": "A live signal the job runner updates so the health check can tell it is still working."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/IdempotencyRecordPurgeSweep.cs": {
+      "name": "Repeat-request clean-up",
+      "description": "Deletes old records used to stop repeated requests from running twice, after about 48 hours."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/ILeaderLease.cs": {
+      "name": "Single-runner gate",
+      "description": "Makes sure only one server at a time runs the background jobs; includes a version that is always in charge for single-server setups."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/OAuthPurgeSweep.cs": {
+      "name": "Connected-app sign-in clean-up",
+      "description": "Deletes expired connected-app sign-in records."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/PostgresLeaderLease.cs": {
+      "name": "Database job leader lock",
+      "description": "Uses a database lock so only one of several servers runs the background jobs."
+    },
+    "src/Cluckwork.Infrastructure/Jobs/RefreshTokenPurgeSweep.cs": {
+      "name": "Old login token clean-up",
+      "description": "Deletes expired and revoked stay-signed-in records that would otherwise pile up forever."
+    }
+  }
+}

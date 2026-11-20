@@ -1,0 +1,56 @@
+{
+  "files": {
+    "web/src/i18n/en.ts": {
+      "name": "English text",
+      "description": "Holds every piece of on-screen text in English; it is the master copy and the fallback for the other languages."
+    },
+    "web/src/i18n/enums-audit.ts": {
+      "name": "Activity log labels",
+      "description": "Gives readable names to the kinds of actions and record types shown in the activity log."
+    },
+    "web/src/i18n/enums-commerce.ts": {
+      "name": "Sales labels",
+      "description": "Gives readable names to discount reasons and list-price choices on the sales screen."
+    },
+    "web/src/i18n/enums-key.ts": {
+      "name": "Label key type",
+      "description": "Makes sure each label name points at text that really exists in the English catalog."
+    },
+    "web/src/i18n/enums-operations.ts": {
+      "name": "Farm operations labels",
+      "description": "Gives readable names to water sources, units, egg grades, inventory and stock movement types."
+    },
+    "web/src/i18n/enums-settings.ts": {
+      "name": "Settings and roles labels",
+      "description": "Gives readable names to staff roles and the choices on the settings screen."
+    },
+    "web/src/i18n/enums-status.ts": {
+      "name": "Status labels",
+      "description": "Gives readable names to the small status labels shown across screens."
+    },
+    "web/src/i18n/enums.ts": {
+      "name": "Fixed-choice labels",
+      "description": "Collects all the label families so a stored value, like a role or a status, is shown with a translated name."
+    },
+    "web/src/i18n/es.ts": {
+      "name": "Spanish text",
+      "description": "Holds the on-screen text in Spanish, machine-drafted and still waiting for a native speaker to review it."
+    },
+    "web/src/i18n/index.ts": {
+      "name": "Language setup",
+      "description": "Sets up the supported languages, loads Spanish and Tagalog when needed and gives up if a language takes too long."
+    },
+    "web/src/i18n/resolve.ts": {
+      "name": "Language chooser",
+      "description": "Picks the language to show: the person's own choice, then the farm's locale, then English."
+    },
+    "web/src/i18n/tl.ts": {
+      "name": "Tagalog text",
+      "description": "Holds the on-screen text in Tagalog, machine-drafted and still waiting for a native speaker to review it."
+    },
+    "web/src/i18n/translations-status.ts": {
+      "name": "Translated sections list",
+      "description": "Lists which sections of text are kept translated in step with English."
+    }
+  }
+}

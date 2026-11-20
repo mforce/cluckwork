@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.AppHost.Tests/AppHostConfigurationTests.cs": {
+      "name": "Local setup settings tests",
+      "description": "Checks that the saved settings for the local development setup stay valid."
+    },
+    "tests/Cluckwork.AppHost.Tests/AppHostModelTests.cs": {
+      "name": "Local setup layout tests",
+      "description": "Checks that the local development setup starts the right parts of the app and wires them together."
+    },
+    "tests/Cluckwork.Application.Tests/Accounts/FarmModuleTests.cs": {
+      "name": "Farm settings read tests",
+      "description": "Checks that reading a farm's settings copies every field to the right place, so no two values get swapped."
+    },
+    "tests/Cluckwork.Application.Tests/Accounts/SetConnectedAppsValidatorTests.cs": {
+      "name": "Connected apps switch tests",
+      "description": "Checks that a request leaving out the connected-apps switch does not turn connected apps off."
+    },
+    "tests/Cluckwork.Application.Tests/Accounts/UpdateFarmSettingsValidatorTests.cs": {
+      "name": "Farm settings rule tests",
+      "description": "Checks the rules that reject bad values when someone saves a farm's settings."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AccessOwnershipClaimTests.cs": {
+      "name": "Access ownership tests",
+      "description": "Checks that the rule about who owns access to the code is claimed by exactly one part of the app."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AdapterReachRealTreeTests.cs": {
+      "name": "Outside-connection reach check",
+      "description": "Runs the outside-connection reach rules against the real code and fails if any part reaches further than allowed."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AdapterReachScanner.cs": {
+      "name": "Outside-connection reach scanner",
+      "description": "Scans the code to find which parts reach other parts through the outside-facing connections."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AdapterReachTests.cs": {
+      "name": "Outside-connection reach tests",
+      "description": "Checks on small sample code that the reach scanner catches parts reaching where they should not."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AdapterTierRealTreeTests.cs": {
+      "name": "Tool tier check",
+      "description": "Runs the tool-tier rules against the real code and fails if any tool is declared at the wrong level."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AdapterTierScanner.cs": {
+      "name": "Tool tier scanner",
+      "description": "Scans the code for the assistant-facing tools and the places they are declared and called."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/AdapterTierTests.cs": {
+      "name": "Tool tier tests",
+      "description": "Checks on small sample code that the tool-tier scanner flags undeclared or misplaced tools."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/CompatibilityExceptionRealTreeTests.cs": {
+      "name": "Compatibility exception check",
+      "description": "Runs the compatibility-exception rules against the real code and fails if an unlisted exception appears."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/CompatibilityExceptionScanner.cs": {
+      "name": "Compatibility exception scanner",
+      "description": "Scans the code for places that read another module's records directly, outside the allowed list."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/CompatibilityExceptionTests.cs": {
+      "name": "Compatibility exception tests",
+      "description": "Checks on small sample code that the scanner finds direct reads of another module's records."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ContractDerivationFixtures.cs": {
+      "name": "Contract sample types",
+      "description": "Holds small sample types used to test how a module's public contract is worked out."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ContractDerivationTests.cs": {
+      "name": "Module contract tests",
+      "description": "Checks that a module's public contract is worked out correctly from its code."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/CouplingMatrix.cs": {
+      "name": "Module coupling table",
+      "description": "Builds a table of which parts of the app depend on which others."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/CouplingMatrixRealTreeTests.cs": {
+      "name": "Module coupling check",
+      "description": "Checks the real app's module dependencies against the allowed table and fails on new ones."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/CouplingMatrixTests.cs": {
+      "name": "Module coupling tests",
+      "description": "Checks on small samples that the coupling table records who reads and who writes."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ExportSnapshotSourceTests.cs": {
+      "name": "Export snapshot tests",
+      "description": "Checks that a data export reads from one consistent snapshot of the database."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/FileSizeLimitTests.cs": {
+      "name": "File size limit check",
+      "description": "Fails when a source file grows past its line limit, with older oversize files held to their own caps."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/InsightsReadOnlyTests.cs": {
+      "name": "Insights read-only check",
+      "description": "Checks that the insights part only reads records and never changes them."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ModuleContractRealAssemblyTests.cs": {
+      "name": "Module contract check",
+      "description": "Checks that the types each module offers to others contain no database or core record types."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ModuleEdgeAnalyzerTests.cs": {
+      "name": "Module boundary analyzer tests",
+      "description": "Checks that the build-time boundary checker flags code crossing module lines in a small two-project sample."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ModuleLedger.cs": {
+      "name": "Module ledger rules",
+      "description": "Defines the written record of which module owns what and which connections between modules are allowed."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ModuleLedgerRealTreeTests.cs": {
+      "name": "Module ledger check",
+      "description": "Compares the real code with the module ledger and fails if they disagree."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ModuleLedgerScanner.cs": {
+      "name": "Module ledger scanner",
+      "description": "Scans the code for connections between modules and compares them with the ledger."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/ModuleLedgerTests.cs": {
+      "name": "Module ledger tests",
+      "description": "Checks on small samples that the ledger scanner catches disallowed or out-of-date entries."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/NamespaceFolderAgreementTests.cs": {
+      "name": "Folder naming check",
+      "description": "Checks that each file's code grouping name matches the folder it sits in."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/OwnerGraceWriterTests.cs": {
+      "name": "Owner grace period check",
+      "description": "Checks that only the owner's two-step sign-in gate can start the grace period."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/PeerContractRealTreeTests.cs": {
+      "name": "Module peer access check",
+      "description": "Checks that modules reach each other only through the offered contract."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/PeerContractTests.cs": {
+      "name": "Module peer access tests",
+      "description": "Checks on a temporary sample that modules reaching each other without a contract are caught."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.Adapters.cs": {
+      "name": "Ledger: outside connections",
+      "description": "Lists the outside-facing connections each module is allowed in the real ledger."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.cs": {
+      "name": "Real module ledger",
+      "description": "Holds the one module ledger of the real app that all the structure checks read."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.Exemptions.cs": {
+      "name": "Ledger: exemptions",
+      "description": "Holds the ledger's list of exempted items, which is empty for now."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/RealModuleLedger.Tables.cs": {
+      "name": "Ledger: record ownership",
+      "description": "Lists which module owns each kind of stored record in the real ledger."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/SeamSurfaceRealAssemblyTests.cs": {
+      "name": "Module seam check",
+      "description": "Checks that the seams between modules expose no database types or core records."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/SeamSurfaceScanner.cs": {
+      "name": "Module seam scanner",
+      "description": "Scans the seams between modules for database types or core records leaking out."
+    },
+    "tests/Cluckwork.Application.Tests/Architecture/SeamSurfaceTests.cs": {
+      "name": "Module seam tests",
+      "description": "Checks on small samples that the seam scanner catches leaked database and record types."
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "files": {
+    "web/src/styles/shell.css": {
+      "name": "App frame styles",
+      "description": "Looks for the main frame: header, menu and content area."
+    },
+    "web/src/styles/splash.css": {
+      "name": "Splash styles",
+      "description": "Looks for the welcome splash."
+    },
+    "web/src/styles/stock-bar.css": {
+      "name": "Stock bar styles",
+      "description": "Looks for the stock bar."
+    },
+    "web/src/styles/tables-and-cards.css": {
+      "name": "Table and card styles",
+      "description": "Looks for tables and card panels."
+    },
+    "web/src/styles/text-and-badges.css": {
+      "name": "Text and badge styles",
+      "description": "Looks for text styles and status badges."
+    },
+    "web/src/styles/tokens.css": {
+      "name": "Colour and spacing values",
+      "description": "The colours, spacing and other values used everywhere, for light, night and each brand."
+    },
+    "web/src/styles/toolbar.css": {
+      "name": "Toolbar styles",
+      "description": "Looks for the toolbar above lists."
+    },
+    "web/src/theme/farmThemeOverrides.ts": {
+      "name": "Component look overrides",
+      "description": "Adjusts how the ready-made controls look and move to match the app."
+    },
+    "web/src/theme/FarmThemeProvider.tsx": {
+      "name": "Theme provider",
+      "description": "Makes the ready-made controls follow the app's light, night and brand choices."
+    },
+    "web/src/theme/farmTokens.ts": {
+      "name": "Theme values reader",
+      "description": "Reads the current colours so the ready-made controls can use them."
+    },
+    "web/src/theme/metaThemeColor.ts": {
+      "name": "Browser bar colour",
+      "description": "Sets the colour of the phone browser's top bar to match the screen."
+    },
+    "web/src/types/i18next.d.ts": {
+      "name": "Translation typing",
+      "description": "Lets the code check that translation keys exist."
+    },
+    "web/src/vite-env.d.ts": {
+      "name": "Build tool typing",
+      "description": "Declares build tool types for the code."
+    }
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Commerce/Sales/CreateSalesOrder/CreateSalesOrderHandler.cs": {
+      "name": "Starting an order",
+      "description": "Starts a new draft sales order for a customer."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/CreateSalesOrder/CreateSalesOrderValidator.cs": {
+      "name": "New order checks",
+      "description": "Checks a new order's details are valid before it is started."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/IPaymentRepository.cs": {
+      "name": "Payment records",
+      "description": "Lists how customer payments are looked up and saved in the database."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/ISalesOrderAllocationRepository.cs": {
+      "name": "Sale-to-stock records",
+      "description": "Saves which egg lots each sale drew from, and only lets them be marked as returned, never deleted."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/ISalesOrderRepository.cs": {
+      "name": "Order records",
+      "description": "Lists how orders are looked up and saved, including what each order still owes."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/RecordPayment/RecordPaymentHandler.cs": {
+      "name": "Recording a payment",
+      "description": "Records a customer's payment against a confirmed order."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/RecordPayment/RecordPaymentValidator.cs": {
+      "name": "Payment checks",
+      "description": "Checks a payment's amount, method and details are valid before it is recorded."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/RemoveOrderItem/RemoveOrderItemHandler.cs": {
+      "name": "Removing an order line",
+      "description": "Removes a line from a draft order."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/UpdateOrderItem/UpdateOrderItemHandler.cs": {
+      "name": "Editing an order line",
+      "description": "Changes the quantity, unit or price of a line on a draft order."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/UpdateOrderItem/UpdateOrderItemValidator.cs": {
+      "name": "Order line edit checks",
+      "description": "Checks a changed order line is valid before it is saved."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/VoidPayment/VoidPaymentHandler.cs": {
+      "name": "Cancelling a payment",
+      "description": "Marks a mistaken payment as cancelled with a reason, keeping the record, so the order owes that amount again."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/VoidPayment/VoidPaymentValidator.cs": {
+      "name": "Cancel payment checks",
+      "description": "Checks a payment cancellation comes with what it needs, such as a reason."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/VoidSale/VoidSaleHandler.cs": {
+      "name": "Cancelling a sale",
+      "description": "Undoes a confirmed sale, putting each egg back into the lot it came from and keeping the record of what was drawn."
+    },
+    "src/Cluckwork.Application/Modules/Commerce/Sales/VoidSale/VoidSaleValidator.cs": {
+      "name": "Cancel sale checks",
+      "description": "Checks a sale cancellation comes with what it needs before it is carried out."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Catalog/EggUnitConversion.cs": {
+      "name": "Eggs per pack setting",
+      "description": "Records how many eggs one packed unit holds, since a carton can be 12, 18 or 30 depending on the market."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Catalog/Product.cs": {
+      "name": "Product",
+      "description": "What the farm sells, with its type, unit, default price and whether it is on sale."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Catalog/ProductEggGradeMapping.cs": {
+      "name": "Product-to-grade link",
+      "description": "Says which egg grades an egg product is sold from, so a sale knows which stock to use."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/DiscountCeiling.cs": {
+      "name": "Discount limit",
+      "description": "The most a seller bound by a limit may take off a line's list price, compared with exact whole-number maths."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/DiscountReasonCode.cs": {
+      "name": "Discount reasons",
+      "description": "The fixed list of reasons an order can be sold below list price."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/EggUnit.cs": {
+      "name": "Egg pack units",
+      "description": "The packed units eggs are sold in."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/ListPriceBasis.cs": {
+      "name": "Where a list price came from",
+      "description": "Records why a line's list price is what it is."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/PaymentMethod.cs": {
+      "name": "Payment methods",
+      "description": "The ways a customer can pay."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/ProductType.cs": {
+      "name": "Product types",
+      "description": "The kinds of product the farm sells."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/ProductUnit.cs": {
+      "name": "Product units",
+      "description": "The units a product can be sold in."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Contracts/SalesOrderStatus.cs": {
+      "name": "Order stages",
+      "description": "The stages an order moves through."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/Customer.cs": {
+      "name": "Customer",
+      "description": "A person or business the farm sells to, with a required name and phone and optional email, address and note."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/DiscountReason.cs": {
+      "name": "Discount reason record",
+      "description": "Records why an order was sold below list price."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/Payment.cs": {
+      "name": "Payment",
+      "description": "A payment a customer made against a confirmed order, which can be cancelled but never deleted."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrder.cs": {
+      "name": "Sales order",
+      "description": "An order for a customer, from draft to confirmed or cancelled, holding its lines, discounts and what it owes."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrderAllocation.cs": {
+      "name": "Sale draws from stock",
+      "description": "Records which egg lots supplied which order line and how many eggs, so every sale can be traced back."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrderCeiling.cs": {
+      "name": "Line against discount limit",
+      "description": "Shows where an order line sits against the farm's discount limit and which line broke it."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrderConfirmedEvent.cs": {
+      "name": "Sale confirmed notice",
+      "description": "A message announcing that an order has been confirmed as a sale."
+    },
+    "src/Cluckwork.Domain/Modules/Commerce/Sales/SalesOrderItem.cs": {
+      "name": "Order line",
+      "description": "One product line on an order, with quantity, unit, list price and any discount."
+    }
+  }
+}

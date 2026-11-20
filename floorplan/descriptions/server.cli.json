@@ -1,0 +1,56 @@
+{
+  "files": {
+    "src/Cluckwork.Api/Cli/BootstrapAdminCliCommand.cs": {
+      "name": "Create first admin",
+      "description": "Command bootstrap-admin: creates the very first admin account on a fresh install."
+    },
+    "src/Cluckwork.Api/Cli/CliDispatcher.cs": {
+      "name": "Command dispatcher",
+      "description": "Picks the right one-off command from the first word typed and runs it."
+    },
+    "src/Cluckwork.Api/Cli/HealthCheckCliCommand.cs": {
+      "name": "Health check command",
+      "description": "Command healthcheck: a quick check the container platform uses to see if the server is alive."
+    },
+    "src/Cluckwork.Api/Cli/ICliCommand.cs": {
+      "name": "Command contract",
+      "description": "Defines what every one-off command must provide: a name and a run step that returns success or failure."
+    },
+    "src/Cluckwork.Api/Cli/ListAccountsCliCommand.cs": {
+      "name": "List farms command",
+      "description": "Command list-accounts: prints every farm's code, name and whether it is active."
+    },
+    "src/Cluckwork.Api/Cli/MigrateCliCommand.cs": {
+      "name": "Update database command",
+      "description": "Command migrate: applies database changes and exits, for use before a deployment."
+    },
+    "src/Cluckwork.Api/Cli/ProvisionAccountCliCommand.cs": {
+      "name": "Create farm command",
+      "description": "Creates a new farm with its starting settings and first Owner in one step."
+    },
+    "src/Cluckwork.Api/Cli/ReactivateAccountCliCommand.cs": {
+      "name": "Reactivate farm command",
+      "description": "Command reactivate-account: brings a suspended farm back online."
+    },
+    "src/Cluckwork.Api/Cli/RecoverAdminCliCommand.cs": {
+      "name": "Recover locked-out admin",
+      "description": "Command recover-admin: emergency way back in for a locked-out account with no email reset."
+    },
+    "src/Cluckwork.Api/Cli/RenameAccountCliCommand.cs": {
+      "name": "Rename farm code command",
+      "description": "Command rename-account: changes a farm's short code."
+    },
+    "src/Cluckwork.Api/Cli/RewrapKeyRingCliCommand.cs": {
+      "name": "Re-encrypt keys command",
+      "description": "Command rewrap-key-ring: re-encrypts the stored sign-in encryption keys under the current certificate so an old one can retire."
+    },
+    "src/Cluckwork.Api/Cli/SeedCliCommand.cs": {
+      "name": "Load sample data command",
+      "description": "Command seed: updates the database, loads a chosen set of demo or test data and exits."
+    },
+    "src/Cluckwork.Api/Cli/SuspendAccountCliCommand.cs": {
+      "name": "Suspend farm command",
+      "description": "Command suspend-account: takes a farm offline, and also looks up farms by code for other commands."
+    }
+  }
+}

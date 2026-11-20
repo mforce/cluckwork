@@ -1,0 +1,116 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260801190854_InitialCreate.cs": {
+      "name": "Create all tables",
+      "description": "Creates the whole starting set of database tables, replacing the 34 earlier changes squashed into one."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260808004059_AddDailyEntryStepperUnitPreferences.cs": {
+      "name": "Add egg-entry unit preferences",
+      "description": "Adds a place to remember which unit each person prefers in the daily egg entry counter."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260810071330_AddFarmBannerColumns.cs": {
+      "name": "Add farm banner",
+      "description": "Adds storage for the farm's banner image next to its logo."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260818044037_AddUserStepUpLogoutEpoch.cs": {
+      "name": "Add sign-out marker to users",
+      "description": "Adds a marker to each user so extra-verification passes can be invalidated when they sign out."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260818235944_AddAccountSlug.cs": {
+      "name": "Add farm code",
+      "description": "Adds a short unique code to each farm account for finding it by name."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260819142300_AccountScopedIdentityIndexes.cs": {
+      "name": "Scope sign-in lookups per farm",
+      "description": "Changes sign-in lookups so usernames and emails are unique within a farm, not across all farms."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260819202301_RequireUserIdentityColumns.cs": {
+      "name": "Require user farm links",
+      "description": "Makes the farm link and name fields on users mandatory."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260829063448_AddWorkerSaleAllocationPolicy.cs": {
+      "name": "Add worker sale-allocation setting",
+      "description": "Adds a farm setting for how worker sales are allocated to egg lots."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260831035742_AddCustomerVersion.cs": {
+      "name": "Add customer version counter",
+      "description": "Adds a version counter to customers so simultaneous edits are noticed."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260903012839_AccountIdConcurrencyToken.cs": {
+      "name": "Notice simultaneous account edits",
+      "description": "Marks the account as something to check for simultaneous edits."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260903054834_AddAccountIdToUserRoles.cs": {
+      "name": "Tie user roles to a farm",
+      "description": "Adds the farm to each user's role assignment so roles apply within one farm."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260906052032_AddAuditEventSequence.cs": {
+      "name": "Add activity history ordering",
+      "description": "Adds a running number to the activity history so events keep a reliable order."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260909013748_AddSalesOrderItemListUnitPrice.cs": {
+      "name": "Add list price to sale items",
+      "description": "Adds the standard list price to each sales order line, beside the price actually charged."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260909143501_AddSalesOrderItemListPriceBasis.cs": {
+      "name": "Add list price basis to sale items",
+      "description": "Adds a record of what the list price on each sales order line was based on."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260910222552_AddSalesOrderDiscountReason.cs": {
+      "name": "Add discount reason",
+      "description": "Adds a place to record why a sales order was discounted."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260911135948_AddAccountMaxDiscountBasisPoints.cs": {
+      "name": "Add maximum discount setting",
+      "description": "Adds a farm setting for the largest discount allowed on a sale."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260913212515_AddBusinessRecordChronology.cs": {
+      "name": "Add record time ordering",
+      "description": "Adds created and last-changed times to the business records so lists show in the order things happened."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260919083106_AddSalesOrderItemSequence.cs": {
+      "name": "Add sale item order",
+      "description": "Adds a running number to sales order lines so they keep their entered order."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20260924232529_AddEggGradeLowStockFloor.cs": {
+      "name": "Add low egg stock level",
+      "description": "Adds a per-grade level below which egg stock counts as low."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261003084907_AddCredentialEpochFloor.cs": {
+      "name": "Add sign-in reset marker",
+      "description": "Adds a rule on users that keeps the sign-in reset marker from going below zero."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261006225421_AddDataProtectionKeys.cs": {
+      "name": "Add encryption key storage",
+      "description": "Adds a table where the app keeps the keys it uses to protect sensitive data."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261008033233_AddOpenIddictTables.cs": {
+      "name": "Add connected-app tables",
+      "description": "Adds the tables that let outside apps sign in and be authorized to use the farm's data."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261008055839_AddOAuthApplicationCreatedAt.cs": {
+      "name": "Add connected-app creation date",
+      "description": "Records when each connected app was registered."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261008205101_AddAuditEventConnectedApp.cs": {
+      "name": "Log which connected app acted",
+      "description": "Adds a place in the activity history to record which connected app made a change."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261009161456_AddOAuthAuthorizationLastUsed.cs": {
+      "name": "Add connected-app last used",
+      "description": "Records when each connected-app permission was last used."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261009193717_AddAccountAllowConnectedApps.cs": {
+      "name": "Add connected-apps switch",
+      "description": "Adds a farm setting to allow or block connected apps."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261021205522_AddTwoFactorStorage.cs": {
+      "name": "Add two-step sign-in tracking",
+      "description": "Adds fields to users that track the extra sign-in step: when it became required, failed tries and completed sign-ins."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/20261106141144_AddRefreshTokenRevocationReason.cs": {
+      "name": "Record why sign-in passes were cancelled",
+      "description": "Adds a reason to cancelled stay-signed-in passes."
+    }
+  }
+}

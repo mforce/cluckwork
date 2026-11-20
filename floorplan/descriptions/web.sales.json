@@ -1,0 +1,96 @@
+{
+  "files": {
+    "web/src/routes/CustomersPage.tsx": {
+      "name": "Customers page",
+      "description": "Keeps the customer book: a name and phone number are required, everything else is optional."
+    },
+    "web/src/routes/expenses/ExpenseCategoriesPanel.tsx": {
+      "name": "Expense categories",
+      "description": "Shows the list of expense categories on the expenses screen and lets staff add or change them."
+    },
+    "web/src/routes/expenses/ExpenseEditDialog.tsx": {
+      "name": "Fix an expense pop-up",
+      "description": "Pop-up where an admin corrects an expense that was already recorded."
+    },
+    "web/src/routes/expenses/ExpenseEntryPanel.tsx": {
+      "name": "Record expense form",
+      "description": "The form for recording a new expense on the expenses screen."
+    },
+    "web/src/routes/expenses/ExpensePhoneDialogs.tsx": {
+      "name": "Expenses phone sheets",
+      "description": "Phone-only slide-up sheets for filtering expenses, recording one and viewing a row's details."
+    },
+    "web/src/routes/expenses/toMinorUnits.ts": {
+      "name": "Money amount converter",
+      "description": "Turns a typed amount like 12.50 into whole cents exactly, rejecting extra decimals and zero or invalid amounts."
+    },
+    "web/src/routes/expenses/useExpenseEdit.ts": {
+      "name": "Fix an expense logic",
+      "description": "Handles correcting an expense: filling the form, saving, and recovering if someone else changed it first."
+    },
+    "web/src/routes/ExpensesPage.tsx": {
+      "name": "Expenses page",
+      "description": "Records farm spending by category and shows it month by month."
+    },
+    "web/src/routes/ProductDialogs.tsx": {
+      "name": "Product pop-ups",
+      "description": "Pop-ups for creating a product, editing it and editing how it converts between selling units."
+    },
+    "web/src/routes/ProductsPage.tsx": {
+      "name": "Products page",
+      "description": "Shows the catalog of what the farm sells, with its packed-unit tab."
+    },
+    "web/src/routes/sales/AddLineForm.tsx": {
+      "name": "Add order item form",
+      "description": "The form for adding a product, grade and quantity to an order being built."
+    },
+    "web/src/routes/sales/OrderLines.tsx": {
+      "name": "Order items",
+      "description": "Lists the items on the open order and lets staff edit or remove them."
+    },
+    "web/src/routes/sales/OrderList.tsx": {
+      "name": "Order list",
+      "description": "Lists past and current orders and opens a pop-up with an order's details."
+    },
+    "web/src/routes/sales/orderMath.ts": {
+      "name": "Order calculations",
+      "description": "Works out line prices, discounts, selling units and totals for an order, and prepares prices for editing."
+    },
+    "web/src/routes/sales/SalesPage.tsx": {
+      "name": "Sales page",
+      "description": "Where staff start a draft order, add or change items, confirm it, cancel drafts and browse or filter past orders."
+    },
+    "web/src/routes/sales/salesUi.tsx": {
+      "name": "Sales screen styles",
+      "description": "Shared styles, order status labels and money formatting used across the sales screen."
+    },
+    "web/src/routes/sales/SettlementRail.tsx": {
+      "name": "Payment side panel",
+      "description": "The side panel of an order showing what is owed and paid, and where payments are recorded."
+    },
+    "web/src/routes/sales/useActiveOrder.ts": {
+      "name": "Open order logic",
+      "description": "Keeps track of the order draft currently being built."
+    },
+    "web/src/routes/sales/useIdempotencyKeys.ts": {
+      "name": "Duplicate-click guard",
+      "description": "Gives each save a reusable ID so a retry after a failure is not recorded twice."
+    },
+    "web/src/routes/sales/useNewOrder.tsx": {
+      "name": "New order logic",
+      "description": "Holds the entries, saving and pop-up behind starting a new order."
+    },
+    "web/src/routes/sales/useOrderCommands.tsx": {
+      "name": "Order actions logic",
+      "description": "Sends the changes to orders and their items, and loads the open order."
+    },
+    "web/src/routes/sales/useOrderFilters.tsx": {
+      "name": "Order filters logic",
+      "description": "Holds the status and customer filters and paging for the order list."
+    },
+    "web/src/routes/sales/usePayments.tsx": {
+      "name": "Payments logic",
+      "description": "Loads what has been paid on a confirmed order and records new payments; admin-only money data."
+    }
+  }
+}

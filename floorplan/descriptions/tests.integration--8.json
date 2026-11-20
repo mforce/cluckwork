@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/FixedWindowCounterContractTests.cs": {
+      "name": "Time-window counter rule checks",
+      "description": "Checks counting events inside a fixed time window."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/LeaseContractTests.cs": {
+      "name": "Lease rule checks",
+      "description": "Checks the rule for a renewable, owned lock that can be released safely."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/RedisCapabilityIsolationTests.cs": {
+      "name": "Shared store separation checks",
+      "description": "Checks that claims and locks sharing a name in the shared store do not collide."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/RedisClaimOnceContractTests.cs": {
+      "name": "Shared store single-use claim checks",
+      "description": "Checks single-use claims against a real shared store."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/RedisFixedWindowCounterContractTests.cs": {
+      "name": "Shared store counter checks",
+      "description": "Checks time-window counting against a real shared store."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/RedisFixture.cs": {
+      "name": "Shared store test setup",
+      "description": "Test helper that starts a real shared store for its tests."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/RedisLeaseContractTests.cs": {
+      "name": "Shared store lease checks",
+      "description": "Checks renewable locks against a real shared store."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/RedisReportConcurrencyCapContractTests.cs": {
+      "name": "Shared store report limit checks",
+      "description": "Checks that two servers share one report limit through a real shared store."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/ResilientFallbackTests.cs": {
+      "name": "Shared store fallback checks",
+      "description": "Checks what the app does when the shared store is unavailable."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/SharedStateNamespaceWiringTests.cs": {
+      "name": "Shared store naming checks",
+      "description": "Checks that the app uses the same name prefix for all shared store data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/SharedStateRegistrationTests.cs": {
+      "name": "Shared store setup checks",
+      "description": "Checks that the right shared store is chosen when the app starts."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SimulationCrossDayRerunTests.cs": {
+      "name": "Simulation repeat-day checks",
+      "description": "Checks that re-running the demo data builder on a later day does not duplicate data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SimulationDeepSeedDrainTests.cs": {
+      "name": "Simulation large data cleanup checks",
+      "description": "Checks that a very large demo data set is still cleaned up over several passes."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SimulationDuplicateFlockNameTests.cs": {
+      "name": "Simulation duplicate flock name checks",
+      "description": "Checks that the demo builder copes with flocks sharing a name."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SimulationOptionsBindingTests.cs": {
+      "name": "Simulation setting checks",
+      "description": "Checks that the load-test demo settings are read correctly."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SimulationSeedCommandTests.cs": {
+      "name": "Simulation data command checks",
+      "description": "Checks the command-line tool that loads load-test demo data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SimulationSeederTests.cs": {
+      "name": "Simulation data builder checks",
+      "description": "Checks that the builder creates a full cast of managers, sales staff and workers."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SolutionItemTests.cs": {
+      "name": "Project file listing checks",
+      "description": "Checks that the solution lists the files it should."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SolutionTestProjectSplitTests.cs": {
+      "name": "Test project coverage checks",
+      "description": "Checks that every test project is run by the automatic build."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SpaShellRawPathTests.cs": {
+      "name": "Web page odd address checks",
+      "description": "Checks that unusual page addresses such as a double slash are handled safely."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SpaShellTests.cs": {
+      "name": "Web page shell checks",
+      "description": "Checks that the app's main web page is served with its safety rules filled in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StartupHook.cs": {
+      "name": "Test startup hook",
+      "description": "Test helper that the .NET runtime loads to set things up before the app starts."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StaticAssetCachingTests.cs": {
+      "name": "Static file caching checks",
+      "description": "Checks the caching rules for the app's images, scripts and styles."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StealLossConnectionReleaseTests.cs": {
+      "name": "Repeat-request lock release checks",
+      "description": "Checks that database connections are released when a repeated request loses its claim."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StepUpAuthTests.cs": {
+      "name": "Password re-confirmation checks",
+      "description": "Checks that sensitive actions require the password again."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistryConcurrencySmokeTests.cs": {
+      "name": "Re-confirmation concurrency smoke test",
+      "description": "A quick sanity check of password re-confirmation under many simultaneous uses."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistrySharedStoreTests.cs": {
+      "name": "Re-confirmation shared store checks",
+      "description": "Checks that password re-confirmations are shared between servers."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/StepUpGrantRegistryTests.cs": {
+      "name": "Re-confirmation registry checks",
+      "description": "Checks the registry that remembers recent password re-confirmations."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SubmitDailyEntryTests.cs": {
+      "name": "Daily entry submission checks",
+      "description": "Checks that submitting a day's egg entry adds the eggs to stock."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TemporaryPasswordTests.cs": {
+      "name": "Temporary password checks",
+      "description": "Checks the generator for emergency temporary passwords."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TenantContextSingleAssignmentTests.cs": {
+      "name": "Farm context single-set checks",
+      "description": "Checks that each request is tied to exactly one farm and cannot be switched."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TenantIsolationTests.cs": {
+      "name": "Farm data separation checks",
+      "description": "Checks that one farm can never read or change another farm's data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TenantResolutionMiddlewareTests.cs": {
+      "name": "Farm lookup step checks",
+      "description": "Checks the step that works out which farm each request belongs to."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TenantScopedLockTests.cs": {
+      "name": "Farm-limited lock checks",
+      "description": "Checks that order and stock locks only apply within the caller's own farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TenantWriteGuardTests.cs": {
+      "name": "Farm write guard checks",
+      "description": "Checks the guard that refuses saving data into another farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TenantWriteRefusalLoggingTests.cs": {
+      "name": "Farm write refusal logging checks",
+      "description": "Checks that refused cross-farm saves are logged as security events."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TimeZoneAvailabilityTests.cs": {
+      "name": "Time zone availability checks",
+      "description": "Checks the startup check that the needed time zones exist."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TrackedMutationReadTests.cs": {
+      "name": "Flock read snapshot checks",
+      "description": "Checks that reading a flock from the database takes one consistent snapshot."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TransientDbResilienceTests.cs": {
+      "name": "Brief database failure checks",
+      "description": "Checks that short database hiccups are retried instead of failing the request."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TrustedProxyGuardTests.cs": {
+      "name": "Trusted proxy checks",
+      "description": "Checks that forwarded address headers are trusted only from approved networks."
+    }
+  }
+}

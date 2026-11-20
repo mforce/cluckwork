@@ -1,0 +1,60 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs": {
+      "name": "Demo data loader",
+      "description": "Fills a fresh, empty database with sample farm data for development, and does nothing if data already exists."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SeedResult.cs": {
+      "name": "Sample data outcome",
+      "description": "Reports whether loading sample data created data, found it already there or failed."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Accounts.cs": {
+      "name": "Test data: accounts",
+      "description": "Part of the load-test data loader that sets up the farm account and its settings."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Cast.cs": {
+      "name": "Test data: staff",
+      "description": "Part of the load-test data loader that creates the staff of managers, sales, workers and read-only users."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.cs": {
+      "name": "Load-test data loader",
+      "description": "Fills a database with a realistic made-up farm, with staff, flocks and history, for load testing and screen tests."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Flocks.cs": {
+      "name": "Test data: flocks",
+      "description": "Part of the load-test data loader that creates flocks, their layout and a flock-limited worker."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Inventory.cs": {
+      "name": "Test data: inventory",
+      "description": "Part of the load-test data loader that creates inventory and stock movements."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Manifest.cs": {
+      "name": "Test data: summary and counts",
+      "description": "Part of the load-test data loader that tallies what was created and checks it against expected counts."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.ManifestExpectations.cs": {
+      "name": "Test data: expected counts",
+      "description": "Part of the load-test data loader that works out how many records of each kind should exist."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Preflight.cs": {
+      "name": "Test data: pre-checks",
+      "description": "Part of the load-test data loader that checks the database is in a fit state before loading."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.ProductionHistory.cs": {
+      "name": "Test data: egg history",
+      "description": "Part of the load-test data loader that creates past daily egg production entries."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationDataSeeder.Sales.cs": {
+      "name": "Test data: sales",
+      "description": "Part of the load-test data loader that creates customers and sales orders."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationOptions.cs": {
+      "name": "Load-test data settings",
+      "description": "Settings that control how much made-up data the load-test loader creates."
+    },
+    "src/Cluckwork.Infrastructure/Persistence/SimulationSeedState.cs": {
+      "name": "Load-test loaded marker",
+      "description": "A saved note that load-test data was loaded, so loading again does not guess from existing records."
+    }
+  }
+}

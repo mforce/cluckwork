@@ -1,0 +1,96 @@
+{
+  "files": {
+    "tools/simulation/bootstrap.sh": {
+      "name": "Test farm secrets setup",
+      "description": "Generates the passwords and secrets the test farm needs."
+    },
+    "tools/simulation/harness-login-body.test.mjs": {
+      "name": "Login reply safety tests",
+      "description": "Checks the load-test tools never record the sign-in challenge from a failed login, since it works like a password."
+    },
+    "tools/simulation/k6/auth-smoke.js": {
+      "name": "Sign-in quick check",
+      "description": "Quick check against the live test farm that the load-test sign-in code works."
+    },
+    "tools/simulation/k6/auth.js": {
+      "name": "Load test sign-in",
+      "description": "Signs simulated users in, builds their request headers and renews their session during load tests."
+    },
+    "tools/simulation/k6/baseline.js": {
+      "name": "Baseline load test",
+      "description": "Runs a warm-up then a measured busy period of simulated staff using the app, and reports only the measured part."
+    },
+    "tools/simulation/k6/bundles.js": {
+      "name": "Screen request sets",
+      "description": "Groups the requests each app screen makes so simulated users repeat them, and counts any unexpected replies."
+    },
+    "tools/simulation/k6/config.js": {
+      "name": "Load test settings",
+      "description": "Shared addresses and sign-in settings used by the load tests."
+    },
+    "tools/simulation/k6/dates.js": {
+      "name": "Load test dates",
+      "description": "Date helpers so simulated reports and entries use sensible, not-in-the-future dates."
+    },
+    "tools/simulation/k6/dates.test.mjs": {
+      "name": "Load test date checks",
+      "description": "Checks the report date range always ends on a valid day whatever hour the test runs."
+    },
+    "tools/simulation/k6/persona-smoke.js": {
+      "name": "Persona quick check",
+      "description": "Quick check against the live test farm that each simulated user type runs without unexpected replies."
+    },
+    "tools/simulation/k6/personas/manager.js": {
+      "name": "Simulated manager",
+      "description": "Loop of weighted actions a simulated farm manager does during load tests."
+    },
+    "tools/simulation/k6/personas/owner.js": {
+      "name": "Simulated owner",
+      "description": "Loop of weighted actions a simulated owner or admin does during load tests."
+    },
+    "tools/simulation/k6/personas/readonly.js": {
+      "name": "Simulated read-only user",
+      "description": "Loop of weighted actions a simulated read-only user does during load tests."
+    },
+    "tools/simulation/k6/personas/sales.js": {
+      "name": "Simulated sales user",
+      "description": "Loop of weighted actions a simulated sales user does during load tests."
+    },
+    "tools/simulation/k6/personas/worker.js": {
+      "name": "Simulated worker",
+      "description": "Loop of weighted actions a simulated farm worker does during load tests."
+    },
+    "tools/simulation/k6/totp.js": {
+      "name": "Load test authenticator codes",
+      "description": "Makes the two-step sign-in codes for the simulated owner, waiting for the next time window rather than reusing one."
+    },
+    "tools/simulation/k6/totp.test.mjs": {
+      "name": "Authenticator code tests",
+      "description": "Checks the load-test code generator gives correct two-step sign-in codes with a fixed clock."
+    },
+    "tools/simulation/monitor/docker-stats-sampler.sh": {
+      "name": "Server load sampler",
+      "description": "Records how much computer power each part of the test farm uses during a load test."
+    },
+    "tools/simulation/monitor/pg-snapshot.sh": {
+      "name": "Database snapshot sampler",
+      "description": "Takes periodic snapshots of how the test database is doing during a load test."
+    },
+    "tools/simulation/reset.sh": {
+      "name": "Rebuild test farm",
+      "description": "Wipes and rebuilds the test farm from scratch, then checks it started, was filled with sample data and is safely reachable."
+    },
+    "tools/simulation/run-baseline.sh": {
+      "name": "Run load test",
+      "description": "Runs a full load test: starts the monitors, runs the baseline and gathers the results."
+    },
+    "tools/simulation/totp.py": {
+      "name": "Authenticator code script",
+      "description": "Prints a two-step sign-in code for the test owner for use in scripts."
+    },
+    "tools/simulation/verify-harness.sh": {
+      "name": "Load test self-check",
+      "description": "Cheap check that the load-test tools themselves are in working order."
+    }
+  }
+}

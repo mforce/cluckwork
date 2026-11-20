@@ -1,0 +1,112 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/CreateFlockCommand.cs": {
+      "name": "New flock request",
+      "description": "The request to add a flock; for now it is always placed in the default farm and house."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/FlockEligibility.cs": {
+      "name": "Flock status filter",
+      "description": "Says which flock statuses a lookup is allowed to return."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/FlockReference.cs": {
+      "name": "Flock label",
+      "description": "The current display details of a flock, so lists of records can show flock names together."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/IFlockFixture.cs": {
+      "name": "Flock test data access",
+      "description": "Reads and writes sample flock data for the simulation setup; not available in production."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/IFlockLookup.cs": {
+      "name": "Flock lookup",
+      "description": "Lets other parts of the app find flocks by ID or name, reporting when a name matches several."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/IFlockModule.cs": {
+      "name": "Flock contract",
+      "description": "Lists everything the rest of the app can ask the flock area to do, such as flock changes and bird movements."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/IMortalityLedger.cs": {
+      "name": "Deaths recording",
+      "description": "Lets daily entries record bird deaths against a flock."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/RecordBirdMovementCommand.cs": {
+      "name": "Bird movement request",
+      "description": "The request to record a manual change in bird count, such as a cull or a correction."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Contracts/UpdateFlockCommand.cs": {
+      "name": "Edit flock request",
+      "description": "The request to change a flock's details."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/ArchiveFlock/ArchiveFlockHandler.cs": {
+      "name": "Archive flock",
+      "description": "Moves a flock out of active use while keeping its history."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/CreateFlock/CreateFlockHandler.cs": {
+      "name": "Add flock",
+      "description": "Adds a new flock to the farm."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/CreateFlock/CreateFlockValidator.cs": {
+      "name": "New flock check",
+      "description": "Checks a new flock has valid details before it is added."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/DepleteFlock/DepleteFlockHandler.cs": {
+      "name": "Mark flock depleted",
+      "description": "Marks a flock as having no birds left."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/FlockLookup.cs": {
+      "name": "Flock finder",
+      "description": "Finds flocks by ID or name for other parts of the app."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/FlockModule.cs": {
+      "name": "Flock service",
+      "description": "Carries out flock requests such as adding, editing, archiving and recording bird movements."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/IBirdMovementRepository.cs": {
+      "name": "Bird history storage",
+      "description": "Describes how bird movement history is saved; entries can only be added, with corrections made as new entries."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/IFlockRepository.cs": {
+      "name": "Flock storage",
+      "description": "Describes how flocks are loaded and saved."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/MortalityLedger.cs": {
+      "name": "Deaths recorder",
+      "description": "Turns deaths in a submitted daily entry into bird movement entries on the flock."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/ReactivateFlock/ReactivateFlockHandler.cs": {
+      "name": "Reactivate flock",
+      "description": "Brings an archived or depleted flock back into active use."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/RecordBirdMovement/RecordBirdMovementHandler.cs": {
+      "name": "Record bird movement",
+      "description": "Adds a manual entry changing a flock's bird count, such as a cull or correction."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/RecordBirdMovement/RecordBirdMovementValidator.cs": {
+      "name": "Bird movement check",
+      "description": "Checks a bird movement has valid details before it is recorded."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/UpdateFlock/UpdateFlockHandler.cs": {
+      "name": "Edit flock",
+      "description": "Changes a flock's details."
+    },
+    "src/Cluckwork.Application/Modules/FlockManagement/Flocks/UpdateFlock/UpdateFlockValidator.cs": {
+      "name": "Edit flock check",
+      "description": "Checks edited flock details are valid before saving."
+    },
+    "src/Cluckwork.Domain/Modules/FlockManagement/Contracts/BirdMovementType.cs": {
+      "name": "Bird movement types",
+      "description": "The kinds of bird count change, such as deaths, culls and adjustments."
+    },
+    "src/Cluckwork.Domain/Modules/FlockManagement/Contracts/FlockStatus.cs": {
+      "name": "Flock statuses",
+      "description": "The stages a flock can be in, such as active, archived or depleted."
+    },
+    "src/Cluckwork.Domain/Modules/FlockManagement/Flocks/BirdMovement.cs": {
+      "name": "Bird movement entry",
+      "description": "One line in a flock's permanent bird history: deaths from daily entries, culls and manual corrections."
+    },
+    "src/Cluckwork.Domain/Modules/FlockManagement/Flocks/Flock.cs": {
+      "name": "Flock",
+      "description": "A group of birds kept together, with its details, status and current bird count."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/RefreshTokenPurgeSweepTests.cs": {
+      "name": "Old session cleanup checks",
+      "description": "Checks that expired session renewal keys are deleted so the table does not grow forever."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ReportConcurrencyCapContractTests.cs": {
+      "name": "Report load limit checks",
+      "description": "Checks that each account can only run a limited number of reports at once."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ReportQueryBoundingTests.cs": {
+      "name": "Report query size checks",
+      "description": "Checks that the production report only loads the dates it needs, not all history."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ReportsConcurrencyLimitTests.cs": {
+      "name": "Report busy-limit checks",
+      "description": "Checks that the real reports screens are protected by the concurrency limit."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ReportsTests.cs": {
+      "name": "Core report checks",
+      "description": "Checks production math such as hen-days, plus the money reports."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RequestLoggingTests.cs": {
+      "name": "Request logging checks",
+      "description": "Checks that failed requests are logged properly without leaking details."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ResponseCacheControlTests.cs": {
+      "name": "Browser caching rule checks",
+      "description": "Checks that answers carry safe rules about being stored by browsers."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RetryBoundaryTests.cs": {
+      "name": "Automatic retry checks",
+      "description": "Checks where the app retries a failed database action and where it must not."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RoleMatrixTests.cs": {
+      "name": "Role permission checks",
+      "description": "Checks what each role (Owner, Manager, Worker) may do, and that Workers only see their flocks."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SaleAllocationLineTests.cs": {
+      "name": "Sale line allocation checks",
+      "description": "Checks that each egg allocation names the order line it was taken for."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SaleAllocationPolicyTests.cs": {
+      "name": "Sale allocation policy checks",
+      "description": "Checks how eggs are chosen for an order when it is confirmed."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SalesDiscountCeilingTests.cs": {
+      "name": "Discount limit checks",
+      "description": "Checks that a discount above the farm's ceiling is refused when confirming an order."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SalesDiscountReasonTests.cs": {
+      "name": "Discount reason checks",
+      "description": "Checks that a reason is required when confirming an order with discounted prices."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SalesOrderAuditPayloadTests.cs": {
+      "name": "Sales order audit detail checks",
+      "description": "Checks that audit records for order lines include the prices."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SalesOrderListQueryTests.cs": {
+      "name": "Order list query checks",
+      "description": "Checks the database query behind the orders list."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SalesProductTests.cs": {
+      "name": "Sales product checks",
+      "description": "Checks that order lines sell products in packed units."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SchemaDocsTests.cs": {
+      "name": "Database documentation checks",
+      "description": "Checks that the generated database documentation is complete and up to date."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.ChangePassword.cs": {
+      "name": "Two-step password change checks",
+      "description": "Checks that people with two-step sign-in must enter a code to change their password."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.cs": {
+      "name": "Two-step sign-in checks",
+      "description": "Checks the code step of signing in for people with two-step sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Enrolment.cs": {
+      "name": "Two-step setup checks",
+      "description": "Checks the steps for setting up or replacing two-step sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Events.cs": {
+      "name": "Two-step sign-in event checks",
+      "description": "Checks that the code step records anonymous events and respects revoked sessions."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Lockout.cs": {
+      "name": "Two-step lockout checks",
+      "description": "Checks that wrong codes count toward the same lockout as wrong passwords."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Logout.cs": {
+      "name": "Two-step logout checks",
+      "description": "Checks that logging out completes even if the browser stops waiting."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Proof.cs": {
+      "name": "Two-step proof checks",
+      "description": "Checks the rules for committing a two-step proof when changing sensitive things."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Races.cs": {
+      "name": "Two-step race checks",
+      "description": "Checks what happens when things change between the two sign-in steps or a code is replayed."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Recovery.cs": {
+      "name": "Two-step recovery code checks",
+      "description": "Checks backup recovery codes and one-time login challenges."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.Reset.cs": {
+      "name": "Two-step reset checks",
+      "description": "Checks that an Owner can reset another person's two-step sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.RevocationReasons.cs": {
+      "name": "Session end reason checks",
+      "description": "Checks that every way a session is ended records a reason."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.StepUp.cs": {
+      "name": "Two-step re-confirmation checks",
+      "description": "Checks that sensitive actions ask again for the password and a code."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorLoginTests.TurnOff.cs": {
+      "name": "Two-step turn-off checks",
+      "description": "Checks that a person can turn off their own two-step sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecondFactorRateLimitTests.cs": {
+      "name": "Two-step code rate-limit checks",
+      "description": "Checks that too many code guesses from one address are refused."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecretCliLoggingGuardTests.cs": {
+      "name": "Command-line secret logging checks",
+      "description": "Checks that the admin command-line tools never print passwords to logs."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecurityEventLoggingTests.cs": {
+      "name": "Security event logging checks",
+      "description": "Checks that the key security events are logged in a stable form."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SecurityHeadersTests.cs": {
+      "name": "Security header checks",
+      "description": "Checks that every answer carries the standard browser security headers."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SeedAndFlockTests.cs": {
+      "name": "Starter data and flock checks",
+      "description": "Checks that the app is usable from a fresh start and that flocks can be created and edited."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SeedCommandTests.cs": {
+      "name": "Demo data command checks",
+      "description": "Checks the command-line tool that loads demo data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ServingGuardCoverageTests.cs": {
+      "name": "Startup check coverage checks",
+      "description": "Checks that the table of startup checks matches the actual code."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ShapeProbe.cs": {
+      "name": "Database query counter",
+      "description": "Test helper that counts the database queries a request makes."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/ClaimOnceContractTests.cs": {
+      "name": "Single-use claim rule checks",
+      "description": "Checks the rule that something can be claimed only once within a time window."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/SharedState/FakeTimeProvider.cs": {
+      "name": "Test clock",
+      "description": "Test helper clock that can be moved forward by hand."
+    }
+  }
+}

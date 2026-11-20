@@ -1,0 +1,76 @@
+{
+  "files": {
+    "web/src/auth/AuthContext.tsx": {
+      "name": "Sign-in state",
+      "description": "Keeps track of whether someone is signed in, handles signing in and out and keeps them signed in."
+    },
+    "web/src/auth/claims.ts": {
+      "name": "Signed-in person's role",
+      "description": "Reads the person's role and ID from their sign-in pass to decide what to show; the server still enforces who may do what."
+    },
+    "web/src/auth/farmCodeCache.ts": {
+      "name": "Remembered farm codes",
+      "description": "Cleans up and remembers the farm codes typed at sign-in so they can be offered again, with a way to remove one."
+    },
+    "web/src/auth/oauthScopes.ts": {
+      "name": "Connected app permissions",
+      "description": "Lists the permissions a connected app can ask for, in the order the consent screen shows them."
+    },
+    "web/src/auth/returnPath.ts": {
+      "name": "Return after sign-in",
+      "description": "Works out where to send someone after sign-in, only ever to a screen in this app."
+    },
+    "web/src/auth/sessionSignal.ts": {
+      "name": "Tab sign-in alert",
+      "description": "Tells the other open tabs when someone signs in or out here, so a tab showing unsaved recovery codes hides them."
+    },
+    "web/src/auth/tokenStore.ts": {
+      "name": "Sign-in pass keeper",
+      "description": "Holds the sign-in pass in the page's memory only, never in saved browser storage, and remembers which account and farm it belongs to."
+    },
+    "web/src/auth/useAuth.ts": {
+      "name": "Sign-in access helper",
+      "description": "Gives any screen access to the current sign-in state, and fails if used outside the sign-in wrapper."
+    },
+    "web/src/routes/Login.tsx": {
+      "name": "Sign-in screen",
+      "description": "Takes the farm code, username and password, hands over to the second step when needed and returns to where the person was going."
+    },
+    "web/src/routes/ProtectedRoute.tsx": {
+      "name": "Sign-in gate",
+      "description": "Sends signed-out visitors to sign in, and sends people who must set a new password or two-step sign-in to those screens first."
+    },
+    "web/src/routes/SecondFactorStep.tsx": {
+      "name": "Second sign-in step",
+      "description": "Asks for the second code during sign-in and finishes the sign-in when it is right."
+    },
+    "web/src/routes/SetPasswordPage.tsx": {
+      "name": "New password screen",
+      "description": "Makes someone choose a new password the first time they sign in before they can use the app."
+    },
+    "web/src/routes/signInMessage.ts": {
+      "name": "Sign-in error messages",
+      "description": "Turns a failed sign-in into a message in the person's language."
+    },
+    "web/src/routes/TwoFactorDeadlineBanner.tsx": {
+      "name": "Two-step deadline banner",
+      "description": "Reminds owners to set up two-step sign-in by a deadline while it is still off."
+    },
+    "web/src/routes/TwoFactorEnrolmentPage.tsx": {
+      "name": "Two-step setup screen",
+      "description": "Takes over for an owner who is past the deadline until two-step sign-in is set up."
+    },
+    "web/src/session/LanguageSelector.tsx": {
+      "name": "Language picker",
+      "description": "Lets each person choose the language of the screens, saved to their own account."
+    },
+    "web/src/session/SessionContext.tsx": {
+      "name": "Signed-in person's details",
+      "description": "Loads who is signed in, their farm and language right after sign-in and shares it with every screen."
+    },
+    "web/src/session/StepperUnitSelector.tsx": {
+      "name": "Entry unit picker",
+      "description": "Lets each person choose the pack unit used by the plus and minus buttons on daily entry, on the Account screen."
+    }
+  }
+}

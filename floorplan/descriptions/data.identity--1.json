@@ -1,0 +1,164 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Modules/Access/Configurations/ApplicationUserConfiguration.cs": {
+      "name": "User record settings",
+      "description": "Sets how a user's record is stored, limiting the length of the language setting kept for each person."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Configurations/UserRoleAssignmentConfiguration.cs": {
+      "name": "Role assignment record settings",
+      "description": "Sets how the record of who holds which role is stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccessAccountLifecycle.cs": {
+      "name": "Farm account lifecycle",
+      "description": "Groups the actions that rename, suspend and bring back a farm account, kept apart from sign-in details."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccessFixture.cs": {
+      "name": "Access test setup",
+      "description": "Sets up the sign-in side of a fresh farm so a first account and its permissions exist."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccessLookup.cs": {
+      "name": "Access lookup",
+      "description": "Looks up which farm and flocks a signed-in person may see, on every request, using only the current farm's records."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccessModule.cs": {
+      "name": "Accounts and sign-in hub",
+      "description": "Gathers the sign-in, accounts, first-run and token features into the single entry point the rest of the app uses."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccessOperations.cs": {
+      "name": "Account setup actions",
+      "description": "Bundles the actions for creating accounts, first-run admin setup and admin recovery."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccessSeedLookup.cs": {
+      "name": "Starter data lookup",
+      "description": "Finds existing accounts and users while sample data is loaded so the same people are not created twice."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountLockout.cs": {
+      "name": "Account lockout",
+      "description": "Counts wrong passwords per person and locks the account after too many, for every place a password is checked."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountProvisioner.cs": {
+      "name": "New farm accounts",
+      "description": "Creates a new farm account together with its first owner and starting settings."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountRenameService.cs": {
+      "name": "Farm code change",
+      "description": "Changes a farm's short account code and records the change."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountScopedUserValidator.cs": {
+      "name": "User name rules",
+      "description": "Checks a new or changed user against the rules of their own farm, so the same name can exist on different farms."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountSuspensionService.cs": {
+      "name": "Farm suspension",
+      "description": "Takes a farm account offline and brings it back, signing its people out when suspended."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AccountUserDirectory.cs": {
+      "name": "Farm user directory",
+      "description": "The one place that finds a user by name or email within a given farm account."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AdminRecoveryService.cs": {
+      "name": "Admin emergency recovery",
+      "description": "Lets someone with server access regain control of an admin account by issuing a temporary password."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/ApplicationRole.cs": {
+      "name": "Role record",
+      "description": "How a role such as owner or manager is stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/ApplicationUser.cs": {
+      "name": "User record",
+      "description": "How a person who signs in is stored: their login, farm account, language and related settings."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/AuthSecurityEventLogger.cs": {
+      "name": "Sign-in security log",
+      "description": "Writes the security log entries for failed sign-ins and account lockouts, whichever check caught them."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/CredentialEpochVerifier.cs": {
+      "name": "Sign-in freshness check",
+      "description": "Checks that a sign-in pass was issued after the person's last password or security change, so old passes stop working."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/CurrentPasswordCheck.cs": {
+      "name": "Password confirmation",
+      "description": "Checks a person's current password for extra-sensitive actions and password changes, counting wrong tries toward lockout."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/EnrolledSessionOptions.cs": {
+      "name": "Code re-check period",
+      "description": "Setting for how many days (30 by default) a person with two-step sign-in can stay signed in before being asked for their code again."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/FirstRunAdminService.cs": {
+      "name": "First admin creation",
+      "description": "Creates the very first owner account on a new install and refuses to create a second one."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/FirstRunStatusService.cs": {
+      "name": "First-run status",
+      "description": "Tells the sign-in screen whether the first owner exists yet, so a new install can point people to setup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.ActingSession.cs": {
+      "name": "Sign-in: acting session",
+      "description": "Part of the sign-in service that protects two-step changes from races with password resets or disabling."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.ClearTwoFactor.cs": {
+      "name": "Sign-in: turn off two-step",
+      "description": "Part of the sign-in service that lets a person turn off their own two-step sign-in, or an owner reset someone else's."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.cs": {
+      "name": "Sign-in service core",
+      "description": "The main sign-in service: checks passwords, handles lockouts and issues the sign-in passes."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.DisableEnable.cs": {
+      "name": "Sign-in: disable and enable users",
+      "description": "Part of the sign-in service that disables and re-enables a person's account."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Email.cs": {
+      "name": "Sign-in: email changes",
+      "description": "Part of the sign-in service that handles changing and confirming a person's email address."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Enrolment.cs": {
+      "name": "Sign-in: set up two-step",
+      "description": "Part of the sign-in service that lets a person set up or replace their authenticator app."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Logout.cs": {
+      "name": "Sign-in: sign out",
+      "description": "Part of the sign-in service that signs people out and cancels their stay-signed-in passes."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Passwords.cs": {
+      "name": "Sign-in: passwords",
+      "description": "Part of the sign-in service that changes and resets passwords."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Refresh.cs": {
+      "name": "Sign-in: stay signed in",
+      "description": "Part of the sign-in service that swaps an old stay-signed-in pass for a fresh one and spots reuse of stolen ones."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Roles.cs": {
+      "name": "Sign-in: roles",
+      "description": "Part of the sign-in service that changes who holds which role."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.SecondFactor.cs": {
+      "name": "Sign-in: code step",
+      "description": "Part of the sign-in service that checks the code from a person's authenticator app or a recovery code."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Tokens.cs": {
+      "name": "Sign-in: passes",
+      "description": "Part of the sign-in service that creates and checks the sign-in passes handed to the app."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Users.cs": {
+      "name": "Sign-in: users",
+      "description": "Part of the sign-in service that creates, lists and updates the people who can sign in."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/IStepUpGrantRegistry.cs": {
+      "name": "Extra-check pass tracker",
+      "description": "Describes the record that makes each extra-check approval single-use and cancels it on sign-out."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/ITwoFactorCredentials.cs": {
+      "name": "Two-step credentials contract",
+      "description": "Describes everything that stores and checks a person's authenticator key and recovery codes, and the possible results of a check."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/JwtOptions.cs": {
+      "name": "Sign-in pass settings",
+      "description": "Settings for the sign-in passes, such as who issues them and how long they last."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/JwtTokenService.cs": {
+      "name": "Sign-in pass maker",
+      "description": "Creates the signed short-lived pass the app carries to prove who is signed in."
+    }
+  }
+}

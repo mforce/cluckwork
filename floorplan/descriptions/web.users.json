@@ -1,0 +1,96 @@
+{
+  "files": {
+    "web/src/routes/account/recoveryCodes.tsx": {
+      "name": "Recovery codes",
+      "description": "Issues and shows a person's one-time backup sign-in codes, and keeps the code list in step across the account screens."
+    },
+    "web/src/routes/account/SecurityPanel.tsx": {
+      "name": "Account security panel",
+      "description": "Shows whether two-step sign-in is on and how many backup codes are left, with buttons to make new codes or turn it off."
+    },
+    "web/src/routes/account/TwoFactorFlow.tsx": {
+      "name": "Two-step sign-in setup",
+      "description": "Walks someone through turning on two-step sign-in, replacing the account page while it runs so the secret code leaves the screen with the step."
+    },
+    "web/src/routes/account/TwoFactorQr.tsx": {
+      "name": "Setup QR code",
+      "description": "Draws the QR code for an authenticator app right on the page, so the secret key is never sent as a picture."
+    },
+    "web/src/routes/account/useTwoFactor.ts": {
+      "name": "Two-step sign-in logic",
+      "description": "Keeps track of the two-step sign-in section: its status, the setup steps, a warning when backup codes run low, and the password re-check before changes."
+    },
+    "web/src/routes/AccountPage.tsx": {
+      "name": "My account page",
+      "description": "Lets any signed-in person change their own password by entering the current one, and hosts the two-step sign-in security section."
+    },
+    "web/src/routes/users/ChangeEmailDialog.tsx": {
+      "name": "Change email pop-up",
+      "description": "Pop-up window where an owner changes a staff member's email address."
+    },
+    "web/src/routes/users/ChangeRoleDialog.tsx": {
+      "name": "Change role pop-up",
+      "description": "Pop-up window where an owner changes what role a staff member has."
+    },
+    "web/src/routes/users/CreateUserDialog.tsx": {
+      "name": "Add user pop-up",
+      "description": "Pop-up form for adding a new worker or another admin, after a password re-check."
+    },
+    "web/src/routes/users/DisableEnableDialog.tsx": {
+      "name": "Disable or enable user pop-up",
+      "description": "Pop-up that confirms turning a staff member's account off or back on."
+    },
+    "web/src/routes/users/EditUserDialog.tsx": {
+      "name": "Edit user pop-up",
+      "description": "Pop-up window for changing a staff member's display name."
+    },
+    "web/src/routes/users/FlockAccessDialog.tsx": {
+      "name": "Flock access pop-up",
+      "description": "Pop-up for choosing which flocks a worker may work with, adding or removing them after a password re-check."
+    },
+    "web/src/routes/users/ResetTwoFactorDialog.tsx": {
+      "name": "Reset two-step sign-in pop-up",
+      "description": "Pop-up where an owner confirms clearing another person's two-step sign-in so they can set it up again."
+    },
+    "web/src/routes/users/SetPasswordDialog.tsx": {
+      "name": "Reset password pop-up",
+      "description": "Pop-up where an owner sets a new password for a staff member."
+    },
+    "web/src/routes/users/useChangeEmail.ts": {
+      "name": "Change email logic",
+      "description": "Holds the form entries and saving steps behind the change-email pop-up."
+    },
+    "web/src/routes/users/useChangeRole.ts": {
+      "name": "Change role logic",
+      "description": "Holds the choices and saving steps behind the change-role pop-up."
+    },
+    "web/src/routes/users/useCreateUser.ts": {
+      "name": "Add user logic",
+      "description": "Holds the form entries, opening and closing, and the password-checked save behind the add-user pop-up."
+    },
+    "web/src/routes/users/useDisableEnable.ts": {
+      "name": "Disable or enable logic",
+      "description": "Holds the steps behind the pop-up that turns a user's account off or on."
+    },
+    "web/src/routes/users/useEditUser.ts": {
+      "name": "Edit user logic",
+      "description": "Holds the display-name entry and save behind the edit-user pop-up, starting from the current name."
+    },
+    "web/src/routes/users/useFlockAccess.ts": {
+      "name": "Flock access logic",
+      "description": "Holds the open and close steps and the password-checked adding and removing of flocks for a worker."
+    },
+    "web/src/routes/users/useResetTwoFactor.ts": {
+      "name": "Reset two-step sign-in logic",
+      "description": "Sends the request for an owner to clear another user's two-step sign-in."
+    },
+    "web/src/routes/users/useSetPassword.ts": {
+      "name": "Reset password logic",
+      "description": "Holds the entries and saving steps behind the reset-password pop-up."
+    },
+    "web/src/routes/UsersPage.tsx": {
+      "name": "Staff users page",
+      "description": "Lists everyone with an account and lets an owner add workers or admins and open the pop-ups to change their details, role, password, flock access and status."
+    }
+  }
+}

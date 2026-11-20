@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/GlobalUserLookupGuardTests.cs": {
+      "name": "Cross-farm user lookup tests",
+      "description": "Checks that no user lookup ignores the farm, since one email can belong to several farms."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/GlobalUsings.cs": {
+      "name": "Shared test imports",
+      "description": "Lists the common code namespaces every test file in this project can use."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/HandlerLoggingTests.cs": {
+      "name": "Money action logging tests",
+      "description": "Checks that money-related actions log success and the reason for any failure."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/HealthCheckCliCommandTests.cs": {
+      "name": "Health check command tests",
+      "description": "Checks the command that tests whether the server is healthy."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/HstsOverRealTlsTests.cs": {
+      "name": "Secure connection header tests",
+      "description": "Checks over a real secure connection that browsers are told to always use HTTPS and plain requests are redirected."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/IdempotencyRecordPurgeSweepTests.cs": {
+      "name": "Old duplicate-protection record cleanup tests",
+      "description": "Checks that old records used to spot repeated requests are deleted on schedule."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/IdempotencyReplayTests.cs": {
+      "name": "Repeated request replay tests",
+      "description": "Checks that repeating a write with the same key returns the first answer and does not repeat its effect."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/IdempotencyResponseWriteFailureTests.cs": {
+      "name": "Reply failure tests",
+      "description": "Checks what happens when the reply cannot be sent after the change has already been saved."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/IdempotencyUserScopeTests.cs": {
+      "name": "Repeat protection per user tests",
+      "description": "Checks that repeat-request protection keeps each person's requests separate."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/BeforeCommandHook.cs": {
+      "name": "Database timing hook",
+      "description": "Test helper that runs an action just before chosen database commands, to cause exact timing clashes."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/CluckworkWebApplicationFactory.cs": {
+      "name": "Test server launcher",
+      "description": "Test helper that starts the whole app against a real Postgres database, with throwaway sign-in keys."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/ConnectedAppToken.cs": {
+      "name": "Connected app test pass",
+      "description": "Test helper that gets a pass for a connected app with farm read access through the real consent steps."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/CredentialTypes.cs": {
+      "name": "Credential type finder",
+      "description": "Test helper that finds code types that hold passwords or secrets, by what they declare."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/DemoSeedCollection.cs": {
+      "name": "Sample data test group",
+      "description": "Makes sample data tests run one after another rather than at the same time."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/DmlOnlyRole.cs": {
+      "name": "Limited database role helper",
+      "description": "Test helper that makes a database user allowed to read and write records but not change structure."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeCoverageTrackers.cs": {
+      "name": "Fake tracking stand-ins",
+      "description": "Small stand-in types used to test the checks that make sure code is covered."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeOtlpCollector.cs": {
+      "name": "Fake monitoring receiver",
+      "description": "Test helper that stands in for a monitoring service and records what the app sends it."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeOtlpCollectorTests.cs": {
+      "name": "Fake monitoring receiver tests",
+      "description": "Checks that the fake monitoring receiver captures what it is sent."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/FakeRemoteIpStartupFilter.cs": {
+      "name": "Fake visitor address helper",
+      "description": "Test helper that lets a test pretend a request came from a chosen visitor address."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/IntegrationCollection.cs": {
+      "name": "Shared test database group",
+      "description": "Makes test classes share one database and test server so they start only once."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/IntegrationCollectionOrderer.cs": {
+      "name": "Test group ordering",
+      "description": "Orders the big shared test group so it runs in a fixed sequence."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/IsolatedLoginBucket.cs": {
+      "name": "Sign-in limit isolation helper",
+      "description": "Test helper that gives a test its own sign-in attempt allowance so tests do not use each other up."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/KestrelLogAssertions.cs": {
+      "name": "Server log check helper",
+      "description": "Test helper that proves a request finished cleanly on the server even if the visitor saw an error."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/MetadataDocumentServer.cs": {
+      "name": "Fake connected app host",
+      "description": "Test helper that acts as a connected app's website with scripted answers, so no real internet host is used."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/NonSeekableStream.cs": {
+      "name": "Unknown-length upload helper",
+      "description": "Test helper that simulates an upload whose size is not known in advance."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/OtlpPayloadAssertions.cs": {
+      "name": "Monitoring data checks",
+      "description": "Test helper that checks the monitoring data the app sends contains the expected details."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/OtlpPayloadAssertionsTests.cs": {
+      "name": "Monitoring data check tests",
+      "description": "Checks that the monitoring data check helper itself passes and fails correctly."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/QueryShapeWarningInitializer.cs": {
+      "name": "Database lookup warning setup",
+      "description": "Test setup that turns on warnings about inefficient database lookups."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/RedactedToString.cs": {
+      "name": "Secret hiding check",
+      "description": "Test helper that checks secret-holding types print only a hidden placeholder."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/ReferenceDataComparison.cs": {
+      "name": "Starting data comparison helper",
+      "description": "Test helper that compares built-in starting lists between databases."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/SecondFactorFactory.cs": {
+      "name": "Two-step sign-in test server",
+      "description": "Test helper that starts a server set up for two-step sign-in tests, with a controllable clock."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/SeedCommandRunner.cs": {
+      "name": "Sample data command runner",
+      "description": "Test helper that runs the sample data command as a separate program."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/ServingSubprocess.cs": {
+      "name": "Real server launcher",
+      "description": "Test helper that starts the real server as a separate program on its own port and watches its output."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/SharedPostgresDatabase.cs": {
+      "name": "Shared test database",
+      "description": "Test helper that starts one real Postgres database for tests to share."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/SignallingLease.cs": {
+      "name": "Background task lease helper",
+      "description": "Test helper that scripts leadership answers for background tasks and a server without its own worker."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestHarness.cs": {
+      "name": "Test setup helpers",
+      "description": "Shared helpers that create test farms, users and sign-ins for the tests."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestHarness.SecondFactor.cs": {
+      "name": "Two-step sign-in test helpers",
+      "description": "Helpers that enrol test users in two-step sign-in and complete the code step."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestScopes.cs": {
+      "name": "Test-only access scope",
+      "description": "Defines an access scope that only the test server knows."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/TestTlsCertificate.cs": {
+      "name": "Test security certificate",
+      "description": "Test helper that makes a temporary security certificate for secure-connection tests, never saved."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Infrastructure/TransientFaultInterceptors.cs": {
+      "name": "Temporary failure injectors",
+      "description": "Test helpers that make database commands fail briefly, to test retries."
+    }
+  }
+}

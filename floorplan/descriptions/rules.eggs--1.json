@@ -1,0 +1,164 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/AdjustDailyEntryCommand.cs": {
+      "name": "Correct daily entry request",
+      "description": "The details for correcting a recorded day; a stale version is refused rather than overwriting another admin's change."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/AdjustDailyEntryResponse.cs": {
+      "name": "Correct daily entry reply",
+      "description": "What comes back after a daily entry is corrected."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/CreateEggGradeCommand.cs": {
+      "name": "New egg grade request",
+      "description": "The details needed to add an egg grade."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/DailyEntryLockPass.cs": {
+      "name": "Daily entry lock result",
+      "description": "Holds the result of a day's entry being locked."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/IDailyEntryLookup.cs": {
+      "name": "Daily entries for other modules",
+      "description": "Lets other parts of the app look up daily egg entries."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/IEggGradeLookup.cs": {
+      "name": "Egg grades for other modules",
+      "description": "Lets other parts of the app look up egg grades."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/IEggGradeProvisioning.cs": {
+      "name": "Starting egg grades",
+      "description": "Lets farm setup create the first egg grades for a new account."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/IEggOperationsFixture.cs": {
+      "name": "Egg sample data access",
+      "description": "Lets the sample-data loaders read and write egg records; not available in the live system."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/IEggOperationsModule.cs": {
+      "name": "Egg module front door",
+      "description": "Lists what other parts of the app can ask the egg side for, with the shapes of daily entries, grades, lots and movements."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/IEggStock.cs": {
+      "name": "Egg stock for sales",
+      "description": "Lets sales check, reserve and take eggs from stock, and returns the lots it locked."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/LockedDailyEntry.cs": {
+      "name": "Locked daily entry",
+      "description": "Holds a daily entry that has just been locked."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/PlannedEggLotDraw.cs": {
+      "name": "Planned draw from a lot",
+      "description": "Holds how many eggs a sale plans to take from one egg lot."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/RecordDailyEntryCommand.cs": {
+      "name": "Record daily entry request",
+      "description": "The details for a day's egg counts by grade, deaths and other daily numbers."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/RecordEggLotMovementCommand.cs": {
+      "name": "Stock correction request",
+      "description": "The details for writing off or recounting the eggs in one lot."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/RecordEggLotMovementResult.cs": {
+      "name": "Stock correction result",
+      "description": "The correction as recorded plus the lot's new balance, so the screen can show it right away."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/RefusedDailyEntryLock.cs": {
+      "name": "Refused entry lock",
+      "description": "Holds a daily entry that could not be locked."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/SaleAllocationPlan.cs": {
+      "name": "Sale stock plan",
+      "description": "Says whether stock covers a whole order and, if not, which grade fell short and by how much."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/SaleDemandLine.cs": {
+      "name": "Eggs a sale needs",
+      "description": "One line of a sale: its grade and how many eggs it needs."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/StockByGrade.cs": {
+      "name": "Stock by grade",
+      "description": "Holds how many eggs are in stock for each grade."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/SubmitDailyEntryResponse.cs": {
+      "name": "Submit daily entry reply",
+      "description": "What comes back after a daily entry is submitted."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/UpdateEggGradeCommand.cs": {
+      "name": "Edit egg grade request",
+      "description": "The details needed to change an egg grade."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/VoidDailyEntryCommand.cs": {
+      "name": "Cancel daily entry request",
+      "description": "The details needed to cancel a submitted daily entry."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Contracts/VoidDailyEntryResponse.cs": {
+      "name": "Cancel daily entry reply",
+      "description": "What comes back after a daily entry is cancelled."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/AdjustDailyEntry/AdjustDailyEntryHandler.cs": {
+      "name": "Correcting a daily entry",
+      "description": "Corrects a submitted day's counts and updates the egg stock and bird records to match."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/AdjustDailyEntry/AdjustDailyEntryValidator.cs": {
+      "name": "Daily entry correction checks",
+      "description": "Checks a daily entry correction is valid before it is applied."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/ConditionGradeGuard.cs": {
+      "name": "Condition grade rule",
+      "description": "Stops anyone typing a count for a condition grade by hand, since the daily entry's own counter fills it."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/DailyEntryLookup.cs": {
+      "name": "Daily entry lookup",
+      "description": "Finds daily egg entries for other parts of the app."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/IDailyEntryRepository.cs": {
+      "name": "Daily entry records",
+      "description": "Lists how daily entries are looked up and saved in the database."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/LockDueDailyEntries/LockDueDailyEntriesHandler.cs": {
+      "name": "Locking old daily entries",
+      "description": "Locks submitted daily entries dated before the cutoff so they can no longer be edited freely."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/RecordDailyEntry/RecordDailyEntryHandler.cs": {
+      "name": "Saving a daily entry",
+      "description": "Saves a day's egg counts by grade and other daily numbers as a draft."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/RecordDailyEntry/RecordDailyEntryValidator.cs": {
+      "name": "Daily entry checks",
+      "description": "Checks a day's counts are valid before they are saved."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/SubmitDailyEntry/SubmitDailyEntryHandler.cs": {
+      "name": "Submitting a daily entry",
+      "description": "Turns a day's egg counts into egg lots, one per grade, and records the day's deaths in the bird records."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/VoidDailyEntry/VoidDailyEntryHandler.cs": {
+      "name": "Cancelling a daily entry",
+      "description": "Reverses a submitted day, emptying its egg lots and undoing its death count, but refuses if any of those eggs were sold."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/DailyEntries/VoidDailyEntry/VoidDailyEntryValidator.cs": {
+      "name": "Cancel daily entry checks",
+      "description": "Checks a daily entry cancellation comes with what it needs."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/CreateEggGrade/CreateEggGradeHandler.cs": {
+      "name": "Adding an egg grade",
+      "description": "Adds a new egg grade, a bucket eggs are sorted into."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/CreateEggGrade/CreateEggGradeValidator.cs": {
+      "name": "New egg grade checks",
+      "description": "Checks a new egg grade's details are valid before it is added."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/EggGradeFloorPolicy.cs": {
+      "name": "Low-stock level rule",
+      "description": "Decides who may set a low-stock warning level on an egg grade."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/EggGradeLookup.cs": {
+      "name": "Egg grade lookup",
+      "description": "Finds egg grades for other parts of the app."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/IEggGradeRepository.cs": {
+      "name": "Egg grade records",
+      "description": "Lists how egg grades are looked up and saved in the database."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/SetEggGradeActive/SetEggGradeActiveHandler.cs": {
+      "name": "Turn egg grade on or off",
+      "description": "Switches an egg grade on or off without deleting it."
+    }
+  }
+}

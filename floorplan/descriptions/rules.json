@@ -1,0 +1,12 @@
+{
+  "files": {
+    "src/Cluckwork.Application/GlobalUsings.cs": {
+      "name": "Shared domain imports",
+      "description": "A one-line setup file that makes the farm's common building blocks available everywhere in this project without repeating the same import."
+    },
+    "src/Cluckwork.Domain/GlobalUsings.cs": {
+      "name": "Shared domain imports",
+      "description": "A one-line setup file that makes the farm's common building blocks available everywhere in this project without repeating the same import."
+    }
+  }
+}

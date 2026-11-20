@@ -1,0 +1,96 @@
+{
+  "files": {
+    "web/src/routes/dailyEntry/CollectionPanel.tsx": {
+      "name": "Egg counts panel",
+      "description": "The section of the daily entry screen where the day's egg counts are typed in."
+    },
+    "web/src/routes/dailyEntry/DaySupportLine.tsx": {
+      "name": "Day extras strip",
+      "description": "Shows what else is already recorded for this flock on this day."
+    },
+    "web/src/routes/dailyEntry/EntryBanners.tsx": {
+      "name": "Entry notices",
+      "description": "Shows notices on the daily entry screen when the day is locked or earlier figures could not be loaded."
+    },
+    "web/src/routes/dailyEntry/EntryContextRow.tsx": {
+      "name": "Flock and date picker",
+      "description": "The row at the top of daily entry for choosing which flock and which date to record."
+    },
+    "web/src/routes/dailyEntry/EntryFooter.tsx": {
+      "name": "Entry save bar",
+      "description": "The bar pinned at the bottom of daily entry with the save and submit buttons."
+    },
+    "web/src/routes/dailyEntry/EntryHeader.tsx": {
+      "name": "Entry header",
+      "description": "The title, status and attention line at the top of the daily entry screen, including the phone top bar."
+    },
+    "web/src/routes/dailyEntry/entryRows.tsx": {
+      "name": "Entry rows and panels",
+      "description": "Building blocks of the daily entry screen: a labelled input row, a framed panel and a summary figure."
+    },
+    "web/src/routes/dailyEntry/GradingPanel.tsx": {
+      "name": "Grading panel",
+      "description": "The section of daily entry for splitting the day's eggs by grade, including handing out any leftover eggs."
+    },
+    "web/src/routes/dailyEntry/helpers.ts": {
+      "name": "Daily entry helpers",
+      "description": "Decides which flocks can be recorded against (everything except archived) and turns errors into readable messages."
+    },
+    "web/src/routes/dailyEntry/useDailyEntrySave.ts": {
+      "name": "Daily entry save logic",
+      "description": "Saves or submits the day's entry, asks for confirmation on submit and prevents double-saving."
+    },
+    "web/src/routes/dailyEntry/useNewFlock.tsx": {
+      "name": "New flock logic",
+      "description": "Holds the pop-up and saving for adding a flock from the daily entry screen."
+    },
+    "web/src/routes/DailyEntryPage.tsx": {
+      "name": "Daily entry page",
+      "description": "Where staff record a day's eggs by grade for a flock; submitting turns the counts into stock."
+    },
+    "web/src/routes/FeedCaptureForm.tsx": {
+      "name": "Feed usage form",
+      "description": "The form for recording how much feed a flock used."
+    },
+    "web/src/routes/FeedPage.tsx": {
+      "name": "Feed page",
+      "description": "Records and lists feed used by flocks."
+    },
+    "web/src/routes/history/HistoryAdjustDialog.tsx": {
+      "name": "Adjust past entry pop-up",
+      "description": "Pop-up for correcting a daily entry that was already recorded."
+    },
+    "web/src/routes/history/HistoryDetailsDialog.tsx": {
+      "name": "Entry details pop-up",
+      "description": "Pop-up showing everything recorded in one past daily entry."
+    },
+    "web/src/routes/history/HistoryFilters.tsx": {
+      "name": "History filters",
+      "description": "Filter bar for picking a flock and date range on the history page."
+    },
+    "web/src/routes/history/HistoryLedgers.tsx": {
+      "name": "History lists",
+      "description": "The lists of past entries on the history page, table or phone cards."
+    },
+    "web/src/routes/history/historyUi.ts": {
+      "name": "History list type",
+      "description": "Describes the paged list of daily entries the history screens share."
+    },
+    "web/src/routes/history/useHistoryAdjust.ts": {
+      "name": "Adjust past entry logic",
+      "description": "Handles the steps and saving behind correcting a past daily entry."
+    },
+    "web/src/routes/HistoryPage.tsx": {
+      "name": "History page",
+      "description": "Browses recorded daily entries, newest first, filtered by flock and date range."
+    },
+    "web/src/routes/WaterCaptureForm.tsx": {
+      "name": "Water entry form",
+      "description": "The form for recording water used, either as a quantity or as meter readings."
+    },
+    "web/src/routes/WaterPage.tsx": {
+      "name": "Water page",
+      "description": "Records and lists water used per flock per day, from a quantity or from meter readings."
+    }
+  }
+}

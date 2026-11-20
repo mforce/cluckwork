@@ -1,0 +1,144 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Common/AppError.cs": {
+      "name": "Application error",
+      "description": "The shape of a failure the app reports back, such as a refused action, with a code and a message."
+    },
+    "src/Cluckwork.Application/Common/AuditActions.cs": {
+      "name": "Activity log action names",
+      "description": "The fixed list of names for each kind of action recorded in the activity log, so entries are consistent and checkable."
+    },
+    "src/Cluckwork.Application/Common/CredentialAttribute.cs": {
+      "name": "Credential marker",
+      "description": "A label placed on data that holds a password or key under an unobvious name, so it is kept out of logs."
+    },
+    "src/Cluckwork.Application/Common/IAuditWriter.cs": {
+      "name": "Activity log writer outline",
+      "description": "Describes adding an entry to the activity log so it is saved or undone together with the change it records."
+    },
+    "src/Cluckwork.Application/Common/IClock.cs": {
+      "name": "Clock outline",
+      "description": "Describes asking for the current time, so tests can use a fixed time."
+    },
+    "src/Cluckwork.Application/Common/ICurrentTransaction.cs": {
+      "name": "Current transaction outline",
+      "description": "Describes finding out which database transaction the current piece of work is running in, if any."
+    },
+    "src/Cluckwork.Application/Common/ICurrentUser.cs": {
+      "name": "Current user outline",
+      "description": "Describes who is doing the current action: the signed-in person, or a named system task when no person is involved."
+    },
+    "src/Cluckwork.Application/Common/IFarmClock.cs": {
+      "name": "Farm calendar outline",
+      "description": "Describes the farm's local today, shared by every rule that depends on dates such as no future-dated entries and first-in-first-out sales."
+    },
+    "src/Cluckwork.Application/Common/IFlockScopeGuard.cs": {
+      "name": "Worker flock restriction outline",
+      "description": "Describes the rule that workers may record production only for the flocks they are assigned to."
+    },
+    "src/Cluckwork.Application/Common/IUnitOfWork.cs": {
+      "name": "Save changes outline",
+      "description": "Describes saving a batch of changes all together."
+    },
+    "src/Cluckwork.Application/Common/PagedResult.cs": {
+      "name": "Paged list result",
+      "description": "The shape of one page of a long list, with a marker for fetching the next page."
+    },
+    "src/Cluckwork.Application/Common/ResultLogging.cs": {
+      "name": "Refusal logging",
+      "description": "Logs expected refusals, such as a rejected sale, as warnings with a stable reason code so they can be searched."
+    },
+    "src/Cluckwork.Application/Common/SecurityEvents.cs": {
+      "name": "Security event names",
+      "description": "The fixed names for security-related happenings, such as failed sign-ins, so they can be monitored without reading free text."
+    },
+    "src/Cluckwork.Application/Common/SystemActors.cs": {
+      "name": "System actor labels",
+      "description": "Names shown in the activity log for actions done by the system itself rather than a person."
+    },
+    "src/Cluckwork.Domain/Auditing/AuditEvent.cs": {
+      "name": "Activity log entry",
+      "description": "A permanent record of an important change: who did it, when, what it affected and why. Entries are only ever added."
+    },
+    "src/Cluckwork.Domain/Auditing/ConnectedApp.cs": {
+      "name": "Connected app",
+      "description": "Identifies the connected app a person used to make a change."
+    },
+    "src/Cluckwork.Domain/Common/AggregateRoot.cs": {
+      "name": "Main record base",
+      "description": "The shared base for the main records that own their related details and are saved as a unit."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/ModuleMapAttributes.cs": {
+      "name": "Code boundary labels",
+      "description": "Labels used to declare which area owns which code and which areas may depend on each other."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/Access.cs": {
+      "name": "Module rules: Accounts and access",
+      "description": "Declares, for the accounts and access area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/Commerce.cs": {
+      "name": "Module rules: Sales",
+      "description": "Declares, for the sales area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/EggOperations.cs": {
+      "name": "Module rules: Egg operations",
+      "description": "Declares, for the egg operations area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/Farm.cs": {
+      "name": "Module rules: Farm setup",
+      "description": "Declares, for the farm setup area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/Finance.cs": {
+      "name": "Module rules: Expenses",
+      "description": "Declares, for the expenses area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/FlockManagement.cs": {
+      "name": "Module rules: Flocks",
+      "description": "Declares, for the flock management area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/GeneralInventory.cs": {
+      "name": "Module rules: General inventory",
+      "description": "Declares, for the general inventory area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/Insights.cs": {
+      "name": "Module rules: Reports and insights",
+      "description": "Declares, for the reports and insights area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Architecture/Modules/Platform.cs": {
+      "name": "Module rules: Platform",
+      "description": "Declares, for the shared platform area, which parts of the code it owns and which other areas it is allowed to depend on, so automated checks can catch broken boundaries."
+    },
+    "src/Cluckwork.Domain/Common/Entity.cs": {
+      "name": "Record base",
+      "description": "The shared base for any record with its own identity."
+    },
+    "src/Cluckwork.Domain/Common/Error.cs": {
+      "name": "Error",
+      "description": "A named failure with a code and message, used when an action is refused."
+    },
+    "src/Cluckwork.Domain/Common/ICreatedRecord.cs": {
+      "name": "Created-record marker",
+      "description": "Marks records that note when and by whom they were created."
+    },
+    "src/Cluckwork.Domain/Common/IDomainEvent.cs": {
+      "name": "Event marker",
+      "description": "Marks something that happened in the farm's records that other parts may react to."
+    },
+    "src/Cluckwork.Domain/Common/IMutableRecord.cs": {
+      "name": "Changed-record marker",
+      "description": "Marks records that note when and by whom they were last changed."
+    },
+    "src/Cluckwork.Domain/Common/Money.cs": {
+      "name": "Money",
+      "description": "A money amount held as a whole number of the smallest currency unit, such as cents, to avoid rounding errors."
+    },
+    "src/Cluckwork.Domain/Common/Result.cs": {
+      "name": "Success or failure result",
+      "description": "The standard outcome of an action: it either succeeded, with a value, or failed with an error."
+    },
+    "src/Cluckwork.Domain/Common/ValueObject.cs": {
+      "name": "Value object base",
+      "description": "The shared base for small values, such as an amount, that are equal when their contents are equal."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/BodyReadingEndpointTests.cs": {
+      "name": "Error report location tests",
+      "description": "Checks that a bad request is reported as a problem with the request body or the web address, depending on what the request type actually reads."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BootstrapAdminCommandTests.cs": {
+      "name": "First admin command tests",
+      "description": "Checks the command-line step that creates the first administrator, run as a real separate program."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BootstrapAdvisoryLockContinuityTests.cs": {
+      "name": "First admin setup safety tests",
+      "description": "Checks that setting up the first administrator stays safe if the database connection drops or fails partway."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BusinessRecordChronologyMigrationTests.cs": {
+      "name": "Record dating change tests",
+      "description": "Checks the database change that fixes the order and dates of business records."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BusinessRecordModelTests.cs": {
+      "name": "Business record shape tests",
+      "description": "Checks how business records are stored and that their stored shape stays as expected."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BusinessRecordTimestampTests.cs": {
+      "name": "Business record time tests",
+      "description": "Checks that business records get their created and changed times set correctly."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CatalogTests.cs": {
+      "name": "Product catalog tests",
+      "description": "Checks egg products, their grades, pack sizes, admin-only changes, starting products and the activity log."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailRaceTests.cs": {
+      "name": "Email change race tests",
+      "description": "Checks that two people changing emails at once cannot end up with the same email or a lost update."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ChangeUserEmailTests.cs": {
+      "name": "Email change tests",
+      "description": "Checks changing a user's email, who may do it, and what is refused."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ChangeUserRoleRaceTests.cs": {
+      "name": "Role change race tests",
+      "description": "Checks that simultaneous role changes cannot leave a farm without an owner."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ChangeUserRoleTests.cs": {
+      "name": "Role change tests",
+      "description": "Checks promoting and demoting users, who is allowed to, and that the last owner cannot be demoted."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CliDispatcherTests.cs": {
+      "name": "Command-line routing tests",
+      "description": "Checks that command-line words are sent to the right built-in command."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ClientErrorReportTests.cs": {
+      "name": "Screen crash report tests",
+      "description": "Checks that crashes in the screens are reported to the server and written to its log with useful details."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ClientMetadataFetcherTests.cs": {
+      "name": "Connected app lookup safety tests",
+      "description": "Checks that the server's fetching of a connected app's description cannot be tricked into reaching private addresses."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ClientMetadataTests.cs": {
+      "name": "Connected app description tests",
+      "description": "Checks which web addresses may name a connected app's description, and what the description must say."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ConfirmSaleAssignmentReadTests.cs": {
+      "name": "Sale flock access tests",
+      "description": "Checks that confirming a sale reads a worker's flock assignments at the right moment, after the farm and order are locked."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ConfirmSaleAtomicityTests.cs": {
+      "name": "Sale confirmation all-or-nothing tests",
+      "description": "Checks that confirming a sale saves the eggs taken, stock changes, order state and log entry together or not at all."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ConfirmSaleOrderBoundaryTests.cs": {
+      "name": "Sale confirmation lock order tests",
+      "description": "Checks that access checks during a sale confirmation happen after the order is locked."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ConnectionTlsFloorWiringTests.cs": {
+      "name": "Secure database connection tests",
+      "description": "Checks that a live server refuses an insecure database connection unless it was explicitly allowed."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochFloorTests.cs": {
+      "name": "Sign-in pass version floor tests",
+      "description": "Checks that a sign-in pass with an invalid version number is never accepted."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochFloorTests.SecondFactor.cs": {
+      "name": "Two-step sign-in version floor tests",
+      "description": "Checks the same invalid-version refusal for the second sign-in step."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochFreshReadTests.cs": {
+      "name": "Fresh sign-in check tests",
+      "description": "Checks that every request re-checks the database to see whether the person's sign-in is still valid."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochMiddlewareOrderTests.cs": {
+      "name": "Sign-in check position tests",
+      "description": "Checks that the sign-in validity check runs at the right point in handling each request."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochMiddlewareVerdictTests.cs": {
+      "name": "Sign-in check verdict tests",
+      "description": "Checks that a request is let through only when the sign-in is confirmed current."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochRaceTests.cs": {
+      "name": "Sign-in invalidation race tests",
+      "description": "Checks that password changes and resets racing with sign-ins cannot leave an old sign-in working."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CredentialEpochTests.cs": {
+      "name": "Sign-in invalidation tests",
+      "description": "Checks that changing a password or similar events cancels older sign-in passes."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CurrencyLockRaceTests.cs": {
+      "name": "Currency lock race tests",
+      "description": "Checks that changing the farm currency while new records are being saved cannot mix two currencies."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CurrencyLockSerializationTests.cs": {
+      "name": "Currency lock approach tests",
+      "description": "Checks why the farm settings update uses row locks rather than strict transaction mode to protect the currency."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/CustomerAndOrderTests.cs": {
+      "name": "Customer and order tests",
+      "description": "Checks creating customers and orders and adding items to orders, with their rules and refusals."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DailyEntryAdjustTests.cs": {
+      "name": "Daily egg entry correction tests",
+      "description": "Checks that correcting or voiding a daily entry keeps its egg lots and bird counts consistent and never touches eggs already sold."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DailyEntryGradeTests.cs": {
+      "name": "Daily egg entry grade tests",
+      "description": "Checks that a daily entry records sellable eggs by grade."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DataProtectionCertificateExpiryTests.cs": {
+      "name": "Key certificate expiry tests",
+      "description": "Checks what happens to the stored encryption keys when their certificate expires or is reissued."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DataProtectionKeyRewrapTests.cs": {
+      "name": "Encryption key re-wrap tests",
+      "description": "Checks the command that re-encrypts every stored key under the current certificate."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DataProtectionKeyRingTests.cs": {
+      "name": "Shared encryption keys tests",
+      "description": "Checks that every running copy of the server shares one set of encryption keys kept in the database."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DataProtectionPreviousCertificateTests.cs": {
+      "name": "Old key certificate tests",
+      "description": "Checks that keys from a previous certificate stay readable while listed, and only the current one encrypts new keys."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DemoSeedActorTests.cs": {
+      "name": "Sample data author tests",
+      "description": "Checks which owner signs the sample data, and that a disabled owner never does."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DemoSeedCleanupTests.cs": {
+      "name": "Sample data cleanup tests",
+      "description": "Checks that a sample data load that fails partway is cleaned up."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DemoSeedTests.cs": {
+      "name": "Sample data tests",
+      "description": "Checks that sample data loads once, does nothing the second time, and never loads automatically on startup."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DetachedTenantWriteTests.cs": {
+      "name": "Farm record write safety tests",
+      "description": "Checks that saving a record cannot be attached to the wrong farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DisableUserRaceTests.cs": {
+      "name": "Disable user race tests",
+      "description": "Checks that simultaneous disabling or role changes cannot remove the last owner or hurt the person disabling."
+    }
+  }
+}

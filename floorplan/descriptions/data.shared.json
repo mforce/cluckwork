@@ -1,0 +1,112 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Providers/DatabaseResilienceOptions.cs": {
+      "name": "Database retry limits",
+      "description": "Holds the settings for how long and how often the app retries when the database drops a connection or switches servers."
+    },
+    "src/Cluckwork.Infrastructure/Providers/IDbProviderConfigurator.cs": {
+      "name": "Database setup contract",
+      "description": "Describes what any database setup must provide: how to connect and where its changes are kept."
+    },
+    "src/Cluckwork.Infrastructure/Providers/Postgres/PostgresConnectionString.cs": {
+      "name": "Database address checker",
+      "description": "Tidies the database connection details and, in live use, requires an encrypted connection."
+    },
+    "src/Cluckwork.Infrastructure/Providers/Postgres/PostgresDbContextConfigurator.cs": {
+      "name": "Postgres database setup",
+      "description": "Connects the app to Postgres with the retry limits applied."
+    },
+    "src/Cluckwork.Infrastructure/Providers/QueryShapeWarnings.cs": {
+      "name": "Risky search alarms",
+      "description": "Turns risky database searches into errors when a setting asks for it, so mistakes show up during testing."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/DistributedFixedWindowPolicy.cs": {
+      "name": "Request limit rule",
+      "description": "Sets how many times one visitor address may try things like signing in within a time window, with the count shared between servers."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/DistributedIpFixedWindowRateLimiter.cs": {
+      "name": "Per-visitor request counter",
+      "description": "Counts each visitor address's requests in a time window using the shared counter, and refuses those over the limit."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/DistributedReportConcurrencyLimiter.cs": {
+      "name": "Report load cap",
+      "description": "Limits how many reports one farm can run at the same time, counted across all servers."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/FailedAuthenticationBudget.cs": {
+      "name": "Failed sign-in counter",
+      "description": "Counts refused sign-in attempts per visitor address, shared between servers, so repeated failures can be cut off."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/RateLimitKey.cs": {
+      "name": "Visitor address key",
+      "description": "Works out which visitor address a request counts against for request limits."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/ReportConcurrencyCapRegistration.cs": {
+      "name": "Report cap setup",
+      "description": "Switches on the report load cap at startup, using Redis when available and in-memory counting otherwise."
+    },
+    "src/Cluckwork.Infrastructure/RateLimiting/ReportConcurrencyPermit.cs": {
+      "name": "Report slot",
+      "description": "Represents one held place in the report load cap and keeps renewing it until the report finishes."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/IClaimOnceStore.cs": {
+      "name": "One-time claim contract",
+      "description": "Describes a store where something can be claimed only once within a time limit, used to stop a pass being reused."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/IFixedWindowCounter.cs": {
+      "name": "Time-window counter contract",
+      "description": "Describes a counter that adds up within a fixed time window, used by the request limits."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/ILease.cs": {
+      "name": "Reserved slot contract",
+      "description": "Describes a time-limited reservation that can be renewed and released, used by the report load cap."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/InProcessClaimOnceStore.cs": {
+      "name": "One-time claims in memory",
+      "description": "Keeps one-time claims in the server's own memory, for a farm running a single server without Redis."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/InProcessFixedWindowCounter.cs": {
+      "name": "Counter in memory",
+      "description": "Keeps time-window counts in the server's own memory, for a farm running a single server without Redis."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/InProcessLease.cs": {
+      "name": "Reserved slots in memory",
+      "description": "Keeps report slot reservations in the server's own memory, for a farm running a single server without Redis."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/RedisClaimOnceStore.cs": {
+      "name": "One-time claims in Redis",
+      "description": "Keeps one-time claims in Redis so all servers see them."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/RedisFixedWindowCounter.cs": {
+      "name": "Counter in Redis",
+      "description": "Keeps time-window counts in Redis so all servers share one count."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/RedisLease.cs": {
+      "name": "Reserved slots in Redis",
+      "description": "Keeps report slot reservations in Redis so all servers share them."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/ResilientClaimOnceStore.cs": {
+      "name": "Safe one-time claims",
+      "description": "Wraps the one-time claim store so it keeps working if Redis becomes unavailable."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/ResilientFixedWindowCounter.cs": {
+      "name": "Safe window counter",
+      "description": "Wraps the time-window counter so it keeps working if Redis becomes unavailable."
+    },
+    "src/Cluckwork.Infrastructure/SharedState/SharedStateRegistration.cs": {
+      "name": "Shared counters setup",
+      "description": "Chooses at startup between Redis and in-memory versions of the one-time claims, counters and reserved slots."
+    },
+    "src/Cluckwork.Infrastructure/Time/FarmClock.cs": {
+      "name": "Farm clock",
+      "description": "Works out the farm's current date and day boundaries in its own time zone, so stock and allocation checks in one request agree."
+    },
+    "src/Cluckwork.Infrastructure/Time/SystemClock.cs": {
+      "name": "System clock",
+      "description": "Provides the current time to the rest of the app."
+    },
+    "src/Cluckwork.Infrastructure/Time/TimeZoneAvailability.cs": {
+      "name": "Time zone check",
+      "description": "Checks at startup that the server knows the time zones the farm clock needs."
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Access/Contracts/UserSummary.cs": {
+      "name": "User summary",
+      "description": "A user as shown in the user list, including when they were disabled, if they were."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/AssignFlock/AssignFlockHandler.cs": {
+      "name": "Assign and unassign flocks",
+      "description": "Limits a worker to particular flocks, or removes one, after checking the extra confirmation, and records it in the activity log."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ChangeOwnPassword/ChangeOwnPasswordHandler.cs": {
+      "name": "Change own password",
+      "description": "Changes the signed-in person's password once they have given the current one."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ChangeOwnPassword/ChangeOwnPasswordValidator.cs": {
+      "name": "Change own password checks",
+      "description": "Refuses a password change with a missing current password or a new one that breaks the length rules."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ChangeUserEmail/ChangeUserEmailHandler.cs": {
+      "name": "Change sign-in email",
+      "description": "Changes a user's sign-in email once the extra confirmation passes."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ChangeUserEmail/ChangeUserEmailValidator.cs": {
+      "name": "Change sign-in email checks",
+      "description": "Refuses a blank or badly formed email address."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ChangeUserRole/ChangeUserRoleHandler.cs": {
+      "name": "Change role",
+      "description": "Changes a user's role after the extra confirmation passes, and records it in the activity log."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ChangeUserRole/ChangeUserRoleValidator.cs": {
+      "name": "Change role checks",
+      "description": "Refuses a role change that names no valid role."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/CreateUser/CreateUserHandler.cs": {
+      "name": "Create user",
+      "description": "Adds a new user with any allowed role, or as a plain worker, after the extra confirmation passes."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/CreateUser/CreateUserValidator.cs": {
+      "name": "Create user checks",
+      "description": "Refuses a new user with a bad email, name, password or role."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/DisableUser/DisableUserHandler.cs": {
+      "name": "Disable user",
+      "description": "Switches a user's account off after the extra confirmation, recording an optional reason."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/DisableUser/DisableUserValidator.cs": {
+      "name": "Disable user checks",
+      "description": "Refuses a disable request with an invalid reason."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/EnableUser/EnableUserHandler.cs": {
+      "name": "Enable user",
+      "description": "Switches a disabled user back on, restoring the account as it was."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/IIdentityProvider.cs": {
+      "name": "Sign-in system outline",
+      "description": "Describes everything the app needs from its sign-in system: passwords, users, roles, tokens and two-step verification."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/IStepUpGrantService.cs": {
+      "name": "Extra confirmation outline",
+      "description": "Describes the recent-confirmation proof needed for sensitive actions such as creating users, password resets, role changes and disabling accounts."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/IUserRoleAssignmentRepository.cs": {
+      "name": "Role assignment storage outline",
+      "description": "Describes how each user's role assignments are stored and looked up."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/ResetUserTwoFactor/ResetUserTwoFactorHandler.cs": {
+      "name": "Reset two-step verification",
+      "description": "Lets an owner reset another user's two-step verification, as its own action needing extra confirmation."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/SetLanguage/SetLanguageHandler.cs": {
+      "name": "Set own language",
+      "description": "Saves the signed-in person's own language choice; it can never set another person's."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/SetLanguage/SetLanguageValidator.cs": {
+      "name": "Set language checks",
+      "description": "Refuses a language choice that is not valid."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/SetStepperUnit/SetStepperUnitHandler.cs": {
+      "name": "Set own egg counting unit",
+      "description": "Saves the signed-in person's own choice of egg counting unit."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/SetStepperUnit/SetStepperUnitValidator.cs": {
+      "name": "Set egg counting unit checks",
+      "description": "Refuses an egg unit that does not exist."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/SetUserPassword/SetUserPasswordHandler.cs": {
+      "name": "Reset user password",
+      "description": "Lets an owner set a new password for another user after extra confirmation, which also ends their old sign-ins."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/SetUserPassword/SetUserPasswordValidator.cs": {
+      "name": "Reset user password checks",
+      "description": "Refuses a new password that breaks the length rules."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/UpdateUser/UpdateUserHandler.cs": {
+      "name": "Edit user name",
+      "description": "Changes a user's display name, only within the same farm."
+    },
+    "src/Cluckwork.Application/Modules/Access/Users/UpdateUser/UpdateUserValidator.cs": {
+      "name": "Edit user name checks",
+      "description": "Refuses a display name that is too long."
+    }
+  }
+}

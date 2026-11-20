@@ -1,0 +1,164 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Access/Contracts/AccessOperationOutcomes.cs": {
+      "name": "Account setup results",
+      "description": "The possible results of first-run admin creation, admin recovery and closing or reopening a farm account."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/AppConnection.cs": {
+      "name": "Connected app link",
+      "description": "One person's connection to one outside app, merging every approval they have given it."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/AssignFlockCommand.cs": {
+      "name": "Assign flock request",
+      "description": "The request to give a worker access to a flock; it carries the extra confirmation token, which is never printed."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/ChangeOwnPasswordCommand.cs": {
+      "name": "Change own password request",
+      "description": "A signed-in person changing their own password by entering the current one first."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/ChangeUserEmailCommand.cs": {
+      "name": "Change sign-in email request",
+      "description": "The request to change a user's sign-in email, with the extra confirmation token."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/ChangeUserRoleCommand.cs": {
+      "name": "Change role request",
+      "description": "The request to change a user's role, with the extra confirmation token that every role change needs."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/CreateUserCommand.cs": {
+      "name": "Create user request",
+      "description": "The details for adding a new user: email, name, password and role, with the extra confirmation token."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/CredentialErrorCodes.cs": {
+      "name": "Password error codes",
+      "description": "The fixed codes for reasons a password or credential is refused."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/DisableUserCommand.cs": {
+      "name": "Disable user request",
+      "description": "The request to switch off a user's account, with an optional reason recorded in the activity log."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/EnableUserCommand.cs": {
+      "name": "Enable user request",
+      "description": "The request to switch a disabled user's account back on."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/FarmSignIn.cs": {
+      "name": "Farm sign-in",
+      "description": "A small record naming the farm a person is signing in to."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IAccessAccountLifecycle.cs": {
+      "name": "Account lifecycle outline",
+      "description": "Describes the operations that set up, recover, close or reopen a farm account."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IAccessFixture.cs": {
+      "name": "Sample user setup outline",
+      "description": "Lets the demo and test data loader create sample users. Not registered in Production."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IAccessLookup.cs": {
+      "name": "User lookup for other areas",
+      "description": "Describes what other areas of the app may ask about a user, such as who they are and their role."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IAccessModule.cs": {
+      "name": "Accounts feature outline",
+      "description": "The list of everything the accounts area offers the web layer: managing users, a person's own profile, flock assignments and sign-in sessions."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IAccessOperations.cs": {
+      "name": "Server admin commands outline",
+      "description": "Describes commands run by someone with direct access to the server, such as setting up or recovering an admin."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IAccessSeedLookup.cs": {
+      "name": "Sample user lookups outline",
+      "description": "Lets the demo and test data loader find existing users. Not registered in Production."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/ICredentialEpochVerifier.cs": {
+      "name": "Sign-in still valid check",
+      "description": "Describes the check run on every signed-in request that the person's password and sign-in have not been changed or revoked, and the two-step verification status for owners."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IOAuthPurge.cs": {
+      "name": "Connected app cleanup outline",
+      "description": "Describes the routine cleanup of expired connected-app approvals."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/IRefreshTokenPurge.cs": {
+      "name": "Old sign-in cleanup outline",
+      "description": "Describes deleting expired stay-signed-in tokens."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/LoginStep.cs": {
+      "name": "Sign-in outcome",
+      "description": "What a correct password leads to: either signed in, or a request for a second code from the authenticator app."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/OAuthPurgeResult.cs": {
+      "name": "Cleanup result",
+      "description": "How many expired connected-app records a cleanup removed."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/OAuthScopes.cs": {
+      "name": "Connected app permissions",
+      "description": "The list of permissions an outside app can ask for."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/PasswordRules.cs": {
+      "name": "Password rules",
+      "description": "The single set of length limits for new passwords, used when creating a user, resetting a password and changing your own."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/RefreshTokenRevocationOutcome.cs": {
+      "name": "Sign-out result",
+      "description": "The result of cancelling a stay-signed-in token."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/ResetUserTwoFactorCommand.cs": {
+      "name": "Reset two-step request",
+      "description": "The request for an owner to reset another user's two-step verification."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/RetryLaterError.cs": {
+      "name": "Try again later error",
+      "description": "The refusal shown once a user has used up the day's allowance of wrong authenticator codes."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/SecondFactorCode.cs": {
+      "name": "Second sign-in code",
+      "description": "A code from the authenticator app (6 digits) or a recovery code, checked for the right shape."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/SecondFactorErrorCodes.cs": {
+      "name": "Second code error codes",
+      "description": "The fixed reasons a second sign-in code is refused."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/SetLanguageCommand.cs": {
+      "name": "Set language request",
+      "description": "A person choosing their preferred language, or clearing it."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/SetStepperUnitCommand.cs": {
+      "name": "Set egg counting unit request",
+      "description": "A person choosing which egg unit their quantity stepper counts in."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/SetUserPasswordCommand.cs": {
+      "name": "Set user password request",
+      "description": "An owner setting another user's password without knowing the old one, the way to handle a forgotten password."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/StepUpErrorCodes.cs": {
+      "name": "Extra confirmation error codes",
+      "description": "The fixed reasons an extra-confirmation check is refused."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/StepUpGrant.cs": {
+      "name": "Extra confirmation grant",
+      "description": "Proof that a person recently re-confirmed their identity; the token is never printed."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/TokenPair.cs": {
+      "name": "Sign-in tokens",
+      "description": "The pair of tokens given at sign-in, one for short-term access and one to stay signed in; neither is ever printed."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/TwoFactorEnrolment.cs": {
+      "name": "Two-step setup results",
+      "description": "What comes back when setting up two-step verification: the start of setup, the confirmation with recovery codes, and the error cases."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/UnassignFlockCommand.cs": {
+      "name": "Unassign flock request",
+      "description": "The request to remove a worker's access to a flock, with the extra confirmation token."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/UpdateUserCommand.cs": {
+      "name": "Edit user name request",
+      "description": "The request to change an existing user's display name."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/UserName.cs": {
+      "name": "Display name rule",
+      "description": "Tidies a display name by trimming spaces and treating a blank name as no name."
+    },
+    "src/Cluckwork.Application/Modules/Access/Contracts/UserProfile.cs": {
+      "name": "User profile",
+      "description": "A person's own profile details."
+    }
+  }
+}

@@ -1,0 +1,550 @@
+{
+  "files": {
+    "src/Cluckwork.Api/Endpoints/ClientErrors/ClientErrorEndpoints.cs": {
+      "name": "Screen crash reports",
+      "description": "Receives a note from the web app whenever a screen crashes, so the operator hears about it without anyone sending a screenshot."
+    },
+    "src/Cluckwork.Api/Endpoints/CluckworkEndpointGroups.cs": {
+      "name": "Address groups and access rules",
+      "description": "Sets up the groups of web addresses under /api/v1 and says which roles may use each group."
+    },
+    "src/Cluckwork.Api/Hosting/Modules/CluckworkModulesServiceCollectionExtensions.cs": {
+      "name": "Farm feature registration",
+      "description": "Switches on each farm feature area (sales, flocks, inventory and so on) when the server starts."
+    },
+    "src/Cluckwork.Api/Hosting/Modules/CluckworkPlatformServiceCollectionExtensions.cs": {
+      "name": "Shared platform setup",
+      "description": "Starts up the shared plumbing every feature relies on, such as repeat-request protection and encryption keys for sign-in data."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/AuthCookies.cs": {
+      "name": "Sign-in cookie handling",
+      "description": "Stores the long-lived sign-in token in a protected browser cookie that page scripts cannot read, and clears it on logout."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.cs": {
+      "name": "Sign-in addresses",
+      "description": "Defines the sign-in, sign-out, password change and two-step verification addresses and attaches the strict attempt limits."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.Login.cs": {
+      "name": "Login handling",
+      "description": "Checks a person's email and password, or their second-step code, and starts a session."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.Password.cs": {
+      "name": "Password change handling",
+      "description": "Lets any signed-in person change their own password after proving the current one."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.Session.cs": {
+      "name": "Session handling",
+      "description": "Keeps people signed in by renewing their session, ends it at logout, and issues a short-lived confirmation for sensitive admin actions."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/AuthEndpoints.TwoFactor.cs": {
+      "name": "Two-step verification handling",
+      "description": "Lets a person turn on two-step verification, see its status, get new recovery codes, or turn it off."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/LoginRequestValidator.cs": {
+      "name": "Login input check",
+      "description": "Rejects login requests with missing or absurdly long email or password text before they are tried."
+    },
+    "src/Cluckwork.Api/Modules/Access/Auth/StepUpRequestValidator.cs": {
+      "name": "Password re-check input check",
+      "description": "Rejects an over-long password on the \"confirm it is you\" step before it is tried."
+    },
+    "src/Cluckwork.Api/Modules/Access/Me/MeEndpoints.cs": {
+      "name": "Own profile addresses",
+      "description": "Lets a signed-in person read their own profile, set their language and number-stepper preference, and manage apps they connected."
+    },
+    "src/Cluckwork.Api/Modules/Access/OAuth/ConsentSelection.cs": {
+      "name": "Consent choices",
+      "description": "Holds which permissions a person ticked when approving an outside app."
+    },
+    "src/Cluckwork.Api/Modules/Access/OAuth/OAuthEndpoints.cs": {
+      "name": "Connect outside apps",
+      "description": "Lets outside apps, such as AI assistants, ask for permission, register themselves and receive an access token."
+    },
+    "src/Cluckwork.Api/Modules/Access/OAuth/OAuthScopeRequirement.cs": {
+      "name": "Required app permission",
+      "description": "Says an outside app's token must hold at least one of a set of permissions to be let in."
+    },
+    "src/Cluckwork.Api/Modules/Access/Users/UserEndpoints.cs": {
+      "name": "User management addresses",
+      "description": "Lets an Owner create staff accounts, edit them, change roles, reset passwords, disable people and assign flocks to workers."
+    },
+    "src/Cluckwork.Api/Modules/Access/Users/UserEndpoints.TwoFactor.cs": {
+      "name": "User two-step reset",
+      "description": "Lets an Owner clear another person's two-step verification when they are locked out."
+    },
+    "src/Cluckwork.Api/Modules/Commerce/Catalog/ProductEndpoints.cs": {
+      "name": "Product catalog addresses",
+      "description": "Lists, adds, edits and switches on or off the egg products a farm sells, plus the egg-count unit conversions."
+    },
+    "src/Cluckwork.Api/Modules/Commerce/CommerceModuleServiceCollectionExtensions.cs": {
+      "name": "Sales feature registration",
+      "description": "Switches on the products, customers and sales features when the server starts."
+    },
+    "src/Cluckwork.Api/Modules/Commerce/Customers/CustomerEndpoints.cs": {
+      "name": "Customer addresses",
+      "description": "Adds, lists, views and edits customers, including their contact details."
+    },
+    "src/Cluckwork.Api/Modules/Commerce/Sales/PaymentEndpoints.cs": {
+      "name": "Payment addresses",
+      "description": "Records and voids customer payments, lists payments per order and shows what each customer still owes."
+    },
+    "src/Cluckwork.Api/Modules/Commerce/Sales/SaleEndpoints.cs": {
+      "name": "Sales order addresses",
+      "description": "Creates sales orders, edits their lines, then confirms, cancels or voids them and lists the order book."
+    },
+    "src/Cluckwork.Api/Modules/EggOperations/DailyEntries/DailyEntryEndpoints.cs": {
+      "name": "Daily egg entry addresses",
+      "description": "Records a day's egg count per flock, submits it, and lets managers correct or void it afterwards."
+    },
+    "src/Cluckwork.Api/Modules/EggOperations/EggGrades/EggGradeEndpoints.cs": {
+      "name": "Egg grade addresses",
+      "description": "Lists, adds, edits and switches on or off the egg size or quality grades."
+    },
+    "src/Cluckwork.Api/Modules/EggOperations/EggOperationsModuleServiceCollectionExtensions.cs": {
+      "name": "Egg operations registration",
+      "description": "Switches on the daily entries, egg grades and stock features when the server starts."
+    },
+    "src/Cluckwork.Api/Modules/EggOperations/Stock/StockEndpoints.cs": {
+      "name": "Egg stock addresses",
+      "description": "Shows egg stock by grade, the batches behind it and their movements, and records a movement of eggs."
+    },
+    "src/Cluckwork.Api/Modules/Farm/Accounts/AccountEndpoints.cs": {
+      "name": "Farm account addresses",
+      "description": "Shows the farm's details and lets an Owner change its settings and the connected-apps switch."
+    },
+    "src/Cluckwork.Api/Modules/Farm/Accounts/FarmBannerEndpoints.cs": {
+      "name": "Farm banner addresses",
+      "description": "Uploads, shows and removes the farm's banner image."
+    },
+    "src/Cluckwork.Api/Modules/Farm/Accounts/FarmLogoEndpoints.cs": {
+      "name": "Farm logo addresses",
+      "description": "Uploads, shows and removes the farm's logo, checking and cleaning the image first."
+    },
+    "src/Cluckwork.Api/Modules/Farm/FarmModuleServiceCollectionExtensions.cs": {
+      "name": "Farm feature registration",
+      "description": "Switches on the farm account, logo and banner features when the server starts."
+    },
+    "src/Cluckwork.Api/Modules/Finance/Expenses/ExpenseEndpoints.cs": {
+      "name": "Expense addresses",
+      "description": "Lists, records and corrects expenses and manages expense categories, for Owners and Managers only."
+    },
+    "src/Cluckwork.Api/Modules/Finance/FinanceModuleServiceCollectionExtensions.cs": {
+      "name": "Finance feature registration",
+      "description": "Switches on the expenses feature when the server starts."
+    },
+    "src/Cluckwork.Api/Modules/FlockManagement/FlockManagementModuleServiceCollectionExtensions.cs": {
+      "name": "Flock feature registration",
+      "description": "Switches on the flock management feature when the server starts."
+    },
+    "src/Cluckwork.Api/Modules/FlockManagement/Flocks/FlockEndpoints.cs": {
+      "name": "Flock addresses",
+      "description": "Creates, lists and edits flocks, records birds added or lost, and closes, archives or reactivates a flock."
+    },
+    "src/Cluckwork.Api/Modules/GeneralInventory/GeneralInventoryModuleServiceCollectionExtensions.cs": {
+      "name": "Inventory feature registration",
+      "description": "Switches on the feed and supplies inventory and water usage features when the server starts."
+    }
+  },
+  "routes": {
+    "POST /api/v1/client-errors": {
+      "name": "Report screen crash",
+      "description": "Accepts a crash report from the web app so the operator can see that a screen is failing."
+    },
+    "POST /api/v1/auth/login": {
+      "name": "Sign in",
+      "description": "Checks email and password and starts a session, with a strict limit on attempts."
+    },
+    "POST /api/v1/auth/login/second-factor": {
+      "name": "Sign in with second step",
+      "description": "Finishes sign-in for people with two-step verification by checking their code."
+    },
+    "POST /api/v1/auth/refresh": {
+      "name": "Renew session",
+      "description": "Swaps the sign-in cookie for a fresh session so people stay signed in."
+    },
+    "POST /api/v1/auth/logout": {
+      "name": "Sign out",
+      "description": "Ends the session and clears the sign-in cookie, even if the session has already expired."
+    },
+    "POST /api/v1/auth/change-password": {
+      "name": "Change own password",
+      "description": "Lets any signed-in person set a new password after entering the current one."
+    },
+    "POST /api/v1/auth/step-up": {
+      "name": "Confirm it is you",
+      "description": "Re-checks the current password and gives a short-lived approval for sensitive user-admin actions."
+    },
+    "DELETE /api/v1/auth/two-factor": {
+      "name": "Turn off two-step verification",
+      "description": "Turns off the signed-in person's two-step verification."
+    },
+    "GET /api/v1/auth/two-factor": {
+      "name": "Two-step status",
+      "description": "Says whether two-step verification is on for the signed-in person."
+    },
+    "POST /api/v1/auth/two-factor/start": {
+      "name": "Start two-step setup",
+      "description": "Begins setting up two-step verification and returns the key to scan into an authenticator app."
+    },
+    "POST /api/v1/auth/two-factor/confirm": {
+      "name": "Confirm two-step setup",
+      "description": "Finishes setup once the person enters a valid code, and gives recovery codes the first time."
+    },
+    "POST /api/v1/auth/two-factor/recovery-codes": {
+      "name": "New recovery codes",
+      "description": "Replaces the person's backup recovery codes with a fresh set."
+    },
+    "GET /api/v1/me": {
+      "name": "Get own profile",
+      "description": "Returns the signed-in person's name, role, language and farm basics."
+    },
+    "PUT /api/v1/me/language": {
+      "name": "Set own language",
+      "description": "Saves the person's preferred language; open to every role."
+    },
+    "PUT /api/v1/me/stepper-unit": {
+      "name": "Set number stepper step",
+      "description": "Saves how much the plus and minus buttons change a number for this person."
+    },
+    "GET /api/v1/me/connected-apps": {
+      "name": "List my connected apps",
+      "description": "Shows the outside apps this person has connected."
+    },
+    "DELETE /api/v1/me/connected-apps": {
+      "name": "Disconnect my app",
+      "description": "Removes an outside app this person had connected."
+    },
+    "GET /api/v1/oauth/authorize": {
+      "name": "Start app approval",
+      "description": "Sends a person to the screen where they approve an outside app."
+    },
+    "POST /api/v1/oauth/token": {
+      "name": "Issue app token",
+      "description": "Trades an approved code for an access token that the outside app can use."
+    },
+    "POST /api/v1/oauth/register": {
+      "name": "Register an app",
+      "description": "Lets an outside app register itself so it can later ask for approval."
+    },
+    "POST /api/v1/users": {
+      "name": "Create user",
+      "description": "Lets an Owner add a staff account with a role."
+    },
+    "GET /api/v1/users": {
+      "name": "List users",
+      "description": "Shows everyone with an account on the farm."
+    },
+    "PUT /api/v1/users/{id:guid}": {
+      "name": "Edit user",
+      "description": "Changes a user's display name."
+    },
+    "PUT /api/v1/users/{id:guid}/password": {
+      "name": "Set user password",
+      "description": "Lets an Owner set someone's password without the old one, since there is no email reset."
+    },
+    "PUT /api/v1/users/{id:guid}/role": {
+      "name": "Change user role",
+      "description": "Changes what a user is allowed to do."
+    },
+    "PUT /api/v1/users/{id:guid}/email": {
+      "name": "Change user email",
+      "description": "Changes the email a user signs in with."
+    },
+    "POST /api/v1/users/{id:guid}/disable": {
+      "name": "Disable user",
+      "description": "Stops a user from signing in without deleting them."
+    },
+    "POST /api/v1/users/{id:guid}/enable": {
+      "name": "Enable user",
+      "description": "Lets a disabled user sign in again."
+    },
+    "DELETE /api/v1/users/{id:guid}/two-factor": {
+      "name": "Reset user two-step",
+      "description": "Lets an Owner clear another person's two-step verification."
+    },
+    "GET /api/v1/users/{id:guid}/flock-assignments": {
+      "name": "List worker flocks",
+      "description": "Shows which flocks a worker is assigned to."
+    },
+    "POST /api/v1/users/{id:guid}/flock-assignments": {
+      "name": "Assign flock to worker",
+      "description": "Gives a worker access to a flock."
+    },
+    "DELETE /api/v1/users/{id:guid}/flock-assignments/{assignmentId:guid}": {
+      "name": "Remove flock from worker",
+      "description": "Takes a flock away from a worker."
+    },
+    "GET /api/v1/users/connected-apps": {
+      "name": "List farm connected apps",
+      "description": "Shows every outside app connected on the farm."
+    },
+    "DELETE /api/v1/users/{id:guid}/connected-apps": {
+      "name": "Disconnect a user's app",
+      "description": "Lets an Owner remove an outside app a user connected."
+    },
+    "GET /api/v1/products": {
+      "name": "List products",
+      "description": "Shows the egg products the farm sells."
+    },
+    "POST /api/v1/products": {
+      "name": "Add product",
+      "description": "Adds a new egg product to the catalog."
+    },
+    "PUT /api/v1/products/{id:guid}": {
+      "name": "Edit product",
+      "description": "Changes a product's details."
+    },
+    "POST /api/v1/products/{id:guid}/deactivate": {
+      "name": "Deactivate product",
+      "description": "Hides a product so it can no longer be sold."
+    },
+    "POST /api/v1/products/{id:guid}/activate": {
+      "name": "Activate product",
+      "description": "Makes a hidden product available to sell again."
+    },
+    "GET /api/v1/egg-unit-conversions": {
+      "name": "List egg unit conversions",
+      "description": "Shows how many eggs each selling unit, such as a dozen, counts for."
+    },
+    "PUT /api/v1/egg-unit-conversions/{id:guid}": {
+      "name": "Edit egg unit conversion",
+      "description": "Changes how many eggs a selling unit counts for."
+    },
+    "POST /api/v1/customers": {
+      "name": "Add customer",
+      "description": "Adds a customer with name and contact details."
+    },
+    "GET /api/v1/customers": {
+      "name": "List customers",
+      "description": "Shows the customer directory, which holds personal contact details."
+    },
+    "GET /api/v1/customers/{id:guid}": {
+      "name": "Get customer",
+      "description": "Shows one customer's details."
+    },
+    "PUT /api/v1/customers/{id:guid}": {
+      "name": "Edit customer",
+      "description": "Changes a customer's details."
+    },
+    "GET /{id:guid}/payments": {
+      "name": "List order payments",
+      "description": "Shows the payments recorded against one sales order."
+    },
+    "POST /{id:guid}/payments": {
+      "name": "Record payment",
+      "description": "Records money received against a sales order."
+    },
+    "POST /api/v1/payments/{id:guid}/void": {
+      "name": "Void payment",
+      "description": "Cancels a recorded payment; reserved for managers so sales staff cannot cancel their own."
+    },
+    "GET /balances": {
+      "name": "List customer balances",
+      "description": "Shows how much each customer still owes."
+    },
+    "POST /api/v1/sales": {
+      "name": "Start sales order",
+      "description": "Creates a new sales order for a customer."
+    },
+    "POST /api/v1/sales/{id:guid}/items": {
+      "name": "Add order line",
+      "description": "Adds a product line to a sales order."
+    },
+    "PUT /api/v1/sales/{id:guid}/items/{itemId:guid}": {
+      "name": "Edit order line",
+      "description": "Changes the quantity or price of a line on an order."
+    },
+    "DELETE /api/v1/sales/{id:guid}/items/{itemId:guid}": {
+      "name": "Remove order line",
+      "description": "Takes a line off a sales order."
+    },
+    "POST /api/v1/sales/{id:guid}/cancel": {
+      "name": "Cancel order",
+      "description": "Cancels an order that has not been confirmed."
+    },
+    "POST /api/v1/sales/{id:guid}/confirm": {
+      "name": "Confirm sale",
+      "description": "Confirms the order, which takes the eggs out of stock."
+    },
+    "POST /api/v1/sales/{id:guid}/void": {
+      "name": "Void sale",
+      "description": "Undoes a confirmed sale; admin only."
+    },
+    "GET /api/v1/sales/{id:guid}": {
+      "name": "Get sales order",
+      "description": "Shows one order with its lines and totals."
+    },
+    "GET /api/v1/sales": {
+      "name": "List sales orders",
+      "description": "Shows the order book with totals."
+    },
+    "POST /api/v1/daily-entries": {
+      "name": "Record daily entry",
+      "description": "Saves a flock's egg count for a day."
+    },
+    "POST /api/v1/daily-entries/{id:guid}/submit": {
+      "name": "Submit daily entry",
+      "description": "Finalizes the day's entry so the eggs enter stock."
+    },
+    "POST /api/v1/daily-entries/{id:guid}/adjust": {
+      "name": "Correct daily entry",
+      "description": "Fixes a submitted entry and updates stock and bird counts; admin only."
+    },
+    "POST /api/v1/daily-entries/{id:guid}/void": {
+      "name": "Void daily entry",
+      "description": "Cancels a daily entry and reverses its effects; admin only."
+    },
+    "GET /api/v1/daily-entries/{id:guid}": {
+      "name": "Get daily entry",
+      "description": "Shows one day's entry."
+    },
+    "GET /api/v1/daily-entries": {
+      "name": "List daily entries",
+      "description": "Shows daily entries, filterable."
+    },
+    "GET /api/v1/egg-grades": {
+      "name": "List egg grades",
+      "description": "Shows the egg grades, such as small, large or cracked."
+    },
+    "GET /api/v1/egg-grades/{id:guid}": {
+      "name": "Get egg grade",
+      "description": "Shows one egg grade."
+    },
+    "POST /api/v1/egg-grades": {
+      "name": "Add egg grade",
+      "description": "Adds a new grade; admin only."
+    },
+    "PUT /api/v1/egg-grades/{id:guid}": {
+      "name": "Edit egg grade",
+      "description": "Changes a grade's name or low-stock warning level."
+    },
+    "POST /api/v1/egg-grades/{id:guid}/deactivate": {
+      "name": "Deactivate egg grade",
+      "description": "Stops a grade being used for new entries."
+    },
+    "POST /api/v1/egg-grades/{id:guid}/activate": {
+      "name": "Activate egg grade",
+      "description": "Brings a deactivated grade back into use."
+    },
+    "GET /api/v1/stock": {
+      "name": "Get egg stock",
+      "description": "Shows eggs available per grade and flags those below their warning level."
+    },
+    "GET /api/v1/stock/lots": {
+      "name": "List egg batches",
+      "description": "Shows the batches of eggs behind the stock totals."
+    },
+    "GET /api/v1/stock/lots/{id:guid}/movements": {
+      "name": "List batch movements",
+      "description": "Shows every addition and removal for one batch of eggs."
+    },
+    "POST /api/v1/stock/lots/{id:guid}/movements": {
+      "name": "Record egg movement",
+      "description": "Records eggs taken out of or put into a batch, for example breakage."
+    },
+    "GET /api/v1/account": {
+      "name": "Get farm account",
+      "description": "Shows the farm's name, currency, timezone and language settings; open to every role."
+    },
+    "GET /api/v1/account/settings": {
+      "name": "Get farm settings",
+      "description": "Shows the farm's editable settings."
+    },
+    "PUT /api/v1/account/settings": {
+      "name": "Update farm settings",
+      "description": "Saves changes to the farm's settings."
+    },
+    "PUT /api/v1/account/connected-apps": {
+      "name": "Switch connected apps",
+      "description": "Lets the Owner turn outside-app connections on or off for the farm."
+    },
+    "GET /banner": {
+      "name": "Get farm banner",
+      "description": "Returns the farm's banner image."
+    },
+    "PUT /banner": {
+      "name": "Set farm banner",
+      "description": "Uploads a new banner image, within a size cap."
+    },
+    "DELETE /banner": {
+      "name": "Remove farm banner",
+      "description": "Deletes the farm's banner image."
+    },
+    "GET /logo": {
+      "name": "Get farm logo",
+      "description": "Returns the farm's logo; open to every role."
+    },
+    "PUT /logo": {
+      "name": "Set farm logo",
+      "description": "Uploads a new logo, within a size cap."
+    },
+    "DELETE /logo": {
+      "name": "Remove farm logo",
+      "description": "Deletes the farm's logo."
+    },
+    "GET /api/v1/expense-categories": {
+      "name": "List expense categories",
+      "description": "Shows the categories expenses are filed under."
+    },
+    "POST /api/v1/expense-categories": {
+      "name": "Add expense category",
+      "description": "Adds a new expense category."
+    },
+    "PUT /api/v1/expense-categories/{id:guid}": {
+      "name": "Edit expense category",
+      "description": "Changes a category's name or status."
+    },
+    "GET /api/v1/expenses": {
+      "name": "List expenses",
+      "description": "Shows recorded expenses; Owners and Managers only."
+    },
+    "GET /api/v1/expenses/{id:guid}": {
+      "name": "Get expense",
+      "description": "Shows one expense."
+    },
+    "POST /api/v1/expenses": {
+      "name": "Record expense",
+      "description": "Records money the farm spent."
+    },
+    "PUT /api/v1/expenses/{id:guid}": {
+      "name": "Correct expense",
+      "description": "Corrects a recorded expense."
+    },
+    "POST /api/v1/flocks": {
+      "name": "Add flock",
+      "description": "Creates a new flock with its starting bird count."
+    },
+    "GET /api/v1/flocks": {
+      "name": "List flocks",
+      "description": "Shows flocks; workers see only those assigned to them."
+    },
+    "GET /api/v1/flocks/{id:guid}": {
+      "name": "Get flock",
+      "description": "Shows one flock with its current bird count."
+    },
+    "PUT /api/v1/flocks/{id:guid}": {
+      "name": "Edit flock",
+      "description": "Changes a flock's details; admin only."
+    },
+    "POST /api/v1/flocks/{id:guid}/deplete": {
+      "name": "Mark flock depleted",
+      "description": "Closes a flock whose birds are all gone."
+    },
+    "POST /api/v1/flocks/{id:guid}/archive": {
+      "name": "Archive flock",
+      "description": "Moves a finished flock out of the active list."
+    },
+    "POST /api/v1/flocks/{id:guid}/reactivate": {
+      "name": "Reactivate flock",
+      "description": "Brings an archived flock back."
+    },
+    "POST /api/v1/flocks/{id:guid}/movements": {
+      "name": "Record bird movement",
+      "description": "Records birds added or lost, which changes the flock's count."
+    },
+    "GET /api/v1/flocks/{id:guid}/movements": {
+      "name": "List bird movements",
+      "description": "Shows the history of birds added or lost."
+    }
+  }
+}

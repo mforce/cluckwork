@@ -1,0 +1,16 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/InsightsModule.cs": {
+      "name": "Reports and history setup",
+      "description": "Gathers the report and activity-history lookups so the rest of the app can request them as one group."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/ReportQueries.cs": {
+      "name": "Report lookups",
+      "description": "Runs the searches behind the farm's reports, such as sales and egg figures, over a chosen period."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/ReportQueries.Production.cs": {
+      "name": "Egg production report lookups",
+      "description": "Works out the production report in one pass: each day's rows, period totals, grade totals and a per-flock breakdown that add up exactly."
+    }
+  }
+}

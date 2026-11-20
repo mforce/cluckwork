@@ -1,0 +1,164 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Configurations/CatalogConfiguration.cs": {
+      "name": "Product and egg-unit setup",
+      "description": "Defines how products, their egg-grade links and egg unit conversions (such as dozens) are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Configurations/PaymentConfiguration.cs": {
+      "name": "Payment storage layout",
+      "description": "Defines how customer payments are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Configurations/SalesOrderConfiguration.cs": {
+      "name": "Sales and customer storage layout",
+      "description": "Defines how sales orders, their line items, the egg lots set aside for them, and customers are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/CatalogRepositories.cs": {
+      "name": "Product and unit lookups",
+      "description": "Loads and saves products and egg unit conversions."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/CommerceFixture.cs": {
+      "name": "Sales sample-data helper",
+      "description": "Checks and clears sales and customer records for the farm, used when loading or resetting sample data at startup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/CustomerRepository.cs": {
+      "name": "Customer records",
+      "description": "Loads and saves the farm's customers."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/EggUnitConversionProvisioning.cs": {
+      "name": "Starting egg unit conversions",
+      "description": "Adds the default egg unit conversions to a new farm, only while that farm is being set up."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/PaymentRepository.cs": {
+      "name": "Payment records",
+      "description": "Loads and saves customer payments."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/SalesOrderAllocationRepository.cs": {
+      "name": "Egg lots set aside for sales",
+      "description": "Saves which egg lots are set aside for a sales order and lists those not yet released."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Commerce/Repositories/SalesOrderRepository.cs": {
+      "name": "Sales order records",
+      "description": "Loads and saves sales orders and their line items."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Configurations/DailyEntryConfiguration.cs": {
+      "name": "Daily egg count storage layout",
+      "description": "Defines how daily egg entries, their per-grade counts and the egg grades are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Configurations/EggInventoryMovementConfiguration.cs": {
+      "name": "Egg stock movement storage layout",
+      "description": "Defines how each increase or decrease in egg stock is stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Configurations/EggLotConfiguration.cs": {
+      "name": "Egg lot storage layout",
+      "description": "Defines how batches of collected eggs (lots) are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/DailyEntryRepository.cs": {
+      "name": "Daily egg entry records",
+      "description": "Loads and saves the daily egg collection entries."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggGradeProvisioning.cs": {
+      "name": "Starting egg grades",
+      "description": "Adds the default egg grades to a new farm, only while that farm is being set up."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggGradeRepository.cs": {
+      "name": "Egg grade records",
+      "description": "Loads and saves the egg grades the farm sorts its eggs into."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggInventoryMovementRepository.cs": {
+      "name": "Egg stock movement records",
+      "description": "Loads and saves each increase or decrease in egg stock."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggLotRepository.cs": {
+      "name": "Egg lot records",
+      "description": "Loads and saves egg lots, including looking up which lots are available to sell."
+    },
+    "src/Cluckwork.Infrastructure/Modules/EggOperations/Repositories/EggOperationsFixture.cs": {
+      "name": "Egg sample-data helper",
+      "description": "Checks and clears egg grades, lots and daily entries for the farm, used when loading or resetting sample data at startup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Farm/Configurations/AccountConfiguration.cs": {
+      "name": "Farm account storage layout",
+      "description": "Defines how the farm's account is stored, including its name and regional settings."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Farm/Configurations/FarmLogoConfiguration.cs": {
+      "name": "Farm logo and banner storage layout",
+      "description": "Defines how the farm's logo and banner images are stored in the database, in one shared list."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/AccountRepository.cs": {
+      "name": "Farm account records",
+      "description": "Loads and saves the farm's account, including looking a farm up by its code."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/FarmFixture.cs": {
+      "name": "Farm sample-data helper",
+      "description": "Checks the farm's account records, used when loading sample data at startup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Farm/Repositories/FarmLogoRepository.cs": {
+      "name": "Farm logo records",
+      "description": "Loads and saves the farm's logo and banner image."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Finance/Configurations/ExpenseConfiguration.cs": {
+      "name": "Expense storage layout",
+      "description": "Defines how expenses and expense categories are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Finance/Repositories/ExpenseRepositories.cs": {
+      "name": "Expense records",
+      "description": "Loads and saves expenses and expense categories."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Finance/Repositories/FinanceFixture.cs": {
+      "name": "Expense sample-data helper",
+      "description": "Looks up expense categories and counts expenses, used when loading sample data at startup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/FlockManagement/Configurations/FlockConfiguration.cs": {
+      "name": "Flock storage layout",
+      "description": "Defines how flocks and the movements of birds in and out of them are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/BirdMovementRepository.cs": {
+      "name": "Bird movement records",
+      "description": "Loads and saves the movements of birds in and out of flocks."
+    },
+    "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockFixture.cs": {
+      "name": "Flock sample-data helper",
+      "description": "Checks and clears flock records, used when loading or resetting sample data at startup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/FlockManagement/Repositories/FlockRepository.cs": {
+      "name": "Flock records",
+      "description": "Loads and saves the farm's flocks."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Configurations/InventoryConfiguration.cs": {
+      "name": "Supplies storage layout",
+      "description": "Defines how supply items, supply lots, feed use, water use and supply movements are stored in the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/FeedUsageRepository.cs": {
+      "name": "Feed use records",
+      "description": "Loads and saves how much feed was used."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryFixture.cs": {
+      "name": "Supplies sample-data helper",
+      "description": "Checks and clears supply records, used when loading or resetting sample data at startup."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryItemRepository.cs": {
+      "name": "Supply item records",
+      "description": "Loads and saves the supply items the farm keeps track of."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryLotRepository.cs": {
+      "name": "Supply lot records",
+      "description": "Loads and saves batches of supplies on hand."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/InventoryMovementRepository.cs": {
+      "name": "Supply movement records",
+      "description": "Loads and saves each increase or decrease in supplies."
+    },
+    "src/Cluckwork.Infrastructure/Modules/GeneralInventory/Repositories/WaterUsageRepository.cs": {
+      "name": "Water use records",
+      "description": "Loads and saves how much water was used."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/AuditEventRepository.cs": {
+      "name": "Activity history records",
+      "description": "Saves and searches the log of who did what and when."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Insights/Repositories/ExportQueries.cs": {
+      "name": "Data export lookups",
+      "description": "Gathers every dataset the farm owns into flat rows for spreadsheet (CSV) export."
+    }
+  }
+}

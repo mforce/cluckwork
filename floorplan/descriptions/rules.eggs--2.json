@@ -1,0 +1,72 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/UpdateEggGrade/UpdateEggGradeHandler.cs": {
+      "name": "Editing an egg grade",
+      "description": "Changes an existing egg grade's details."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggGrades/UpdateEggGrade/UpdateEggGradeValidator.cs": {
+      "name": "Egg grade edit checks",
+      "description": "Checks a changed egg grade is valid before it is saved."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggLots/EggStock.cs": {
+      "name": "Egg stock",
+      "description": "Checks, reserves and returns eggs in stock for sales, working through the egg lots."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggLots/IEggLotRepository.cs": {
+      "name": "Egg lot records",
+      "description": "Lists how egg lots are looked up and saved in the database."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggLots/RecordEggLotMovement/RecordEggLotMovementHandler.cs": {
+      "name": "Stock write-offs and recounts",
+      "description": "Removes lost eggs (breakage, spoilage, own use) or applies a recount to a lot, leaving production figures untouched."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggLots/RecordEggLotMovement/RecordEggLotMovementValidator.cs": {
+      "name": "Stock correction checks",
+      "description": "Checks a stock correction is valid before it is recorded."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/EggLots/SaleAllocationPlanner.cs": {
+      "name": "Sale stock planner",
+      "description": "Works out which lots a whole order would draw from, oldest first, without changing any stock."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Eggs/EggOperationsModule.cs": {
+      "name": "Egg module",
+      "description": "Carries out the egg side's work for other parts of the app: daily entries, grades, lots and stock."
+    },
+    "src/Cluckwork.Application/Modules/EggOperations/Eggs/IEggInventoryMovementRepository.cs": {
+      "name": "Egg movement records",
+      "description": "Lists how egg stock movements are saved in the database."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Contracts/DailyEntryKind.cs": {
+      "name": "Daily entry input kinds",
+      "description": "The kinds of daily entry input that feed an egg grade."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Contracts/DailyEntryStatus.cs": {
+      "name": "Daily entry stages",
+      "description": "The stages a daily entry moves through."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Contracts/EggGradeType.cs": {
+      "name": "Egg grade types",
+      "description": "The kinds of egg grade."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Contracts/EggMovementType.cs": {
+      "name": "Egg movement types",
+      "description": "The reasons egg stock goes up or down."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Eggs/DailyEntry.cs": {
+      "name": "Daily entry",
+      "description": "One day's egg counts by grade and other daily numbers, moving from draft to submitted, locked or cancelled."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Eggs/EggGrade.cs": {
+      "name": "Egg grade",
+      "description": "A bucket eggs are sorted into, set up for each farm account."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Eggs/EggInventoryMovement.cs": {
+      "name": "Egg movement",
+      "description": "A line in the stock ledger showing eggs added to or removed from a lot, and why."
+    },
+    "src/Cluckwork.Domain/Modules/EggOperations/Eggs/EggLot.cs": {
+      "name": "Egg lot",
+      "description": "A batch of eggs of one grade from one day, with how many are still available."
+    }
+  }
+}

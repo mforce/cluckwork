@@ -1,0 +1,128 @@
+{
+  "files": {
+    "src/Cluckwork.Analyzers/ModuleContracts.cs": {
+      "name": "Module contract rule",
+      "description": "The single rule deciding which parts of the code may expose themselves to other parts, shared by the build check."
+    },
+    "src/Cluckwork.Analyzers/ModuleEdgeAnalyzer.cs": {
+      "name": "Module boundary check",
+      "description": "Fails the build while editing when one area of the code reaches into another without a declared connection."
+    },
+    "src/Cluckwork.Analyzers/ModuleMap.cs": {
+      "name": "Module ownership map",
+      "description": "Reads which area owns which code and which connections are allowed, so edits to those rules take effect straight away."
+    },
+    "src/Cluckwork.AppHost/ContainerImages.cs": {
+      "name": "Container image list",
+      "description": "Names the container images the local development setup starts."
+    },
+    "src/Cluckwork.AppHost/Program.cs": {
+      "name": "Local dev launcher",
+      "description": "Starts the whole app and its database together on a developer's machine."
+    },
+    "tools/coverage/collect.sh": {
+      "name": "Coverage report",
+      "description": "Measures how much of the server code the automatic tests exercise."
+    },
+    "tools/docs/toc.py": {
+      "name": "Contents list builder",
+      "description": "Rewrites the table of contents inside a Markdown document so it matches the headings."
+    },
+    "tools/docs/verify-toc.py": {
+      "name": "Contents list checker",
+      "description": "Checks a document's contents links against GitHub's own rendering."
+    },
+    "tools/mcp/mutation-check.sh": {
+      "name": "Assistant connection sabotage check",
+      "description": "Breaks each sign-in claim of the AI-assistant connection in turn and confirms a test fails."
+    },
+    "tools/module-move/move.py": {
+      "name": "Code reorganiser",
+      "description": "One-off tool that moves code into per-area folders and fixes names to match."
+    },
+    "tools/oauth/mutation-check.sh": {
+      "name": "Sign-in sabotage check",
+      "description": "Breaks each documented claim about third-party sign-in and the AI-assistant connection and confirms a test fails."
+    },
+    "tools/schema-docs/generate.sh": {
+      "name": "Database docs generator",
+      "description": "Generates, or checks, the saved description of the database layout kept in the docs."
+    },
+    "tools/style/move-usings-outside.py": {
+      "name": "Import tidy-up script",
+      "description": "One-off script that moved import lines in the server code to the standard position."
+    },
+    "tools/test-timing/measure.py": {
+      "name": "Test timing capture",
+      "description": "Records how long a test run takes, per test and with container activity."
+    },
+    "tools/test-timing/summarize.py": {
+      "name": "Test timing summary",
+      "description": "Summarises a timed test run into where the time went."
+    },
+    "tools/verify/capture.sh": {
+      "name": "Screenshot capture",
+      "description": "Takes four screenshots of one screen from the running test farm: desktop and phone, light and dark."
+    },
+    "tools/verify/mcp/client.ts": {
+      "name": "Assistant connection test client",
+      "description": "Acts as an AI assistant connecting to the app, with a browser playing the person approving access."
+    },
+    "tools/verify/mcp/probe.cs": {
+      "name": "Assistant connection probe",
+      "description": "Small helper for probing the AI-assistant connection of a running test farm."
+    },
+    "tools/verify/mcp/tls-proxy.mjs": {
+      "name": "Local secure proxy",
+      "description": "Adds a secure connection in front of the test farm so the assistant sign-in flow will run."
+    },
+    "web/eslint.config.js": {
+      "name": "Lint settings entry",
+      "description": "Points the code checker at the real settings in the lint folder."
+    },
+    "web/lint/check-suppressions.mjs": {
+      "name": "Lint exception checker",
+      "description": "Checks the list of allowed code-check exceptions is accurate and does not quietly grow."
+    },
+    "web/lint/cleanup-selector.test.mjs": {
+      "name": "Cleanup rule tests",
+      "description": "Tests the code-check rule that flags unsafe clean-up code in screens."
+    },
+    "web/lint/eslint.config.js": {
+      "name": "Code check rules",
+      "description": "Rules the code checker enforces on the web app, such as screen-logic and async-loading rules."
+    },
+    "web/scripts/i18n-scan.mjs": {
+      "name": "Untranslated text scanner",
+      "description": "Finds hard-coded wording in screens that should be in the translation files."
+    },
+    "web/scripts/runtime-cache-match.d.mts": {
+      "name": "Offline cache rule types",
+      "description": "Type descriptions for the offline cache matching rules."
+    },
+    "web/scripts/runtime-cache-match.mjs": {
+      "name": "Offline cache rules",
+      "description": "Decides which fonts and language packs the installed app keeps saved for offline use."
+    },
+    "web/scripts/subset-inter-currency.d.mts": {
+      "name": "Currency font range types",
+      "description": "Type description for the currency symbol range."
+    },
+    "web/scripts/subset-inter-currency.mjs": {
+      "name": "Currency symbol font",
+      "description": "Builds a small font with just the currency symbols so they display correctly."
+    },
+    "web/scripts/verify-sw.mjs": {
+      "name": "Offline worker checker",
+      "description": "Checks the generated offline-support script keeps its safety guarantees."
+    },
+    "web/scripts/verify-sw.test.mjs": {
+      "name": "Offline worker checker tests",
+      "description": "Tests the offline-support checker itself."
+    },
+    "web/vite.config.ts": {
+      "name": "Web app build settings",
+      "description": "Settings for building and running the web app, including where it finds the server in development."
+    }
+  }
+}

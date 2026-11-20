@@ -1,0 +1,32 @@
+{
+  "updatedAt": "2026-11-20T18:30:00Z",
+  "tasks": [
+    {
+      "title": "Forceable phone mode",
+      "request": "",
+      "summary": "The app's switch between phone and desktop layouts can now be forced to phone mode, so the phone layout can be tested and shown on any screen size (#1437).",
+      "items": [
+        { "ref": "web/src/lib/breakpoints.ts", "change": "changed", "note": "Decides when the app uses its phone layout; it can now be forced into phone mode instead of only following the screen width." },
+        { "ref": "web/src/routes/AppLayout.tsx", "change": "changed", "note": "The page frame now follows the forceable phone-mode switch when choosing between the side menu and the bottom bar." },
+        { "ref": "web/src/components/BottomNav.tsx", "change": "changed", "note": "The phone's bottom menu bar appears whenever phone mode is on, including when it is forced." },
+        { "ref": "web/src/components/AuthShell.tsx", "change": "changed", "note": "The sign-in page frame uses the same phone-mode switch." }
+      ]
+    },
+    {
+      "title": "Change-password race test",
+      "request": "",
+      "summary": "A server test that checks two password changes at the same moment was made to run the same way every time instead of depending on timing (#1442).",
+      "items": [
+        { "ref": "tests/Cluckwork.Api.IntegrationTests/Infrastructure/BeforeCommandHook.cs", "change": "changed", "note": "The test helper that steps in just before a database command was adjusted so the two password changes collide the same way every run." }
+      ]
+    },
+    {
+      "title": "Passkeys in the glossary",
+      "request": "",
+      "summary": "The product glossary now defines passkeys as a second sign-in step, and the in-app glossary check was updated to match (#1445).",
+      "items": [
+        { "ref": "web/src/routes/glossaryCoverage.ts", "change": "changed", "note": "Tracks which glossary terms the in-app Help covers; updated for the new passkey entry." }
+      ]
+    }
+  ]
+}

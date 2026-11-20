@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/OAuthFailClosedTests.ClientMetadataDocuments.cs": {
+      "name": "Connected-app web-address ID checks",
+      "description": "Checks apps that identify themselves by the web address of their description document."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthFailClosedTests.ConnectedApps.cs": {
+      "name": "Connected apps list checks",
+      "description": "Checks that people see and disconnect their own apps and an Owner can see every app."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthFailClosedTests.ConnectedAppsSwitch.cs": {
+      "name": "Connected apps on/off switch checks",
+      "description": "Checks the farm setting that allows or blocks connected apps."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthFailClosedTests.cs": {
+      "name": "Connected-app token safety checks",
+      "description": "Checks that a connected app's access token is refused in the same situations a normal sign-in would be."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthFailClosedTests.SupersededApps.cs": {
+      "name": "Connected-app disconnect on password change checks",
+      "description": "Checks that apps are disconnected when the person's credentials change."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthPurgeTests.cs": {
+      "name": "Connected-app cleanup checks",
+      "description": "Checks that expired app tokens and approvals are cleared out by the routine cleanup."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthServerProductionTests.cs": {
+      "name": "Connected-app production setup checks",
+      "description": "Checks that the app sign-in server runs in production mode and handles a client end to end."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthServerTests.cs": {
+      "name": "Connected-app sign-in flow checks",
+      "description": "Checks the full approve-and-receive-token flow for apps, and that its tokens cannot be used elsewhere."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OneShotVerbMinimalConfigTests.cs": {
+      "name": "Command-line minimal setup checks",
+      "description": "Checks that each command-line job runs with only the bare minimum settings in production."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OperatorVerbContractTests.cs": {
+      "name": "Operator command exactness checks",
+      "description": "Checks two details of what operator commands pass along that no other test pinned down."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OtlpExporterTests.cs": {
+      "name": "Monitoring export setting checks",
+      "description": "Checks how the settings for sending monitoring data are read and validated."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OtlpSecureEndpointGuardTests.cs": {
+      "name": "Monitoring export security checks",
+      "description": "Checks that production refuses insecure settings for sending monitoring data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OtlpSubprocessExporterTests.cs": {
+      "name": "Monitoring export launch checks",
+      "description": "Checks monitoring data export by launching the app as a separate process."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OwnerEnrolmentChainTests.cs": {
+      "name": "Owner setup chain checks",
+      "description": "Checks the steps that create the first Owner of a farm from a fresh database."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OwnerTwoFactorGateTests.cs": {
+      "name": "Owner two-step sign-in requirement checks",
+      "description": "Checks that Owners must use two-step sign-in once the grace period ends."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OwnerTwoFactorGateUnitTests.cs": {
+      "name": "Owner two-step rule unit checks",
+      "description": "Checks the small decision rule that blocks Owners without two-step sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/PaymentsTests.cs": {
+      "name": "Customer payment checks",
+      "description": "Checks customer payments: tied to an order, same currency, and no paying more than owed."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/PlaintextDataProtectionKeyClassifierTests.cs": {
+      "name": "Unencrypted key detection checks",
+      "description": "Checks the guard that spots stored security keys left unencrypted."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/PostgresConnectionStringTests.cs": {
+      "name": "Database address checks",
+      "description": "Checks that database connection settings are cleaned up and validated correctly."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/PostgresLeaderLeaseTests.cs": {
+      "name": "Single-leader lock checks",
+      "description": "Checks that only one app server at a time holds the lead for background jobs."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ProcessRoleGuardTests.cs": {
+      "name": "Server-only startup check tests",
+      "description": "Checks that startup safety checks for the web server do not block one-off command-line jobs."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ProcessRoleRegistryTests.cs": {
+      "name": "Command-line job list checks",
+      "description": "Checks the list that says which commands are one-off jobs."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ProductAuditPayloadTests.cs": {
+      "name": "Product audit detail checks",
+      "description": "Checks that creating or editing a product records its type and unit in the audit trail."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ProductionLogFormatTests.cs": {
+      "name": "Production log format checks",
+      "description": "Checks that production writes logs in a structured form a log collector can read."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ProvisionAccountCommandTests.cs": {
+      "name": "Create-account command checks",
+      "description": "Checks the command-line tool that sets up a new farm account."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ProvisioningPortTests.cs": {
+      "name": "New farm setup checks",
+      "description": "Checks that a new farm gets its default egg grades and starting data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/QualityEggTests.cs": {
+      "name": "Cracked and dirty egg checks",
+      "description": "Checks that cracked and dirty eggs become sellable stock through their own counts."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/QueryShapeWarningTests.cs": {
+      "name": "Database query warning checks",
+      "description": "Checks that risky database query patterns are flagged."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RateLimitingOptionsTests.cs": {
+      "name": "Rate-limit setting checks",
+      "description": "Checks that bad rate-limit settings stop the app at startup rather than failing later."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RateLimitingTests.cs": {
+      "name": "Sign-in rate-limit checks",
+      "description": "Checks that too many sign-in attempts from one address are refused."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RateLimitKeyTests.cs": {
+      "name": "Rate-limit grouping checks",
+      "description": "Checks how requests are grouped by address for rate limiting."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ReadEndpointTests.cs": {
+      "name": "Read screen checks",
+      "description": "Checks reading a daily entry, stock by grade and sales orders."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RecoverAdminCommandTests.cs": {
+      "name": "Recover-admin command checks",
+      "description": "Checks the emergency command-line tool that restores access for a locked-out admin."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RedactedCredentialTypesTests.cs": {
+      "name": "Secret-holding type checks",
+      "description": "Checks that every code type holding a credential refuses to print its value."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RedactedToStringTests.cs": {
+      "name": "Secret printing guard checks",
+      "description": "Checks the scanner that makes sure secret-holding types print only a fixed placeholder."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RedactingLoggerPipelineTests.cs": {
+      "name": "Log redaction pipeline checks",
+      "description": "Checks that the real logging setup blanks out sensitive values."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RefreshAccountBindingTests.cs": {
+      "name": "Session renewal farm-match checks",
+      "description": "Checks that renewing a session fails if the browser tab expects a different farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RefreshGraceClockRaceTests.cs": {
+      "name": "Session renewal timing race checks",
+      "description": "Checks renewal of a session at the edge of its grace period when two requests collide."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RefreshTokenFlowTests.cs": {
+      "name": "Session renewal flow checks",
+      "description": "Checks that session renewal keys are stored durably and swapped for a new one each use."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/RefreshTokenPurgeBatchTests.cs": {
+      "name": "Old session cleanup batch checks",
+      "description": "Checks that old session keys are cleared in small batches so a big backlog does not stall."
+    }
+  }
+}

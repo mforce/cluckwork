@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/farm/FarmContext.tsx": {
+      "name": "Farm settings holder",
+      "description": "Loads the farm's account details once and makes them available to every signed-in screen."
+    },
+    "web/src/farm/useFarm.ts": {
+      "name": "Farm access",
+      "description": "Gives screens the farm's settings and today's date in the farm's own timezone."
+    },
+    "web/src/farm/useFormat.ts": {
+      "name": "Farm formatting",
+      "description": "Formats money, counts, dates and numbers the way the farm's region expects."
+    },
+    "web/src/farm/useLogoObjectUrl.ts": {
+      "name": "Farm logo and banner",
+      "description": "Fetches the farm's logo and banner images so they can be displayed."
+    },
+    "web/src/lib/accountStorage.ts": {
+      "name": "Per-account browser memory",
+      "description": "Saves small preferences in the browser separately for each account and clears leftovers."
+    },
+    "web/src/lib/bannerCache.ts": {
+      "name": "Banner cache",
+      "description": "Keeps the farm's banner image in the browser so it need not be downloaded every time, and drops it if another account signs in."
+    },
+    "web/src/lib/brand.ts": {
+      "name": "Colour brands",
+      "description": "The list of colour brand choices, with Aubergine as the default."
+    },
+    "web/src/lib/breakpoints.ts": {
+      "name": "Phone or desktop check",
+      "description": "Tells screens whether to show the phone or desktop layout."
+    },
+    "web/src/lib/dashboard.ts": {
+      "name": "Dashboard numbers",
+      "description": "Works out the Dashboard's tiles, such as flocks with no entry today, and splits lists into pages."
+    },
+    "web/src/lib/dates.ts": {
+      "name": "Date helpers",
+      "description": "Works out today's date and past dates on the farm's calendar and checks timezone names."
+    },
+    "web/src/lib/dayWindow.ts": {
+      "name": "Day window sizing",
+      "description": "Decides how big each day box is and whether a date range fits or must scroll."
+    },
+    "web/src/lib/discountCeiling.ts": {
+      "name": "Discount limit",
+      "description": "Works out the biggest discount a person may give, based on the farm's limit and their role."
+    },
+    "web/src/lib/errText.ts": {
+      "name": "Error text",
+      "description": "Turns a failure into a message that can be shown."
+    },
+    "web/src/lib/flockDefault.ts": {
+      "name": "Default flock",
+      "description": "Remembers the last flock used and picks the starting flock on entry screens."
+    },
+    "web/src/lib/format.ts": {
+      "name": "Number and money formatting",
+      "description": "Formats money in the right currency decimals, plus egg counts and other numbers."
+    },
+    "web/src/lib/grading.ts": {
+      "name": "Grading status",
+      "description": "Compares graded eggs to the total counted and says if it is still counting, matches, or is over."
+    },
+    "web/src/lib/ids.ts": {
+      "name": "Unique IDs",
+      "description": "Makes unique codes that stop a repeated click from saving twice."
+    },
+    "web/src/lib/languageHint.ts": {
+      "name": "Language memory",
+      "description": "Remembers the chosen language and picks the starting language."
+    },
+    "web/src/lib/layRateRange.ts": {
+      "name": "Lay-rate date ranges",
+      "description": "The preset date ranges offered for the lay-rate chart and its expanded view."
+    },
+    "web/src/lib/mainContent.ts": {
+      "name": "Main content marker",
+      "description": "Names the main page area so the skip link and focus can find it."
+    },
+    "web/src/lib/productionReportSplit.ts": {
+      "name": "Production report splitter",
+      "description": "Splits one production report into this week, last week and the morning collection so the Dashboard makes one request."
+    },
+    "web/src/lib/relativeTime.ts": {
+      "name": "Time ago",
+      "description": "Turns a moment into wording like '3 days ago' using the farm's calendar."
+    },
+    "web/src/lib/saveBlob.ts": {
+      "name": "File saver",
+      "description": "Saves a downloaded file to the person's device."
+    },
+    "web/src/lib/secondFactorMessage.ts": {
+      "name": "Security code messages",
+      "description": "The shared wording for security code answers at sign-in and confirmation."
+    },
+    "web/src/lib/stepperUnit.ts": {
+      "name": "Entry step size",
+      "description": "Decides how much the plus and minus buttons count by: the person's choice, else the farm's default."
+    },
+    "web/src/lib/theme.ts": {
+      "name": "Light and night mode",
+      "description": "Picks light or night mode, follows the device setting, and applies it."
+    },
+    "web/src/lib/traceparent.ts": {
+      "name": "Request tracing ID",
+      "description": "Makes an identifier attached to each request to help trace problems."
+    },
+    "web/src/styles.css": {
+      "name": "Stylesheet index",
+      "description": "Pulls all the style files together into one stylesheet."
+    },
+    "web/src/styles/audit.css": {
+      "name": "Audit styles",
+      "description": "Looks for the audit history screen."
+    },
+    "web/src/styles/base.css": {
+      "name": "Base styles",
+      "description": "Page-wide basics such as background and text."
+    },
+    "web/src/styles/controls.css": {
+      "name": "Control styles",
+      "description": "Looks for buttons, fields and other controls."
+    },
+    "web/src/styles/daily-entry.css": {
+      "name": "Daily entry styles",
+      "description": "Looks for the daily egg entry screen."
+    },
+    "web/src/styles/day-strip.css": {
+      "name": "Day strip styles",
+      "description": "Looks for the day strip and its fill patterns."
+    },
+    "web/src/styles/dialogs.css": {
+      "name": "Dialog styles",
+      "description": "Looks for pop-up windows."
+    },
+    "web/src/styles/expanded-lay-rate.css": {
+      "name": "Expanded chart styles",
+      "description": "Looks for the expanded lay-rate chart."
+    },
+    "web/src/styles/fonts.css": {
+      "name": "Font styles",
+      "description": "Loads the app's typefaces."
+    },
+    "web/src/styles/help.css": {
+      "name": "Help page styles",
+      "description": "Looks for the Help page."
+    },
+    "web/src/styles/named-picker.css": {
+      "name": "Picker styles",
+      "description": "Looks for the search-and-pick boxes."
+    },
+    "web/src/styles/notices.css": {
+      "name": "Notice styles",
+      "description": "Looks for the notice strip."
+    },
+    "web/src/styles/responsive.css": {
+      "name": "Responsive styles",
+      "description": "Adjusts layouts for phone and desktop sizes."
+    }
+  }
+}

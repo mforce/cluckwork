@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/components/GlossaryLink.test.tsx": {
+      "name": "Glossary link tests",
+      "description": "Checks that terms link to their definitions in the glossary."
+    },
+    "web/src/components/NamedEntityPicker.openFocus.test.tsx": {
+      "name": "Picker opening focus tests",
+      "description": "Checks that opening a pick-from-list box puts keyboard focus in the right place."
+    },
+    "web/src/components/namedEntityPicker.p1.test.tsx": {
+      "name": "Picker core behavior tests",
+      "description": "Checks the main search and select behavior of the pick-from-list box."
+    },
+    "web/src/components/NamedEntityPicker.test.tsx": {
+      "name": "Picker tests",
+      "description": "Checks that people can search for and choose a flock, customer or other named item."
+    },
+    "web/src/components/namedPickerUS3.recovery.test.tsx": {
+      "name": "Picker recovery tests",
+      "description": "Checks the picker recovers when its list fails to load or an item is gone."
+    },
+    "web/src/components/NumberField.test.tsx": {
+      "name": "Number field tests",
+      "description": "Checks that number boxes accept, limit and format typed values correctly."
+    },
+    "web/src/components/ProvenanceCell.test.tsx": {
+      "name": "Entry source cell tests",
+      "description": "Checks the table cell showing who or what recorded a value."
+    },
+    "web/src/components/StatusBadge.test.tsx": {
+      "name": "Status badge tests",
+      "description": "Checks the small colored status labels show the right words and look."
+    },
+    "web/src/components/StockBar.test.tsx": {
+      "name": "Stock bar tests",
+      "description": "Checks the bar showing how much stock is left."
+    },
+    "web/src/components/ThemeToggle.test.tsx": {
+      "name": "Light and dark switch tests",
+      "description": "Checks the button that switches between light and dark appearance."
+    },
+    "web/src/components/useConfirm.test.tsx": {
+      "name": "Confirm prompt tests",
+      "description": "Checks the are-you-sure prompt appears and returns the user's answer."
+    },
+    "web/src/components/useDialogAction.test.ts": {
+      "name": "Dialog action tests",
+      "description": "Checks a dialog's save action runs once and closes or reports failure."
+    },
+    "web/src/components/useDialogErrors.test.tsx": {
+      "name": "Dialog errors tests",
+      "description": "Checks that server errors are matched to the right fields in a dialog."
+    },
+    "web/src/components/useDialogSession.test.ts": {
+      "name": "Dialog session tests",
+      "description": "Checks that a dialog starts fresh each time it is opened."
+    },
+    "web/src/components/useLatestLoad.test.ts": {
+      "name": "Latest load tests",
+      "description": "Checks that only the newest data request is used when several overlap."
+    },
+    "web/src/components/useMissedAnnouncement.test.tsx": {
+      "name": "Missed announcement tests",
+      "description": "Checks that screen-reader announcements are not lost when they arrive early."
+    },
+    "web/src/components/usePagedList.test.tsx": {
+      "name": "Paged list tests",
+      "description": "Checks that long lists load page by page and reset when filters change."
+    },
+    "web/src/components/usePendingAction.test.ts": {
+      "name": "Pending action tests",
+      "description": "Checks that an action in progress is tracked and cannot be started twice."
+    },
+    "web/src/farm/FarmContext.test.tsx": {
+      "name": "Farm settings sharing tests",
+      "description": "Checks that the farm's settings load and are shared with every screen."
+    },
+    "web/src/farm/useBannerObjectUrl.test.tsx": {
+      "name": "Farm banner image tests",
+      "description": "Checks that the farm's banner image is loaded for display and released after."
+    },
+    "web/src/farm/useFormat.test.tsx": {
+      "name": "Farm formatting tests",
+      "description": "Checks that numbers, dates and money follow the farm's settings."
+    },
+    "web/src/farm/useLogoObjectUrl.test.tsx": {
+      "name": "Farm logo image tests",
+      "description": "Checks that the farm's logo image is loaded for display and released after."
+    },
+    "web/src/i18n/badgeCase.test.ts": {
+      "name": "Badge letter case tests",
+      "description": "Checks that status labels use the right capital letters in each language."
+    },
+    "web/src/i18n/bootSeed.test.ts": {
+      "name": "Startup language tests",
+      "description": "Checks the language chosen before the app finishes loading."
+    },
+    "web/src/i18n/catalogParity.test.ts": {
+      "name": "Translation completeness tests",
+      "description": "Checks every language has the same set of text entries."
+    },
+    "web/src/i18n/enums.test.ts": {
+      "name": "Translated option names tests",
+      "description": "Checks that every fixed option, such as a status, has a translated name."
+    },
+    "web/src/i18n/formattingIndependence.test.ts": {
+      "name": "Language and format independence tests",
+      "description": "Checks that number and date style is separate from the chosen language."
+    },
+    "web/src/i18n/i18n.test.ts": {
+      "name": "Translation tests",
+      "description": "Checks that text is looked up and filled in correctly in the chosen language."
+    },
+    "web/src/i18n/languageHint.integration.test.ts": {
+      "name": "Language hint flow tests",
+      "description": "Checks that a user's language preference is picked up and applied end to end."
+    },
+    "web/src/i18n/packFailure.test.ts": {
+      "name": "Language pack failure tests",
+      "description": "Checks the app keeps working when a language file fails to load."
+    },
+    "web/src/i18n/resolve.test.ts": {
+      "name": "Language choice tests",
+      "description": "Checks which language is chosen from the user, farm and browser."
+    },
+    "web/src/lib/accountStorage.test.ts": {
+      "name": "Account storage tests",
+      "description": "Checks that per-account preferences are saved on the device and kept separate."
+    },
+    "web/src/lib/bannerCache.test.ts": {
+      "name": "Banner cache tests",
+      "description": "Checks that the farm banner is kept for reuse and refreshed when it changes."
+    },
+    "web/src/lib/brand.test.ts": {
+      "name": "Brand tests",
+      "description": "Checks the app's brand name and colors are applied consistently."
+    },
+    "web/src/lib/dashboard.test.ts": {
+      "name": "Dashboard figures tests",
+      "description": "Checks the numbers shown on the dashboard are worked out correctly."
+    },
+    "web/src/lib/dates.test.ts": {
+      "name": "Date helper tests",
+      "description": "Checks date calculations such as today, ranges and formatting."
+    },
+    "web/src/lib/dayWindow.test.ts": {
+      "name": "Day window tests",
+      "description": "Checks the range of days shown around the selected day."
+    },
+    "web/src/lib/discountCeiling.test.ts": {
+      "name": "Discount limit tests",
+      "description": "Checks that discounts cannot go above the allowed maximum."
+    },
+    "web/src/lib/errText.test.ts": {
+      "name": "Error text tests",
+      "description": "Checks that errors are turned into readable messages."
+    },
+    "web/src/lib/flockDefault.test.ts": {
+      "name": "Default flock tests",
+      "description": "Checks which flock is pre-selected when there is a choice."
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "files": {
+    "web/index.html": {
+      "name": "Page shell",
+      "description": "The single web page the app loads into, which starts the app."
+    },
+    "web/src/App.tsx": {
+      "name": "App screens map",
+      "description": "Decides which screen shows for each address, and wraps them in sign-in, session and the update prompt."
+    },
+    "web/src/main.tsx": {
+      "name": "App start",
+      "description": "Starts the app in the browser once the language is ready."
+    },
+    "web/src/pwa/appVersion.ts": {
+      "name": "App version check",
+      "description": "Reads which version the live site is on so the app can tell when a newer one is available."
+    },
+    "web/src/pwa/registerServiceWorker.ts": {
+      "name": "Offline and update helper",
+      "description": "Sets up the background helper that lets the app install on a phone and notices when a new version is waiting."
+    },
+    "web/src/pwa/UpdatePrompt.tsx": {
+      "name": "New version prompt",
+      "description": "Shows a \"new version is ready\" message with a choice to update now or later."
+    },
+    "web/src/pwa/updateStore.ts": {
+      "name": "Update status keeper",
+      "description": "Remembers whether a new version is waiting and whether its prompt was dismissed, so the menu can bring it back."
+    },
+    "web/src/routes/AppLayout.tsx": {
+      "name": "Page frame and menu",
+      "description": "Draws the frame around signed-in screens: a side menu on desktop and bottom tabs on a phone, showing only what the role may reach."
+    },
+    "web/src/routes/nav.tsx": {
+      "name": "Menu entries",
+      "description": "Lists the menu destinations, grouped by job and filtered to the person's role, and picks the four phone tabs."
+    }
+  }
+}

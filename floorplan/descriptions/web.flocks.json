@@ -1,0 +1,48 @@
+{
+  "files": {
+    "web/src/routes/FlockDialogs.tsx": {
+      "name": "Flock pop-ups",
+      "description": "Pop-ups for adding a flock, correcting its details and ending it, with their saving."
+    },
+    "web/src/routes/FlocksPage.tsx": {
+      "name": "Flocks page",
+      "description": "Where staff add flocks, fix their details, mark them depleted or archive them."
+    },
+    "web/src/routes/GradesPage.tsx": {
+      "name": "Egg grades page",
+      "description": "Manages the farm's list of egg grades."
+    },
+    "web/src/routes/InventoryCatalog.tsx": {
+      "name": "Inventory items list",
+      "description": "Lists inventory items as a table, or as phone cards with a read-only peek."
+    },
+    "web/src/routes/InventoryCatalogDialogs.tsx": {
+      "name": "Inventory item pop-ups",
+      "description": "Pop-ups for creating and editing inventory items, with their saving."
+    },
+    "web/src/routes/InventoryItemPanel.tsx": {
+      "name": "Inventory item detail",
+      "description": "Shows one item's purchase and stock-correction pop-ups and its history of stock changes."
+    },
+    "web/src/routes/InventoryPage.tsx": {
+      "name": "Inventory page",
+      "description": "Lists inventory items and records stock received."
+    },
+    "web/src/routes/PackedUnitsPanel.tsx": {
+      "name": "Packed units tab",
+      "description": "The Products screen tab listing packed units with a detail panel."
+    },
+    "web/src/routes/StockPage.tsx": {
+      "name": "Stock page",
+      "description": "Shows egg stock ready to sell by grade, with restricted quantities shown separately as they cannot be sold yet."
+    },
+    "web/src/routes/useStockLots.ts": {
+      "name": "Stock batches logic",
+      "description": "Loads a grade's batches with a date filter and each batch's history of changes."
+    },
+    "web/src/routes/WriteOffDialog.tsx": {
+      "name": "Write-off pop-up",
+      "description": "Pop-up for removing stock from the books, such as broken or lost eggs."
+    }
+  }
+}

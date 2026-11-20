@@ -1,0 +1,126 @@
+{
+  "files": {
+    "src/Cluckwork.Api/Modules/GeneralInventory/Inventory/InventoryEndpoints.cs": {
+      "name": "Inventory addresses",
+      "description": "Manages feed and supply items: add and edit them, record purchases, feed use and stock corrections, and view their history."
+    },
+    "src/Cluckwork.Api/Modules/GeneralInventory/Water/WaterUsageEndpoints.cs": {
+      "name": "Water usage addresses",
+      "description": "Records, corrects and lists the water the farm uses."
+    },
+    "src/Cluckwork.Api/Modules/Insights/Audit/AuditEndpoints.cs": {
+      "name": "Activity log address",
+      "description": "Gives a read-only view of who did what on the farm."
+    },
+    "src/Cluckwork.Api/Modules/Insights/Export/CsvExport.cs": {
+      "name": "Spreadsheet file writer",
+      "description": "Turns farm data into spreadsheet files that open correctly in Excel."
+    },
+    "src/Cluckwork.Api/Modules/Insights/Export/ExportEndpoints.cs": {
+      "name": "Data export addresses",
+      "description": "Lets an admin download the farm's data as a manual backup, all at once or one dataset at a time."
+    },
+    "src/Cluckwork.Api/Modules/Insights/InsightsModuleServiceCollectionExtensions.cs": {
+      "name": "Reports feature registration",
+      "description": "Switches on the reports, activity log and export features when the server starts."
+    },
+    "src/Cluckwork.Api/Modules/Insights/Reports/ReportConcurrencyLimitFilter.cs": {
+      "name": "Report overload limit",
+      "description": "Limits how many reports one farm can run at once, answering with a try-again-later message beyond that."
+    },
+    "src/Cluckwork.Api/Modules/Insights/Reports/ReportEndpoints.cs": {
+      "name": "Report addresses",
+      "description": "Produces the production, sales, expense and profit reports; production is open to all, money reports to admins."
+    }
+  },
+  "routes": {
+    "GET /api/v1/inventory/items": {
+      "name": "List inventory items",
+      "description": "Shows feed and supply items with current stock."
+    },
+    "GET /api/v1/inventory/items/{id:guid}": {
+      "name": "Get inventory item",
+      "description": "Shows one item."
+    },
+    "POST /api/v1/inventory/items": {
+      "name": "Add inventory item",
+      "description": "Adds a new feed or supply item; admin only."
+    },
+    "PUT /api/v1/inventory/items/{id:guid}": {
+      "name": "Edit inventory item",
+      "description": "Changes an item's details."
+    },
+    "POST /api/v1/inventory/items/{id:guid}/deactivate": {
+      "name": "Deactivate item",
+      "description": "Hides an item that is no longer used."
+    },
+    "POST /api/v1/inventory/items/{id:guid}/activate": {
+      "name": "Activate item",
+      "description": "Brings a hidden item back into use."
+    },
+    "POST /api/v1/inventory/items/{id:guid}/purchases": {
+      "name": "Record purchase",
+      "description": "Records a purchase that adds stock of an item."
+    },
+    "GET /api/v1/inventory/items/{id:guid}/lots": {
+      "name": "List item batches",
+      "description": "Shows the purchase batches making up an item's stock."
+    },
+    "GET /api/v1/inventory/items/{id:guid}/movements": {
+      "name": "List item movements",
+      "description": "Shows every stock change for an item."
+    },
+    "POST /api/v1/inventory/items/{id:guid}/usage": {
+      "name": "Record feed use",
+      "description": "Records feed used by a flock, which lowers stock."
+    },
+    "POST /api/v1/inventory/items/{id:guid}/adjustments": {
+      "name": "Correct stock",
+      "description": "Fixes an item's stock count; admin only."
+    },
+    "GET /api/v1/inventory/usage": {
+      "name": "List feed use",
+      "description": "Shows the recorded feed use."
+    },
+    "POST /api/v1/water-usage": {
+      "name": "Record water use",
+      "description": "Records water used on a day."
+    },
+    "PUT /api/v1/water-usage/{id:guid}": {
+      "name": "Correct water use",
+      "description": "Fixes a recorded water use; admin only."
+    },
+    "GET /api/v1/water-usage": {
+      "name": "List water use",
+      "description": "Shows recorded water use."
+    },
+    "GET /api/v1/audit": {
+      "name": "List activity log",
+      "description": "Shows the log of who did what and when."
+    },
+    "GET /api/v1/export/all": {
+      "name": "Export everything",
+      "description": "Downloads all of the farm's data in one backup."
+    },
+    "GET /api/v1/export/{dataset}": {
+      "name": "Export one dataset",
+      "description": "Downloads one kind of data, such as sales, as a spreadsheet file."
+    },
+    "GET /api/v1/reports/production": {
+      "name": "Production report",
+      "description": "Shows egg production over a period; open to every signed-in user."
+    },
+    "GET /api/v1/reports/sales": {
+      "name": "Sales report",
+      "description": "Summarizes sales over a period; admin only."
+    },
+    "GET /api/v1/reports/expenses": {
+      "name": "Expense report",
+      "description": "Summarizes spending over a period; admin only."
+    },
+    "GET /api/v1/reports/profit": {
+      "name": "Profit report",
+      "description": "Compares sales against spending over a period; admin only."
+    }
+  }
+}

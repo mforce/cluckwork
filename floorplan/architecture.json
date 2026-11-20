@@ -1,0 +1,788 @@
+{
+  "$schema": "floorplan/architecture@1",
+  "project": {
+    "name": "Cluckwork",
+    "summary": "Software for running an egg farm: record each day's eggs, feed and water per flock, track egg lots from the hen to the sale, sell to customers, log expenses and see the farm's numbers. One server (C# / .NET) serves both the web app (React) and its data, and stores everything in Postgres.",
+    "entrypoints": [
+      "src/Cluckwork.Api/Program.cs",
+      "web/src/main.tsx",
+      "web/src/App.tsx"
+    ]
+  },
+  "ignore": [
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/*.Designer.cs",
+    "src/Cluckwork.Infrastructure/Persistence/Migrations/*ModelSnapshot.cs",
+    "docs/designs/**",
+    "specs/**",
+    ".specify/**",
+    "web/public/**",
+    "**/bin/**",
+    "**/obj/**",
+    "graphify-out/**"
+  ],
+  "nodes": [
+    {
+      "id": "web",
+      "label": "Farm web app",
+      "kind": "ui",
+      "summary": "The app farm staff use in the browser or on a phone: daily records, stock, sales, reports and settings.",
+      "paths": [
+        "web/src/**",
+        "web/index.html"
+      ],
+      "exclude": [
+        "web/src/**/*.test.{ts,tsx}",
+        "web/src/test/**"
+      ]
+    },
+    {
+      "id": "web.shell",
+      "parent": "web",
+      "label": "App frame and menu",
+      "kind": "feature",
+      "summary": "Starts the app, lays out the page frame and menu, and makes it installable on a phone.",
+      "paths": [
+        "web/src/main.tsx",
+        "web/src/App.tsx",
+        "web/src/routes/AppLayout.tsx",
+        "web/src/routes/nav.tsx",
+        "web/src/pwa/**",
+        "web/index.html"
+      ]
+    },
+    {
+      "id": "web.signin",
+      "parent": "web",
+      "label": "Sign-in and session",
+      "kind": "feature",
+      "summary": "Sign-in, password setup, two-step verification and keeping people signed in.",
+      "paths": [
+        "web/src/auth/**",
+        "web/src/session/**",
+        "web/src/routes/Login.tsx",
+        "web/src/routes/SetPasswordPage.tsx",
+        "web/src/routes/SecondFactorStep.tsx",
+        "web/src/routes/TwoFactor*.tsx",
+        "web/src/routes/signInMessage.ts",
+        "web/src/routes/ProtectedRoute.tsx"
+      ]
+    },
+    {
+      "id": "web.daily",
+      "parent": "web",
+      "label": "Daily records screens",
+      "kind": "feature",
+      "summary": "Where staff record each flock's eggs, feed and water for the day, and look back at past days.",
+      "paths": [
+        "web/src/routes/dailyEntry/**",
+        "web/src/routes/DailyEntryPage.tsx",
+        "web/src/routes/Feed*.tsx",
+        "web/src/routes/Water*.tsx",
+        "web/src/routes/history/**",
+        "web/src/routes/HistoryPage.tsx"
+      ]
+    },
+    {
+      "id": "web.dashboard",
+      "parent": "web",
+      "label": "Dashboard and reports screens",
+      "kind": "feature",
+      "summary": "The morning overview, the farm's reports and data export.",
+      "paths": [
+        "web/src/routes/dashboard/**",
+        "web/src/routes/Dashboard.tsx",
+        "web/src/routes/reports/**",
+        "web/src/routes/ReportsPage.tsx",
+        "web/src/routes/ExportPage.tsx"
+      ]
+    },
+    {
+      "id": "web.flocks",
+      "parent": "web",
+      "label": "Flocks and stock screens",
+      "kind": "feature",
+      "summary": "Flocks, egg grades, egg stock on hand and general farm supplies.",
+      "paths": [
+        "web/src/routes/Flock*.tsx",
+        "web/src/routes/GradesPage.tsx",
+        "web/src/routes/Inventory*.tsx",
+        "web/src/routes/Stock*.tsx",
+        "web/src/routes/PackedUnitsPanel.tsx",
+        "web/src/routes/useStockLots.ts",
+        "web/src/routes/WriteOffDialog.tsx"
+      ]
+    },
+    {
+      "id": "web.sales",
+      "parent": "web",
+      "label": "Sales and expenses screens",
+      "kind": "feature",
+      "summary": "Selling eggs to customers, the product list, customers and farm expenses.",
+      "paths": [
+        "web/src/routes/sales/**",
+        "web/src/routes/CustomersPage.tsx",
+        "web/src/routes/Product*.tsx",
+        "web/src/routes/expenses/**",
+        "web/src/routes/ExpensesPage.tsx"
+      ]
+    },
+    {
+      "id": "web.users",
+      "parent": "web",
+      "label": "Account and staff screens",
+      "kind": "feature",
+      "summary": "Your own account and security, and managing staff users and their roles.",
+      "paths": [
+        "web/src/routes/account/**",
+        "web/src/routes/AccountPage.tsx",
+        "web/src/routes/users/**",
+        "web/src/routes/UsersPage.tsx"
+      ]
+    },
+    {
+      "id": "web.admin",
+      "parent": "web",
+      "label": "Settings, activity log and help screens",
+      "kind": "feature",
+      "summary": "Farm settings, the activity log, connected AI apps and the Help page.",
+      "paths": [
+        "web/src/routes/settings/**",
+        "web/src/routes/SettingsPage.tsx",
+        "web/src/routes/Audit*.tsx",
+        "web/src/routes/Connect*.tsx",
+        "web/src/routes/help/**",
+        "web/src/routes/HelpPage.tsx",
+        "web/src/routes/helpGlossary.ts",
+        "web/src/routes/glossaryCoverage.ts"
+      ]
+    },
+    {
+      "id": "web.components",
+      "parent": "web",
+      "label": "Shared screen pieces",
+      "kind": "library",
+      "summary": "Buttons, dialogs, pickers, day strips and other building blocks reused across screens.",
+      "paths": [
+        "web/src/components/**"
+      ]
+    },
+    {
+      "id": "web.api",
+      "parent": "web",
+      "label": "Server connection",
+      "kind": "library",
+      "summary": "Every request the app sends to the server, in one place.",
+      "paths": [
+        "web/src/api/**"
+      ]
+    },
+    {
+      "id": "web.i18n",
+      "parent": "web",
+      "label": "Translations",
+      "kind": "config",
+      "summary": "All on-screen text in English, Spanish and Tagalog, and enum labels.",
+      "paths": [
+        "web/src/i18n/**"
+      ]
+    },
+    {
+      "id": "web.base",
+      "parent": "web",
+      "label": "Look, theme and helpers",
+      "kind": "library",
+      "summary": "Colours, fonts, styles, light/dark theme, farm branding and small helpers for dates and numbers.",
+      "paths": [
+        "web/src/lib/**",
+        "web/src/farm/**",
+        "web/src/theme/**",
+        "web/src/styles/**",
+        "web/src/styles.css",
+        "web/src/types/**",
+        "web/src/vite-env.d.ts"
+      ]
+    },
+    {
+      "id": "server",
+      "label": "Main server",
+      "kind": "service",
+      "summary": "The one server that answers the web app's requests, serves the app itself, lets AI apps use farm tools and runs command-line jobs.",
+      "paths": [
+        "src/Cluckwork.Api/**"
+      ]
+    },
+    {
+      "id": "server.endpoints",
+      "parent": "server",
+      "label": "Request handlers",
+      "kind": "feature",
+      "summary": "The web addresses the app calls, grouped by area (sign-in, sales, daily entries, inventory, reports…), each passing the work to the business rules.",
+      "paths": [
+        "src/Cluckwork.Api/Modules/**",
+        "src/Cluckwork.Api/Endpoints/**",
+        "src/Cluckwork.Api/Hosting/Modules/**"
+      ]
+    },
+    {
+      "id": "server.guard",
+      "parent": "server",
+      "label": "Request checks and security",
+      "kind": "feature",
+      "summary": "Runs on every request: who you are, which farm you belong to, request limits, security headers and input checks.",
+      "paths": [
+        "src/Cluckwork.Api/Middleware/**",
+        "src/Cluckwork.Api/Security/**",
+        "src/Cluckwork.Api/RateLimiting/**",
+        "src/Cluckwork.Api/Validation/**",
+        "src/Cluckwork.Api/AuthPolicies.cs"
+      ]
+    },
+    {
+      "id": "server.startup",
+      "parent": "server",
+      "label": "Startup and settings",
+      "kind": "config",
+      "summary": "Wires the server together at start: database, sign-in, background jobs, logging, health checks and safety checks before serving.",
+      "paths": [
+        "src/Cluckwork.Api/Program.cs",
+        "src/Cluckwork.Api/Hosting/**",
+        "src/Cluckwork.Api/Configuration/**",
+        "src/Cluckwork.Api/Logging/**",
+        "src/Cluckwork.Api/HealthChecks/**"
+      ]
+    },
+    {
+      "id": "server.cli",
+      "parent": "server",
+      "label": "Admin commands",
+      "kind": "script",
+      "summary": "One-off commands run from a terminal, like applying database changes or creating the first admin.",
+      "paths": [
+        "src/Cluckwork.Api/Cli/**"
+      ]
+    },
+    {
+      "id": "server.mcp",
+      "parent": "server",
+      "label": "AI app tools",
+      "kind": "feature",
+      "summary": "Farm tools that connected AI assistants can call: record a day, check stock, log sales and expenses.",
+      "paths": [
+        "src/Cluckwork.Api/Mcp/**",
+        "src/Cluckwork.Api/Hosting/CluckworkMcp.cs",
+        "src/Cluckwork.Api/Hosting/McpToolErrors.cs"
+      ]
+    },
+    {
+      "id": "rules",
+      "label": "Business rules",
+      "kind": "library",
+      "summary": "What each action means for the farm and when it is refused, split into areas like sales, egg operations and flocks.",
+      "paths": [
+        "src/Cluckwork.Application/**",
+        "src/Cluckwork.Domain/**"
+      ]
+    },
+    {
+      "id": "rules.access",
+      "parent": "rules",
+      "label": "Accounts and access",
+      "kind": "feature",
+      "summary": "Users, roles, sign-in, passwords, two-step verification, connected apps and the activity log.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/Access/**"
+      ]
+    },
+    {
+      "id": "rules.eggs",
+      "parent": "rules",
+      "label": "Egg operations",
+      "kind": "feature",
+      "summary": "Daily egg collection and grading, egg lots, and medication holds that block a lot from sale.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/EggOperations/**",
+        "src/Cluckwork.Domain/Modules/EggOperations/**"
+      ]
+    },
+    {
+      "id": "rules.flocks",
+      "parent": "rules",
+      "label": "Flocks",
+      "kind": "feature",
+      "summary": "Flocks of hens: placing them, counting them, feed and water records and closing them out.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/FlockManagement/**",
+        "src/Cluckwork.Domain/Modules/FlockManagement/**"
+      ]
+    },
+    {
+      "id": "rules.commerce",
+      "parent": "rules",
+      "label": "Sales and customers",
+      "kind": "feature",
+      "summary": "Customers, products, prices and discounts, and sales that draw down egg stock.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/Commerce/**",
+        "src/Cluckwork.Domain/Modules/Commerce/**"
+      ]
+    },
+    {
+      "id": "rules.inventory",
+      "parent": "rules",
+      "label": "Farm supplies",
+      "kind": "feature",
+      "summary": "General stock like feed and packaging: items, receipts, use and write-offs.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/GeneralInventory/**",
+        "src/Cluckwork.Domain/Modules/GeneralInventory/**"
+      ]
+    },
+    {
+      "id": "rules.finance",
+      "parent": "rules",
+      "label": "Expenses",
+      "kind": "feature",
+      "summary": "Recording and categorising the farm's expenses.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/Finance/**",
+        "src/Cluckwork.Domain/Modules/Finance/**"
+      ]
+    },
+    {
+      "id": "rules.farm",
+      "parent": "rules",
+      "label": "Farm setup",
+      "kind": "feature",
+      "summary": "The farm itself: its houses, egg grades, branding, time zone and other settings.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/Farm/**",
+        "src/Cluckwork.Domain/Modules/Farm/**"
+      ]
+    },
+    {
+      "id": "rules.insights",
+      "parent": "rules",
+      "label": "Dashboard and reports",
+      "kind": "feature",
+      "summary": "Works out the numbers: lay rate, saleable share, stock on hand, the dashboard and exports.",
+      "paths": [
+        "src/Cluckwork.Application/Modules/Insights/**"
+      ]
+    },
+    {
+      "id": "rules.common",
+      "parent": "rules",
+      "label": "Shared rule pieces",
+      "kind": "library",
+      "summary": "Pieces every area uses: results and errors, auditing, paging, money and dates.",
+      "paths": [
+        "src/Cluckwork.Application/Common/**",
+        "src/Cluckwork.Domain/Common/**",
+        "src/Cluckwork.Domain/Auditing/**"
+      ]
+    },
+    {
+      "id": "data",
+      "label": "Data storage and jobs",
+      "kind": "data",
+      "summary": "Saves and loads everything in the database, handles sign-in tokens, keeps shared counters in Redis and runs background jobs.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/**"
+      ]
+    },
+    {
+      "id": "data.core",
+      "parent": "data",
+      "label": "Database core",
+      "kind": "data",
+      "summary": "The database connection, keeping each farm's data separate, transactions and table setup.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/Persistence/**",
+        "src/Cluckwork.Infrastructure/Repositories/**"
+      ]
+    },
+    {
+      "id": "data.migrations",
+      "parent": "data",
+      "label": "Database changes",
+      "kind": "data",
+      "summary": "Step-by-step changes to the database's tables, applied in order.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/Persistence/Migrations/**"
+      ]
+    },
+    {
+      "id": "data.seed",
+      "parent": "data",
+      "label": "Demo and test data",
+      "kind": "data",
+      "summary": "Fills a fresh database with a demo farm or a full simulated farm history for testing.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/Persistence/DemoDataSeeder.cs",
+        "src/Cluckwork.Infrastructure/Persistence/Simulation*.cs",
+        "src/Cluckwork.Infrastructure/Persistence/SeedResult.cs"
+      ]
+    },
+    {
+      "id": "data.modules",
+      "parent": "data",
+      "label": "Saving farm records",
+      "kind": "data",
+      "summary": "Loads and saves the records of each business area: flocks, egg lots, sales, supplies, expenses and reports.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/Modules/**"
+      ]
+    },
+    {
+      "id": "data.identity",
+      "parent": "data",
+      "label": "Sign-in storage",
+      "kind": "data",
+      "summary": "Stores users, passwords, two-step codes and the tokens given to the app and connected AI apps.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/Modules/Access/**",
+        "src/Cluckwork.Infrastructure/OAuth/**"
+      ]
+    },
+    {
+      "id": "data.jobs",
+      "parent": "data",
+      "label": "Background jobs",
+      "kind": "worker",
+      "summary": "Work that runs on its own in the background, with one server at a time taking the lead.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/Jobs/**"
+      ]
+    },
+    {
+      "id": "data.shared",
+      "parent": "data",
+      "label": "Shared counters and clock",
+      "kind": "library",
+      "summary": "Request-limit counters and shared state kept in Redis, plus the farm clock.",
+      "paths": [
+        "src/Cluckwork.Infrastructure/SharedState/**",
+        "src/Cluckwork.Infrastructure/RateLimiting/**",
+        "src/Cluckwork.Infrastructure/Providers/**",
+        "src/Cluckwork.Infrastructure/Time/**"
+      ]
+    },
+    {
+      "id": "tests",
+      "label": "Automated tests",
+      "kind": "test",
+      "summary": "Checks that the server, the business rules, the web app and full click-through journeys keep working.",
+      "paths": [
+        "tests/**",
+        "web/src/**/*.test.{ts,tsx}",
+        "web/src/test/**"
+      ]
+    },
+    {
+      "id": "tests.integration",
+      "parent": "tests",
+      "label": "Server tests",
+      "kind": "test",
+      "summary": "Calls the real server against a real Postgres database and checks the answers.",
+      "paths": [
+        "tests/Cluckwork.Api.IntegrationTests/**"
+      ]
+    },
+    {
+      "id": "tests.unit",
+      "parent": "tests",
+      "label": "Rule and structure tests",
+      "kind": "test",
+      "summary": "Checks business rules on their own, plus guards that keep the code's structure and conventions intact.",
+      "paths": [
+        "tests/Cluckwork.Application.Tests/**",
+        "tests/Cluckwork.Domain.Tests/**",
+        "tests/Cluckwork.AppHost.Tests/**"
+      ]
+    },
+    {
+      "id": "tests.web",
+      "parent": "tests",
+      "label": "Web app tests",
+      "kind": "test",
+      "summary": "Checks screens and pieces of the web app in a simulated browser.",
+      "paths": [
+        "web/src/**/*.test.{ts,tsx}",
+        "web/src/test/**"
+      ]
+    },
+    {
+      "id": "tests.e2e",
+      "parent": "tests",
+      "label": "Click-through tests",
+      "kind": "test",
+      "summary": "Drives a real browser through the running app like a person would.",
+      "paths": [
+        "tools/simulation/ui/**"
+      ]
+    },
+    {
+      "id": "tools",
+      "label": "Developer tools",
+      "kind": "script",
+      "summary": "Everything around the app: the local dev stack, the simulated farm, load tests, release scripts, automatic checks and safety guards for AI agents.",
+      "paths": [
+        "tools/**",
+        ".github/**",
+        ".pi/**",
+        ".hermes/**",
+        "web/scripts/**",
+        "web/lint/**",
+        "web/*.{ts,js}",
+        "src/Cluckwork.AppHost/**",
+        "src/Cluckwork.Analyzers/**"
+      ]
+    },
+    {
+      "id": "tools.sim",
+      "parent": "tools",
+      "label": "Simulated farm and load tests",
+      "kind": "script",
+      "summary": "Runs the whole app with a simulated farm, monitors it and puts it under load.",
+      "paths": [
+        "tools/simulation/**"
+      ]
+    },
+    {
+      "id": "tools.ci",
+      "parent": "tools",
+      "label": "Release and automatic-check scripts",
+      "kind": "infra",
+      "summary": "Scripts the automated pipeline runs: docs checks, vulnerability gates, lockfile fixes and release notes.",
+      "paths": [
+        ".github/**"
+      ]
+    },
+    {
+      "id": "tools.guard",
+      "parent": "tools",
+      "label": "AI agent safety guard",
+      "kind": "script",
+      "summary": "Stops AI coding agents from risky git actions like pushing to main.",
+      "paths": [
+        "tools/agent-guard/**",
+        ".pi/**",
+        ".hermes/**"
+      ]
+    },
+    {
+      "id": "tools.dev",
+      "parent": "tools",
+      "label": "Local dev and build helpers",
+      "kind": "script",
+      "summary": "Starts the local stack, enforces module boundaries at build time, and helper scripts for the web build and docs.",
+      "paths": [
+        "src/Cluckwork.AppHost/**",
+        "src/Cluckwork.Analyzers/**",
+        "web/scripts/**",
+        "web/lint/**",
+        "web/*.{ts,js}",
+        "tools/verify/**",
+        "tools/coverage/**",
+        "tools/docs/**",
+        "tools/mcp/**",
+        "tools/module-move/**",
+        "tools/oauth/**",
+        "tools/schema-docs/**",
+        "tools/style/**",
+        "tools/test-timing/**"
+      ]
+    },
+    {
+      "id": "postgres",
+      "label": "Postgres database",
+      "kind": "external",
+      "summary": "Where all farm data, users, activity records and background jobs are kept.",
+      "packages": [
+        "nuget:Npgsql",
+        "nuget:Npgsql.*",
+        "nuget:Microsoft.EntityFrameworkCore",
+        "nuget:Microsoft.EntityFrameworkCore.*"
+      ]
+    },
+    {
+      "id": "redis",
+      "label": "Redis",
+      "kind": "external",
+      "summary": "Fast shared memory for request-limit counters, sign-in details and report locks.",
+      "packages": [
+        "nuget:StackExchange.Redis"
+      ]
+    },
+    {
+      "id": "aiapps",
+      "label": "AI assistants",
+      "kind": "external",
+      "summary": "Outside AI apps a user connects, which sign in through the server and call its farm tools."
+    },
+    {
+      "id": "otel",
+      "label": "Monitoring collector",
+      "kind": "external",
+      "summary": "Receives the server's logs, traces and metrics when monitoring is turned on.",
+      "hosts": [
+        "otel-collector:4317",
+        "collector:4317"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "aiapps",
+      "to": "server.mcp",
+      "kind": "http",
+      "label": "/mcp tools",
+      "description": "Connected AI apps get a token from the server's sign-in endpoints, then call the farm tools at /mcp."
+    },
+    {
+      "from": "data.core",
+      "to": "postgres",
+      "kind": "data",
+      "label": "reads/writes"
+    },
+    {
+      "from": "data.shared",
+      "to": "redis",
+      "kind": "data",
+      "label": "counters and shared state"
+    },
+    {
+      "from": "data.jobs",
+      "to": "postgres",
+      "kind": "data",
+      "label": "job queue and leader lease"
+    },
+    {
+      "from": "server.startup",
+      "to": "otel",
+      "kind": "data",
+      "label": "logs, traces, metrics"
+    }
+  ],
+  "flows": [
+    {
+      "id": "record-day",
+      "title": "Recording a day's eggs",
+      "description": "A staff member counts and grades a house's eggs, which creates egg lots and updates the dashboard.",
+      "steps": [
+        {
+          "node": "web.daily",
+          "note": "On the Daily entry screen, a worker enters collection and grading counts for a flock and taps Submit day."
+        },
+        {
+          "node": "web.api",
+          "note": "The app sends the day's counts to the server."
+        },
+        {
+          "node": "server.endpoints",
+          "note": "The daily-entry request handler checks who is asking and hands the counts to the business rules."
+        },
+        {
+          "node": "rules.eggs",
+          "note": "Egg operations checks the counts balance, then turns the graded eggs into egg lots, blocked if the flock is under a medication hold."
+        },
+        {
+          "node": "data.modules",
+          "note": "The new entry and lots are saved."
+        },
+        {
+          "node": "data.core",
+          "note": "Everything is written in one transaction, scoped to this farm."
+        },
+        {
+          "node": "postgres",
+          "note": "The records land in the database; the dashboard's totals now include them."
+        }
+      ]
+    },
+    {
+      "id": "sale",
+      "title": "Selling eggs to a customer",
+      "steps": [
+        {
+          "node": "web.sales",
+          "note": "Staff pick a customer and products and record the sale."
+        },
+        {
+          "node": "web.api",
+          "note": "The sale is sent to the server."
+        },
+        {
+          "node": "server.endpoints",
+          "note": "The sales request handler passes it on."
+        },
+        {
+          "node": "rules.commerce",
+          "note": "Prices and discount limits are checked, and egg stock is drawn down from saleable lots."
+        },
+        {
+          "node": "data.modules",
+          "note": "The sale and the stock movement are saved."
+        },
+        {
+          "node": "postgres",
+          "note": "Stored for reports and traceability back to the hen."
+        }
+      ]
+    },
+    {
+      "id": "ai-tool",
+      "title": "An AI assistant records data",
+      "steps": [
+        {
+          "node": "aiapps",
+          "note": "A connected AI assistant, signed in with a token the user approved, calls a farm tool."
+        },
+        {
+          "node": "server.mcp",
+          "note": "The tool checks the token's permissions and turns the call into the same action the web app would take."
+        },
+        {
+          "node": "rules.eggs",
+          "note": "The same business rules run, so the AI app can't do anything a person couldn't."
+        },
+        {
+          "node": "data.modules",
+          "note": "The result is saved like any other record."
+        }
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "node": "web",
+      "title": "What Cluckwork is",
+      "note": "An egg-farm management app. Staff use this web app on a computer or phone to record each day, manage stock and sell eggs."
+    },
+    {
+      "node": "server",
+      "title": "One main server",
+      "note": "A single server answers every request from the app, serves the app itself, and offers farm tools to connected AI assistants."
+    },
+    {
+      "node": "rules",
+      "title": "The business rules",
+      "note": "Each farm area (eggs, flocks, sales, supplies, expenses) has its own rules for what's allowed and what happens. This is the heart of the app."
+    },
+    {
+      "node": "data",
+      "title": "Storage and background work",
+      "note": "Saves everything in Postgres, keeps each farm's data apart, and runs background jobs."
+    },
+    {
+      "node": "postgres",
+      "title": "The database",
+      "note": "All farm records, users and the activity log live here. Redis holds short-lived shared counters."
+    },
+    {
+      "node": "web/src/routes/DailyEntryPage.tsx",
+      "title": "The most-used screen",
+      "note": "Daily entry: where a day's eggs are counted and graded. Submitting it creates the egg lots everything else depends on."
+    }
+  ]
+}

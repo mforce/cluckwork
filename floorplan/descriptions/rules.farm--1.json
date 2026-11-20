@@ -1,0 +1,164 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Farm/Accounts/CurrencyBoundRowProbe.cs": {
+      "name": "Currency lock check",
+      "description": "Asks the other parts of the app whether any recorded amounts already use the farm's current currency."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/FarmModule.cs": {
+      "name": "Farm setup service",
+      "description": "Carries out farm-level requests such as reading and saving settings, logo, banner and connected apps."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/IAccountRepository.cs": {
+      "name": "Farm account storage",
+      "description": "Describes how the app loads and saves the farm's own settings record."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/ICurrencyBoundRowProbe.cs": {
+      "name": "Currency lock rule",
+      "description": "States the rule that the farm currency can only change while no recorded amounts depend on the current one."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/ICurrencyBoundRowSource.cs": {
+      "name": "Money-holding table marker",
+      "description": "Marks one kind of record that may hold an amount in the farm currency, so it gets counted by the currency check."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/IFarmLogoRepository.cs": {
+      "name": "Logo and banner storage",
+      "description": "Describes how the farm's logo and banner pictures are loaded and saved, fetching only as much as each caller needs."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/RemoveFarmBanner/RemoveFarmBannerHandler.cs": {
+      "name": "Remove farm banner",
+      "description": "Clears the farm's banner picture."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/RemoveFarmLogo/RemoveFarmLogoHandler.cs": {
+      "name": "Remove farm logo",
+      "description": "Clears the farm's logo so the app falls back to its own default branding."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/SetConnectedApps/SetConnectedAppsHandler.cs": {
+      "name": "Switch connected apps",
+      "description": "Turns the farm's permission for connected apps on or off, refusing the change if someone else saved settings first."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/SetConnectedApps/SetConnectedAppsValidator.cs": {
+      "name": "Connected apps check",
+      "description": "Checks that a connected-apps change actually says on or off."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/SetFarmBanner/SetFarmBannerHandler.cs": {
+      "name": "Upload farm banner",
+      "description": "Accepts a new or replacement banner picture after cleaning and checking it."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/SetFarmLogo/SetFarmLogoHandler.cs": {
+      "name": "Upload farm logo",
+      "description": "Accepts a new or replacement logo picture after cleaning and checking it."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/UpdateFarmSettings/UpdateFarmSettingsHandler.cs": {
+      "name": "Save farm settings",
+      "description": "Saves the farm's settings as a whole, refusing the save if someone else changed them in the meantime or if the currency is locked."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Accounts/UpdateFarmSettings/UpdateFarmSettingsValidator.cs": {
+      "name": "Farm settings check",
+      "description": "Checks the farm's settings are valid before saving, such as name, time zone, currency and units."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/FarmBrandingHashes.cs": {
+      "name": "Branding fingerprints",
+      "description": "Holds short fingerprints of the logo and banner so the app can tell when they have changed."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/FarmLogoContent.cs": {
+      "name": "Logo picture data",
+      "description": "Bundles the logo or banner picture bytes with its format."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/FarmLogoMetadata.cs": {
+      "name": "Logo details",
+      "description": "Holds the facts about a logo or banner (format, size, version) without the picture itself."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/FarmSettingsRules.cs": {
+      "name": "Farm settings limits",
+      "description": "Holds the shared limits for farm settings, such as allowed lengths and values."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/IFarmDirectory.cs": {
+      "name": "Farm directory",
+      "description": "Lists every farm with its time zone, for behind-the-scenes tasks that run outside any one farm's login."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/IFarmFixture.cs": {
+      "name": "Farm test data access",
+      "description": "Reads and writes sample farm data for the simulation setup; not available in production."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/IFarmModule.cs": {
+      "name": "Farm setup contract",
+      "description": "Lists everything the rest of the app can ask the farm area to do, such as read or change settings and branding."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/SetConnectedAppsCommand.cs": {
+      "name": "Connected apps request",
+      "description": "The request to allow or block connected apps; leaving the choice out is an error."
+    },
+    "src/Cluckwork.Application/Modules/Farm/Contracts/UpdateFarmSettingsCommand.cs": {
+      "name": "Farm settings request",
+      "description": "The full set of farm settings sent when the owner saves the settings page."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Accounts/Account.cs": {
+      "name": "Farm account",
+      "description": "The farm's own settings record: name, time zone, currency, units, branding choices and connected-apps switch."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Accounts/FarmBrands.cs": {
+      "name": "Farm colour themes",
+      "description": "The fixed list of accent colour palettes a farm can pick for its look."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Accounts/FarmLogo.cs": {
+      "name": "Farm logo and banner",
+      "description": "Stores the farm's logo and banner pictures."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Accounts/UnitSystem.cs": {
+      "name": "Unit system",
+      "description": "The choice of measurement units (such as metric or imperial) used to show feed, water and weights."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Accounts/UserRoleAssignment.cs": {
+      "name": "User role assignment",
+      "description": "Records which role a person has on the farm and whether it is limited to certain flocks."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/CurrencyCatalog.cs": {
+      "name": "Currency list",
+      "description": "A built-in list of world currencies with their symbols and decimal places, used when picking the farm currency."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/CurrencyInfo.cs": {
+      "name": "Currency details",
+      "description": "The facts about one currency, such as its code and decimal places."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/EffectiveAccountRole.cs": {
+      "name": "Effective role",
+      "description": "Works out a person's working role; only a plain worker is ever limited to particular flocks."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/FarmCode.cs": {
+      "name": "Farm code",
+      "description": "The short lowercase, web-safe code that identifies a farm; it is always stored in cleaned-up form."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/FarmImageErrors.cs": {
+      "name": "Picture size errors",
+      "description": "The messages given when an uploaded logo or banner is too large, before it is examined."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/Roles.cs": {
+      "name": "Role names",
+      "description": "The one place where the names of user roles are defined."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/SeedDefaults.cs": {
+      "name": "Starting-data IDs",
+      "description": "Fixed IDs for the single sample farm created when the app is first set up."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Contracts/WorkerSaleAllocationPolicy.cs": {
+      "name": "Worker sale stock rule",
+      "description": "Says how a restricted worker's sale confirmation may draw on egg stock."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Media/ImageKind.cs": {
+      "name": "Picture formats",
+      "description": "The picture formats a logo or banner may be saved in."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.cs": {
+      "name": "Picture cleaner",
+      "description": "Checks an uploaded logo or banner and rejects anything too large or malformed, naming which picture failed."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.Jpeg.cs": {
+      "name": "Picture cleaner (JPEG)",
+      "description": "The JPEG part of the picture cleaner: checks the file's structure and strips hidden metadata and trailing extras."
+    },
+    "src/Cluckwork.Domain/Modules/Farm/Media/ImageSanitizer.Png.cs": {
+      "name": "Picture cleaner (PNG)",
+      "description": "The PNG part of the picture cleaner: checks the file's structure and strips hidden metadata and trailing extras."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/InventoryTests.cs": {
+      "name": "Inventory checks",
+      "description": "Checks that the item catalog works, that received stock is recorded as batches, and that every stock change is logged and never rewritten."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/KestrelRequestBodyLimitTests.cs": {
+      "name": "Oversized request checks",
+      "description": "Checks that requests with too-large bodies are refused cleanly when the app runs on its real web server."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/KestrelResponseWriteTests.cs": {
+      "name": "Real-server save checks",
+      "description": "Checks that save actions which reply with \"no content\" work on the real web server instead of crashing."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ListAccountsCommandTests.cs": {
+      "name": "List-accounts command checks",
+      "description": "Checks the command-line tool that lists the farm accounts."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ListChronologyTests.cs": {
+      "name": "List ordering checks",
+      "description": "Checks that lists are ordered by business date first and then by when the row was created."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/LoginCounterKeyProbeTests.cs": {
+      "name": "Login rate-limit probe",
+      "description": "Investigates why a login-attempt limit occasionally answered \"wrong password\" instead of \"too many attempts\" in test runs."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/LoginRequestValidatorTests.cs": {
+      "name": "Login input checks",
+      "description": "Checks that overlong emails or passwords are rejected up front while empty ones still reach the normal login failure."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/LogoutRefreshLineageRaceTests.cs": {
+      "name": "Logout versus session-renewal race checks",
+      "description": "Checks that logging out at the same moment a session is renewed cannot leave a usable renewed session behind."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/LogRedactionTests.cs": {
+      "name": "Log secret-hiding checks",
+      "description": "Checks that passwords and other sensitive values are blanked out before anything is written to the logs."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpAuthorizationTests.cs": {
+      "name": "Connected-app access checks",
+      "description": "Checks who can reach the connected-app (MCP) entry point and what they see, including sign-in discovery and token rules."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpCallContextPipelineTests.cs": {
+      "name": "Connected-app identity pipeline checks",
+      "description": "Checks that a real signed-in connected app is identified correctly as its request passes through the app's normal steps."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpCallContextTests.cs": {
+      "name": "Connected-app identity failure checks",
+      "description": "Checks the cases where working out who a connected-app caller is must fail."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpCommerceToolsTests.cs": {
+      "name": "Connected-app sales tool checks",
+      "description": "Checks the read-only sales and customer tools offered to connected apps, using a real sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpConnection.cs": {
+      "name": "Connected-app test helper",
+      "description": "Test helper that connects a pretend app to the connected-app entry point through the real sign-in flow."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpEndpointTests.cs": {
+      "name": "Connected-app entry point checks",
+      "description": "Checks the connected-app entry point itself, such as who is allowed in and how it behaves on bad requests."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpPageTests.cs": {
+      "name": "Connected-app paging checks",
+      "description": "Checks that long results for connected apps are cut into pages correctly and say whether more remain."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpPartialConsentTests.cs": {
+      "name": "Connected-app partial permission checks",
+      "description": "Checks that an app granted only some of the permissions it asked for can use only those."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpReadToolsTests.cs": {
+      "name": "Connected-app read tool checks",
+      "description": "Checks the read-only farm data tools offered to connected apps, using a real sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpRouteParityTests.cs": {
+      "name": "Connected-app and screen consistency checks",
+      "description": "Checks that connected-app tools return the same results as the matching normal screens."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpSecondaryScopeTests.cs": {
+      "name": "Connected-app data-scope checks",
+      "description": "Checks that a connected-app tool only touches data within the one request it is serving."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolErrorTests.cs": {
+      "name": "Connected-app tool error checks",
+      "description": "Checks that a failed tool call tells the app what was wrong and logs it sensibly."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurface.cs": {
+      "name": "Connected-app tool surface helper",
+      "description": "Test helper that lists what each connected-app tool is allowed to depend on."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpToolSurfaceTests.cs": {
+      "name": "Connected-app tool surface checks",
+      "description": "Checks that connected-app tools only depend on things they are allowed to use."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/McpWriteToolsTests.cs": {
+      "name": "Connected-app write tool checks",
+      "description": "Checks the tools that let connected apps submit entries, record feed, water, purchases and expenses."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/RecordDailyEntryToolFaultTests.cs": {
+      "name": "Daily-entry tool failure checks",
+      "description": "Checks that the connected-app daily-entry tool handles repeated and failing requests safely."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/RecordDailyEntryToolTests.cs": {
+      "name": "Daily-entry tool checks",
+      "description": "Checks that a connected app can record a day's egg entry through its tool using a real sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/Mcp/SecondaryScopeWalk.cs": {
+      "name": "Tool dependency scanner",
+      "description": "Test helper that walks a tool's dependencies to confirm none reach outside the current request."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MeEndpointsTests.cs": {
+      "name": "Own-profile checks",
+      "description": "Checks the \"me\" actions where a signed-in person views and updates their own profile."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MigrateCommandTests.cs": {
+      "name": "Database-update command checks",
+      "description": "Checks the command-line tool that brings the database up to date."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MigrateOnStartupDisabledTests.cs": {
+      "name": "Startup database-update switch checks",
+      "description": "Checks that when automatic database updates at startup are turned off, the app does not touch the database structure."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MortalityLedgerAtomicityTests.cs": {
+      "name": "Bird-loss ledger checks",
+      "description": "Checks that recording a bird loss is saved together with the caller's change, all or nothing."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MultiInstanceIdempotencyTests.cs": {
+      "name": "Two-server repeat-request checks",
+      "description": "Checks that a repeated request is recognised even when two app servers share the work."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MultiInstanceRateLimitTests.cs": {
+      "name": "Two-server rate-limit checks",
+      "description": "Checks that sign-in attempt limits are counted together across two app servers."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/MustChangePasswordGateTests.cs": {
+      "name": "Forced password change checks",
+      "description": "Checks that a person told to set a new password cannot do anything else until they have."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/NamedEntityDiscoveryTests.cs": {
+      "name": "Find-by-name checks",
+      "description": "Checks that lists of flocks and customers can be searched by name, ignoring upper or lower case."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/NamedRowProjectionTests.cs": {
+      "name": "Row name display checks",
+      "description": "Checks that returned rows carry the flock or customer name so pickers can show it without extra lookups."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthApplicationCreatedAtTests.cs": {
+      "name": "Connected-app creation date checks",
+      "description": "Checks that a registered connected app records the business date it was created."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthClientRegistrationTests.cs": {
+      "name": "Connected-app registration checks",
+      "description": "Checks who may register a new connected app, with what details, and how often."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthConsentTests.cs": {
+      "name": "Connected-app consent checks",
+      "description": "Checks that approving a connected app requires the person's password each time."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/OAuthConsentTests.PartialConsent.cs": {
+      "name": "Connected-app partial consent checks",
+      "description": "Checks that a person can approve only some of the permissions an app asks for, never more."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/DisableUserTests.cs": {
+      "name": "Disable user tests",
+      "description": "Checks disabling and re-enabling users, who may do it, and what happens to their sign-ins."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DistributedIpFixedWindowRateLimiterTests.cs": {
+      "name": "Shared rate limiter tests",
+      "description": "Checks the per-address request cap that is shared across server copies, using a stand-in counter and a fake clock."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DistributedRateLimiterWiringTests.cs": {
+      "name": "Rate limiter wiring tests",
+      "description": "Checks that the shared request cap is actually applied to real requests and what happens when its counter fails."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DurableJobWorkerLeaderGateTests.cs": {
+      "name": "Background task leader tests",
+      "description": "Checks that only the server copy holding leadership runs the background tasks."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/DurableJobWorkerResilienceTests.cs": {
+      "name": "Background task resilience tests",
+      "description": "Checks that a failure in one background task round does not take the server down, and that a stalled worker shows as degraded."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggGradeFloorRaceTests.cs": {
+      "name": "Low-stock level race tests",
+      "description": "Checks that two people changing a grade's low-stock level at once cannot both succeed."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggGradeLowStockFloorTests.cs": {
+      "name": "Low-stock level tests",
+      "description": "Checks who may set a grade's low-stock level and what the stock view reports about it."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggGradeManagementTests.cs": {
+      "name": "Egg grade management tests",
+      "description": "Checks creating, renaming and deactivating egg grades, unique names, and that simultaneous edits conflict."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggLedgerTests.cs": {
+      "name": "Egg stock ledger tests",
+      "description": "Checks the running record of eggs coming in and going out."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggLotConcurrencyTests.cs": {
+      "name": "Egg lot overselling tests",
+      "description": "Checks that two sales confirmed against the same eggs at once cannot both take them."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggLotLockOrderTests.cs": {
+      "name": "Egg lot lock order tests",
+      "description": "Checks that confirming, voiding sales and voiding daily entries lock egg lots in one fixed order so they never deadlock."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggLotWriteOffTests.cs": {
+      "name": "Egg write-off tests",
+      "description": "Checks writing off or correcting stock on a single egg lot while the ledger stays the source of truth."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EggStockTransactionTests.cs": {
+      "name": "Egg stock locking tests",
+      "description": "Checks that egg stock changes refuse to run outside a transaction."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/EnrolledSessionCapTests.cs": {
+      "name": "Two-step sign-in time limit tests",
+      "description": "Checks that a signed-in session using two-step sign-in ends after the set number of days since the last full sign-in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ErrorCodesContractTests.cs": {
+      "name": "Error code list tests",
+      "description": "Checks that the published list of error codes stays consistent."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ExceptionHandlerReExecutionTests.cs": {
+      "name": "Server error handling tests",
+      "description": "Checks that unexpected failures inside a request give a clean error answer, including database outages."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ExpensesTests.cs": {
+      "name": "Expense tests",
+      "description": "Checks expense categories, recording money spent, period totals and admin corrections."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ExportTests.cs": {
+      "name": "Data export tests",
+      "description": "Checks the admin-only backup downloads, one spreadsheet file per kind of data and a full zip."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmBannerMigrationDowngradeTests.cs": {
+      "name": "Farm banner rollback tests",
+      "description": "Checks that undoing the farm banner database change does not break farms that only have a banner."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmBannerTests.cs": {
+      "name": "Farm banner tests",
+      "description": "Checks uploading and fetching the farm banner image."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmClockTests.cs": {
+      "name": "Farm date tests",
+      "description": "Checks the farm's single sense of today's date, including edges around midnight."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmLocalBoundaryBehindUtcTests.cs": {
+      "name": "Farm date behind UTC tests",
+      "description": "Checks date cut-offs for farms whose local time is behind universal time."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmLocalBoundarySweepTests.cs": {
+      "name": "Farm date cut-off tests",
+      "description": "Checks that date limits across the app use the farm's local date."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmLocalRestrictionTests.cs": {
+      "name": "Farm date stock and sale tests",
+      "description": "Checks that the stock view and sales use the farm's local date."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmLogoOptionsTests.cs": {
+      "name": "Logo upload size setting tests",
+      "description": "Checks that a bad logo size setting stops the server from starting."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmLogoRequestBodyCapTests.cs": {
+      "name": "Logo upload size limit tests",
+      "description": "Checks that an oversized logo upload is refused early, before other steps run."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmLogoTests.cs": {
+      "name": "Farm logo tests",
+      "description": "Checks who may upload a farm logo, what images are accepted and what comes back."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FarmSettingsTests.cs": {
+      "name": "Farm settings tests",
+      "description": "Checks reading and changing farm settings, owner-only access and the currency lock."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FeedUsageLockOrderTests.cs": {
+      "name": "Feed usage lock order tests",
+      "description": "Checks that recording feed use locks things in a fixed order so it cannot deadlock."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FeedUsageTests.cs": {
+      "name": "Feed usage tests",
+      "description": "Checks using feed oldest-first, per-batch cost estimates, and corrections for mistaken purchases."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FirstRunAdminUnlockCleanupTests.cs": {
+      "name": "First admin unlock failure tests",
+      "description": "Checks that a failure while releasing the setup lock does not undo an already created first owner."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FirstRunLoginNoticeTests.cs": {
+      "name": "First-run sign-in notice tests",
+      "description": "Checks that signing in on a server with no administrator explains the problem instead of a generic refusal."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FixturePortRegistrationTests.cs": {
+      "name": "Test shortcut registration tests",
+      "description": "Checks that the special shortcuts used for sample data can be used only where intended."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FlockManagementTests.cs": {
+      "name": "Flock management tests",
+      "description": "Checks updating, depleting and archiving flocks, hiding archived ones and blocking entries for closed flocks."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FlockNameResolutionTests.cs": {
+      "name": "Flock name lookup tests",
+      "description": "Checks that flock names are matched only among flocks a person may see, and duplicate names are reported as unclear."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FlockScopeMiddlewareTests.cs": {
+      "name": "Flock access check tests",
+      "description": "Checks how each kind of person is limited to their flocks on each request."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FlockScopeTests.cs": {
+      "name": "Flock visibility tests",
+      "description": "Checks that a worker sees only their own flocks' records and farm-wide ones, and others appear as not found."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ForwardedHeadersIgnoredLoggingTests.cs": {
+      "name": "Ignored proxy address logging tests",
+      "description": "Checks that a client address passed by an untrusted proxy is ignored and logged."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ForwardedHeaderTrustKestrelTests.cs": {
+      "name": "Trusted proxy address tests",
+      "description": "Checks over real connections which proxies may tell the server a visitor's address."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/FutureLotAllocationTests.cs": {
+      "name": "Future egg lot tests",
+      "description": "Checks that the stock view and the oldest-first sale allocation agree on which eggs exist."
+    }
+  }
+}

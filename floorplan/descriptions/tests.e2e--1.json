@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tools/simulation/ui/in-playwright-image.sh": {
+      "name": "Browser test container",
+      "description": "Runs a command inside the same pinned browser-test container that the automatic browser checks use, so local runs match them."
+    },
+    "tools/simulation/ui/mutation-check.sh": {
+      "name": "Test-suite sabotage check",
+      "description": "Deliberately breaks the app in known ways and confirms the browser tests notice, proving they can really fail."
+    },
+    "tools/simulation/ui/playwright.canary.config.ts": {
+      "name": "Speed probe settings",
+      "description": "Settings for the speed probe that watches how screens feel while the app is under heavy load."
+    },
+    "tools/simulation/ui/playwright.config.ts": {
+      "name": "Browser test settings",
+      "description": "Main settings for the click-through tests: which browser, which screen sizes and where the tests live."
+    },
+    "tools/simulation/ui/playwright.palettes.config.ts": {
+      "name": "Colour theme capture settings",
+      "description": "Settings for the run that photographs screens in each colour theme."
+    },
+    "tools/simulation/ui/playwright.screenshots.config.ts": {
+      "name": "Screenshot run settings",
+      "description": "Settings for the run that captures screenshots of the app for review."
+    },
+    "tools/simulation/ui/run-canary.sh": {
+      "name": "Speed probe runner",
+      "description": "Starts the speed probe against the test farm while load is running and gathers how fast screens appeared."
+    },
+    "tools/simulation/ui/specs-canary/canary.spec.ts": {
+      "name": "Speed probe test",
+      "description": "Visits key screens as a person would while the app is busy and records how long they take to show up and settle."
+    },
+    "tools/simulation/ui/specs-screenshots/palettes.spec.ts": {
+      "name": "Colour theme screenshots",
+      "description": "Captures screens in each colour theme, light and dark, so the looks can be compared."
+    },
+    "tools/simulation/ui/specs-screenshots/screenshots.spec.ts": {
+      "name": "Screen screenshots",
+      "description": "Captures screenshots of the app screens for use in reviews and documentation."
+    },
+    "tools/simulation/ui/specs/a11y-live-regions.spec.ts": {
+      "name": "Screen-reader announcement tests",
+      "description": "Checks in a real browser that spoken status messages still reach screen-reader users while a pop-up window is open."
+    },
+    "tools/simulation/ui/specs/csp-nonce.spec.ts": {
+      "name": "Security header match tests",
+      "description": "Checks the page and its security rules carry the same one-time code, both online and after reloading offline."
+    },
+    "tools/simulation/ui/specs/dashboard-flock-scope.spec.ts": {
+      "name": "Lay rate flock scope tests",
+      "description": "Checks the dashboard laying-rate card handles flock choice and days with incomplete entries sensibly."
+    },
+    "tools/simulation/ui/specs/dashboard-script-duration.spec.ts": {
+      "name": "Dashboard load time tests",
+      "description": "Checks the dashboard does not hold up the page with long-running scripts."
+    },
+    "tools/simulation/ui/specs/day-readout-placement.spec.ts": {
+      "name": "Day readout placement tests",
+      "description": "Checks the laying-rate day readout stays in its reserved spot however the mouse or keyboard moves over the chart."
+    },
+    "tools/simulation/ui/specs/dialog-actions.spec.ts": {
+      "name": "Expense pop-up tests",
+      "description": "Checks the Save button stays reachable when correcting an expense, on desktop and phone sizes."
+    },
+    "tools/simulation/ui/specs/expanded-chart-fit.spec.ts": {
+      "name": "Expanded chart fit tests",
+      "description": "Checks the enlarged laying-rate chart stretches a short date range to fit and scrolls a long one."
+    },
+    "tools/simulation/ui/specs/expanded-chart-modality.spec.ts": {
+      "name": "Expanded chart focus tests",
+      "description": "Checks the enlarged laying-rate chart behaves like a pop-up window for keyboard and screen-reader users."
+    },
+    "tools/simulation/ui/specs/expanded-range-fields.spec.ts": {
+      "name": "Expanded chart date field tests",
+      "description": "Checks the custom date fields on the enlarged laying-rate chart fit and work at phone width."
+    },
+    "tools/simulation/ui/specs/i18n.spec.ts": {
+      "name": "Language display tests",
+      "description": "Checks the Spanish and Tagalog versions of the screens display without breaking."
+    },
+    "tools/simulation/ui/specs/inspector-focus-recovery.spec.ts": {
+      "name": "Archive focus tests",
+      "description": "Checks that after archiving a flock from its side panel, keyboard focus lands on the nearest remaining flock."
+    },
+    "tools/simulation/ui/specs/inspector-layout.spec.ts": {
+      "name": "Side panel layout tests",
+      "description": "Checks the side panel actions for users, customers, grades, flocks and products lay out and colour correctly in each theme."
+    },
+    "tools/simulation/ui/specs/ledger-theme.spec.ts": {
+      "name": "Ledger theme tests",
+      "description": "Checks the field console ledger rows, links and headings follow the shared light and dark themes."
+    },
+    "tools/simulation/ui/specs/manager.spec.ts": {
+      "name": "Manager walkthrough tests",
+      "description": "Plays a manager: submits a daily entry, reviews it, adjusts or voids it, and works with flocks."
+    },
+    "tools/simulation/ui/specs/named-entity-picker.spec.ts": {
+      "name": "Flock and customer picker tests",
+      "description": "Checks the searchable flock and customer pickers find, page through and select the right record."
+    },
+    "tools/simulation/ui/specs/optical-size.spec.ts": {
+      "name": "Font sizing tests",
+      "description": "Checks the browser really switches the font between its large and small cuts as designed."
+    },
+    "tools/simulation/ui/specs/owner.spec.ts": {
+      "name": "Owner walkthrough tests",
+      "description": "Plays the owner: opens the dashboard, runs reports, browses the audit trail and downloads an export."
+    },
+    "tools/simulation/ui/specs/pagination.spec.ts": {
+      "name": "Long list paging tests",
+      "description": "Checks lists with more records than fit on one page can be paged through without losing any."
+    },
+    "tools/simulation/ui/specs/phone.spec.ts": {
+      "name": "Phone layout tests",
+      "description": "Checks the phone version of the app (screens under 900 pixels wide): menu, sheets and layout behave correctly."
+    },
+    "tools/simulation/ui/specs/pwa.spec.ts": {
+      "name": "Installable app tests",
+      "description": "Checks the app can be installed and keeps working offline in a real browser."
+    },
+    "tools/simulation/ui/specs/readonly.spec.ts": {
+      "name": "Read-only user tests",
+      "description": "Plays a read-only user: browsing works, and deep links to screens they may not see are refused."
+    },
+    "tools/simulation/ui/specs/reports-range.spec.ts": {
+      "name": "Report date range tests",
+      "description": "Checks a report still works at the longest date range it supports."
+    },
+    "tools/simulation/ui/specs/sales-layout.spec.ts": {
+      "name": "Orders layout tests",
+      "description": "Checks how the orders list opens an order on phone and desktop sizes."
+    },
+    "tools/simulation/ui/specs/sales.spec.ts": {
+      "name": "Sales walkthrough tests",
+      "description": "Plays a sales user end to end: add a customer, draft an order, add lines, confirm it and record a payment."
+    },
+    "tools/simulation/ui/specs/session-races.spec.ts": {
+      "name": "Sign-in timing tests",
+      "description": "Checks that signing in and out at the same moment in several tabs never leaves someone wrongly signed in."
+    },
+    "tools/simulation/ui/specs/session-refresh.spec.ts": {
+      "name": "Staying signed in tests",
+      "description": "Checks sign-in works and the session quietly renews itself past the 15-minute mark."
+    },
+    "tools/simulation/ui/specs/setup-lists-sticky-header.spec.ts": {
+      "name": "Sticky table header tests",
+      "description": "Checks the Flocks table header stays pinned while the rows scroll beneath it."
+    },
+    "tools/simulation/ui/specs/table-cell-first-column-inset.spec.ts": {
+      "name": "Table spacing tests",
+      "description": "Checks the first column of tables is not pressed against the edge."
+    },
+    "tools/simulation/ui/specs/two-factor.spec.ts": {
+      "name": "Two-step sign-in tests",
+      "description": "Checks an owner with two-step sign-in enters the code and still lands on the page they asked for."
+    },
+    "tools/simulation/ui/specs/users-actions-overflow.spec.ts": {
+      "name": "Users table fit tests",
+      "description": "Checks the users table fits every supported screen size, theme and language."
+    }
+  }
+}

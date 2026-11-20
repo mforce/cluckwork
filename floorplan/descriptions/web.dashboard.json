@@ -1,0 +1,76 @@
+{
+  "files": {
+    "web/src/routes/Dashboard.tsx": {
+      "name": "Dashboard",
+      "description": "The home screen: today's collection, lay rate, available stock and recent orders, each loading on its own so one failure does not block the rest."
+    },
+    "web/src/routes/dashboard/CollectionPanel.tsx": {
+      "name": "Today's collection panel",
+      "description": "Shows each flock's recording status for today with a progress bar and totals."
+    },
+    "web/src/routes/dashboard/drainPages.ts": {
+      "name": "Load all pages helper",
+      "description": "Fetches every page of a long list, and stops asking when the person leaves the screen."
+    },
+    "web/src/routes/dashboard/LayRateCard.tsx": {
+      "name": "Lay rate card",
+      "description": "Shows the lay rate over the last two weeks with a flock choice and date range."
+    },
+    "web/src/routes/dashboard/MorningBrief.tsx": {
+      "name": "Morning brief",
+      "description": "The top strip with what needs attention, low stock and today's egg total."
+    },
+    "web/src/routes/dashboard/panelSx.ts": {
+      "name": "Dashboard panel styles",
+      "description": "Shared card and heading look for the dashboard panels."
+    },
+    "web/src/routes/dashboard/SalesPanel.tsx": {
+      "name": "Recent orders panel",
+      "description": "Shows recent orders with page buttons and a retry if the next page fails."
+    },
+    "web/src/routes/dashboard/StatusDot.tsx": {
+      "name": "Status dot",
+      "description": "Shows a small coloured dot for a status."
+    },
+    "web/src/routes/dashboard/StockPanel.tsx": {
+      "name": "Available stock panel",
+      "description": "Shows total sellable stock, a bar of grade shares, a grade table and a note when stock is below its minimum."
+    },
+    "web/src/routes/dashboard/TodayRow.tsx": {
+      "name": "Today row",
+      "description": "Shows one flock's line in today's collection list."
+    },
+    "web/src/routes/dashboard/trendStrings.ts": {
+      "name": "Lay rate wording",
+      "description": "Writes the lay rate figures and descriptions in the farm's number and date formats."
+    },
+    "web/src/routes/dashboard/useRecentOrders.ts": {
+      "name": "Recent orders logic",
+      "description": "Loads the dashboard's list of recent orders page by page."
+    },
+    "web/src/routes/ExportPage.tsx": {
+      "name": "Export page",
+      "description": "Lets staff download a full backup of the farm records or one set of records at a time."
+    },
+    "web/src/routes/reports/MoneyTab.tsx": {
+      "name": "Money reports tab",
+      "description": "Reports on money; only owners and managers see it, and the server refuses others."
+    },
+    "web/src/routes/reports/PeriodChange.tsx": {
+      "name": "Change since last period",
+      "description": "Shows how a figure moved compared with the previous period."
+    },
+    "web/src/routes/reports/periodComparison.ts": {
+      "name": "Period comparison logic",
+      "description": "Works out the previous period and the change, waiting for current figures to load first."
+    },
+    "web/src/routes/reports/ProductionTab.tsx": {
+      "name": "Production reports tab",
+      "description": "Reports on egg production, visible to everyone."
+    },
+    "web/src/routes/ReportsPage.tsx": {
+      "name": "Reports page",
+      "description": "Hosts the Production and Money report tabs."
+    }
+  }
+}

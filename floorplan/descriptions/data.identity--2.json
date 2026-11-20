@@ -1,0 +1,96 @@
+{
+  "files": {
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/OtpauthUri.cs": {
+      "name": "Authenticator setup link",
+      "description": "Builds the link an authenticator app scans to start giving a person their sign-in codes."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/PemKey.cs": {
+      "name": "Signing key text",
+      "description": "Small holder for a signing key given as text."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/PersistentStepUpGrantRegistry.cs": {
+      "name": "Extra-check pass store",
+      "description": "Keeps extra-check approvals in shared storage so each can be used once and is cancelled on sign-out."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/RefreshToken.cs": {
+      "name": "Stay-signed-in pass",
+      "description": "How a stay-signed-in pass is stored: it is replaced on each use and records why it was cancelled."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/RefreshTokenPurge.cs": {
+      "name": "Old pass cleanup",
+      "description": "Deletes expired stay-signed-in passes from the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/SecondFactorChallenge.cs": {
+      "name": "Code step challenge",
+      "description": "What a correct password earns a person with two-step sign-in: a short-lived prompt to enter their code."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/SecondFactorErrors.cs": {
+      "name": "Code step answers",
+      "description": "The shared failure answers the code step, extra checks and password changes give back."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/SecondFactorProof.cs": {
+      "name": "Code proof check",
+      "description": "Checks the code half of an extra check or password change after the password has been accepted."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/StepUpGrantService.cs": {
+      "name": "Extra-check approvals",
+      "description": "Re-asks for a password (and code) before a sensitive action and hands out a single-use approval."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/TemporaryPassword.cs": {
+      "name": "Temporary password maker",
+      "description": "Generates a strong random password for emergency account recovery."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/TimingEqualization.cs": {
+      "name": "Equal-time password check",
+      "description": "Makes a skipped password check take as long as a real one so attackers cannot tell if a user exists."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/TotpMatcher.cs": {
+      "name": "Authenticator code matcher",
+      "description": "Checks a six-digit authenticator code and rejects one that was already used."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/TwoFactorCredentials.cs": {
+      "name": "Two-step credentials",
+      "description": "Stores and checks each person's authenticator key and recovery codes, and is the only code that does so."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Identity/UserRowLock.cs": {
+      "name": "User record lock",
+      "description": "Locks a person's record while two-step settings change so two changes cannot collide."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/OAuth/ConnectedApps.cs": {
+      "name": "Connected apps",
+      "description": "Lists the outside apps a person has allowed in, shows when each last acted, and revokes them."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthApplicationConfiguration.cs": {
+      "name": "Connected app record settings",
+      "description": "Adds a creation time to each connected app's record so unapproved ones can expire."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthAuthorizationConfiguration.cs": {
+      "name": "Approval record settings",
+      "description": "Adds a last-used time to each approval so Connected apps can show when an app last acted."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthPurge.cs": {
+      "name": "Connected app cleanup",
+      "description": "Removes expired app registrations and old approvals from the database."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/OAuth/OAuthServerRegistration.cs": {
+      "name": "App sign-in server",
+      "description": "Sets up the sign-in server that lets outside apps, such as AI assistants, be approved to use a farm's data."
+    },
+    "src/Cluckwork.Infrastructure/Modules/Access/Repositories/UserRoleAssignmentRepository.cs": {
+      "name": "Role assignments store",
+      "description": "Reads and saves which roles each user holds and which flocks they are limited to."
+    },
+    "src/Cluckwork.Infrastructure/OAuth/ClientMetadata.cs": {
+      "name": "Connected app rules",
+      "description": "Defines what an outside app may be and checks its details, such as where it may send people back."
+    },
+    "src/Cluckwork.Infrastructure/OAuth/ClientMetadataDocuments.cs": {
+      "name": "App details lookup",
+      "description": "Handles apps that identify themselves by a web address, fetching and validating their published details."
+    },
+    "src/Cluckwork.Infrastructure/OAuth/ClientMetadataFetcher.cs": {
+      "name": "App details fetcher",
+      "description": "Downloads an app's published details from a web address it supplied, with guards against reaching internal addresses."
+    }
+  }
+}

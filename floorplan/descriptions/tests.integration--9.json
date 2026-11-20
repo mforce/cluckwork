@@ -1,0 +1,76 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/TwoFactorCredentialsStorageTests.cs": {
+      "name": "Two-step credential storage checks",
+      "description": "Checks how two-step sign-in secrets are stored."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TwoFactorEnrolmentTests.cs": {
+      "name": "Two-step enrolment logic checks",
+      "description": "Checks starting and confirming two-step sign-in setup."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TwoFactorPrimitivesTests.cs": {
+      "name": "Two-step building block checks",
+      "description": "Checks the small code pieces behind two-step sign-in that need no database."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/TwoFarmIsolationMatrixTests.cs": {
+      "name": "Two-farm separation matrix checks",
+      "description": "Checks, screen by screen, that two farms cannot see each other's data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserLanguageColumnTests.cs": {
+      "name": "User language setting checks",
+      "description": "Checks that each user's chosen language is saved."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserNameTests.cs": {
+      "name": "User display name checks",
+      "description": "Checks that a user's name can be set on creation and changed later."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserPasswordTests.cs": {
+      "name": "User password checks",
+      "description": "Checks changing and resetting passwords."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserRoleAccountIdMigrationTests.cs": {
+      "name": "Role farm column upgrade checks",
+      "description": "Checks the database upgrade that ties user roles to a farm, on existing data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserRoleAccountIdModelTests.cs": {
+      "name": "Role farm column model checks",
+      "description": "Checks that user roles are set up to carry a farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserRoleTenantWriteTests.cs": {
+      "name": "Role farm write checks",
+      "description": "Checks that role assignments are saved only within the right farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserTokenAccountIdMigrationTests.cs": {
+      "name": "Token farm column upgrade checks",
+      "description": "Checks the database upgrade that ties user tokens to a farm, on existing data."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserTokenAccountIdModelTests.cs": {
+      "name": "Token farm column model checks",
+      "description": "Checks that user tokens are set up to carry a farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/UserTokenTenantWriteTests.cs": {
+      "name": "Token farm write checks",
+      "description": "Checks that user tokens are saved only within the right farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ValidationResponseTests.cs": {
+      "name": "Error message format checks",
+      "description": "Checks the shape of the answer sent when a request is invalid."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/VoidSaleTests.cs": {
+      "name": "Cancel sale checks",
+      "description": "Checks that cancelling a confirmed order returns the eggs to the exact batches they came from."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/WaterUsageTests.cs": {
+      "name": "Water usage checks",
+      "description": "Checks recording water use directly or from meter readings, and editing without overwriting others."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/WithdrawalRestrictedLotTests.cs": {
+      "name": "Medication withdrawal hold checks",
+      "description": "Checks that eggs under a medication withdrawal period cannot be sold."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/WorkerSaleAllocationPolicyMigrationTests.cs": {
+      "name": "Worker sale allocation upgrade checks",
+      "description": "Checks the database upgrade that adds the worker sale allocation setting."
+    }
+  }
+}

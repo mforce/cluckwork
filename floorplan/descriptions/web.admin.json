@@ -1,0 +1,80 @@
+{
+  "files": {
+    "web/src/routes/AuditEventRows.tsx": {
+      "name": "Audit log rows",
+      "description": "Shows each entry of the audit log: who did what, and when."
+    },
+    "web/src/routes/AuditFilters.tsx": {
+      "name": "Audit log filters",
+      "description": "Filter bar and clear button for narrowing the audit log."
+    },
+    "web/src/routes/AuditPage.tsx": {
+      "name": "Audit log page",
+      "description": "Read-only admin history of who changed what on the farm, with filters."
+    },
+    "web/src/routes/ConnectedAppsPage.tsx": {
+      "name": "Connected apps page",
+      "description": "Lets an owner see every outside app anyone on the farm has connected to their account."
+    },
+    "web/src/routes/ConnectPage.tsx": {
+      "name": "Connect app approval page",
+      "description": "The screen an outside app sends someone to so they can approve or refuse its access."
+    },
+    "web/src/routes/glossaryCoverage.ts": {
+      "name": "Glossary coverage check",
+      "description": "Compares the product glossary document with the in-app glossary and lists terms still missing."
+    },
+    "web/src/routes/help/HelpAdminSections.tsx": {
+      "name": "Help: setup sections",
+      "description": "Help text for farm settings, colours, the account page, the audit log, exports and installing the app."
+    },
+    "web/src/routes/help/HelpGlossarySection.tsx": {
+      "name": "Help: glossary section",
+      "description": "The glossary section of Help, where each term can be linked to directly."
+    },
+    "web/src/routes/help/HelpGuideSections.tsx": {
+      "name": "Help: getting started",
+      "description": "Help text for getting around, the dashboard, signing in, the daily routine, fixing mistakes and pop-ups."
+    },
+    "web/src/routes/help/HelpScreenSections.tsx": {
+      "name": "Help: screen guides",
+      "description": "Help text for each screen, from daily entry to roles."
+    },
+    "web/src/routes/helpGlossary.ts": {
+      "name": "In-app glossary data",
+      "description": "The list of farm terms and their definitions shown in Help."
+    },
+    "web/src/routes/HelpPage.tsx": {
+      "name": "Help page",
+      "description": "The in-app guide that pulls together the help sections and the glossary."
+    },
+    "web/src/routes/settings/attempt.ts": {
+      "name": "Settings save ID",
+      "description": "Pairs a save with a reusable ID so a repeated settings save is not applied twice."
+    },
+    "web/src/routes/settings/CountingSalesSection.tsx": {
+      "name": "Counting and sales settings",
+      "description": "The settings section for the default counting unit, how worker sales pick stock, and the largest discount allowed."
+    },
+    "web/src/routes/settings/DateTimeSection.tsx": {
+      "name": "Date and time settings",
+      "description": "The settings section for choosing how dates and times look, from ready-made formats or a custom one."
+    },
+    "web/src/routes/settings/IdentityImageCards.tsx": {
+      "name": "Logo and banner settings",
+      "description": "Cards for uploading and replacing the farm's logo and banner, with a size limit."
+    },
+    "web/src/routes/settings/LocalizationSection.tsx": {
+      "name": "Language and region settings",
+      "description": "The settings section for the farm's language and regional formats."
+    },
+    "web/src/routes/settings/PaletteFieldset.tsx": {
+      "name": "Farm colours",
+      "description": "The settings control for choosing the farm's colour palette."
+    },
+    "web/src/routes/SettingsPage.tsx": {
+      "name": "Farm settings page",
+      "description": "Owner-only screen for the farm's settings, logo, colours, language and date formats."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/routes/FlocksPage.test.tsx": {
+      "name": "Flocks screen tests",
+      "description": "Checks the flocks screen: listing flocks, adding and editing them, and what each role can see and do."
+    },
+    "web/src/routes/GradesPage.test.tsx": {
+      "name": "Egg grades screen tests",
+      "description": "Checks the egg grades screen, where egg size and quality grades are listed and changed."
+    },
+    "web/src/routes/helpGlossary.test.ts": {
+      "name": "Help glossary coverage tests",
+      "description": "Checks that every term in the product glossary has an entry in the in-app glossary or is listed as deliberately left out."
+    },
+    "web/src/routes/HelpPage.test.tsx": {
+      "name": "Help screen tests",
+      "description": "Checks the Help screen shows its guidance and glossary, including in the other languages."
+    },
+    "web/src/routes/HistoryPage.phone.test.tsx": {
+      "name": "History screen phone tests",
+      "description": "Checks the History screen lays out properly on a phone-sized screen."
+    },
+    "web/src/routes/HistoryPage.test.tsx": {
+      "name": "History screen tests",
+      "description": "Checks the History screen: listing past records, filtering them and paging through them."
+    },
+    "web/src/routes/InventoryPage.roleChange.test.tsx": {
+      "name": "Inventory role-change tests",
+      "description": "Checks the inventory screen updates what a person can do when their role changes while it is open."
+    },
+    "web/src/routes/InventoryPage.test.tsx": {
+      "name": "Inventory screen tests",
+      "description": "Checks the inventory screen: stock lists, adding and adjusting items, and what each role can do."
+    },
+    "web/src/routes/Login.test.tsx": {
+      "name": "Sign-in screen tests",
+      "description": "Checks the sign-in screen: farm code, password, second-step code and error messages."
+    },
+    "web/src/routes/nav.test.ts": {
+      "name": "Menu contents tests",
+      "description": "Checks the menu shows each role only the screens it is allowed to reach."
+    },
+    "web/src/routes/phoneModeSeam.test.tsx": {
+      "name": "Phone mode switch tests",
+      "description": "Checks the app can be forced into phone layout so phone and desktop screens can be tested on the same machine."
+    },
+    "web/src/routes/ProductsPage.test.tsx": {
+      "name": "Products screen tests",
+      "description": "Checks the products screen: listing, adding and editing what the farm sells."
+    },
+    "web/src/routes/ProtectedRoute.test.tsx": {
+      "name": "Sign-in gate tests",
+      "description": "Checks that signed-out visitors are sent to sign in before they can see a protected screen."
+    },
+    "web/src/routes/reports/PeriodChange.test.tsx": {
+      "name": "Period change tests",
+      "description": "Checks the report figure that shows how a number changed from one period to the previous one."
+    },
+    "web/src/routes/reports/periodComparison.test.tsx": {
+      "name": "Period comparison tests",
+      "description": "Checks reports compare the chosen period against the one before it correctly."
+    },
+    "web/src/routes/ReportsPage.test.tsx": {
+      "name": "Reports screen tests",
+      "description": "Checks the reports screen: period choices, totals and what each role can see."
+    },
+    "web/src/routes/sales/SalesPage.test.tsx": {
+      "name": "Sales screen tests",
+      "description": "Checks the sales screen: recording a sale, discounts and listing past sales."
+    },
+    "web/src/routes/sales/salesT039.default.test.tsx": {
+      "name": "Sales default-choice tests",
+      "description": "Checks the sales screen starts with the expected default choices when a new sale is begun."
+    },
+    "web/src/routes/salesExpensesUS3.lifecycle.test.tsx": {
+      "name": "Sales and expenses lifecycle tests",
+      "description": "Checks a sale and an expense can be recorded and followed through their life from the screens."
+    },
+    "web/src/routes/SetPasswordPage.test.tsx": {
+      "name": "New password screen tests",
+      "description": "Checks the screen that forces a new password on first sign-in."
+    },
+    "web/src/routes/SettingsPage.test.tsx": {
+      "name": "Settings screen tests",
+      "description": "Checks the farm settings screen: showing current choices and saving changes."
+    },
+    "web/src/routes/SettingsPage.timezones.test.tsx": {
+      "name": "Settings time zone tests",
+      "description": "Checks the time zone choices on the settings screen."
+    },
+    "web/src/routes/StockPage.roleChange.test.tsx": {
+      "name": "Stock role-change tests",
+      "description": "Checks the stock screen updates what a person can do when their role changes while it is open."
+    },
+    "web/src/routes/StockPage.test.tsx": {
+      "name": "Stock screen tests",
+      "description": "Checks the stock screen: egg stock levels and the movements that change them."
+    },
+    "web/src/routes/TwoFactorDeadlineBanner.test.tsx": {
+      "name": "Two-step deadline banner tests",
+      "description": "Checks the reminder banner telling owners to set up two-step sign-in by a deadline."
+    },
+    "web/src/routes/TwoFactorEnrolmentPage.test.tsx": {
+      "name": "Two-step setup screen tests",
+      "description": "Checks the screen that makes an owner set up two-step sign-in once the deadline has passed."
+    },
+    "web/src/routes/users/useResetTwoFactor.test.ts": {
+      "name": "Reset two-step logic tests",
+      "description": "Checks the shared logic behind resetting a person's two-step sign-in."
+    },
+    "web/src/routes/UsersPage.resetTwoFactor.test.tsx": {
+      "name": "Reset two-step screen tests",
+      "description": "Checks resetting a staff member's two-step sign-in from the users screen."
+    },
+    "web/src/routes/UsersPage.test.tsx": {
+      "name": "Users screen tests",
+      "description": "Checks the users screen: listing staff, inviting them and changing their roles."
+    },
+    "web/src/routes/WaterPage.test.tsx": {
+      "name": "Water screen tests",
+      "description": "Checks the water screen: recording water use and listing past entries."
+    },
+    "web/src/session/LanguageSelector.multilang.test.tsx": {
+      "name": "Language choice tests (several languages)",
+      "description": "Checks switching between the available languages changes the screen text."
+    },
+    "web/src/session/LanguageSelector.packFailure.test.tsx": {
+      "name": "Language load failure tests",
+      "description": "Checks the app copes when a language fails to load."
+    },
+    "web/src/session/LanguageSelector.test.tsx": {
+      "name": "Language selector tests",
+      "description": "Checks the language picker shows the choices and saves the person's pick."
+    },
+    "web/src/session/SessionContext.test.tsx": {
+      "name": "Signed-in session tests",
+      "description": "Checks the signed-in person's details are loaded after sign-in and kept up to date on screen."
+    },
+    "web/src/session/StepperUnitSelector.test.tsx": {
+      "name": "Entry unit picker tests",
+      "description": "Checks the picker for the unit used by the daily entry plus and minus buttons."
+    },
+    "web/src/styles.bare-elements.test.ts": {
+      "name": "Plain element style tests",
+      "description": "Checks the stylesheet does not restyle bare page elements in ways that would leak into every screen."
+    },
+    "web/src/styles.caps.test.ts": {
+      "name": "Capital letters style tests",
+      "description": "Checks the stylesheet's rules for capital-letter text."
+    },
+    "web/src/styles.conversion.test.ts": {
+      "name": "Style conversion tests",
+      "description": "Checks the stylesheet's conversion rules stay consistent."
+    },
+    "web/src/styles.csp.test.ts": {
+      "name": "Style security tests",
+      "description": "Checks the stylesheet does not use anything the browser's security policy would block."
+    },
+    "web/src/styles.declared-tokens.test.ts": {
+      "name": "Declared style values tests",
+      "description": "Checks every colour and size value the stylesheet uses is actually defined."
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "files": {
+    "web/src/theme/FarmThemeProvider.test.tsx": {
+      "name": "Farm theme tests",
+      "description": "Checks the farm's colours are applied and updated across the app."
+    },
+    "web/src/theme/farmTokens.test.ts": {
+      "name": "Farm colour tests",
+      "description": "Checks the colour values built from a farm's theme choice."
+    },
+    "web/src/theme/metaThemeColor.test.ts": {
+      "name": "Browser bar colour tests",
+      "description": "Checks the colour of the phone's browser bar follows the theme."
+    }
+  }
+}

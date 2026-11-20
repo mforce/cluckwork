@@ -1,0 +1,56 @@
+{
+  "files": {
+    ".github/scripts/changed-paths.mjs": {
+      "name": "Changed files check",
+      "description": "Works out whether a change only touches documentation, so full checks can be skipped; no changed files counts as not docs-only."
+    },
+    ".github/scripts/changed-paths.test.mjs": {
+      "name": "Changed files check tests",
+      "description": "Checks the docs-only detection."
+    },
+    ".github/scripts/docs-impact.mjs": {
+      "name": "Docs update check",
+      "description": "Fails a change that adds screen text without updating Help or the glossary, unless it carries a written waiver."
+    },
+    ".github/scripts/docs-impact.test.mjs": {
+      "name": "Docs update check tests",
+      "description": "Checks the docs update check."
+    },
+    ".github/scripts/image-scan-issues.mjs": {
+      "name": "Image scan reporter",
+      "description": "Turns the security scan of the published app image into issues, one scan per processor type."
+    },
+    ".github/scripts/image-scan-issues.test.mjs": {
+      "name": "Image scan reporter tests",
+      "description": "Checks the image scan reporting."
+    },
+    ".github/scripts/lockfix-apply.sh": {
+      "name": "Lock file fix runner",
+      "description": "Applies the lock file fix for automated dependency updates."
+    },
+    ".github/scripts/lockfix.mjs": {
+      "name": "Lock file fix decider",
+      "description": "Decides whether to commit, stop or do nothing about changed lock files, allowing only the known set."
+    },
+    ".github/scripts/lockfix.test.mjs": {
+      "name": "Lock file fix tests",
+      "description": "Checks the lock file fix decisions."
+    },
+    ".github/scripts/release-line.mjs": {
+      "name": "Release line helper",
+      "description": "Works out the maintenance branch and source for releases, and checks release proposals."
+    },
+    ".github/scripts/release-line.test.mjs": {
+      "name": "Release line helper tests",
+      "description": "Checks the release line helper."
+    },
+    ".github/scripts/vuln-gate.mjs": {
+      "name": "Vulnerability gate",
+      "description": "Fails a change when dependencies have known security problems at or above the allowed severity, per package type."
+    },
+    ".github/scripts/vuln-gate.test.mjs": {
+      "name": "Vulnerability gate tests",
+      "description": "Checks the vulnerability gate."
+    }
+  }
+}

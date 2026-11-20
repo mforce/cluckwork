@@ -1,0 +1,76 @@
+{
+  "files": {
+    "src/Cluckwork.Application/Modules/Finance/Contracts/AdjustExpenseCommand.cs": {
+      "name": "Correct an expense request",
+      "description": "The details needed to correct an existing expense: its category, date, description, amount, optional flock and note, plus the version being edited."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Contracts/CreateExpenseCategoryCommand.cs": {
+      "name": "New expense category request",
+      "description": "The request to add a new expense category, which carries just the category name."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Contracts/CreateExpenseCommand.cs": {
+      "name": "Record expense request",
+      "description": "The details needed to record a new expense: category, date, description, amount, an optional flock it relates to, and an optional note."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Contracts/IFinanceFixture.cs": {
+      "name": "Expense sample-data checks",
+      "description": "Lets the demo and test data loader look up expense categories and expenses by name and count them, so sample data is not added twice. Not registered in Production."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Contracts/IFinanceModule.cs": {
+      "name": "Expenses feature outline",
+      "description": "The list of everything the expenses area can do: record, correct and list expenses, and create, rename or switch off categories."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Contracts/UpdateExpenseCategoryCommand.cs": {
+      "name": "Edit expense category request",
+      "description": "The request to rename a category, switch it on or off, or both at once."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/AdjustExpense/AdjustExpenseHandler.cs": {
+      "name": "Correct expense",
+      "description": "Carries out a correction to an existing expense, checking the category, date and optional flock, and saving the changed record."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/AdjustExpense/AdjustExpenseValidator.cs": {
+      "name": "Correct expense checks",
+      "description": "Refuses a correction that has missing or invalid details, such as a bad date or amount."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/CreateExpense/CreateExpenseHandler.cs": {
+      "name": "Record expense",
+      "description": "Records a new expense after checking its category, flock and the farm's currency, then saves it."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/CreateExpense/CreateExpenseValidator.cs": {
+      "name": "Record expense checks",
+      "description": "Refuses a new expense that has missing or invalid details, such as a bad date or amount."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/CreateExpenseCategory/CreateExpenseCategoryHandler.cs": {
+      "name": "Add expense category",
+      "description": "Adds a new expense category for the farm and saves it."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/CreateExpenseCategory/CreateExpenseCategoryValidator.cs": {
+      "name": "Add expense category checks",
+      "description": "Refuses a new category whose name is blank or too long."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/FinanceModule.cs": {
+      "name": "Expenses feature",
+      "description": "Hands each expense request to the right step: recording, correcting, listing, and managing categories."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/IExpenseRepositories.cs": {
+      "name": "Expense storage outline",
+      "description": "Describes how expenses and expense categories are stored and looked up, without saying how the database does it."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/UpdateExpenseCategory/UpdateExpenseCategoryHandler.cs": {
+      "name": "Edit expense category",
+      "description": "Renames a category or switches it on or off, then saves the change."
+    },
+    "src/Cluckwork.Application/Modules/Finance/Expenses/UpdateExpenseCategory/UpdateExpenseCategoryValidator.cs": {
+      "name": "Edit expense category checks",
+      "description": "Refuses a category edit whose name is blank or too long."
+    },
+    "src/Cluckwork.Domain/Modules/Finance/Expenses/Expense.cs": {
+      "name": "Expense",
+      "description": "One record of money spent: when, how much, on what, in which category, and optionally for which flock."
+    },
+    "src/Cluckwork.Domain/Modules/Finance/Expenses/ExpenseCategory.cs": {
+      "name": "Expense category",
+      "description": "A farm's named bucket for sorting spending, such as Feed, Vet or Repairs, which can be switched on or off."
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "files": {
+    "tests/Cluckwork.Api.IntegrationTests/AccessAuthorizationContractTests.cs": {
+      "name": "Farm access rules tests",
+      "description": "Checks that each kind of request is allowed or refused according to a person's role and the flocks they are assigned to."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessFixtureTests.cs": {
+      "name": "Flock assignment shortcut tests",
+      "description": "Checks the sample-data shortcut that assigns a worker to a flock without the usual extra confirmation, and that it is tightly limited."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessLifecycleDependencyTests.cs": {
+      "name": "Access setup order tests",
+      "description": "Checks that the parts that look up who can reach which flock are wired in correctly when the server starts."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessLookupTests.cs": {
+      "name": "Flock access lookup tests",
+      "description": "Checks the lookup that says which flocks a person may see, which the sale confirmation and flock checks rely on."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessSeedAssignmentAtomicityTests.cs": {
+      "name": "Seeded assignment all-or-nothing tests",
+      "description": "Checks that when saving the record of a first flock assignment fails, the assignment itself is not left half saved."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessSeedDependencyTests.cs": {
+      "name": "Access seeding wiring tests",
+      "description": "Checks that the startup step that sets up access depends only on what it is allowed to."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessSeederActorTests.cs": {
+      "name": "Access seeding author tests",
+      "description": "Checks that records written while setting up access name the right person or system as the author."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessSeedFailureTests.cs": {
+      "name": "Access seeding failure tests",
+      "description": "Checks what happens when setting up access fails because the owner cannot be read or the details are invalid."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccessSeedLookupTests.cs": {
+      "name": "Access seeding lookup tests",
+      "description": "Checks the lookups the access setup step uses to find owners, flocks and existing assignments."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountIdConcurrencyTokenModelTests.cs": {
+      "name": "Farm ownership stamp tests",
+      "description": "Checks that every record tied to a farm carries a version stamp so two people saving at once cannot overwrite each other."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountIdShapeFailClosedTests.cs": {
+      "name": "Farm separation safety tests",
+      "description": "Checks that a record tied to a farm in an unexpected way is refused rather than quietly skipping the checks that keep farms apart."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountLifecycleCommandTests.cs": {
+      "name": "Farm account lifecycle tests",
+      "description": "Checks the commands that manage a farm account from creation onward, including their results and refusals."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountLockoutTests.cs": {
+      "name": "Sign-in lockout tests",
+      "description": "Checks that repeated wrong passwords lock an account, even against the right password, that a success resets the count, and that locks are per account."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountMaxDiscountMigrationTests.cs": {
+      "name": "Maximum discount change tests",
+      "description": "Checks the database change that adds a per-farm maximum discount, using a throwaway database."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountProvisioningTests.cs": {
+      "name": "New farm setup tests",
+      "description": "Checks that creating a new farm account sets up its first owner and starting data, and that failures leave nothing behind."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountRenameServiceTests.cs": {
+      "name": "Farm rename tests",
+      "description": "Checks that renaming a farm account works and refuses names that clash or are invalid."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountScopedIdentityMigrationTests.cs": {
+      "name": "Per-farm sign-in change tests",
+      "description": "Checks the database change that lets the same email belong to different farms while staying unique within one."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountScopedUserValidatorRegistrationTests.cs": {
+      "name": "Per-farm user check order tests",
+      "description": "Checks that the rule keeping emails unique within a farm is registered in the right order."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountScopedUserValidatorTests.cs": {
+      "name": "Per-farm user check tests",
+      "description": "Checks that emails must be unique within a farm, both when users are created and when they are updated."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountSlugMigrationTests.cs": {
+      "name": "Farm web-name change tests",
+      "description": "Checks the database change that gives each existing farm a short web name."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountSlugRaceTests.cs": {
+      "name": "Farm suspension race tests",
+      "description": "Checks that two people suspending or reactivating the same farm at once cannot both succeed."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AccountSuspensionTests.cs": {
+      "name": "Farm suspension tests",
+      "description": "Checks suspending and reactivating a farm account, including who is blocked while it is suspended."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AdminGatingTests.cs": {
+      "name": "Admin-only access tests",
+      "description": "Checks that admin-only actions are refused to everyone who is not an admin."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AdminRecoveryServiceTests.cs": {
+      "name": "Locked-out admin recovery tests",
+      "description": "Checks the emergency way to reset an admin's password, using its own separate database."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AllowedHostsGuardTests.cs": {
+      "name": "Allowed web address tests",
+      "description": "Checks that a live server refuses to start when the list of allowed web addresses is left open."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AmbientPrincipalOnLoginTests.cs": {
+      "name": "Sign-in with stray pass tests",
+      "description": "Checks that signing in behaves the same whether or not the caller also sends an existing sign-in pass."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AppDbContextDesignTimeFactoryTests.cs": {
+      "name": "Database tooling safety tests",
+      "description": "Checks that database tooling refuses to guess a default connection and holds live targets to the same secure-connection rule as the server."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/ApplicationUserIndexModelTests.cs": {
+      "name": "User uniqueness setup tests",
+      "description": "Quickly checks that the stored shape of users enforces email uniqueness per farm."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AtomicIdempotencyProtocolTests.cs": {
+      "name": "Duplicate request protection tests",
+      "description": "Checks that repeating the same request returns the first answer without redoing the work, and that waiting on a competing request gives up in bounded time."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuditActorTests.cs": {
+      "name": "Audit trail author tests",
+      "description": "Checks that the activity log refuses to record a change when it cannot tell who made it."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuditConnectedAppTests.cs": {
+      "name": "Audit trail connected app tests",
+      "description": "Checks that the activity log names the connected app someone used, alongside the person."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuditProvenanceTests.cs": {
+      "name": "Who created or changed it tests",
+      "description": "Checks that who first created a record and who last changed it are worked out correctly from the activity log."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuditTests.cs": {
+      "name": "Audit trail tests",
+      "description": "Checks that changes are logged in the same step as the change, name the signed-in person, and can be viewed only by admins."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuthBodyLimitTests.cs": {
+      "name": "Oversized sign-in tests",
+      "description": "Checks that very large sign-in details are rejected early, before any password work, while normal ones get the usual refusal."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuthCookieContractTests.cs": {
+      "name": "Sign-in cookie tests",
+      "description": "Checks that the long-lived sign-in pass is only delivered as a protected browser cookie, and marked secure over HTTPS."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuthRateLimitLoggingTests.cs": {
+      "name": "Sign-in rate limit logging tests",
+      "description": "Checks that too many sign-in or refresh attempts are logged as a distinct warning, while other blocked requests are not."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/AuthSessionContractTests.cs": {
+      "name": "Sign-in session tests",
+      "description": "Checks the sign-in and sign-out behaviours the server decides on its own, such as staying signed in."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BaselineSeedCurrencyTests.cs": {
+      "name": "Starting currency tests",
+      "description": "Checks that a newly created farm can still change its currency, since nothing yet depends on it."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BaseReferenceDataMigrationTests.cs": {
+      "name": "Starting data change tests",
+      "description": "Checks the database changes that load the built-in lists, such as grades and categories, into a fresh database."
+    },
+    "tests/Cluckwork.Api.IntegrationTests/BirdMovementTests.cs": {
+      "name": "Bird count tests",
+      "description": "Checks bird deaths, culls and adjustments, the running bird count, and which flock states allow changes."
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "files": {
+    "src/Cluckwork.Api/AuthPolicies.cs": {
+      "name": "Role permissions",
+      "description": "Defines which jobs (Owner, Manager, Worker, Sales and others) may use each part of the app."
+    },
+    "src/Cluckwork.Api/Middleware/AmbientPrincipalMiddleware.cs": {
+      "name": "Ignore stray sign-in",
+      "description": "Makes sign-in addresses disregard any login token a caller happens to send, so the answer never depends on it."
+    },
+    "src/Cluckwork.Api/Middleware/CredentialEpochMiddleware.cs": {
+      "name": "Revoked sign-in check",
+      "description": "Rejects sign-in tokens that were cancelled, for example after a password change, while still allowing logout."
+    },
+    "src/Cluckwork.Api/Middleware/FlockScopeResolutionMiddleware.cs": {
+      "name": "Flock access check",
+      "description": "Works out which flocks the caller may see from their assignments, so workers only see their own."
+    },
+    "src/Cluckwork.Api/Middleware/ForbiddenProblemResultHandler.cs": {
+      "name": "Access denied message",
+      "description": "Replies to a blocked request with a clear message naming the missing role instead of an empty refusal."
+    },
+    "src/Cluckwork.Api/Middleware/IdempotencyMiddleware.cs": {
+      "name": "Repeat-request protection",
+      "description": "Makes sure a save that is sent twice, such as after a flaky connection, is only applied once."
+    },
+    "src/Cluckwork.Api/Middleware/IdempotencyOptions.cs": {
+      "name": "Repeat-protection settings",
+      "description": "Holds the time limits for the repeat-request protection."
+    },
+    "src/Cluckwork.Api/Middleware/IdempotentUnit.cs": {
+      "name": "Once-only save engine",
+      "description": "Records in the database which request is running or done, so a repeated request gets the original answer."
+    },
+    "src/Cluckwork.Api/Middleware/LogoutPath.cs": {
+      "name": "Logout address check",
+      "description": "Recognizes the logout address so the other checks let it through."
+    },
+    "src/Cluckwork.Api/Middleware/MustChangePasswordMiddleware.cs": {
+      "name": "Forced password change",
+      "description": "Blocks everything except changing the password until a new account sets its own first-run password."
+    },
+    "src/Cluckwork.Api/Middleware/OwnerTwoFactorGateMiddleware.cs": {
+      "name": "Owner two-step requirement",
+      "description": "Requires Owners to use two-step verification once their grace period runs out."
+    },
+    "src/Cluckwork.Api/Middleware/TenantResolutionMiddleware.cs": {
+      "name": "Farm identification",
+      "description": "Reads which farm the signed-in person belongs to before any request runs, keeping each farm's data separate."
+    },
+    "src/Cluckwork.Api/RateLimiting/RateLimitingOptions.cs": {
+      "name": "Request limit settings",
+      "description": "Holds how many requests are allowed per time window and how many may run at once."
+    },
+    "src/Cluckwork.Api/Security/SecurityHeaders.cs": {
+      "name": "Browser security headers",
+      "description": "Adds the standard safety instructions to every page response, such as which sources the browser may load from."
+    },
+    "src/Cluckwork.Api/Validation/ValidationResponse.cs": {
+      "name": "Input error reply",
+      "description": "Shapes the reply for bad input, with a readable message and a code for each problem."
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "files": {
+    "src/Cluckwork.Api/Hosting/CluckworkMcp.cs": {
+      "name": "AI assistant connection",
+      "description": "Opens the /mcp door where connected AI assistants call farm tools, accepting only approved app tokens."
+    },
+    "src/Cluckwork.Api/Hosting/McpToolErrors.cs": {
+      "name": "AI tool error messages",
+      "description": "Turns tool failures into clear messages for the assistant without leaking internal details."
+    },
+    "src/Cluckwork.Api/Mcp/CommerceTools.cs": {
+      "name": "Sales tools",
+      "description": "Lets an assistant look up customers, sales orders, payments and balances."
+    },
+    "src/Cluckwork.Api/Mcp/DailyEntryTools.cs": {
+      "name": "Daily entry tools",
+      "description": "Lets an assistant read daily egg entries and record or submit one."
+    },
+    "src/Cluckwork.Api/Mcp/ExpenseTools.cs": {
+      "name": "Expense tools",
+      "description": "Lets an assistant record an expense, only for people allowed to handle money."
+    },
+    "src/Cluckwork.Api/Mcp/FlockTools.cs": {
+      "name": "Flock tools",
+      "description": "Lets an assistant list flocks, showing workers only their own."
+    },
+    "src/Cluckwork.Api/Mcp/InventoryTools.cs": {
+      "name": "Inventory tools",
+      "description": "Lets an assistant record feed use, water use and supply purchases."
+    },
+    "src/Cluckwork.Api/Mcp/McpCallContext.cs": {
+      "name": "Caller identity for tools",
+      "description": "Tells each tool who is calling and for which farm."
+    },
+    "src/Cluckwork.Api/Mcp/McpMoney.cs": {
+      "name": "Money formatting for AI",
+      "description": "Writes amounts as exact decimal text in the farm's currency so assistants do not misread them."
+    },
+    "src/Cluckwork.Api/Mcp/McpNames.cs": {
+      "name": "Name matching for AI",
+      "description": "Lets an assistant refer to a supply item or expense category by name or ID, matching names exactly but ignoring capitals."
+    },
+    "src/Cluckwork.Api/Mcp/McpPage.cs": {
+      "name": "Tool result pages",
+      "description": "Shapes the reply of every read tool into a page of results."
+    },
+    "src/Cluckwork.Api/Mcp/McpWrite.cs": {
+      "name": "Safe tool writes",
+      "description": "Runs every write tool through the same once-only save protection used by the app."
+    },
+    "src/Cluckwork.Api/Mcp/MirrorsRouteAttribute.cs": {
+      "name": "Tool matches web address",
+      "description": "Marks which web address a tool mirrors, so a test can confirm it is not more permissive."
+    },
+    "src/Cluckwork.Api/Mcp/StockTools.cs": {
+      "name": "Stock tools",
+      "description": "Lets an assistant read egg stock and the batches and movements behind it."
+    }
+  }
+}

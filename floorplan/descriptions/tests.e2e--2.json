@@ -1,0 +1,76 @@
+{
+  "files": {
+    "tools/simulation/ui/specs/worker-sale-allocation.spec.ts": {
+      "name": "Restricted worker sale tests",
+      "description": "Checks a restricted worker confirming a sale only sees what their assigned flocks allow."
+    },
+    "tools/simulation/ui/specs/worker.spec.ts": {
+      "name": "Worker walkthrough tests",
+      "description": "Plays a farm worker: enters eggs by grade and is blocked from flocks they are not assigned to."
+    },
+    "tools/simulation/ui/src/api.ts": {
+      "name": "Test server calls",
+      "description": "Small helper that signs in and reads or changes data directly through the server for tasks a browser is bad at, such as cleanup."
+    },
+    "tools/simulation/ui/src/ax.ts": {
+      "name": "Accessibility tree reader",
+      "description": "Reads the browser's own description of the screen as seen by assistive tools, so tests can check what screen readers would get."
+    },
+    "tools/simulation/ui/src/browser.ts": {
+      "name": "Test browser picker",
+      "description": "Decides which browser program the tests launch, honouring a forced choice, and reports which one is used."
+    },
+    "tools/simulation/ui/src/cast.ts": {
+      "name": "Test cast of users",
+      "description": "Loads the made-up farm staff (owner, manager, worker and others) that tests sign in as."
+    },
+    "tools/simulation/ui/src/dashboard-fixtures.ts": {
+      "name": "Dashboard test setup",
+      "description": "Shared test setup for the dashboard checks."
+    },
+    "tools/simulation/ui/src/dom.ts": {
+      "name": "Screen lookup helpers",
+      "description": "Small helpers for picking dropdown options and searchable pickers by part of their visible text."
+    },
+    "tools/simulation/ui/src/env.ts": {
+      "name": "Test environment settings",
+      "description": "Says where the test farm is running and how long tests should wait, including opt-in for slow checks."
+    },
+    "tools/simulation/ui/src/expenses.ts": {
+      "name": "Open expenses helper",
+      "description": "Takes a test to the seeded expenses screen on desktop or phone."
+    },
+    "tools/simulation/ui/src/farm.ts": {
+      "name": "Farm dates and counts",
+      "description": "Works out the farm's own today and formats counts the way the app shows them, not by the test machine's settings."
+    },
+    "tools/simulation/ui/src/fixtures.ts": {
+      "name": "Shared test toolkit",
+      "description": "The common test setup every browser test uses: signing in (including the code step), and phone or desktop menu helpers."
+    },
+    "tools/simulation/ui/src/i18n.ts": {
+      "name": "Screen text lookup",
+      "description": "Looks up on-screen wording from the app's own language files so tests do not retype it."
+    },
+    "tools/simulation/ui/src/mutants.ts": {
+      "name": "Planned breakages list",
+      "description": "Lists the deliberate breakages the sabotage check applies to prove the browser tests can fail."
+    },
+    "tools/simulation/ui/src/preflight.ts": {
+      "name": "Test pre-check",
+      "description": "Runs before the tests to confirm the test farm is up and reachable."
+    },
+    "tools/simulation/ui/src/totp.test.mjs": {
+      "name": "Authenticator code tests",
+      "description": "Checks the code generator for two-step sign-in produces correct codes."
+    },
+    "tools/simulation/ui/src/totp.ts": {
+      "name": "Authenticator codes",
+      "description": "Generates the six-digit two-step sign-in codes for the test owner, waiting for the next 30-second window when needed."
+    },
+    "tools/simulation/ui/src/vitals.ts": {
+      "name": "Page speed measuring",
+      "description": "Measures how fast and stable a screen loads, inside the page itself, and prints the results as a table."
+    }
+  }
+}

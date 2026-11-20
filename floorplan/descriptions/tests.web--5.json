@@ -1,0 +1,164 @@
+{
+  "files": {
+    "web/src/styles.discount.test.ts": {
+      "name": "Discount style tests",
+      "description": "Checks the stylesheet rules for how discounts look on the sales screen."
+    },
+    "web/src/styles.elevation.test.ts": {
+      "name": "Shadow and layering style tests",
+      "description": "Checks the stylesheet's shadow and layering rules."
+    },
+    "web/src/styles.grades.test.ts": {
+      "name": "Grades style tests",
+      "description": "Checks the stylesheet rules for the egg grades screen."
+    },
+    "web/src/styles.harness-selectors.test.ts": {
+      "name": "Test hook style tests",
+      "description": "Checks the page parts that automated tests look for are still present in the stylesheet."
+    },
+    "web/src/styles.help.test.ts": {
+      "name": "Help style tests",
+      "description": "Checks the stylesheet rules for the Help screen."
+    },
+    "web/src/styles.num.test.ts": {
+      "name": "Number style tests",
+      "description": "Checks the stylesheet rules for how numbers are lined up and shown."
+    },
+    "web/src/styles.skip-link.test.ts": {
+      "name": "Skip link style tests",
+      "description": "Checks the \"skip to content\" link for keyboard users is styled to appear when focused."
+    },
+    "web/src/styles.test.ts": {
+      "name": "Stylesheet tests",
+      "description": "Checks general rules of the main stylesheet."
+    },
+    "web/src/styles.toolbar.test.ts": {
+      "name": "Toolbar style tests",
+      "description": "Checks the stylesheet rules for toolbars above lists."
+    },
+    "web/src/test/allPacks.ts": {
+      "name": "Test language packs",
+      "description": "Loads every language into a test so screens can be checked in each one."
+    },
+    "web/src/test/codes.ts": {
+      "name": "Test sign-in codes",
+      "description": "Provides sample one-time codes for tests."
+    },
+    "web/src/test/cssTokens.ts": {
+      "name": "Test style values",
+      "description": "Reads the stylesheet's named colours and sizes so tests can check them."
+    },
+    "web/src/test/cssVar.ts": {
+      "name": "Test style lookup",
+      "description": "Looks up a named style value in the stylesheet for tests."
+    },
+    "web/src/test/fakeIndexedDb.test.ts": {
+      "name": "Fake browser storage tests",
+      "description": "Checks the stand-in for the browser's built-in storage behaves like the real one."
+    },
+    "web/src/test/fakeIndexedDb.ts": {
+      "name": "Fake browser storage",
+      "description": "Stands in for the browser's built-in storage so tests can run without a real browser."
+    },
+    "web/src/test/fixtures.ts": {
+      "name": "Sample test data",
+      "description": "Provides ready-made sample records, such as a signed-in person, for tests."
+    },
+    "web/src/test/jwt.ts": {
+      "name": "Test sign-in passes",
+      "description": "Builds fake sign-in passes for tests so they can act as a given person or role."
+    },
+    "web/src/test/ledgerCellStyles.ts": {
+      "name": "Ledger cell style helper",
+      "description": "Helps tests check how cells in the record lists are styled."
+    },
+    "web/src/test/matchMedia.ts": {
+      "name": "Fake screen size",
+      "description": "Lets tests pretend the screen is a phone or a desktop."
+    },
+    "web/src/test/otherTab.ts": {
+      "name": "Other tab simulator",
+      "description": "Lets tests pretend another browser tab signed in or out."
+    },
+    "web/src/test/pagedRowLookups.detector.test.ts": {
+      "name": "Paged row detector tests",
+      "description": "Checks the guard that spots tests looking for rows in a list that only loads page by page."
+    },
+    "web/src/test/pagedRowLookups.test.ts": {
+      "name": "Paged row lookup tests",
+      "description": "Checks tests find rows correctly in lists that load page by page."
+    },
+    "web/src/test/pagedRowLookups.ts": {
+      "name": "Paged row lookup helper",
+      "description": "Helps tests find a row in a list that loads page by page."
+    },
+    "web/src/test/passwords.test.ts": {
+      "name": "Test password tests",
+      "description": "Checks the helper that makes passwords for tests."
+    },
+    "web/src/test/passwords.ts": {
+      "name": "Test password maker",
+      "description": "Creates throwaway passwords for tests so none are written into the code."
+    },
+    "web/src/test/recoveryCodesApp.tsx": {
+      "name": "Recovery codes test app",
+      "description": "A small stand-in app used by tests of the one-time recovery codes screen."
+    },
+    "web/src/test/renderedStyle.ts": {
+      "name": "Rendered style helper",
+      "description": "Lets tests read the styles actually applied to something on screen."
+    },
+    "web/src/test/renderWithProviders.tsx": {
+      "name": "Test screen builder",
+      "description": "Draws a screen for a test with sign-in, language and session already set up."
+    },
+    "web/src/test/roleGate.smoke.test.tsx": {
+      "name": "Role gate tests",
+      "description": "Checks screens and menu entries are hidden from roles that may not use them."
+    },
+    "web/src/test/rows.test.tsx": {
+      "name": "Row helper tests",
+      "description": "Checks the helper that finds rows in on-screen lists."
+    },
+    "web/src/test/rows.ts": {
+      "name": "Row helper",
+      "description": "Helps tests find and read rows in on-screen lists."
+    },
+    "web/src/test/setup.ts": {
+      "name": "Test setup",
+      "description": "Prepares every web app test with the shared settings and stand-ins it needs."
+    },
+    "web/src/test/stepUpCallers.test.ts": {
+      "name": "Extra-check caller tests",
+      "description": "Checks the guard that finds actions needing a fresh password check."
+    },
+    "web/src/test/stepUpCallers.ts": {
+      "name": "Extra-check caller finder",
+      "description": "Finds every place in the screens that asks the person to confirm their password again before a sensitive action."
+    },
+    "web/src/test/stylesheet.test.ts": {
+      "name": "Stylesheet reader tests",
+      "description": "Checks the helper that reads the stylesheet for tests."
+    },
+    "web/src/test/stylesheet.ts": {
+      "name": "Stylesheet reader",
+      "description": "Reads and parses the app's stylesheet so tests can inspect its rules."
+    },
+    "web/src/test/viteConfig.test.ts": {
+      "name": "Build settings tests",
+      "description": "Checks the web app's build settings."
+    },
+    "web/src/theme/farmTheme.policy.test.ts": {
+      "name": "Farm theme rules tests",
+      "description": "Checks the rules for which colours a farm may choose for its theme."
+    },
+    "web/src/theme/FarmThemeProvider.nonce.test.tsx": {
+      "name": "Farm theme security tests",
+      "description": "Checks the farm theme works with the browser's security policy."
+    },
+    "web/src/theme/FarmThemeProvider.render.test.tsx": {
+      "name": "Farm theme display tests",
+      "description": "Checks the farm's chosen colours are applied to the screens."
+    }
+  }
+}
