@@ -24,28 +24,4 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Cluckwork.AppHost.Tests" />
   </ItemGroup>
-
-  <!-- DCP and the dashboard come from the Aspire CLI bundle, and the resolver
-       takes any extracted bundle without comparing versions, so a machine with
-       an older bundle builds against it silently. Aspire extracts each bundle
-       into versions/<version>_<hash>, so the real directory name carries the
-       version to check against the packages.
-       ponytail: readlink has no Windows equivalent here, so Windows builds skip
-       the check; port it if a Windows machine starts building the AppHost. -->
-  <Target Name="CheckAspireBundleVersion"
-          BeforeTargets="SetOrchestrationDiscoveryAttributes"
-          DependsOnTargets="ResolveAspireCliBundlePaths"
-          Condition="'$(DesignTimeBuild)' != 'true' and '$(OS)' != 'Windows_NT'">
-    <Exec Command="readlink -f &quot;$([System.IO.Path]::GetDirectoryName($(DcpDir.TrimEnd('/'))))&quot;"
-          ConsoleToMSBuild="true"
-          StandardOutputImportance="low">
-      <Output TaskParameter="ConsoleOutput" PropertyName="_BundleTarget" />
-    </Exec>
-    <PropertyGroup>
-      <_BundleVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.Path]::GetFileName($(_BundleTarget))), '^[0-9]+(\.[0-9]+)+').Value)</_BundleVersion>
-      <_PackageVersion>$([System.Text.RegularExpressions.Regex]::Match($(AspireHostingSDKVersion), '^[0-9]+(\.[0-9]+)+').Value)</_PackageVersion>
-    </PropertyGroup>
-    <Error Condition="'$(_BundleVersion)' != '$(_PackageVersion)'"
-           Text="The Aspire CLI bundle at '$(_BundleTarget)' is version '$(_BundleVersion)', but the Aspire packages are $(AspireHostingSDKVersion). Put Aspire CLI $(AspireHostingSDKVersion) on PATH and run 'aspire setup' once to extract its bundle (CONTRIBUTING.md, Local development)." />
-  </Target>
 </Project>

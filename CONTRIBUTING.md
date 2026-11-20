@@ -41,11 +41,15 @@ Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**, **Aspire CLI 17.0**.
 
 `dotnet build Cluckwork.slnx` compiles the Aspire AppHost, which takes its
 dashboard and orchestrator from an extracted Aspire CLI bundle: the one next to
-the `aspire` on `PATH`, else the one in `~/.aspire`. The build fails when that
-bundle's version differs from the Aspire packages. Put Aspire CLI 17.0 on
-`PATH` and run `aspire setup` once. Only when no bundle exists at all does the
+the `aspire` on `PATH`, else the one in `~/.aspire`. The build does not check
+that bundle's version, so an older bundle left in `~/.aspire` builds and runs
+silently. Put Aspire CLI 17.0 on `PATH` and run `aspire setup` once. To point
+the build at another bundle, set `ASPIRE_HOME` or pass
+`-p:AspireCliBundlePath=<dir>`. Only when no bundle exists at all does the
 build run `dnx aspire.cli@17.0.0 setup` itself. That fallback needs Microsoft's
-portable .NET SDK; a distro-built SDK fails it with `ASPIRE009`.
+portable .NET SDK; a distro-built SDK fails it with `ASPIRE009`. CI is not
+affected: it starts with no bundle, or restores one cached under the same
+Aspire version.
 
 **Frontend:**
 
