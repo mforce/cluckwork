@@ -255,22 +255,6 @@ jobs:
         if: matrix.group == 'apphost'
         run: .github/scripts/aspire-bundle-fetch.sh ~/.aspire
 
-      # On a Dependabot NuGet PR, hand this bundle's fingerprint, in the
-      # committed format for the PR's Aspire version, to the Dependabot lockfix
-      # workflow. Before the check, so it exists when an Aspire bump fails it.
-      - name: Write the Aspire bundle fingerprint for the lockfix
-        if: matrix.group == 'apphost' && startsWith(github.head_ref, 'dependabot/nuget/')
-        run: .github/scripts/aspire-bundle-fingerprint.sh --emit ~/.aspire/bundle "$RUNNER_TEMP/aspire-fingerprint/aspire-bundle.fingerprint"
-
-      - name: Upload the Aspire bundle fingerprint for the lockfix
-        if: matrix.group == 'apphost' && startsWith(github.head_ref, 'dependabot/nuget/')
-        uses: actions/upload-artifact@v7
-        with:
-          name: aspire-bundle-fingerprint
-          path: ${{ runner.temp }}/aspire-fingerprint/aspire-bundle.fingerprint
-          if-no-files-found: error
-          retention-days: 1
-
       - name: Check Aspire CLI bundle fingerprint
         if: matrix.group == 'apphost'
         run: .github/scripts/aspire-bundle-fingerprint.sh ~/.aspire/bundle
@@ -552,6 +536,61 @@ jobs:
       # letting the worker answer /api from cache.
       - name: Verify service-worker guarantees
         run: npm run verify:sw
+
+  # Dependabot NuGet PRs only (#1453). When the PR moves Aspire.Hosting.AppHost,
+  # fingerprint a fresh download of that version's Aspire CLI bundle and leave
+  # the file as the `aspire-bundle-fingerprint` artifact; the Dependabot lockfix
+  # workflow commits it as the new pin. It is its own job, outside the `tests`
+  # matrix, with no cache and no restore or build, so stale locks, a failing leg
+  # or a cached copy can neither stop it nor feed it bytes. The guard in
+  # .github/scripts/aspire-bundle-fingerprint.test.mjs pins this shape.
+  aspire-fingerprint:
+    name: Fingerprint the Aspire CLI bundle
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'dependabot/nuget/')
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Most Dependabot NuGet PRs leave Aspire alone; they stop here, before the
+      # ~550 MB download.
+      - name: Check whether the Aspire version changed
+        id: aspire
+        run: .github/scripts/aspire-bundle-fingerprint.sh --changed >>"$GITHUB_OUTPUT"
+
+      - name: Setup .NET SDK
+        if: steps.aspire.outputs.changed == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: false
+
+      - name: Fetch the Aspire CLI bundle into an empty home
+        if: steps.aspire.outputs.changed == 'true'
+        env:
+          HOME: ${{ runner.temp }}/home
+          NUGET_PACKAGES: ${{ runner.temp }}/nuget-packages
+        run: |
+          mkdir -p "$HOME"
+          .github/scripts/aspire-bundle-fetch.sh "$RUNNER_TEMP/aspire"
+
+      - name: Write the fingerprint file
+        if: steps.aspire.outputs.changed == 'true'
+        run: .github/scripts/aspire-bundle-fingerprint.sh --emit "$RUNNER_TEMP/aspire/bundle" "$RUNNER_TEMP/aspire-fingerprint/aspire-bundle.fingerprint"
+
+      - name: Upload the fingerprint file for the lockfix
+        if: steps.aspire.outputs.changed == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: aspire-bundle-fingerprint
+          path: ${{ runner.temp }}/aspire-fingerprint/aspire-bundle.fingerprint
+          if-no-files-found: error
+          retention-days: 1
 
   # PR-only: fails when a PR ADDS a dependency with a known vulnerability, before
   # it lands on main. Complements the audit gates (which score the whole tree) by

@@ -292,8 +292,9 @@ test("adopt takes CI's file when it names the props' version and the committed f
 });
 
 const BUMP = { propsVersion: "17.1.0", committedVersion: "17.0.0" };
+const SAME = { propsVersion: "17.0.0", committedVersion: "17.0.0" };
 for (const [name, versions, ciVersion, hash] of [
-  ["Aspire is unchanged", { propsVersion: "17.0.0", committedVersion: "17.0.0" }, "17.0.0"],
+  ["Aspire is unchanged", SAME, "17.0.0"],
   ["CI fingerprinted another version than the props", BUMP, "17.2.0"],
   ["CI's file breaks the grammar", BUMP, "17.1.0", "short"],
   ["CI left no file", BUMP, null],
@@ -306,3 +307,42 @@ for (const [name, versions, ciVersion, hash] of [
     assert.equal(readFileSync(f.fingerprintFile, "utf8"), f.committed);
   });
 }
+
+test("changed reports whether the props' Aspire version differs from the committed one", (t) => {
+  assert.equal(pinFixture(t, SAME).run("--changed").stdout, "changed=false\n");
+  assert.equal(pinFixture(t, BUMP).run("--changed").stdout, "changed=true\n");
+});
+
+// The pin the lockfix commits must come from a fresh download that nothing in
+// the PR's build could touch. Read the producer job from ci.yml (no YAML parser
+// here) as the lines from its key to the next top-level job, comments dropped.
+const CI_YML = readFileSync(new URL("../workflows/ci.yml", import.meta.url), "utf8");
+
+function jobBlock(name) {
+  const lines = CI_YML.split("\n");
+  const start = lines.indexOf(`  ${name}:`);
+  assert.notEqual(start, -1, `ci.yml has no top-level job ${name}`);
+  let end = start + 1;
+  while (end < lines.length && !/^ {2}[A-Za-z0-9_-]+:/.test(lines[end])) end++;
+  return lines.slice(start, end).filter((line) => !/^\s*#/.test(line)).join("\n");
+}
+
+test("the aspire-fingerprint job fingerprints a fresh download and nothing else", () => {
+  const job = jobBlock("aspire-fingerprint");
+  assert.doesNotMatch(job, /^\s*(strategy|needs):/m, "outside any matrix, with no job it waits on");
+  assert.doesNotMatch(job, /actions\/cache/, "no cache step");
+  assert.doesNotMatch(job, /dotnet\s+(restore|build|test|publish|run)\b/, "no restore or build");
+  assert.match(job, /persist-credentials: false/);
+  const setup = job.slice(job.indexOf("actions/setup-dotnet"));
+  assert.match(setup.slice(0, setup.indexOf("\n      - ")), /cache: false/, "setup-dotnet without its NuGet cache");
+  const fetch = job.indexOf("aspire-bundle-fetch.sh");
+  const emit = job.indexOf("--emit");
+  const upload = job.indexOf("actions/upload-artifact");
+  assert.ok(fetch > 0 && fetch < emit && emit < upload, "fetch, then emit, then upload");
+});
+
+test("only the aspire-fingerprint job uploads the fingerprint artifact", () => {
+  const uploads = CI_YML.match(/^\s*name: aspire-bundle-fingerprint\s*$/gm) ?? [];
+  assert.equal(uploads.length, 1);
+  assert.match(jobBlock("aspire-fingerprint"), /^\s*name: aspire-bundle-fingerprint\s*$/m);
+});

@@ -80,8 +80,9 @@ jobs:
           # documented poisoning surface, and this job restores fresh anyway.
           cache: false
 
-      # The PR's own CI fingerprinted the Aspire bundle it downloaded and left the
-      # file as an artifact (ci.yml, AppHost leg). This job runs no Aspire code:
+      # When the PR changes the Aspire version, its CI fingerprints a fresh
+      # download and leaves the file as an artifact (ci.yml, aspire-fingerprint
+      # job, which runs no restore and reads no cache). This job runs no Aspire code:
       # it takes that file only when it names the PR's Aspire version and the
       # committed one names another. A run without the artifact keeps the
       # committed file. Like the restore, the script runs from the PR checkout;

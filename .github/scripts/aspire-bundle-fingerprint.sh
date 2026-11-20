@@ -13,9 +13,11 @@
 #
 #   aspire-bundle-fingerprint.sh <bundle-dir>           print and check
 #   aspire-bundle-fingerprint.sh --print <bundle-dir>   print only
+#   aspire-bundle-fingerprint.sh --changed              print changed=true when the
+#     props' Aspire version differs from the committed one, else changed=false
 #   aspire-bundle-fingerprint.sh --emit <bundle-dir> <out-file>
 #     write the fingerprint file for this bundle and the props' Aspire version
-#     to <out-file> (PR CI, for the Dependabot lockfix)
+#     to <out-file> (the aspire-fingerprint CI job, for the Dependabot lockfix)
 #   aspire-bundle-fingerprint.sh --adopt <ci-file>      replace the fingerprint
 #     file with <ci-file> when that names the props' Aspire version and the
 #     committed file names another (the lockfix compute job; runs no Aspire code)
@@ -43,8 +45,9 @@ valid_file() {
 mode=check
 case "${1:-}" in
   --print | --emit | --adopt | --validate) mode="${1#--}"; shift ;;
+  --changed) mode=changed; shift; set -- - ;;
 esac
-target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--emit|--adopt|--validate] <path> [<out-file>]}"
+target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--emit|--adopt|--validate] <path> [<out-file>] | --changed}"
 
 if [[ "$mode" == validate ]]; then
   valid_file "$target" || {
@@ -60,6 +63,13 @@ fingerprint_file="${FINGERPRINT_FILE:-$repo/.github/aspire-bundle.fingerprint}"
 version="$(sed -n 's/.*"Aspire\.Hosting\.AppHost" Version="\([^"]*\)".*/\1/p' "$props")"
 platform="$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
 committed() { awk -v key="$1" '$1 == key { print $2 }' "$fingerprint_file"; }
+
+regenerate="d=\$(mktemp -d) && ASPIRE_HOME=\"\$d\" dnx --yes aspire.cli@$version -- setup --install-path \"\$d\" && .github/scripts/aspire-bundle-fingerprint.sh --print \"\$d/bundle\""
+
+if [[ "$mode" == changed ]]; then
+  if [[ "$(committed version)" == "$version" ]]; then echo "changed=false"; else echo "changed=true"; fi
+  exit 0
+fi
 
 if [[ "$mode" == adopt ]]; then
   if [[ ! -f "$target" ]]; then
@@ -139,7 +149,6 @@ valid_file "$fingerprint_file" || {
 }
 expected_version="$(committed version)"
 expected="$(committed "$platform")"
-regenerate="d=\$(mktemp -d) && ASPIRE_HOME=\"\$d\" dnx --yes aspire.cli@$version -- setup --install-path \"\$d\" && .github/scripts/aspire-bundle-fingerprint.sh --print \"\$d/bundle\""
 
 if [[ "$expected_version" != "$version" ]]; then
   echo "::error::.github/aspire-bundle.fingerprint is for Aspire '$expected_version', but Directory.Packages.props has Aspire.Hosting.AppHost '$version'. Regenerate the value on $platform with a portable .NET SDK, then set 'version $version' and '$platform <value>' in that file: $regenerate" >&2
