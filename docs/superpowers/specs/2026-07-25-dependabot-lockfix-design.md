@@ -228,11 +228,22 @@ packages, so CI pins them in `.github/aspire-bundle.fingerprint` instead of the 
 A Dependabot PR that bumps `Aspire.Hosting.AppHost` needs a new pin. This section
 supersedes the statements above where they differ.
 
-- **Where the pin is computed.** In the PR's own CI, not here. On a `dependabot/nuget/`
-  branch, the AppHost leg of `ci.yml` fetches the bundle, writes the fingerprint file for the
-  PR's Aspire version (`aspire-bundle-fingerprint.sh --emit`) and uploads it as the
-  `aspire-bundle-fingerprint` artifact, before its own check fails on the old pin. This
-  workflow runs no Aspire code and no `dnx`.
+- **Where the pin is computed.** In the PR's own CI, not here, by the `aspire-fingerprint`
+  job of `ci.yml`. It runs on `dependabot/nuget/` PR heads, outside the test matrix and with
+  no `needs`, so a failing leg or stale locks cannot stop it. It checks out without
+  credentials and stops unless the props' Aspire version differs from the committed one.
+  Otherwise it installs the SDK without its NuGet cache, fetches the bundle into an empty
+  `HOME`, Aspire home and `NUGET_PACKAGES` under `RUNNER_TEMP`, writes the fingerprint file
+  (`aspire-bundle-fingerprint.sh --emit`) and uploads it as the `aspire-bundle-fingerprint`
+  artifact. It never restores, builds or reads a cache. This workflow runs no Aspire code and
+  no `dnx`.
+- **When regeneration is automatic.** All of these hold: the PR passes this workflow's
+  provenance gate; the PR head tracks `.github/aspire-bundle.fingerprint`; the props' Aspire
+  version differs from the file's; and the `aspire-fingerprint` job uploaded its artifact.
+  When the version changed but the artifact is missing, breaks the grammar or names another
+  version, `compute` keeps the committed file, the locks are still pushed, and the job prints
+  a `::warning::` with the manual command. The fingerprint check then stays red until a
+  person regenerates the pin.
 - **`compute`.** Gains `actions: read`, only to download that artifact from the triggering
   run. The repository is public, so the token can read nothing it could not read anyway. It
   still holds no write credential. `--adopt` copies the file over the committed one only when
@@ -245,7 +256,12 @@ supersedes the statements above where they differ.
   `version` line, distinct `<os>-<arch> <sha256>` lines, `#` comments, LF line ends, no other
   control byte, and any tool failure refuses. The same symlink and tracked-mode checks as for
   the locks apply.
-- **What the pin proves.** It is recorded on first download. It stops later drift, such as a
-  cache serving other bytes for the same version, not a bad upstream release. A restore
-  exploit in `compute` could still replace the file before the upload; CI then fails the check
-  against the bundle it downloads itself. Aspire bumps go to the maintainer to merge.
+- **What the pin proves.** It hashes what NuGet served for that version to a job that ran no
+  PR restore and read no cache. It stops later drift, such as a cache serving other bytes for
+  the same version, not a bad upstream release.
+- **Residual risk.** `compute` runs the PR's restore in the default branch's context. Code
+  that runs there could replace the fingerprint file before the upload, and could also write
+  a cache entry in that scope for the new version, which the AppHost leg would then restore
+  instead of downloading. The pin is therefore only as trustworthy as that job. That is why a
+  Dependabot PR that changes the fingerprint file is merged by the maintainer, who sees the
+  new hash in its diff (`.github/AGENTS.md`).

@@ -11,6 +11,7 @@ Rules for CI workflows, releases and deployment instructions. The root [`AGENTS.
 - The `tests` matrix keeps `fail-fast: true`. Never add `if:`, `continue-on-error` or `fail-fast: false` to it; no guard catches them. → [`775-ci-test-matrix.md`](../docs/decisions/775-ci-test-matrix.md)
 - A new restore input goes into the Dockerfile restore layer, the CI drift guard and every path filter that names `Directory.Packages.props`.
 - A Dependabot NuGet PR branch picks up a `cluckwork-lockfix[bot]` lock-regeneration commit on its first CI run, so Dependabot refuses `@dependabot rebase` on those PRs from then on. When such a PR conflicts with `main`, `gh pr update-branch` fails on the conflict too; the fix is `@dependabot recreate`, which rebuilds the PR against current `main` and closes it itself when the bump is already there. → [issue #1410](https://github.com/mforce/cluckwork/issues/1410)
+- A Dependabot PR that changes `.github/aspire-bundle.fingerprint` is merged by the maintainer, never by an agent. CI and the lockfix compute that hash, and only a person reading its diff accepts it as the new pin. → [lockfix design, 2026-11-20 amendment](../docs/superpowers/specs/2026-07-25-dependabot-lockfix-design.md#amendment-2026-11-20-the-aspire-bundle-fingerprint-1453)
 
 ## Releases and image publishing (#351)
 

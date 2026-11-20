@@ -4,9 +4,10 @@
 # lock file; every downstream project's lock then fails CI's `--locked-mode`
 # restore with NU1004. This heals them automatically. When the bump moves
 # Aspire.Hosting.AppHost, it also pushes the new .github/aspire-bundle.fingerprint
-# (the CI check on the Aspire CLI bundle), which the PR's own CI computed from the
-# bundle it downloaded; this workflow runs no Aspire code. A manual Aspire bump
-# uses the command that check prints.
+# (the CI check on the Aspire CLI bundle), which CI's aspire-fingerprint job
+# computed from a fresh download; this workflow runs no Aspire code. Without
+# that value it still pushes the locks and warns. A manual Aspire bump uses the
+# command that check prints. When and why: the design doc's 2026-11-20 amendment.
 #
 # SECURITY MODEL (see docs/superpowers/specs/2026-07-25-dependabot-lockfix-design.md):
 #   - Runs `on: workflow_run`, so the job definition comes from the DEFAULT

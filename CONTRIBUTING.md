@@ -59,11 +59,13 @@ non-regular entry. It pins DCP and the dashboard byte for byte, as the NuGet
 lock files did before Aspire 17. The CLI's own bootstrap code, which `dnx` runs
 before the check, is covered by NuGet's package signature verification, not by
 this fingerprint. The check runs only in CI, only on Linux x64, and never on
-local machines. On a Dependabot PR that bumps `Aspire.Hosting.AppHost`, the
-PR's CI writes the new value from the bundle it downloaded, and the Dependabot
-lockfix workflow pushes it with the lock files. When you bump it by hand,
-update the file in the same commit: the failing check prints the command that
-computes the new value.
+local machines. On a Dependabot PR that bumps `Aspire.Hosting.AppHost`, CI's
+`aspire-fingerprint` job fingerprints a fresh download of the new bundle, and
+the Dependabot lockfix workflow pushes the value with the lock files. If that
+job left no usable value, the lockfix still pushes the locks and warns. When
+you bump Aspire by hand, or after such a warning, update the file in the same
+commit: the failing check prints the command that computes the new value. A
+Dependabot PR that changes the file is merged by the maintainer.
 
 **Frontend:**
 
