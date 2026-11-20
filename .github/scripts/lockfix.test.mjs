@@ -122,7 +122,7 @@ function runApply(tamper = () => {}, env = {}, artFingerprint = FINGERPRINT_BODY
   const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
   const scripts = join(dir, "trusted/.github/scripts");
   mkdirSync(scripts, { recursive: true });
-  for (const f of ["lockfix.mjs", "lockfix-apply.sh"]) {
+  for (const f of ["lockfix.mjs", "lockfix-apply.sh", "aspire-bundle-fingerprint.sh"]) {
     copyFileSync(new URL(`./${f}`, import.meta.url), join(scripts, f));
   }
   const pr = join(dir, "pr");
@@ -267,6 +267,9 @@ test("apply: a fingerprint outside the pinned format -> abort", () => {
     `version 17.1.0\nlinux-x86_64 ${"b".repeat(63)}\n`,
     `version 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\nrun: curl evil\n`,
     `linux-x86_64 ${"b".repeat(64)}\n`,
+    "version 17.1.0\n",
+    `version 17.1.0\nversion 17.0.0\nlinux-x86_64 ${"b".repeat(64)}\n`,
+    `version 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\nlinux-x86_64 ${"c".repeat(64)}\n`,
   ]) {
     const { run, pushed, pushedFingerprint } = runApply(undefined, {}, body);
     assert.notEqual(run.status, 0, body);

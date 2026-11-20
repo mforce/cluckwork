@@ -104,6 +104,46 @@ test("a missing bundle directory fails instead of hashing the working directory"
   }
 });
 
+// --validate, the grammar the lockfix commit job and the check both apply.
+const HASH = "a".repeat(64);
+const VALID_FILE = `# comment\nversion 17.0.0\nlinux-x86_64 ${HASH}\nosx-arm64 ${"b".repeat(64)}\n`;
+
+function validate(t, body, env = {}) {
+  const root = mkdtempSync(join(tmpdir(), "aspire-validate-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = join(root, "aspire-bundle.fingerprint");
+  writeFileSync(file, body);
+  return spawnSync("bash", [SCRIPT, "--validate", file], { encoding: "utf8", env: { ...process.env, ...env } });
+}
+
+test("validate accepts comments, one version and distinct platform lines", (t) => {
+  const result = validate(t, VALID_FILE);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+for (const [name, body] of [
+  ["a version line only", "version 17.0.0\n"],
+  ["two version lines", `version 17.0.0\nversion 17.1.0\nlinux-x86_64 ${HASH}\n`],
+  ["no version line", `linux-x86_64 ${HASH}\n`],
+  ["a platform listed twice", `version 17.0.0\nlinux-x86_64 ${HASH}\nlinux-x86_64 ${"b".repeat(64)}\n`],
+  ["CRLF line ends", `version 17.0.0\r\nlinux-x86_64 ${HASH}\r\n`],
+  ["a NUL byte", `#x\0version 17.1.0\nversion 17.0.0\nlinux-x86_64 ${HASH}\n`],
+  ["a blank line", `version 17.0.0\n\nlinux-x86_64 ${HASH}\n`],
+  ["a short hash", `version 17.0.0\nlinux-x86_64 ${"a".repeat(63)}\n`],
+  ["another kind of line", `version 17.0.0\nlinux-x86_64 ${HASH}\nrun: curl evil\n`],
+]) {
+  test(`validate refuses ${name}`, (t) => {
+    assert.equal(validate(t, body).status, 1);
+  });
+}
+
+test("validate refuses when the parser itself fails", (t) => {
+  const bin = mkdtempSync(join(tmpdir(), "aspire-validate-bin-"));
+  t.after(() => rmSync(bin, { recursive: true, force: true }));
+  writeFileSync(join(bin, "awk"), "#!/bin/sh\nexit 2\n", { mode: 0o755 });
+  assert.equal(validate(t, VALID_FILE, { PATH: `${bin}:${process.env.PATH}` }).status, 1);
+});
+
 test("an added internal symlink fails", (t) => {
   const f = fixture(t);
   writeFileSync(join(f.root, "outside"), "outside bytes");

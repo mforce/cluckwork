@@ -25,12 +25,11 @@ LOCKS=(
 # the version (PINNED_FILES in lockfix.mjs). Unchanged otherwise.
 FINGERPRINT=".github/aspire-bundle.fingerprint"
 
-# A lock must parse as JSON; the fingerprint must hold a version line and only
-# comment, version and "<os>-<arch> <sha256>" lines.
+# A lock must parse as JSON; the fingerprint must pass the fingerprint grammar,
+# checked by the trusted copy of the script CI also checks it with.
 well_formed() {
   if [ "$1" = "$FINGERPRINT" ]; then
-    grep -Eqx 'version [0-9A-Za-z.+-]+' "$2" \
-      && ! grep -Evqx '#.*|version [0-9A-Za-z.+-]+|[a-z0-9_]+-[a-z0-9_]+ [0-9a-f]{64}' "$2"
+    bash trusted/.github/scripts/aspire-bundle-fingerprint.sh --validate "$2"
   else
     node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$2"
   fi

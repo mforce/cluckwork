@@ -16,16 +16,41 @@
 #   aspire-bundle-fingerprint.sh --refresh <work-dir>   when the Aspire version
 #     differs from the committed one, set up that version's bundle under
 #     <work-dir> and rewrite the fingerprint file (the Dependabot lockfix job)
+#   aspire-bundle-fingerprint.sh --validate <file>      exit 0 only for a file in
+#     the fingerprint grammar (the lockfix commit job runs this on its artifact)
 #
 # PACKAGES_PROPS and FINGERPRINT_FILE override the repository files (tests).
 set -euo pipefail
 
+# The grammar: "#" comment lines, exactly one "version <v>" line, and at least
+# one "<os>-<arch> <sha256>" line, each key once. LF line ends only, no other
+# control byte. A tool that fails makes the file invalid.
+valid_file() {
+  [[ -f "$1" ]] || return 1
+  LC_ALL=C tr -d '\000-\011\013-\037\177' < "$1" | cmp -s - "$1" || return 1
+  LC_ALL=C awk '
+    /^#/ { next }
+    /^version [0-9A-Za-z.+-]+$/ { versions++; next }
+    /^[a-z0-9_]+-[a-z0-9_]+ [0-9a-f]+$/ && length($2) == 64 { if (keys[$1]++) bad = 1; platforms++; next }
+    { bad = 1 }
+    END { exit !(!bad && versions == 1 && platforms >= 1) }
+  ' "$1" || return 1
+}
+
 mode=check
-if [[ "${1:-}" == "--print" || "${1:-}" == "--refresh" ]]; then
+if [[ "${1:-}" == "--print" || "${1:-}" == "--refresh" || "${1:-}" == "--validate" ]]; then
   mode="${1#--}"
   shift
 fi
-target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--refresh] <dir>}"
+target="${1:?usage: aspire-bundle-fingerprint.sh [--print|--refresh|--validate] <path>}"
+
+if [[ "$mode" == validate ]]; then
+  valid_file "$target" || {
+    echo "::error::$target is not a valid Aspire bundle fingerprint file: '#' comments, one 'version <v>' line and one '<os>-<arch> <sha256>' line per platform, LF line ends only." >&2
+    exit 1
+  }
+  exit 0
+fi
 
 scripts="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "$scripts/../.." && pwd)"
