@@ -8,7 +8,8 @@
 # owner execute bit. It ignores mtimes, ownership, other mode bits and the
 # versions/<version>_<hash> directory name. Any entry that is not a regular file
 # or directory (a symlink, device, fifo or socket) fails the check, because the
-# file hashes would not cover what it points at.
+# file hashes would not cover what it points at. So does a name with a control
+# character, because a newline in one could stand in for another file's line.
 #
 #   aspire-bundle-fingerprint.sh <bundle-dir>          print and check
 #   aspire-bundle-fingerprint.sh --print <bundle-dir>  print only
@@ -33,6 +34,12 @@ manifest() {
   other="$(find . ! -path './.leases/*' ! -type f ! -type d -print -quit)"
   if [[ -n "$other" ]]; then
     echo "::error::The Aspire CLI bundle at $1 holds $other, which is not a regular file or directory." >&2
+    return 1
+  fi
+  # A newline in a name could fake another file's manifest line.
+  other="$(find . ! -path './.leases/*' -name '*[[:cntrl:]]*' -print -quit)"
+  if [[ -n "$other" ]]; then
+    echo "::error::The Aspire CLI bundle at $1 holds a name with a control character: ${other@Q}" >&2
     return 1
   fi
   find . -type f ! -path './.leases/*' -print0 | LC_ALL=C sort -z |

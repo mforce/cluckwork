@@ -8,6 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -110,5 +111,18 @@ test("a file swapped for a symlink fails, whatever its target holds", (t) => {
 test("clearing an execute bit fails", (t) => {
   const f = fixture(t);
   chmodSync(join(f.versionDir, "dcp/dcp"), 0o644);
+  assert.equal(f.check().status, 1);
+});
+
+// One file whose path ends in "dcp\n<sha> - ./managed/aspire-managed" prints a
+// manifest line that reads as the two lines of the files it replaces.
+test("a name that folds in a deleted file's line fails", (t) => {
+  const f = fixture(t);
+  const managedSha = createHash("sha256").update("managed binary").digest("hex");
+  rmSync(join(f.versionDir, "dcp/dcp"));
+  rmSync(join(f.versionDir, "managed/aspire-managed"));
+  const forged = join(f.versionDir, "dcp", `dcp\n${managedSha} - .`, "managed");
+  mkdirSync(forged, { recursive: true });
+  writeFileSync(join(forged, "aspire-managed"), "dcp binary", { mode: 0o755 });
   assert.equal(f.check().status, 1);
 });
