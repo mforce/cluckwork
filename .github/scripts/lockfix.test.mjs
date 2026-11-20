@@ -9,7 +9,7 @@
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -286,13 +286,29 @@ test("apply: a PR branched before the fingerprint existed still gets its locks",
   assert.equal(pushedFingerprint, "");
 });
 
+// One directory deep, so two `..` climb out of pr/ to the trusted scripts.
+const FINGERPRINT_TO_APPLY_SH = "../../trusted/.github/scripts/lockfix-apply.sh";
+
 test("apply: a fingerprint tracked as a symlink -> abort without writing through it", () => {
   const { run, pushed, applyScript } = runApply((pr, save) => {
     rmSync(join(pr, FINGERPRINT));
-    symlinkSync("../trusted/.github/scripts/lockfix-apply.sh", join(pr, FINGERPRINT));
+    symlinkSync(FINGERPRINT_TO_APPLY_SH, join(pr, FINGERPRINT));
+    assert.equal(existsSync(join(pr, FINGERPRINT)), true, "the link must resolve to the trusted script");
     save("symlink");
   }, {}, `version 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\n`);
   assert.notEqual(run.status, 0);
+  assert.equal(applyScript, APPLY_SH);
+  assert.equal(pushed, "");
+});
+
+test("apply: a symlink in the working tree over the tracked fingerprint -> abort without writing through it", () => {
+  const { run, pushed, applyScript } = runApply((pr) => {
+    rmSync(join(pr, FINGERPRINT));
+    symlinkSync(FINGERPRINT_TO_APPLY_SH, join(pr, FINGERPRINT));
+    assert.equal(existsSync(join(pr, FINGERPRINT)), true, "the link must resolve to the trusted script");
+  }, {}, `version 17.1.0\nlinux-x86_64 ${"b".repeat(64)}\n`);
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /goes through a symlink/);
   assert.equal(applyScript, APPLY_SH);
   assert.equal(pushed, "");
 });
