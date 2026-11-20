@@ -382,15 +382,26 @@ function parseYaml(source) {
 }
 
 // One job of a workflow: the lines from its key under `jobs:` to the next job.
-function workflowJob(file, name) {
-  const lines = readFileSync(new URL(`../workflows/${file}`, import.meta.url), "utf8").split("\n");
+// The key must appear once at job indent, and the nearest earlier column-0 key
+// must be `jobs:`, so text inside another key's block scalar cannot stand in for
+// it. The block must be printable ASCII and LF only: a no-break space or a
+// Unicode line break reads differently here than in GitHub's parser.
+function jobFromText(text, name) {
+  const lines = text.split("\n");
   const keyOf = (line) => (/^ {2}\S.*:\s*$/.test(line) && !/^\s*#/.test(line) ? yamlScalar(line.trim().slice(0, -1)) : null);
-  const start = lines.findIndex((line) => keyOf(line) === name);
-  assert.notEqual(start, -1, `${file} has no job ${name}`);
+  const starts = lines.flatMap((line, index) => (keyOf(line) === name ? [index] : []));
+  assert.equal(starts.length, 1, `expected one job ${name}, found ${starts.length}`);
+  const [start] = starts;
+  const parent = lines.slice(0, start).findLast((line) => /^\S/.test(line) && !line.startsWith("#"));
+  assert.equal(parent?.trimEnd(), "jobs:", `job ${name} is not under jobs:`);
   let end = start + 1;
   while (end < lines.length && keyOf(lines[end]) === null) end++;
-  return parseYaml(lines.slice(start, end).join("\n"))[name];
+  const block = lines.slice(start, end).join("\n");
+  assert.doesNotMatch(block, /[^\x20-\x7e\n]/, `job ${name} holds a character outside printable ASCII`);
+  return parseYaml(block)[name];
 }
+
+const workflowJob = (file, name) => jobFromText(readFileSync(new URL(`../workflows/${file}`, import.meta.url), "utf8"), name);
 
 const withoutNames = ({ name: _name, ...rest }) => rest;
 const CHANGED = "steps.aspire.outputs.changed == 'true'";
@@ -450,3 +461,25 @@ test("the guard's YAML reader accepts quoting and refuses what it cannot read", 
   assert.throws(() => parseYaml("a: {b: c}\n"));
   assert.throws(() => parseYaml("a: 1\na: 2\n"));
 });
+
+test("the job reader finds a quoted job key under jobs:", () => {
+  assert.deepEqual(jobFromText('on: push\njobs:\n  "x":\n    runs-on: ubuntu\n', "x"), { "runs-on": "ubuntu" });
+});
+
+test("the job reader refuses a job copied into another key's block scalar", () => {
+  const decoy = "run-name: |\n  x:\n    runs-on: decoy\n  y:\n";
+  assert.throws(() => jobFromText(`${decoy}jobs:\n  x:\n    runs-on: ubuntu\n`, "x"), /expected one job/);
+  assert.throws(() => jobFromText(`${decoy}jobs:\n  z:\n    runs-on: ubuntu\n`, "x"), /not under jobs:/);
+});
+
+for (const [name, text] of [
+  ["a no-break space before #", "echo hi\u00a0#; printf probe"],
+  ["a trailing no-break space", "echo hi\u00a0"],
+  ["U+0085", "echo hi\u0085printf probe"],
+  ["U+2028", "echo hi\u2028printf probe"],
+  ["a carriage return", "echo hi\r"],
+]) {
+  test(`the job reader refuses ${name}`, () => {
+    assert.throws(() => jobFromText(`jobs:\n  x:\n    steps:\n      - run: ${text}\n`, "x"), /outside printable ASCII/);
+  });
+}

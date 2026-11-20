@@ -68,7 +68,7 @@ jobs:
       - name: Check out the exact commit CI ran on
         uses: actions/checkout@v7
         with:
-          # The immutable SHA the gate validated — NOT head_branch (a moving ref
+          # The immutable SHA the gate validated, NOT head_branch (a moving ref
           # an attacker could advance after the gate passed: TOCTOU).
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
@@ -122,7 +122,7 @@ jobs:
           # were missing from the hand-written #203 list) and the Aspire fingerprint
           # span src/, tests/ and .github/, so the artifact's
           # least-common-ancestor is the repo root: each file is preserved with
-          # its full repo-relative path. lockfix-apply.sh relies on this — it
+          # its full repo-relative path. lockfix-apply.sh relies on this: it
           # reads each lock back out at $ARTIFACT_DIR/<repo-relative-path>.
           path: |
             src/Cluckwork.Domain/packages.lock.json
