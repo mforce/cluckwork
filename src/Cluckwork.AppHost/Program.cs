@@ -25,7 +25,7 @@ var redis = builder.AddRedis("redis")
     .WithImageSHA256(ContainerImages.RedisSha256)
     .WithHostPort(LocalPort("Redis"));
 
-var api = builder.AddProject<Projects.Cluckwork_Api>("api")
+var api = builder.AddDotnetProject("api", "../Cluckwork.Api/Cluckwork.Api.csproj")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("DOTNET_ENVIRONMENT", "Development")
     .WithHttpEndpoint(name: "http", port: LocalPort("Api"))

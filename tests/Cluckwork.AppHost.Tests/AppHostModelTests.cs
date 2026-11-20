@@ -92,7 +92,7 @@ public sealed class AppHostModelTests
         await using var builder = await CreateBuilderAsync();
 
         Assert.Equal(
-            ["api", "api-rebuilder", "database", "postgres", "redis", "web", "web-installer"],
+            ["__dotnet-project-build", "api", "api-rebuilder", "database", "postgres", "redis", "web", "web-installer"],
             builder.Resources.Select(resource => resource.Name).OrderBy(name => name).ToArray());
 
         var postgres = GetResource(builder.Resources, "postgres");
@@ -102,6 +102,7 @@ public sealed class AppHostModelTests
         var web = GetResource(builder.Resources, "web");
         var apiRebuilder = GetResource(builder.Resources, "api-rebuilder");
         var webInstaller = GetResource(builder.Resources, "web-installer");
+        var projectBuild = GetResource(builder.Resources, "__dotnet-project-build");
 
         AssertEndpoints(postgres, new EndpointExpectation("tcp", "tcp", null, 5432));
         AssertEndpoints(redis, new EndpointExpectation("tcp", "redis", null, 6379));
@@ -110,6 +111,7 @@ public sealed class AppHostModelTests
         AssertEndpoints(database);
         AssertEndpoints(apiRebuilder);
         AssertEndpoints(webInstaller);
+        AssertEndpoints(projectBuild);
 
         AssertHealthChecks(postgres, "postgres_check");
         AssertHealthChecks(database, "database_check");
@@ -118,9 +120,11 @@ public sealed class AppHostModelTests
         AssertHealthChecks(web);
         AssertHealthChecks(apiRebuilder);
         AssertHealthChecks(webInstaller);
+        AssertHealthChecks(projectBuild);
 
         AssertWaits(
             api,
+            new WaitExpectation("__dotnet-project-build", WaitType.WaitForCompletion),
             new WaitExpectation("postgres", WaitType.WaitUntilHealthy),
             new WaitExpectation("redis", WaitType.WaitUntilHealthy));
         AssertWaits(
@@ -132,6 +136,7 @@ public sealed class AppHostModelTests
         AssertWaits(redis);
         AssertWaits(apiRebuilder);
         AssertWaits(webInstaller);
+        AssertWaits(projectBuild);
 
         AssertReferenceRelationships(api, "api", "database", "redis", "redis-password");
         AssertReferenceRelationships(web, "api", "api");
@@ -140,6 +145,7 @@ public sealed class AppHostModelTests
         AssertReferenceRelationships(redis);
         AssertReferenceRelationships(apiRebuilder);
         AssertReferenceRelationships(webInstaller);
+        AssertReferenceRelationships(projectBuild);
     }
 
     [Fact]
