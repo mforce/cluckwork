@@ -293,11 +293,15 @@ test("adopt takes CI's file when it names the props' version and the committed f
 
 const BUMP = { propsVersion: "17.1.0", committedVersion: "17.0.0" };
 const SAME = { propsVersion: "17.0.0", committedVersion: "17.0.0" };
-for (const [name, versions, ciVersion, hash] of [
-  ["Aspire is unchanged", SAME, "17.0.0"],
-  ["CI fingerprinted another version than the props", BUMP, "17.2.0"],
-  ["CI's file breaks the grammar", BUMP, "17.1.0", "short"],
-  ["CI left no file", BUMP, null],
+// An unchanged Aspire needs no new pin, so it stays quiet. A changed one whose
+// pin did not arrive must still exit 0, so the healed locks are pushed, and
+// leave a visible warning.
+for (const [name, versions, ciVersion, hash, warns] of [
+  ["Aspire is unchanged", SAME, "17.0.0", undefined, false],
+  ["Aspire is unchanged and CI left no file", SAME, null, undefined, false],
+  ["CI fingerprinted another version than the props", BUMP, "17.2.0", undefined, true],
+  ["CI's file breaks the grammar", BUMP, "17.1.0", "short", true],
+  ["CI left no file for a changed Aspire", BUMP, null, undefined, true],
 ]) {
   test(`adopt keeps the committed file when ${name}`, (t) => {
     const f = pinFixture(t, versions);
@@ -305,6 +309,7 @@ for (const [name, versions, ciVersion, hash] of [
     const result = f.run("--adopt", path);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFileSync(f.fingerprintFile, "utf8"), f.committed);
+    assert.equal(/^::warning::/m.test(result.stdout), warns, result.stdout);
   });
 }
 

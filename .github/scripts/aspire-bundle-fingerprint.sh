@@ -18,9 +18,10 @@
 #   aspire-bundle-fingerprint.sh --emit <bundle-dir> <out-file>
 #     write the fingerprint file for this bundle and the props' Aspire version
 #     to <out-file> (the aspire-fingerprint CI job, for the Dependabot lockfix)
-#   aspire-bundle-fingerprint.sh --adopt <ci-file>      replace the fingerprint
-#     file with <ci-file> when that names the props' Aspire version and the
-#     committed file names another (the lockfix compute job; runs no Aspire code)
+#   aspire-bundle-fingerprint.sh --adopt <ci-file>      when the Aspire version
+#     changed, replace the fingerprint file with <ci-file> if it names the props'
+#     version, else warn with the manual command (the lockfix compute job; runs
+#     no Aspire code)
 #   aspire-bundle-fingerprint.sh --validate <file>      exit 0 only for a file in
 #     the fingerprint grammar (the lockfix commit job runs this on its artifact)
 #
@@ -72,23 +73,18 @@ if [[ "$mode" == changed ]]; then
 fi
 
 if [[ "$mode" == adopt ]]; then
-  if [[ ! -f "$target" ]]; then
-    echo "CI left no Aspire bundle fingerprint; keeping the committed one."
-    exit 0
-  fi
-  if ! valid_file "$target"; then
-    echo "::warning::The fingerprint file from CI breaks the grammar; keeping the committed one."
-    exit 0
-  fi
-  from_ci="$(awk '$1 == "version" { print $2 }' "$target")"
-  if [[ "$from_ci" != "$version" ]]; then
-    echo "::warning::CI fingerprinted Aspire '$from_ci', but Directory.Packages.props has '$version'; keeping the committed one."
-    exit 0
-  fi
   if [[ "$(committed version)" == "$version" ]]; then
     echo "Aspire $version is already fingerprinted; keeping the committed file."
     exit 0
   fi
+  not_regenerated() {
+    echo "::warning::$1 The Aspire bundle fingerprint was not regenerated for Aspire $version, so the locks are pushed without it and the fingerprint check stays red. Regenerate it on $platform with: $regenerate"
+    exit 0
+  }
+  [[ -f "$target" ]] || not_regenerated "CI left no fingerprint file."
+  valid_file "$target" || not_regenerated "CI's fingerprint file breaks the grammar."
+  from_ci="$(awk '$1 == "version" { print $2 }' "$target")"
+  [[ "$from_ci" == "$version" ]] || not_regenerated "CI fingerprinted Aspire '$from_ci'."
   cp "$target" "$fingerprint_file"
   echo "Adopted CI's fingerprint for Aspire $version."
   exit 0
