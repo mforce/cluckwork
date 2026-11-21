@@ -447,7 +447,7 @@ test("the lockfix downloads and adopts the artifact and file the producer upload
   const adopt = compute.find((step) => step.run?.includes("--adopt"));
   assert.equal(download.with.name, upload.with.name);
   const adopted = `${download.with.path.replace("${{ runner.temp }}", "$RUNNER_TEMP")}/${basename(upload.with.path)}`;
-  assert.match(adopt.run, new RegExp(`--adopt "${adopted.replace(/[$.]/g, "\\$&")}"$`));
+  assert.ok(adopt.run.endsWith(`--adopt "${adopted}"`), adopt.run);
 });
 
 test("only the aspire-fingerprint job uploads the fingerprint artifact", () => {
