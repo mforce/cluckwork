@@ -19,12 +19,12 @@ date; a partial observability or persistence check is not a drill pass.
 ## Prerequisites
 
 Install the .NET 10 SDK, Node/npm, `curl`, `jq`, and a Docker-compatible
-container engine. Use Aspire CLI 13.5. The following installs that version only
+container engine. Use Aspire CLI 17.0. The following installs that version only
 under this worktree; it does not alter a global Aspire installation:
 
 ```bash
 curl -fsSL https://aspire.dev/install.sh | bash -s -- \
-  --version 13.5.0 \
+  --version 17.0.0 \
   --install-path "$PWD/obj/aspire-cli" \
   --skip-path
 obj/aspire-cli/aspire --version
@@ -341,7 +341,7 @@ scan_limiter_keys() {
   docker exec "$redis_container" sh -ceu '
     [ -n "${REDIS_PASSWORD:-}" ]
     export REDISCLI_AUTH="$REDIS_PASSWORD"
-    # Aspire 13.5 run mode makes 6379 the TLS listener and adds the
+    # Aspire run mode (since 13.5) makes 6379 the TLS listener and adds the
     # container-internal 6380 secondary listener for plaintext Redis CLI use.
     exec redis-cli -h 127.0.0.1 -p 6380 \
       --scan --pattern "{cluckwork:win:*}*"
