@@ -7,7 +7,7 @@
 # Each tag is the exact version the digest resolves to, so a bump PR that moves
 # the version names both versions (10.0.13 -> 10.0.14). A rebuild under the same
 # tag still shows only the two hashes.
-FROM node:26.13.0-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS web-build
+FROM node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS web-build
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
@@ -22,7 +22,7 @@ RUN mkdir /web/sourcemaps && \
     find /web/dist -name '*.map' -exec mv {} /web/sourcemaps/ \;
 
 # --- API build: restore + publish the .NET app ---
-FROM mcr.microsoft.com/dotnet/sdk:10.0.404@sha256:fe0fd4e93bd2fbb47c883b7a6369e5c8d3db8bf01cdc5981f6ee35fbdf3ff4fb AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.404@sha256:bef136a371963aaa46ec97882845ef6f54dec15728bb4b128b1c2a400ffbc9b4 AS build
 WORKDIR /src
 # #315 — copy EVERY restore input (Directory.Build.props + each project file AND
 # its packages.lock.json, for the API project and the projects it references)
@@ -59,7 +59,7 @@ RUN dotnet publish src/Cluckwork.Api/Cluckwork.Api.csproj -c Release -o /out --n
 # Separately, do NOT set InvariantGlobalization=true: it does not break tz lookup
 # on Linux (tzdata is read independently of ICU), but it breaks culture-dependent
 # currency/locale formatting the app relies on. Keep ICU (the default here).
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.15@sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.15@sha256:12b1135f5f8b3c0a214f2a680ff2033dff4f684f445d6c697d9524ceeb303586 AS runtime
 WORKDIR /app
 EXPOSE 8080
 
