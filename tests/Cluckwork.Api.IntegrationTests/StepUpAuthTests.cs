@@ -723,6 +723,30 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default) =>
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, mustChangePassword, ct);
 
+        public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+            Guid accountId, Guid userId, CancellationToken ct = default) =>
+            inner.StartPasskeyRegistrationAsync(accountId, userId, ct);
+
+        public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+            Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
+            CancellationToken ct = default) =>
+            inner.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct);
+
+        public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+            inner.ListPasskeysAsync(accountId, userId, ct);
+
+        public Task<Result> RenamePasskeyAsync(
+            Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>
+            inner.RenamePasskeyAsync(accountId, userId, credentialId, name, ct);
+
+        public Task<Result<TokenPair>> RemovePasskeyAsync(
+            Guid accountId, Guid userId, int credentialEpoch, byte[] credentialId, CancellationToken ct = default) =>
+            inner.RemovePasskeyAsync(accountId, userId, credentialEpoch, credentialId, ct);
+
+        public Task<Result> RemoveUserPasskeysAsync(
+            Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+            inner.RemoveUserPasskeysAsync(accountId, userId, actingUserId, ct);
+
         public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
             Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>
             inner.TurnOffTwoFactorAsync(accountId, userId, credentialEpoch, ct);
@@ -919,6 +943,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
             services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<IPasskeyCredentials>(),
             services.GetRequiredService<TenantContext>(),
             services.GetRequiredService<CurrentUserContext>(),
             services.GetRequiredService<IOptions<EnrolledSessionOptions>>());

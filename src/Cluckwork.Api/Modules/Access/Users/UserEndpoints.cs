@@ -95,12 +95,7 @@ public static partial class UserEndpoints
             .WithName("EnableUser")
             .WithSummary("Re-enable a disabled user. Does NOT restore their previous sessions.");
 
-        // #1280 — an Owner resets another user's two-factor (#1274 decision 17).
-        group.MapDelete("/{id:guid}/two-factor", ResetUserTwoFactor)
-            // Binds no body; caps what IdempotencyMiddleware buffers to hash it.
-            .WithMaxRequestBodyBytes(512)
-            .WithName("ResetUserTwoFactor")
-            .WithSummary("Reset a user's two-factor so they enrol again. Signs an enrolled user out everywhere.");
+        MapFactorResets(group);
 
         group.MapGet("/{id:guid}/flock-assignments", ListAssignments)
             .WithName("ListFlockAssignments")
@@ -453,7 +448,7 @@ public static partial class UserEndpoints
         if (!tenant.IsResolved) return Results.Unauthorized();
         var users = await access.ListUsersAsync(tenant.AccountId, ct);
         return Results.Ok(users.Select(u =>
-            new UserResponse(u.Id, u.Email, u.DisplayName, u.Role, u.DisabledAt, u.TwoFactorEnabled)));
+            new UserResponse(u.Id, u.Email, u.DisplayName, u.Role, u.DisabledAt, u.TwoFactorEnabled, u.PasskeyCount)));
     }
 }
 
@@ -486,7 +481,8 @@ public sealed record DisableUserRequest(string? Reason);
 // #356 — DisabledAt is null for an active user, and the SPA renders the row
 // muted with a "Disabled" badge when it is set.
 public sealed record UserResponse(
-    Guid Id, string Email, string? DisplayName, string Role, DateTimeOffset? DisabledAt, bool TwoFactorEnabled);
+    Guid Id, string Email, string? DisplayName, string Role, DateTimeOffset? DisabledAt, bool TwoFactorEnabled,
+    int PasskeyCount);
 
 public sealed record AssignFlockRequest(Guid FlockId);
 

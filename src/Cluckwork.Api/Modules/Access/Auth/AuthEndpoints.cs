@@ -170,6 +170,41 @@ public static partial class AuthEndpoints
             .WithName("RegenerateRecoveryCodes")
             .WithSummary("Replace your recovery codes; the old ones stop working.");
 
+        // #1284 — the caller's own passkeys (record 1282). The options route
+        // verifies nothing but writes a ceremony row, so it takes the login
+        // limit as step-up does; registration and removal spend a step-up
+        // grant, which was rate-limited when it was minted.
+        group.MapPost("/passkeys/options", StartPasskeyRegistration)
+            .RequireAuthorization()
+            .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            .WithMaxRequestBodyBytes(512)
+            .WithName("StartPasskeyRegistration")
+            .WithSummary("Start registering a passkey; returns the ceremony and the browser's creation options.");
+
+        // An attestation with format none is well under 16 KB.
+        group.MapPost("/passkeys", RegisterPasskey)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(16384)
+            .WithName("RegisterPasskey")
+            .WithSummary("Register a passkey; a first factor signs out other devices and connected apps.");
+
+        group.MapGet("/passkeys", ListPasskeys)
+            .RequireAuthorization()
+            .WithName("ListPasskeys")
+            .WithSummary("Your passkeys, and whether this address runs passkey ceremonies.");
+
+        group.MapPatch("/passkeys/{id}", RenamePasskey)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(1024)
+            .WithName("RenamePasskey")
+            .WithSummary("Rename one of your passkeys.");
+
+        group.MapDelete("/passkeys/{id}", RemovePasskey)
+            .RequireAuthorization()
+            .WithMaxRequestBodyBytes(512)
+            .WithName("RemovePasskey")
+            .WithSummary("Remove one of your passkeys; signs out other devices and connected apps.");
+
         return group;
     }
 

@@ -205,6 +205,34 @@ public interface IIdentityProvider
     Task<Result> ResetUserTwoFactorAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
 
+    // #1284 (record 1282) — the caller's own passkeys. Start and register
+    // answer Passkeys.Off while Passkeys:Origins does not name this host.
+    // Register runs after step-up: credentialEpoch is the acting token's,
+    // compared under the user-row lock, and a first factor ends every other
+    // session and connected app and returns the acting session's fresh pair.
+    // List, rename and remove work while passkeys are off. Remove runs after
+    // step-up, ends every other session and returns a fresh pair.
+    Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default);
+
+    Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
+        CancellationToken ct = default);
+
+    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+
+    Task<Result> RenamePasskeyAsync(
+        Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default);
+
+    Task<Result<TokenPair>> RemovePasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, byte[] credentialId, CancellationToken ct = default);
+
+    // An Owner removes every passkey of another user of the farm (foreign id ->
+    // NotFound), with the actor re-checked inside the account lock. A target
+    // who had any loses every session and connected app.
+    Task<Result> RemoveUserPasskeysAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
+
     // #165 — self-service change, proving the current password. Revokes every
     // refresh token for the user and returns a FRESH pair, so other devices are
     // signed out while the caller stays signed in on this one. An enrolled user

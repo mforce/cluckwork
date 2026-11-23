@@ -1,0 +1,146 @@
+using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
+using Cluckwork.Domain.Common;
+using Cluckwork.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Cluckwork.Infrastructure.Modules.Access.Identity;
+
+// #1284 (record 1282 decisions 10, 15, 16): the caller's own passkeys, and an
+// Owner's removal of another user's. Every write runs outside IdempotentUnit,
+// under /api/v1/auth/passkeys on ResponseNotCacheable, except the Owner's
+// removal, which runs inside it as the two-factor reset does.
+public sealed partial class IdentityProvider
+{
+    private static readonly Error PasskeysOff =
+        new(PasskeyErrorCodes.Off, "Passkeys are not available at this address.");
+
+    private static readonly Error PasskeyRefused =
+        new(PasskeyErrorCodes.Refused, "That passkey did not work. Try again.");
+
+    private static readonly Error PasskeyLimitReached =
+        new(PasskeyErrorCodes.LimitReached, $"You already have {PasskeyCredentials.MaxPasskeys} passkeys. Remove one to add another.");
+
+    private static readonly Error PasskeyNotFound =
+        new(PasskeyErrorCodes.NotFound, "That passkey was not found.");
+
+    public async Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, CancellationToken ct = default) =>
+        passkeys.IsOn
+            ? Result.Success(await passkeys.StartRegistrationAsync(accountId, userId, ct))
+            : Result.Failure<PasskeyCeremonyStart>(PasskeysOff);
+
+    // Decision 3: the ceremony is consumed by the transaction's first
+    // statement, and every refusal after it commits, so it is good for one
+    // attempt. The grant was spent before (decision 15), so the acting
+    // session is compared under the user-row lock, as turn-off does.
+    public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
+        CancellationToken ct = default)
+    {
+        if (!passkeys.IsOn) return Task.FromResult(Result.Failure<PasskeyRegistration>(PasskeysOff));
+
+        return AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
+        {
+            var consumed = await passkeys.ConsumeAsync(ceremony, CeremonyPurpose.Registration, userId, token);
+            if (!await ActingSessionIsCurrentAsync(accountId, userId, credentialEpoch, token))
+            {
+                await transaction.CommitAsync(CancellationToken.None);
+                return Result.Failure<PasskeyRegistration>(CredentialsSuperseded);
+            }
+
+            var registered = await passkeys.RegisterAsync(consumed, accountId, userId, credentialJson, name, token);
+            if (registered is not { Passkey: { } passkey })
+            {
+                await transaction.CommitAsync(CancellationToken.None);
+                return Result.Failure<PasskeyRegistration>(
+                    registered.Outcome == RegisterOutcome.LimitReached ? PasskeyLimitReached : PasskeyRefused);
+            }
+
+            var firstFactor = registered.Outcome == RegisterOutcome.RegisteredFirstFactor;
+            var tokens = firstFactor ? await EndOtherSessionsAsync(accountId, userId, token) : null;
+            await audit.WriteAsync(AuditActions.UserPasskeyRegistered, "User", userId,
+                reason: null, details: new { firstFactor }, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            securityEvents.PasskeyRegistered(userId);
+            return Result.Success(new PasskeyRegistration(passkey, tokens));
+        }, ct);
+    }
+
+    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+        passkeys.ListAsync(accountId, userId, ct);
+
+    public Task<Result> RenamePasskeyAsync(
+        Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            if (!await passkeys.RenameAsync(accountId, userId, credentialId, name, token))
+                return Result.Failure(PasskeyNotFound);
+
+            await audit.WriteAsync(AuditActions.UserPasskeyRenamed, "User", userId, reason: null, details: null, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return Result.Success();
+        }, ct);
+
+    // Decision 10: the grant was spent before, so the acting session is
+    // compared under the lock; a removal ends every other session and
+    // connected app, and this one gets a fresh pair.
+    public Task<Result<TokenPair>> RemovePasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, byte[] credentialId, CancellationToken ct = default) =>
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            if (!await ActingSessionIsCurrentAsync(accountId, userId, credentialEpoch, token))
+                return Result.Failure<TokenPair>(CredentialsSuperseded);
+            if (await passkeys.RemoveAsync(accountId, userId, credentialId, token) == RemoveOutcome.NotFound)
+                return Result.Failure<TokenPair>(PasskeyNotFound);
+
+            var pair = await EndOtherSessionsAsync(accountId, userId, token);
+            await audit.WriteAsync(AuditActions.UserPasskeyRemoved, "User", userId, reason: null, details: null, ct: token);
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            securityEvents.PasskeyRemoved(userId);
+            return Result.Success(pair);
+        }, ct);
+
+    // Decision 10: the two-factor reset's order, the account lock and then the
+    // actor re-check, before RemoveAllAsync writes anything.
+    public Task<Result> RemoveUserPasskeysAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+        AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            var lockedAccount = await accounts.GetCurrentLockedAsync(token);
+            if (lockedAccount is null || lockedAccount.Id != accountId)
+                return Result.Failure(Error.NotFound("Accounts", accountId));
+
+            var actor = await RequireActiveOwnerAsync(accountId, actingUserId, token);
+            if (actor.IsFailure)
+                return actor;
+
+            if (await passkeys.RemoveAllAsync(accountId, userId, token) is not { } count)
+                return Result.Failure(Error.NotFound("Users", userId));
+            if (count > 0)
+            {
+                await RevokeAllActiveForUserAsync(userId, timeProvider.GetUtcNow(), token);
+                await audit.WriteAsync(AuditActions.UserPasskeysRemovedByOwner, "User", userId,
+                    reason: null, details: new { count }, ct: token);
+            }
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return Result.Success();
+        }, ct);
+
+    // Decision 16: every other session and connected app ends, and the acting
+    // device gets a fresh pair from the new epoch whose lineage starts now.
+    private async Task<TokenPair> EndOtherSessionsAsync(Guid accountId, Guid userId, CancellationToken ct)
+    {
+        var user = await db.Users.SingleAsync(u => u.Id == userId && u.AccountId == accountId, ct);
+        var now = timeProvider.GetUtcNow();
+        await RevokeAllActiveForUserAsync(user.Id, now, ct);
+        var (rawToken, tokenHash) = GenerateRefreshToken();
+        db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: now));
+        var roles = await userManager.GetRolesAsync(user);
+        return jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
+    }
+}

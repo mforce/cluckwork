@@ -388,24 +388,9 @@ internal sealed class TwoFactorCredentials(
     private Task<int> RecoveryCodesLeftAsync(Guid accountId, Guid userId, CancellationToken ct) =>
         Rows(accountId, userId).CountAsync(t => t.Name.StartsWith(RecoveryCodePrefix), ct);
 
-    // "Locks" in #1274 "The state it owns": the user-row lock holds until the
-    // caller commits, so every check and update here is exact under
-    // concurrency. A tracked query returns the identity-map instance with the
-    // values it read before the lock, hence the reload; the reload would
-    // discard a caller's unsaved change, hence the throw.
-    private async Task<ApplicationUser?> LockAsync(Guid accountId, Guid userId, CancellationToken ct)
-    {
-        if (db.ChangeTracker.Entries<ApplicationUser>().Any(e => e.Entity.Id == userId && e.State == EntityState.Modified))
-            throw new InvalidOperationException("Save the user's tracked changes before a two-factor write; the lock reloads the row.");
-        if (db.Database.CurrentTransaction is null)
-            throw new InvalidOperationException("Two-factor writes run inside the caller's transaction, which holds the lock.");
-
-        await UserRowLock.TakeAsync(db, accountId, userId, ct);
-        var user = await db.Users.SingleOrDefaultAsync(u => u.Id == userId && u.AccountId == accountId, ct);
-        if (user is not null)
-            await db.Entry(user).ReloadAsync(ct);
-        return user;
-    }
+    // "Locks" in #1274 "The state it owns".
+    private Task<ApplicationUser?> LockAsync(Guid accountId, Guid userId, CancellationToken ct) =>
+        UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
 
     // A refused outcome writes nothing beyond a window rollover, or a spent
     // budget's missing window start.

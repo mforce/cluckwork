@@ -67,6 +67,17 @@ public sealed class AuthSecurityEventLogger(
         logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
             SecurityEvents.TwoFactorEnrolled, userId, ClientIp);
 
+    public void PasskeyFailed() =>
+        logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.PasskeyFailed, ClientIp);
+
+    public void PasskeyRegistered(Guid userId) =>
+        logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+            SecurityEvents.PasskeyRegistered, userId, ClientIp);
+
+    public void PasskeyRemoved(Guid userId) =>
+        logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+            SecurityEvents.PasskeyRemoved, userId, ClientIp);
+
     public void SecondFactorKeyUnreadable() =>
         logger.LogError("{SecurityEvent}", SecurityEvents.SecondFactorKeyUnreadable);
 }

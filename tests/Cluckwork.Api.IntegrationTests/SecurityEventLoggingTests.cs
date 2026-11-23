@@ -331,6 +331,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
             services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<IPasskeyCredentials>(),
             services.GetRequiredService<TenantContext>(),
             services.GetRequiredService<CurrentUserContext>(),
             services.GetRequiredService<IOptions<EnrolledSessionOptions>>());
@@ -394,6 +395,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
             services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<IPasskeyCredentials>(),
             services.GetRequiredService<TenantContext>(),
             services.GetRequiredService<CurrentUserContext>(),
             services.GetRequiredService<IOptions<EnrolledSessionOptions>>());
@@ -504,6 +506,7 @@ public sealed class SecurityEventLoggingTests(SecurityEventLoggingFactory factor
             services.GetRequiredService<Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository>(),
             new AccountUserDirectory(db, services.GetRequiredService<ILookupNormalizer>()),
             services.GetRequiredService<ITwoFactorCredentials>(),
+            services.GetRequiredService<IPasskeyCredentials>(),
             services.GetRequiredService<TenantContext>(),
             services.GetRequiredService<CurrentUserContext>(),
             services.GetRequiredService<IOptions<EnrolledSessionOptions>>());

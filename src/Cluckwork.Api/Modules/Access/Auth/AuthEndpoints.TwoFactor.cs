@@ -121,6 +121,9 @@ public static partial class AuthEndpoints
             StepUpErrorCodes.Required => StatusCodes.Status403Forbidden,
             CredentialErrorCodes.Superseded => StatusCodes.Status401Unauthorized,
             EnrolmentErrorCodes.NotEnabled => StatusCodes.Status409Conflict,
+            PasskeyErrorCodes.Off or PasskeyErrorCodes.NotFound => StatusCodes.Status404NotFound,
+            PasskeyErrorCodes.Refused => StatusCodes.Status400BadRequest,
+            PasskeyErrorCodes.LimitReached => StatusCodes.Status409Conflict,
             _ => throw new InvalidOperationException($"No answer is mapped for {error.Code}."),
         });
 }
