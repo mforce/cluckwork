@@ -2,7 +2,8 @@
 # Trusted applicator for the dependabot-lockfix workflow (#203). Runs in the
 # `commit` job (write token present) and executes NO project code — only git and
 # file ops. Reads the regenerated locks from $ARTIFACT_DIR, applies them onto the
-# PR checkout under `pr/`, and commits+pushes iff ONLY lock files changed.
+# PR checkout under `pr/`, and commits+pushes iff ONLY lock files (and the
+# Aspire bundle fingerprint) changed.
 set -euo pipefail
 
 # The classifier prints the allowlist; keep the 10 paths here in lockstep with
@@ -20,14 +21,33 @@ LOCKS=(
   "tests/Cluckwork.AppHost.Tests/packages.lock.json"
 )
 
+# The Aspire bundle fingerprint, which compute takes from the PR's CI when an
+# Aspire bump changes the version (PINNED_FILES in lockfix.mjs). Unchanged otherwise.
+FINGERPRINT=".github/aspire-bundle.fingerprint"
+
+# A lock must parse as JSON; the fingerprint must pass the fingerprint grammar,
+# checked by the trusted copy of the script CI also checks it with.
+well_formed() {
+  if [ "$1" = "$FINGERPRINT" ]; then
+    bash trusted/.github/scripts/aspire-bundle-fingerprint.sh --validate "$2"
+  else
+    node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$2"
+  fi
+}
+
 # Apply each artifact file onto its exact allowlisted path, after checking it is
-# a regular file and parses as JSON (reject a poisoned artifact).
+# a regular file in its expected format (reject a poisoned artifact).
 root="$(pwd -P)"
-for rel in "${LOCKS[@]}"; do
+FILES=("${LOCKS[@]}")
+# A PR branched before the fingerprint existed has none to refresh.
+if [ -n "$(git -C pr ls-tree HEAD -- "$FINGERPRINT")" ]; then
+  FILES+=("$FINGERPRINT")
+fi
+for rel in "${FILES[@]}"; do
   src="$ARTIFACT_DIR/$rel"
-  [ -f "$src" ] || { echo "missing regenerated lock: $rel"; exit 1; }
-  node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'))" "$src" \
-    || { echo "regenerated lock is not valid JSON: $rel"; exit 1; }
+  [ -f "$src" ] || { echo "missing regenerated file: $rel"; exit 1; }
+  well_formed "$rel" "$src" \
+    || { echo "regenerated file is not in its expected format: $rel"; exit 1; }
   # The PR tree controls the destination: a symlink on its path would write
   # outside pr/, for example over these trusted scripts.
   [ "$(realpath -m "pr/$rel")" = "$root/pr/$rel" ] \
@@ -59,8 +79,12 @@ esac
 
 git config user.name "cluckwork-lockfix[bot]"
 git config user.email "cluckwork-lockfix[bot]@users.noreply.github.com"
-git add -- "${LOCKS[@]}"
-git commit -m "chore(deps): regenerate downstream packages.lock.json (#203)"
+git add -- "${FILES[@]}"
+message="chore(deps): regenerate downstream packages.lock.json (#203)"
+if ! git diff --cached --quiet -- "$FINGERPRINT"; then
+  message="chore(deps): regenerate packages.lock.json and the Aspire bundle fingerprint (#203)"
+fi
+git commit -m "$message"
 
 # Compare-and-swap: only fast-forward the branch if its tip is still the SHA we
 # built on. A moved branch -> non-fast-forward -> rejected (no --force); the next

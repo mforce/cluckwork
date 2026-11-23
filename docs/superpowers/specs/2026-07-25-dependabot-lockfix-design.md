@@ -220,3 +220,57 @@ and record the one-time GitHub App setup + the two secrets.
   `Cluckwork.sln`. If a project is ever dropped from the solution its lock won't refresh.
   Standing invariant to protect; the 7-path allowlist makes an unexpected set visible.
 - Do not "fix" `--force-evaluate` to `--use-lock-file` (not a `dotnet` flag).
+
+## Amendment 2026-11-20: the Aspire bundle fingerprint (#1453)
+
+Since Aspire 17, DCP and the dashboard come from the Aspire CLI bundle, not from NuGet
+packages, so CI pins them in `.github/aspire-bundle.fingerprint` instead of the lock files.
+A Dependabot PR that bumps `Aspire.Hosting.AppHost` needs a new pin. This section
+supersedes the statements above where they differ.
+
+- **Where the pin is computed.** In the PR's own CI, not here, by the `aspire-fingerprint`
+  job of `ci.yml`. It runs on `dependabot/nuget/` PR heads, outside the test matrix and with
+  no `needs`, so a failing leg or stale locks cannot stop it. It checks out without
+  credentials and stops unless the props' Aspire version differs from the committed one.
+  Otherwise it installs the SDK without its NuGet cache, fetches the bundle into an empty
+  `HOME`, Aspire home and `NUGET_PACKAGES` under `RUNNER_TEMP`, writes the fingerprint file
+  (`aspire-bundle-fingerprint.sh --emit`) and uploads it as the `aspire-bundle-fingerprint`
+  artifact. It never restores, builds or reads a cache. This workflow runs no Aspire code and
+  no `dnx`.
+- **When regeneration is automatic.** All of these hold: the PR passes this workflow's
+  provenance gate; the PR head tracks `.github/aspire-bundle.fingerprint`; the props' Aspire
+  version differs from the file's; and the `aspire-fingerprint` job uploaded its artifact.
+  When the version changed but the artifact is missing, breaks the grammar or names another
+  version, `compute` keeps the committed file, the locks are still pushed, and the job prints
+  a `::warning::` with the manual command. The fingerprint check then stays red until a
+  person regenerates the pin.
+- **`compute`.** Gains `actions: read`, only to download that artifact from the triggering
+  run. The repository is public, so the token can read nothing it could not read anyway. It
+  still holds no write credential. `--adopt` copies the file over the committed one only when
+  it passes the grammar, names the PR's Aspire version, and the committed file names another.
+  Otherwise the committed file stays. The upload covers the 10 lock files and the
+  fingerprint file, with `include-hidden-files: true` because the file sits under `.github/`.
+- **`commit`.** Still runs no PR code. `lockfix.mjs` allows the 10 lock files and the one
+  pinned file. `lockfix-apply.sh` applies the fingerprint only when the PR head tracks it. It
+  checks the file with the trusted copy of `aspire-bundle-fingerprint.sh --validate`: one
+  `version` line, distinct `<os>-<arch> <sha256>` lines, `#` comments, LF line ends, no other
+  control byte, and any tool failure refuses. The same symlink and tracked-mode checks as for
+  the locks apply.
+- **What the pin proves.** It hashes what NuGet served for that version to a job that ran no
+  PR restore and read no cache. It stops later drift, such as a cache serving other bytes for
+  the same version, not a bad upstream release.
+- **Residual risk.**
+  - `compute` takes whichever artifact named `aspire-bundle-fingerprint` the triggering CI
+    run holds. Another job in the same run, which runs PR code, could upload one first.
+  - `compute` runs the PR's restore, and code that runs there can still change its own
+    artifact, the fingerprint file included, before the upload.
+  - Either way a forged pin cannot pass on `main`. The AppHost leg there downloads the bundle
+    in `main`'s own cache scope, and the check compares those bytes with the pin.
+  - Writing a cache entry in the default branch's scope from `compute` is not possible as
+    configured. GitHub gives `workflow_run` jobs read-only cache access unless a write-capable
+    cache mode is enabled, and this workflow enables none
+    ([cache access for low-trust triggers](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#cache-access-for-low-trust-workflow-triggers)).
+
+  The pin is therefore only as trustworthy as the run that produced it. That is why a
+  Dependabot PR that changes the fingerprint file is merged by the maintainer, who sees the
+  new hash in its diff (`.github/AGENTS.md`).
