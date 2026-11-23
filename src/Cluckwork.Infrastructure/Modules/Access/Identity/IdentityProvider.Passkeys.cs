@@ -21,7 +21,7 @@ public sealed partial class IdentityProvider
         new(PasskeyErrorCodes.NotFound, "That passkey was not found.");
 
     // AccessModule answers Passkeys.Off for these two before anything else,
-    // before the finish's step-up grant is read (r1 item 5).
+    // before the finish's step-up grant is read (decision 5).
     public async Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
         Guid accountId, Guid userId, CancellationToken ct = default) =>
         Result.Success(await passkeys.StartRegistrationAsync(accountId, userId, ct));

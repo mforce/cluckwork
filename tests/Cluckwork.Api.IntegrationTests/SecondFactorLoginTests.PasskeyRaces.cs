@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #1284 r1 item 1: registration inserts and never updates. A coworker's (or
+// #1284 (G7.3): registration inserts and never updates. A coworker's (or
 // another farm's user's) finish with the same credential id lands after the
 // attacker's duplicate check passed and before the attacker's write; the
 // attacker is refused, nothing of the coworker's row changes, and the
@@ -57,7 +57,7 @@ public sealed partial class SecondFactorLoginTests
     public Task ADuplicatePasskeyRacingInAnotherFarm_IsRefused_AndChangesNothing() =>
         AssertADuplicatePasskeyRaceIsRefusedAsync(crossFarm: true);
 
-    // r1 item 4 (G7.4): a locked user's finish is refused and spends the ceremony.
+    // G7.4: a locked user's finish is refused and spends the ceremony.
     [Fact]
     public async Task ALockedUsersPasskeyFinish_IsRefused_AndSpendsTheCeremony()
     {

@@ -246,7 +246,7 @@ public sealed partial class SecondFactorLoginTests
         resumeFirst.SetResult();
         var answers = new[] { await TitleOf(await first), await TitleOf(await second) };
 
-        // The loser is the cap's own refusal, not a lost concurrency check (r1 item 9).
+        // The loser is the cap's own refusal, not a lost concurrency check.
         Assert.Equal(
             [(HttpStatusCode.Created, (string?)null), (HttpStatusCode.Conflict, "Auth.PasskeyLimitReached")],
             answers.OrderBy(a => a.Item1));

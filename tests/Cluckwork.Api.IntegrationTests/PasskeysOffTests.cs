@@ -74,7 +74,7 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await client.SendAsync(finish)));
     }
 
-    // r1 item 5: a finish while off answers 404 before the grant is read, so a
+    // Decision 5: a finish while off answers 404 before the grant is read, so a
     // caller with no grant gets 404 too, and a grant sent with it stays unspent.
     [Fact]
     public async Task ThePasskeyFinish_Answers404BeforeTheGrant_WhilePasskeysAreOff()
@@ -242,7 +242,7 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
             Assert.Contains(refusal, Assert.IsType<InvalidOperationException>(thrown).Message, StringComparison.Ordinal);
     }
 
-    // r1 item 7: a single value binds no origin, so it is refused rather than
+    // G7.8: a single value binds no origin, so it is refused rather than
     // leaving passkeys silently off; an empty one is an empty list.
     [Fact]
     public void ASingleOriginValueInsteadOfAList_FailsTheBootCheck()

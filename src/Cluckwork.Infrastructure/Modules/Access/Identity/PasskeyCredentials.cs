@@ -175,7 +175,7 @@ internal sealed class PasskeyCredentials(
 
         // An insert, never Identity's add-or-update: the handler's duplicate
         // check runs before this write, so a credential id that someone else
-        // stored in between would otherwise update their row (r1 item 1). The
+        // stored in between would otherwise update their row. The
         // key refuses it instead, inside a savepoint, so the consumed ceremony
         // still commits.
         var passkey = attestation.Passkey;

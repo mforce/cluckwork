@@ -246,7 +246,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((2, 2), await factory.PasskeyStateAsync(accountId, userId));
     }
 
-    // r1 item 8: a name with a control character is a 400 at registration and
+    // A name with a control character is a 400 at registration and
     // rename, before anything is saved or consumed.
     [Fact]
     public async Task APasskeyNameWithAControlCharacter_Is400_AtRegistrationAndRename()

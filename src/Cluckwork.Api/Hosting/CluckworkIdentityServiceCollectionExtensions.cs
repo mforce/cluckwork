@@ -293,7 +293,7 @@ internal static class CluckworkIdentityServiceCollectionExtensions
     // http://localhost one in Development only), with no path, query, fragment,
     // user info or wildcard, at a host AllowedHosts lists. Unset or empty is
     // off, and passes. A single value instead of a list binds no origin, so it
-    // is refused rather than leaving passkeys silently off (r1 item 7).
+    // is refused rather than leaving passkeys silently off.
     internal static void EnsurePasskeyOrigins(IConfiguration configuration, IHostEnvironment environment)
     {
         var section = configuration.GetSection($"{PasskeyOptions.SectionName}:{nameof(PasskeyOptions.Origins)}");

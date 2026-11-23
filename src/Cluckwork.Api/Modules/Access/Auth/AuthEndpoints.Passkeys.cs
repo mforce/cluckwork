@@ -106,7 +106,7 @@ public static partial class AuthEndpoints
     }
 
     // The trimmed name, or the 400 for one that is empty, too long or holds
-    // a control character (r1 item 8), before anything is consumed or saved.
+    // a control character, before anything is consumed or saved.
     private static IResult? PasskeyName(string? raw, out string name)
     {
         name = raw?.Trim() ?? string.Empty;

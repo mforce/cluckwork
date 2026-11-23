@@ -8,11 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cluckwork.Api.IntegrationTests;
 
-// #1284 r1 items 10 to 12: the origin rules, the stamp rotation that ends
+// #1284: the origin rules, the stamp rotation that ends
 // earlier step-up grants, and the ceremony sweep's wiring.
 public sealed partial class SecondFactorLoginTests
 {
-    // r1 item 10 (G7.3): a request whose host is no configured origin's host
+    // G7.3: a request whose host is no configured origin's host
     // runs no ceremony; the list still answers, with enabled false.
     [Fact]
     public async Task APasskeyRequestAtAHostThatMatchesNoOrigin_Is404Off()
@@ -48,7 +48,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.True(await CeremonyExistsAsync(ceremony.Id), "a refusal before the transaction consumed the ceremony");
     }
 
-    // r1 item 10 (decision 5): the origin hook accepts only a configured
+    // Decision 5: the origin hook accepts only a configured
     // origin, port exact, and never a cross-origin create.
     [Fact]
     public Task APasskeyFromAnotherPortOfTheSameHost_IsRefused() =>
@@ -58,7 +58,7 @@ public sealed partial class SecondFactorLoginTests
     public Task ACrossOriginPasskey_IsRefused() =>
         AssertRefusedPasskeyAttestationAsync(options => new SoftwareAuthenticator().Attest(options, crossOrigin: true));
 
-    // r1 item 11 (decision 16): a first passkey and a removal rotate the
+    // Decision 16: a first passkey and a removal rotate the
     // security stamp, which is what ends a step-up grant minted before them.
     [Fact]
     public async Task AFirstPasskey_EndsAStepUpGrantMintedBeforeIt()
@@ -83,7 +83,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.True((await ValidateGrantAsync(factor.AccountId, factor.UserId, earlier!)).IsFailure, "a grant minted before the removal survived it");
     }
 
-    // r1 item 12 (decision 3): the job worker, built from the host's services
+    // Decision 3: the job worker, built from the host's services
     // as the host builds it, runs the ceremony sweep.
     [Fact]
     public async Task TheJobWorker_RunsThePasskeyCeremonySweep()
