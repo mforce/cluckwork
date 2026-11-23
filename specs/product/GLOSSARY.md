@@ -1493,8 +1493,8 @@ recovery codes, and the password alone cannot add a passkey: if every passkey
 is lost, an Owner removes the user's passkeys, after which the password works
 again; for an Owner, another Owner does it, or the operator runs
 `recover-admin`. A password reset or change leaves the
-passkeys in place; `recover-admin` clears both. A user whose password an Owner
-has reset must still change it after signing in with a passkey.
+passkeys in place; `recover-admin` clears both. Signing in with a passkey
+never skips a pending forced password change.
 
 **Version (concurrency token)** — every mutable aggregate carries a `Version`
 that each mutation bumps. Two concurrent edits: first save wins, second gets

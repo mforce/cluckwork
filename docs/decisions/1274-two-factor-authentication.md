@@ -568,7 +568,7 @@ Tests and the harness enrol through `ConfirmEnrolmentAsync`, the one writer. No 
 
 ## What this does NOT cover
 
-- Passkeys. An assertion could become another `SecondFactorCode` case; nothing here builds it.
+- Passkeys. A passkey is both a second way into `LoginStep.SignedIn`, with no password, and an answer at the code step, as the `SecondFactorCode.Passkey` case. [`1282-passkeys.md`](1282-passkeys.md) designs both (corrected by #1282); nothing here builds them.
 - A setting with which an Owner requires two-factor for other roles. Deferred by the maintainer on 2026-10-21 to #1336.
 - A notice to the user when their two-factor changes. The audit row is the only record; the notice is deferred to #1337.
 - A forced reconnect for connected apps after a number of days. Connected apps are outside `Auth:EnrolledSessionMaxDays`; the setting is deferred to #1335.
