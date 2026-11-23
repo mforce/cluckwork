@@ -1,3 +1,4 @@
+using Cluckwork.Api.Hosting;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Infrastructure.Persistence;
