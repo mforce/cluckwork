@@ -91,7 +91,7 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.PasskeyCredentials.ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/PasskeyCredentials.cs",
-            Hash = "e93563a8",
+            Hash = "bf981dc5",
             Justification = "The passkey ceremony's single use (#1282 decision 3): one raw DELETE ... RETURNING by the ceremony's random Id and purpose on passkey_ceremonies, which has no AccountId; a bound ceremony is refused unless its UserId is the caller's, which fixes the farm. This hash covers the whole method, so dropping that user check makes it stale.",
         },
         new()

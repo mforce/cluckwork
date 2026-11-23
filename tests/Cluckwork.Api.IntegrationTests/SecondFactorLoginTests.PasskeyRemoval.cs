@@ -129,7 +129,7 @@ public sealed partial class SecondFactorLoginTests
             await both.Task.WaitAsync(TimeSpan.FromSeconds(10));
         }, times: 2);
 
-        async Task<RemoveOutcome> RemoveAsync()
+        async Task<bool> RemoveAsync()
         {
             using var scope = factory.Services.CreateScope().ResolveTenantAndActor(accountId, userId);
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -139,7 +139,7 @@ public sealed partial class SecondFactorLoginTests
 
         var outcomes = await Task.WhenAll(Task.Run(RemoveAsync), Task.Run(RemoveAsync));
 
-        Assert.Equal([RemoveOutcome.NotFound, RemoveOutcome.Removed], outcomes.Order());
+        Assert.Equal([false, true], outcomes.Order());
         Assert.Equal((1, 1), await PasskeyStateAsync(accountId, userId));
     }
 

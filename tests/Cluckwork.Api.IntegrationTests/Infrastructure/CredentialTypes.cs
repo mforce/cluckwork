@@ -77,7 +77,7 @@ internal static partial class CredentialTypes
         new(typeof(AppDbContext), nameof(AppDbContext.PasskeyCeremonies), typeof(DbSet<PasskeyCeremony>), "a query root, not a value"),
         new(typeof(PasskeyList), nameof(PasskeyList.Passkeys), typeof(IReadOnlyList<PasskeySummary>),
             "passkey summaries: a credential id, which is not a secret (record 1282 decision 11), a name, a date and the sync state; never a key"),
-        new(typeof(RegisterResult), nameof(RegisterResult.Passkey), typeof(PasskeySummary),
+        new(typeof(RegisterOutcome.Registered), nameof(RegisterOutcome.Registered.Passkey), typeof(PasskeySummary),
             "a passkey summary: a credential id, which is not a secret (record 1282 decision 11), a name, a date and the sync state; never a key"),
         new(typeof(AppDbContext), nameof(AppDbContext.DataProtectionKeys), typeof(DbSet<DataProtectionKey>), "a query root, not a value"),
         new(typeof(SlotGrant), nameof(SlotGrant.Key), typeof(string), "the rate-limit slot's lease key"),

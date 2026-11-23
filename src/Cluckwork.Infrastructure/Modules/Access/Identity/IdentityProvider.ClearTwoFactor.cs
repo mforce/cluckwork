@@ -2,7 +2,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 
@@ -30,17 +29,10 @@ public sealed partial class IdentityProvider
             // Every other session and connected app ends; this one gets a fresh
             // pair from the new epoch, as a password change does. Step-up proved
             // both factors, so the lineage starts now (decision 8).
-            var user = await db.Users.SingleAsync(u => u.Id == userId && u.AccountId == accountId, token);
-            var now = timeProvider.GetUtcNow();
-            await RevokeAllActiveForUserAsync(user.Id, now, token);
-            var (rawToken, tokenHash) = GenerateRefreshToken();
-            db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: now));
-            await audit.WriteAsync(AuditActions.UserTwoFactorDisabled, "User", user.Id,
+            var pair = await ReissueActingSessionAsync(accountId, userId, token);
+            await audit.WriteAsync(AuditActions.UserTwoFactorDisabled, "User", userId,
                 reason: null, details: null, ct: token);
             await db.SaveChangesAsync(token);
-
-            var roles = await userManager.GetRolesAsync(user);
-            var pair = jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
             await transaction.CommitAsync(token);
             return Result.Success<TokenPair?>(pair);
         }, ct);

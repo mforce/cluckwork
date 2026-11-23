@@ -40,6 +40,7 @@ public sealed class AccessModule(
     ChangeOwnPasswordHandler changeOwnPassword,
     IIdentityProvider identity,
     IStepUpGrantService stepUp,
+    IPasskeyCredentials passkeys,
     FirstRunStatusService firstRun,
     AuthSecurityEventLogger securityEvents,
     IOptions<JwtOptions> jwt,
@@ -165,16 +166,26 @@ public sealed class AccessModule(
         WithGrantAsync(accountId, userId, stepUpToken,
             () => identity.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct), ct);
 
+    // #1282 decision 5: the routes that run a ceremony answer Passkeys.Off
+    // while Passkeys:Origins does not name this host, the finish before its
+    // step-up grant is read, so the grant stays unspent.
+    private static readonly Error PasskeysOff =
+        new(PasskeyErrorCodes.Off, "Passkeys are not available at this address.");
+
     public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
         Guid accountId, Guid userId, CancellationToken ct) =>
-        identity.StartPasskeyRegistrationAsync(accountId, userId, ct);
+        passkeys.IsOn
+            ? identity.StartPasskeyRegistrationAsync(accountId, userId, ct)
+            : Task.FromResult(Result.Failure<PasskeyCeremonyStart>(PasskeysOff));
 
     // Decision 15: the grant is spent at the finish, before the transaction.
     public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken,
         Guid ceremony, string credentialJson, string name, CancellationToken ct) =>
-        WithGrantAsync(accountId, userId, stepUpToken,
-            () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct), ct);
+        passkeys.IsOn
+            ? WithGrantAsync(accountId, userId, stepUpToken,
+                () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct), ct)
+            : Task.FromResult(Result.Failure<PasskeyRegistration>(PasskeysOff));
 
     public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct) =>
         identity.ListPasskeysAsync(accountId, userId, ct);

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Cluckwork.Application.Common;
+using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
@@ -178,6 +179,20 @@ public sealed partial class IdentityProvider
     }
 
     // 256-bit random token; only the SHA-256 hash is persisted.
+    // #1274 decision 8, #1282 decision 16: after a factor change every other
+    // session and connected app ends, and the acting device gets a fresh pair
+    // from the new epoch whose lineage starts now. The caller saves and commits.
+    private async Task<TokenPair> ReissueActingSessionAsync(Guid accountId, Guid userId, CancellationToken ct)
+    {
+        var user = await db.Users.SingleAsync(u => u.Id == userId && u.AccountId == accountId, ct);
+        var now = timeProvider.GetUtcNow();
+        await RevokeAllActiveForUserAsync(user.Id, now, ct);
+        var (rawToken, tokenHash) = GenerateRefreshToken();
+        db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: now));
+        var roles = await userManager.GetRolesAsync(user);
+        return jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
+    }
+
     private static (string Raw, string Hash) GenerateRefreshToken()
     {
         var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));

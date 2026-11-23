@@ -30,15 +30,17 @@ public interface IPasskeyCredentials
     // to another user; the row is gone either way.
     Task<ConsumedCeremony?> ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct);
 
-    Task<RegisterResult> RegisterAsync(
-        ConsumedCeremony? ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct);
+    // Inserts and never updates: a credential id stored for anyone is refused.
+    Task<RegisterOutcome> RegisterAsync(
+        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct);
 
     Task<PasskeyList> ListAsync(Guid accountId, Guid userId, CancellationToken ct);
 
     Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
 
-    // Removed bumps the epoch and rotates the stamp; the caller revokes.
-    Task<RemoveOutcome> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);
+    // False when the user has no such passkey. A removal bumps the epoch and
+    // rotates the stamp; the caller revokes.
+    Task<bool> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);
 
     // Every passkey, without reading Data. Null when the user is not in the
     // farm. A user who had any gets the epoch bump and stamp rotation; the
@@ -52,18 +54,25 @@ public interface IPasskeyCredentials
     Task<int> CountAllAsync(CancellationToken ct);
 }
 
+// The consumed passkey_ceremonies row, as DELETE … RETURNING reads it.
 // State holds the challenge (G7.7).
 [Credential]
-public sealed record ConsumedCeremony(string State)
+public sealed record ConsumedCeremony(Guid? UserId, string State, DateTimeOffset ExpiresAt)
 {
     public override string ToString() => "[redacted]";
 }
 
-public enum RegisterOutcome { Registered, RegisteredFirstFactor, Refused, LimitReached }
+public abstract record RegisterOutcome
+{
+    private RegisterOutcome() { }
 
-public sealed record RegisterResult(RegisterOutcome Outcome, PasskeySummary? Passkey = null);
+    // FirstFactor: the user had no app and no passkey, so every other session ends.
+    public sealed record Registered(PasskeySummary Passkey, bool FirstFactor) : RegisterOutcome;
 
-public enum RemoveOutcome { NotFound, Removed }
+    public sealed record Refused : RegisterOutcome;
+
+    public sealed record LimitReached : RegisterOutcome;
+}
 
 public static class PasskeyCredentialsServiceCollectionExtensions
 {
@@ -76,8 +85,9 @@ public static class PasskeyCredentialsServiceCollectionExtensions
 }
 
 // #1282 "The state it owns": AspNetUserPasskeys, AspNetUsers.PasskeyCount and
-// passkey_ceremonies. The only code that calls PasskeyHandler, apart from the
-// ceremony sweep (PasskeyCeremonyPurge).
+// passkey_ceremonies. The only code that calls PasskeyHandler or touches these,
+// apart from the handler's registration and the ceremony sweep
+// (PasskeyOwnershipTests.OutsideOwner lists them).
 internal sealed class PasskeyCredentials(
     AppDbContext db,
     PasskeyHandler<ApplicationUser> handler,
@@ -140,28 +150,20 @@ internal sealed class PasskeyCredentials(
     public async Task<ConsumedCeremony?> ConsumeAsync(
         Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct)
     {
-        var rows = await db.Database.SqlQuery<ConsumedRow>(
+        var rows = await db.Database.SqlQuery<ConsumedCeremony>(
             $"""DELETE FROM passkey_ceremonies WHERE "Id" = {ceremony} AND "Purpose" = {(short)purpose} RETURNING "UserId", "State", "ExpiresAt" """)
             .ToListAsync(ct);
-        return rows is [var row] && row.UserId == userId && row.ExpiresAt > timeProvider.GetUtcNow()
-            ? new ConsumedCeremony(row.State)
-            : null;
+        return rows is [var row] && row.UserId == userId && row.ExpiresAt > timeProvider.GetUtcNow() ? row : null;
     }
 
-    [Credential]
-    private sealed record ConsumedRow(Guid? UserId, string State, DateTimeOffset ExpiresAt)
+    public async Task<RegisterOutcome> RegisterAsync(
+        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct)
     {
-        public override string ToString() => "[redacted]";
-    }
-
-    public async Task<RegisterResult> RegisterAsync(
-        ConsumedCeremony? ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct)
-    {
-        if (ceremony is null) return Refused("the ceremony was missing, expired or another user's");
-
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
         if (user is null) return Refused("the user is not in the farm");
-        if (user.PasskeyCount >= MaxPasskeys) return new RegisterResult(RegisterOutcome.LimitReached);
+        // G7.4: a locked user is refused at every step, this finish included.
+        if (await userManager.IsLockedOutAsync(user)) return Refused("the user is locked out");
+        if (user.PasskeyCount >= MaxPasskeys) return new RegisterOutcome.LimitReached();
 
         var attestation = await handler.PerformAttestationAsync(new PasskeyAttestationContext
         {
@@ -171,28 +173,63 @@ internal sealed class PasskeyCredentials(
         });
         if (!attestation.Succeeded) return Refused(attestation.Failure.Message);
 
+        // An insert, never Identity's add-or-update: the handler's duplicate
+        // check runs before this write, so a credential id that someone else
+        // stored in between would otherwise update their row (r1 item 1). The
+        // key refuses it instead, inside a savepoint, so the consumed ceremony
+        // still commits.
         var passkey = attestation.Passkey;
-        passkey.Name = name;
+        var row = new IdentityUserPasskey<Guid>
+        {
+            CredentialId = passkey.CredentialId,
+            UserId = user.Id,
+            Data = new IdentityPasskeyData
+            {
+                PublicKey = passkey.PublicKey,
+                Name = name,
+                CreatedAt = passkey.CreatedAt,
+                SignCount = passkey.SignCount,
+                Transports = passkey.Transports,
+                IsUserVerified = passkey.IsUserVerified,
+                IsBackupEligible = passkey.IsBackupEligible,
+                IsBackedUp = passkey.IsBackedUp,
+                AttestationObject = passkey.AttestationObject,
+                ClientDataJson = passkey.ClientDataJson,
+            },
+        };
         // Decision 10: a first factor ends every other session, as enrolment
         // confirm does. A passkey beside the app, or a later one, ends nothing.
         var firstFactor = user.PasskeyCount == 0 && !user.TwoFactorEnabled;
+        var transaction = db.Database.CurrentTransaction!;
+        await transaction.CreateSavepointAsync(InsertSavepoint, ct);
+        db.UserPasskeys.Add(row);
         user.PasskeyCount++;
-        if (firstFactor) user.CredentialEpoch++;
-        // One save: the row and the count. It rotates only ConcurrencyStamp.
-        Saved(await userManager.AddOrUpdatePasskeyAsync(user, passkey));
-        if (firstFactor) Saved(await userManager.UpdateSecurityStampAsync(user));
+        try
+        {
+            // One save: the row and the count, and for a first factor the epoch and stamp.
+            if (firstFactor) await MarkFactorChangedAsync(user);
+            else Saved(await userManager.UpdateAsync(user));
+        }
+        catch (DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
+        {
+            await transaction.RollbackToSavepointAsync(InsertSavepoint, ct);
+            db.Entry(row).State = EntityState.Detached;
+            await db.Entry(user).ReloadAsync(ct);
+            return Refused("the credential is already registered");
+        }
 
-        return new RegisterResult(
-            firstFactor ? RegisterOutcome.RegisteredFirstFactor : RegisterOutcome.Registered,
-            Summary(passkey.CredentialId, passkey.Name, passkey.CreatedAt, passkey.IsBackedUp, passkey.ClientDataJson));
+        return new RegisterOutcome.Registered(
+            Summary(row.CredentialId, name, row.Data.CreatedAt, row.Data.IsBackedUp, row.Data.ClientDataJson), firstFactor);
     }
 
-    private RegisterResult Refused(string reason)
+    private const string InsertSavepoint = "passkey_insert";
+
+    // Decision 12: Identity's message never leaves a debug log.
+    private RegisterOutcome Refused(string reason)
     {
-        // Decision 12: Identity's message never leaves a debug log.
         logger.LogDebug("Passkey registration refused: {Reason}", reason);
         securityEvents.PasskeyFailed();
-        return new RegisterResult(RegisterOutcome.Refused);
+        return new RegisterOutcome.Refused();
     }
 
     public async Task<PasskeyList> ListAsync(Guid accountId, Guid userId, CancellationToken ct)
@@ -218,17 +255,17 @@ internal sealed class PasskeyCredentials(
 
     // Decision 10: the row is found by user, farm and credential id under the
     // lock, and the count drops by the rows actually deleted (G7.13).
-    public async Task<RemoveOutcome> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct)
+    public async Task<bool> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct)
     {
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        if (user is null) return RemoveOutcome.NotFound;
+        if (user is null) return false;
 
         var deleted = await Rows(accountId, userId).Where(p => p.CredentialId == credentialId).ExecuteDeleteAsync(ct);
-        if (deleted == 0) return RemoveOutcome.NotFound;
+        if (deleted == 0) return false;
 
         user.PasskeyCount -= deleted;
-        await EndSessionsAsync(user);
-        return RemoveOutcome.Removed;
+        await MarkFactorChangedAsync(user);
+        return true;
     }
 
     public async Task<int?> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct)
@@ -240,7 +277,7 @@ internal sealed class PasskeyCredentials(
         if (deleted == 0) return 0;
 
         user.PasskeyCount = 0;
-        await EndSessionsAsync(user);
+        await MarkFactorChangedAsync(user);
         return deleted;
     }
 
@@ -250,9 +287,10 @@ internal sealed class PasskeyCredentials(
 
     public Task<int> CountAllAsync(CancellationToken ct) => db.UserPasskeys.CountAsync(ct);
 
-    // Decision 16: a removal is a factor change, so the epoch moves and the
-    // stamp rotates in the same save as the count.
-    private async Task EndSessionsAsync(ApplicationUser user)
+    // Decision 16: a first passkey and a removal are factor changes, so the
+    // epoch moves and the stamp rotates in the same save as the count. The
+    // stamp is what ends earlier step-up grants; the caller revokes sessions.
+    private async Task MarkFactorChangedAsync(ApplicationUser user)
     {
         user.CredentialEpoch++;
         Saved(await userManager.UpdateSecurityStampAsync(user));
