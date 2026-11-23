@@ -88,6 +88,7 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         await factory.SeedPasskeysAsync(accountId, userId, 2);
 
         var listed = await client.GetAsync(PasskeysPath);
+        Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
         var body = await listed.Content.ReadFromJsonAsync<JsonElement>();
         var ids = body.GetProperty("passkeys").EnumerateArray().Select(p => p.GetProperty("id").GetString()!).ToList();
         var renamed = await client.PatchAsJsonAsync($"{PasskeysPath}/{ids[0]}", new { name = "Old phone" });
@@ -95,7 +96,6 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         removal.Headers.Add(AuthEndpoints.StepUpHeaderName, await GrantAsync(client, factor.RecoveryCodes[0]));
         var removed = await client.SendAsync(removal);
 
-        Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
         Assert.False(body.GetProperty("enabled").GetBoolean());
         Assert.Equal(2, ids.Count);
         Assert.Equal(HttpStatusCode.NoContent, renamed.StatusCode);
