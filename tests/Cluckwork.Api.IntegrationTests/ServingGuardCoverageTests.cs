@@ -102,6 +102,7 @@ public sealed class ServingGuardCoverageTests
             ["EnsureRequireForOwners"] = ["TwoFactor:RequireForOwners must be true or false"],
             ["EnsurePasskeyOrigins"] =
             [
+                "Passkeys:Origins must be a list",
                 "Passkeys:Origins:0 must be an origin",
                 "Passkeys:Origins:0 must use https",
                 "Passkeys:Origins:0 names the host",

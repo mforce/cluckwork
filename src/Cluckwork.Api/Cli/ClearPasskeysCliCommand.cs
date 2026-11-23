@@ -15,9 +15,12 @@ public sealed class ClearPasskeysCliCommand : ICliCommand
     {
         try
         {
+            // Exactly one scope: --all with no --farm flag at all, or --farm
+            // with a farm code. A bare or empty --farm beside --all refuses
+            // too, rather than reading as --all (r1 item 6).
             var all = args.Contains("--all");
             var slug = AccountSlugLookup.Normalize(CliDispatcher.ArgValue(args, "--farm"));
-            if (all == slug is not null)
+            if (all ? args.Contains("--farm") : slug is null)
             {
                 await Console.Error.WriteLineAsync(
                     "clear-passkeys requires exactly one of --all or --farm <farm-code>. Nothing was changed.");

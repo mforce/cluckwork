@@ -405,6 +405,10 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
             Satisfy: psi => psi.Environment.Remove("TwoFactor__RequireForOwners")),
 
         // #1284 — the passkey origins. Unset is off, so Satisfy removes the key.
+        new("#1284 passkey origins as one value", "Passkeys:Origins must be a list",
+            Violate: psi => psi.Environment["Passkeys__Origins"] = "https://farm.example",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins")),
+
         new("#1284 passkey origin shape", "Passkeys:Origins:0 must be an origin",
             Violate: psi => psi.Environment["Passkeys__Origins__0"] = "https://farm.example/path",
             Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),

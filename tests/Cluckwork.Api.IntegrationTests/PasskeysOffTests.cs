@@ -1,5 +1,4 @@
 using System.Net;
-using System.Reflection;
 using System.Text.Json;
 using Cluckwork.Api.Hosting;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -279,19 +278,9 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         Assert.Contains(chain, e => e is InvalidOperationException && e.Message.Contains("Passkeys:Origins:0 must use https", StringComparison.Ordinal));
     }
 
-    private static void EnsurePasskeyOrigins(string environment, Dictionary<string, string?> settings)
-    {
-        var method = typeof(CluckworkIdentityServiceCollectionExtensions)
-            .GetMethod("EnsurePasskeyOrigins", BindingFlags.NonPublic | BindingFlags.Static)!;
-        try
-        {
-            method.Invoke(null, [new ConfigurationBuilder().AddInMemoryCollection(settings).Build(), new FakeEnvironment(environment)]);
-        }
-        catch (TargetInvocationException e) when (e.InnerException is not null)
-        {
-            throw e.InnerException;
-        }
-    }
+    private static void EnsurePasskeyOrigins(string environment, Dictionary<string, string?> settings) =>
+        CluckworkIdentityServiceCollectionExtensions.EnsurePasskeyOrigins(
+            new ConfigurationBuilder().AddInMemoryCollection(settings).Build(), new FakeEnvironment(environment));
 
     private sealed class FakeEnvironment(string name) : IWebHostEnvironment
     {

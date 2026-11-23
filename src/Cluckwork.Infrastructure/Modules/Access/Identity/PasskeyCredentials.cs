@@ -306,7 +306,7 @@ internal sealed class PasskeyCredentials(
     // read from the registration's client data.
     private PasskeySummary Summary(byte[] credentialId, string? name, DateTimeOffset createdAt, bool backedUp, byte[] clientDataJson) =>
         new(WebEncoders.Base64UrlEncode(credentialId), name, createdAt, backedUp,
-            origins.Value.Parsed().Count >= 2 ? OriginOf(clientDataJson) : null);
+            origins.Value.Parsed.Count >= 2 ? OriginOf(clientDataJson) : null);
 
     // Identity checked this client data at registration.
     private static string? OriginOf(byte[] clientDataJson)

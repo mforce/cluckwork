@@ -110,7 +110,8 @@ public static partial class AuthEndpoints
             ? epoch
             : null;
 
-    // The refusals of the routes that spend a step-up grant. A missing or spent
+    // The refusals of the /auth routes whose codes are mapped here: the routes
+    // that spend a step-up grant, and the passkey routes. A missing or spent
     // grant is 403, as on the Users routes. Only a session that went stale
     // under the request is 401, as CredentialEpochMiddleware answers it,
     // because the SPA refreshes and resends on a 401. Anything else is a bug,

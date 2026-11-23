@@ -292,19 +292,21 @@ internal static class CluckworkIdentityServiceCollectionExtensions
     // #1282 decision 5: every Passkeys:Origins entry is an https origin (an
     // http://localhost one in Development only), with no path, query, fragment,
     // user info or wildcard, at a host AllowedHosts lists. Unset or empty is
-    // off, and passes.
-    private static void EnsurePasskeyOrigins(IConfiguration configuration, IHostEnvironment environment)
+    // off, and passes. A single value instead of a list binds no origin, so it
+    // is refused rather than leaving passkeys silently off (r1 item 7).
+    internal static void EnsurePasskeyOrigins(IConfiguration configuration, IHostEnvironment environment)
     {
-        var origins = configuration.GetSection($"{PasskeyOptions.SectionName}:{nameof(PasskeyOptions.Origins)}").GetChildren();
+        var section = configuration.GetSection($"{PasskeyOptions.SectionName}:{nameof(PasskeyOptions.Origins)}");
+        if (!string.IsNullOrEmpty(section.Value))
+            throw new InvalidOperationException(
+                $"{section.Path} must be a list ({section.Path}:0, {section.Path}:1 and so on), and '{section.Value}' is a single value.");
+
         var allowedHosts = (configuration["AllowedHosts"] ?? string.Empty)
             .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        foreach (var entry in origins)
+        foreach (var entry in section.GetChildren())
         {
             var value = entry.Value ?? string.Empty;
-            if (value.Contains('*', StringComparison.Ordinal)
-                || !Uri.TryCreate(value, UriKind.Absolute, out var origin)
-                || origin.AbsolutePath != "/" || value.EndsWith('/') || origin.Query.Length > 0
-                || origin.Fragment.Length > 0 || origin.UserInfo.Length > 0)
+            if (PasskeyOptions.ParseOrigin(value) is not { } origin)
                 throw new InvalidOperationException(
                     $"{entry.Path} must be an origin: a scheme, a host and an optional port, and '{value}' is not.");
             if (origin.Scheme != Uri.UriSchemeHttps

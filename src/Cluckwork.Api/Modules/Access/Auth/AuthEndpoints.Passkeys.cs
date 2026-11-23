@@ -39,12 +39,12 @@ public static partial class AuthEndpoints
     {
         if (!currentUser.IsResolved || !tenant.IsResolved || ActingEpoch(user) is not { } epoch)
             return Results.Unauthorized();
-        if (PasskeyNameProblem(request.Name) is { } invalid) return invalid;
+        if (PasskeyName(request.Name, out var name) is { } invalid) return invalid;
         if (request.Credential is not { ValueKind: JsonValueKind.Object } credential)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["credential"] = ["The passkey response is missing."] });
 
         var result = await access.RegisterPasskeyAsync(tenant.AccountId, currentUser.UserId, epoch, stepUpToken,
-            request.Ceremony, credential.GetRawText(), request.Name!.Trim(), ct);
+            request.Ceremony, credential.GetRawText(), name, ct);
         if (!result.IsSuccess) return StepUpRouteProblem(result.Error);
 
         if (result.Value.Tokens is not { } pair)
@@ -65,10 +65,10 @@ public static partial class AuthEndpoints
         IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
-        if (PasskeyNameProblem(request.Name) is { } invalid) return invalid;
+        if (PasskeyName(request.Name, out var name) is { } invalid) return invalid;
         if (CredentialId(id) is not { } credentialId) return Results.NotFound();
 
-        var result = await access.RenamePasskeyAsync(tenant.AccountId, currentUser.UserId, credentialId, request.Name!.Trim(), ct);
+        var result = await access.RenamePasskeyAsync(tenant.AccountId, currentUser.UserId, credentialId, name, ct);
         return result.IsSuccess ? Results.NoContent() : StepUpRouteProblem(result.Error);
     }
 
@@ -105,13 +105,18 @@ public static partial class AuthEndpoints
         }
     }
 
-    private static IResult? PasskeyNameProblem(string? name) =>
-        string.IsNullOrWhiteSpace(name) || name.Trim().Length > PasskeyNameMaxLength
+    // The trimmed name, or the 400 for one that is empty, too long or holds
+    // a control character (r1 item 8), before anything is consumed or saved.
+    private static IResult? PasskeyName(string? raw, out string name)
+    {
+        name = raw?.Trim() ?? string.Empty;
+        return name.Length is 0 or > PasskeyNameMaxLength || name.Any(char.IsControl)
             ? Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                ["name"] = [$"Give the passkey a name of 1 to {PasskeyNameMaxLength} characters."],
+                ["name"] = [$"Give the passkey a name of 1 to {PasskeyNameMaxLength} characters, with no control characters."],
             })
             : null;
+    }
 }
 
 public sealed record PasskeyOptionsResponse(Guid Ceremony, JsonElement Options);
