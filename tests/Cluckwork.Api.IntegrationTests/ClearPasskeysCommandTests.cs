@@ -107,6 +107,9 @@ public sealed class ClearPasskeysCommandTests(CluckworkWebApplicationFactory fac
     [Theory]
     [InlineData("--reason \"no scope\"")]
     [InlineData("--all --farm some-farm")]
+    [InlineData("--reason drill --all --farm")]
+    [InlineData("--all --farm \"\"")]
+    [InlineData("--farm \"\"")]
     [InlineData("--farm no-such-farm")]
     public async Task NoScope_BothScopes_OrAnUnknownFarm_ExitNonZero_AndChangeNothing(string arguments)
     {

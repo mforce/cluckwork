@@ -75,6 +75,38 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await client.SendAsync(finish)));
     }
 
+    // r1 item 5: a finish while off answers 404 before the grant is read, so a
+    // caller with no grant gets 404 too, and a grant sent with it stays unspent.
+    [Fact]
+    public async Task ThePasskeyFinish_Answers404BeforeTheGrant_WhilePasskeysAreOff()
+    {
+        var email = $"off-{Guid.NewGuid():N}@test.local";
+        var (accountId, userId, _) = await SignedInAsync(email);
+        var factor = await factory.EnrolTwoFactorAsync(email);
+        var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
+        var grant = await GrantAsync(client, factor.RecoveryCodes[0]);
+        HttpRequestMessage Finish(string? withGrant)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, PasskeysPath)
+            {
+                Content = JsonContent.Create(new { ceremony = Guid.NewGuid(), credential = new { id = "AQID" }, name = "Phone" }),
+            };
+            if (withGrant is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, withGrant);
+            return request;
+        }
+
+        var withoutGrant = await client.SendAsync(Finish(null));
+        var withGrant = await client.SendAsync(Finish(grant));
+        var id = (await client.GetFromJsonAsync<JsonElement>(PasskeysPath)).GetProperty("passkeys")[0].GetProperty("id").GetString();
+        var removal = new HttpRequestMessage(HttpMethod.Delete, $"{PasskeysPath}/{id}");
+        removal.Headers.Add(AuthEndpoints.StepUpHeaderName, grant);
+
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(withoutGrant));
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(withGrant));
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(removal)).StatusCode);
+    }
+
     // G7.8: the list, rename and a user's own removal work while off. The user
     // has the app and steps up with the password and a code, so #1443 leaves
     // this case as it is.
@@ -209,6 +241,20 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
             Assert.Null(thrown);
         else
             Assert.Contains(refusal, Assert.IsType<InvalidOperationException>(thrown).Message, StringComparison.Ordinal);
+    }
+
+    // r1 item 7: a single value binds no origin, so it is refused rather than
+    // leaving passkeys silently off; an empty one is an empty list.
+    [Fact]
+    public void ASingleOriginValueInsteadOfAList_FailsTheBootCheck()
+    {
+        var thrown = Record.Exception(() => EnsurePasskeyOrigins("Production", new()
+        {
+            ["Passkeys:Origins"] = "https://farm.example",
+            ["AllowedHosts"] = "farm.example",
+        }));
+
+        Assert.Contains("Passkeys:Origins must be a list", Assert.IsType<InvalidOperationException>(thrown).Message, StringComparison.Ordinal);
     }
 
     [Theory]

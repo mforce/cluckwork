@@ -245,4 +245,23 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(before, await PasskeysOfAsync(accountId, userId));
         Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
     }
+
+    // r1 item 8: a name with a control character is a 400 at registration and
+    // rename, before anything is saved or consumed.
+    [Fact]
+    public async Task APasskeyNameWithAControlCharacter_Is400_AtRegistrationAndRename()
+    {
+        var (factor, client, _, id) = await AppUserWithPasskeyAsync();
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password, factor.RecoveryCodes[0]));
+        var ceremony = await StartPasskeyAsync(client);
+
+        var registered = await FinishPasskeyAsync(client, grant, ceremony.Id, new SoftwareAuthenticator().Attest(ceremony.Options), "Pho\0ne");
+        var renamed = await RenamePasskeyAsync(client, id, "Lap\ntop");
+
+        Assert.Equal(HttpStatusCode.BadRequest, registered.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, renamed.StatusCode);
+        Assert.Equal((1, 1), await PasskeyStateAsync(factor.AccountId, factor.UserId));
+        Assert.True(await CeremonyExistsAsync(ceremony.Id), "a refused name consumed the ceremony");
+        Assert.Equal([(id, (string?)"Seeded 0")], await PasskeysOfAsync(factor.AccountId, factor.UserId));
+    }
 }
