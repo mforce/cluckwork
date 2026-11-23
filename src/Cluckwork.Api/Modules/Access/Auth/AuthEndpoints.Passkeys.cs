@@ -25,7 +25,7 @@ public static partial class AuthEndpoints
 
         var result = await access.StartPasskeyRegistrationAsync(tenant.AccountId, currentUser.UserId, ct);
         return result.IsSuccess
-            ? Results.Ok(new PasskeyOptionsResponse(result.Value.Ceremony, JsonDocument.Parse(result.Value.OptionsJson).RootElement))
+            ? Results.Ok(new PasskeyOptionsResponse(result.Value.Ceremony, JsonSerializer.Deserialize<JsonElement>(result.Value.OptionsJson)))
             : StepUpRouteProblem(result.Error);
     }
 
@@ -122,7 +122,11 @@ public sealed record RegisterPasskeyRequest(Guid Ceremony, JsonElement? Credenti
     public override string ToString() => "[redacted]";
 }
 
-public sealed record RenamePasskeyRequest(string? Name);
+// Every passkey request body redacts (record 1282 G7.7).
+public sealed record RenamePasskeyRequest(string? Name)
+{
+    public override string ToString() => "[redacted]";
+}
 
 public sealed record PasskeyRegisteredResponse(
     PasskeySummary Passkey,

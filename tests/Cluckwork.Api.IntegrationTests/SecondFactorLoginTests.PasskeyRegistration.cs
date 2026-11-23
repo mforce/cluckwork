@@ -363,4 +363,30 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(records, await IdempotencyRecordsAsync(accountId));
     }
+
+    // G7.3, G7.12: a session with must_change_password reaches no passkey
+    // route; MustChangePasswordMiddleware answers 403 before any of them runs.
+    [Fact]
+    public async Task ASessionThatMustChangeItsPassword_ReachesNoPasskeyRoute()
+    {
+        var (accountId, _, _) = await FarmWithOwnerAsync();
+        var email = $"pk-forced-{Guid.NewGuid():N}@test.local";
+        var userId = await factory.SeedUserPendingPasswordChangeAsync(accountId, email, Cluckwork.Domain.Modules.Farm.Contracts.Roles.Manager);
+        var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var routes = new (HttpMethod Method, string Path)[]
+        {
+            (HttpMethod.Post, PasskeysPath + "/options"), (HttpMethod.Post, PasskeysPath), (HttpMethod.Get, PasskeysPath),
+            (HttpMethod.Patch, PasskeysPath + "/AQID"), (HttpMethod.Delete, PasskeysPath + "/AQID"),
+        };
+
+        foreach (var (method, path) in routes)
+        {
+            var response = await client.SendAsync(new HttpRequestMessage(method, path)
+            {
+                Content = method == HttpMethod.Get ? null : JsonContent.Create(new { name = "Phone" }),
+            });
+            Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{method} {path} answered {(int)response.StatusCode}");
+        }
+        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+    }
 }

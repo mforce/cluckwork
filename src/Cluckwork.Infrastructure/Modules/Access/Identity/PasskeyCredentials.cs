@@ -70,7 +70,7 @@ public static class PasskeyCredentialsServiceCollectionExtensions
     public static IServiceCollection AddPasskeyCredentials(this IServiceCollection services)
     {
         services.AddScoped<IPasskeyCredentials, PasskeyCredentials>();
-        services.AddScoped<Application.Modules.Access.Contracts.IPasskeyCeremonyPurge, PasskeyCeremonyPurge>();
+        services.AddScoped<IPasskeyCeremonyPurge, PasskeyCeremonyPurge>();
         return services;
     }
 }
@@ -270,17 +270,11 @@ internal sealed class PasskeyCredentials(
         new(WebEncoders.Base64UrlEncode(credentialId), name, createdAt, backedUp,
             origins.Value.Parsed().Count >= 2 ? OriginOf(clientDataJson) : null);
 
+    // Identity checked this client data at registration.
     private static string? OriginOf(byte[] clientDataJson)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(clientDataJson);
-            return doc.RootElement.TryGetProperty("origin", out var origin) ? origin.GetString() : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        using var doc = JsonDocument.Parse(clientDataJson);
+        return doc.RootElement.TryGetProperty("origin", out var origin) ? origin.GetString() : null;
     }
 
     private IQueryable<IdentityUserPasskey<Guid>> Rows(Guid accountId, Guid userId) =>
