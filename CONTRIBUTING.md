@@ -37,7 +37,35 @@ environment inherits it and loses these checks.
 
 ## Local development
 
-Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**.
+Prerequisites: **.NET 10 SDK**, **Docker**, **Node 26+**, **Aspire CLI 17.0**.
+
+`dotnet build Cluckwork.slnx` compiles the Aspire AppHost, which takes its
+dashboard and orchestrator from an extracted Aspire CLI bundle: the one next to
+the `aspire` on `PATH`, else the one in `~/.aspire`. The build does not check
+that bundle's version, so an older bundle left in `~/.aspire` builds and runs
+silently. Put Aspire CLI 17.0 on `PATH` and run `aspire setup` once. To point
+the build at another bundle, set `ASPIRE_HOME` or pass
+`-p:AspireCliBundlePath=<dir>`. Only when no bundle exists at all does the
+build run `dnx aspire.cli@17.0.0 setup` itself. That fallback needs Microsoft's
+portable .NET SDK; a distro-built SDK fails it with `ASPIRE009`. CI is not
+affected: it fetches the bundle itself, or restores one cached under the same
+Aspire version, and checks its contents.
+
+Before the AppHost builds in CI, `.github/scripts/aspire-bundle-fingerprint.sh`
+compares a SHA-256 over every file in the bundle except the root `.leases/`,
+including each file's execute bit, with the value in
+`.github/aspire-bundle.fingerprint`, and fails on any symlink or other
+non-regular entry. It pins DCP and the dashboard byte for byte, as the NuGet
+lock files did before Aspire 17. The CLI's own bootstrap code, which `dnx` runs
+before the check, is covered by NuGet's package signature verification, not by
+this fingerprint. The check runs only in CI, only on Linux x64, and never on
+local machines. On a Dependabot PR that bumps `Aspire.Hosting.AppHost`, CI's
+`aspire-fingerprint` job fingerprints a fresh download of the new bundle, and
+the Dependabot lockfix workflow pushes the value with the lock files. If that
+job left no usable value, the lockfix still pushes the locks and warns. When
+you bump Aspire by hand, or after such a warning, update the file in the same
+commit: the failing check prints the command that computes the new value. A
+Dependabot PR that changes the file is merged by the maintainer.
 
 **Frontend:**
 

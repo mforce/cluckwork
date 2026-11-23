@@ -1,18 +1,12 @@
-<Project Sdk="Aspire.AppHost.Sdk">
-  <!-- The SDK version lives in global.json (msbuild-sdks), where Dependabot
-       can update it. -->
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <IsAspireHost>true</IsAspireHost>
-    <!-- Package mode keeps ordinary/CI dotnet builds self-contained; Aspire
-         13.5's ASPIRE010 only recommends CLI-bundle mode, while basic
-         aspire run can consume the package-mode paths stamped in metadata. -->
-    <AspireUseCliBundle>false</AspireUseCliBundle>
-    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
     <UserSecretsId>cluckwork-apphost-local</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.Dotnet" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.Redis" />
@@ -25,10 +19,6 @@
          copy is what makes it independent of the working directory and present
          in a published AppHost. AppHostConfigurationTests keeps the item. -->
     <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../Cluckwork.Api/Cluckwork.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
