@@ -69,6 +69,11 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
             "TurnOffTwoFactor has no body and takes HttpResponse to rotate the refresh cookie.",
         ["POST /api/v1/auth/two-factor/confirm"] =
             "ConfirmTwoFactorEnrolment binds ConfirmEnrolmentRequest and takes HttpResponse to set the refresh cookie.",
+        // #1284
+        ["POST /api/v1/auth/passkeys"] =
+            "RegisterPasskey binds RegisterPasskeyRequest and takes HttpResponse to set the refresh cookie after a first factor.",
+        ["DELETE /api/v1/auth/passkeys/{id}"] =
+            "RemovePasskey has no body and takes HttpResponse to rotate the refresh cookie.",
         ["GET,HEAD /mcp"] =
             "The /mcp GET and HEAD answer 405 and take HttpResponse only to set the Allow header; a GET or HEAD carries no body.",
         [" /error"] =

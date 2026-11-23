@@ -180,7 +180,7 @@ public sealed partial class SecondFactorLoginTests
 
         var response = await DeleteWithGrantAsync(owner, UserPasskeysPath(ownerId), grant);
 
-        Assert.Equal((HttpStatusCode.BadRequest, "Users.CannotRemoveOwnPasskeys"), (response.StatusCode, (await ProblemOf(response)).Title));
+        Assert.Equal((HttpStatusCode.BadRequest, "Users.CannotRemoveOwnPasskeys"), await TitleOf(response));
         Assert.True((await ValidateGrantAsync(accountId, ownerId, grant)).IsSuccess, "the self-target 400 spent the grant");
         Assert.Equal((1, 1), await PasskeyStateAsync(accountId, ownerId));
     }
@@ -214,7 +214,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.NotFound, byOtherFarm.StatusCode);
         Assert.True(factory.BeforeCommand.Fired, "the concurrent demotion never ran");
-        Assert.Equal((HttpStatusCode.Forbidden, AppError.Forbidden().Code), (byDemoted.StatusCode, (await ProblemOf(byDemoted)).Title));
+        Assert.Equal((HttpStatusCode.Forbidden, AppError.Forbidden().Code), await TitleOf(byDemoted));
         Assert.Equal((1, 1), await PasskeyStateAsync(accountId, userId));
     }
 

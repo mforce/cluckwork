@@ -21,12 +21,12 @@ Without this command the only recourse would be direct SQL surgery on the
 ## What it does (atomically, in one transaction)
 
 1. Finds the user by email — **case-insensitive**, matching the login path (across accounts; disambiguate with `--account` if ever ambiguous).
-2. **Turns two-factor off** (#1280): deletes the authenticator key, the recovery codes and any started enrolment without reading them, so it works whatever key ring the command runs with. A user who lost their phone can then sign in with the password alone.
+2. **Turns two-factor off** (#1280): deletes the authenticator key, the recovery codes and any started enrolment without reading them, so it works whatever key ring the command runs with. A user who lost their phone can then sign in with the password alone. It also **removes every passkey** (#1284), without reading them, so the forced password change below never follows a passkey sign-in.
 3. Sets a **freshly generated** strong temporary password (never one you pass on the command line), and **forces a password change** at the next sign-in, so the printed password is used once.
 4. **Rotates the security stamp and bumps the credential epoch** (#364) — invalidates Identity-derived state, and since every authenticated request is checked against the epoch, makes any access token already issued fail on its very next use.
 5. **Clears any active lockout** and failed-attempt count — so a user locked out by repeated failed logins (the common trigger) can actually use the new password immediately, not after the 15-minute lockout expires.
 6. **Revokes every refresh token** for that user — all existing sessions/devices are signed out.
-7. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason`, **the host/OS-user that ran the command**, and `twoFactorCleared` (`true` when step 2 turned two-factor off).
+7. Writes a conspicuous **`User.BreakGlassReset` audit row** carrying your `--reason`, **the host/OS-user that ran the command**, `twoFactorCleared` (`true` when step 2 turned two-factor off) and `passkeysRemoved` (how many passkeys step 2 removed). The database role it runs as needs `DELETE` on `"AspNetUserPasskeys"`; see the [passkeys runbook](passkeys.md) for the grant.
 
 > **Who that row names (#500).** `"ActorEmail"` is the literal
 > **`(break-glass)`** and `"ActorUserId"` is all-zeroes. That is deliberate: this

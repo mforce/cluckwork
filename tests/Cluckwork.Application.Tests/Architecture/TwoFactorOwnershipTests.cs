@@ -160,19 +160,7 @@ public sealed class TwoFactorOwnershipTests
 
     private static IReadOnlyList<Hit> Walk(string srcRoot)
     {
-        var infrastructure = CompatibilityExceptionScanner.Compile(
-            CompatibilityExceptionScanner.SemanticProject,
-            GuardScanner.EnumerateSourceFiles(Path.Combine(srcRoot, CompatibilityExceptionScanner.SemanticProject)).Select(CompatibilityExceptionScanner.Parse),
-            CompatibilityExceptionScanner.ImplicitUsings,
-            CompatibilityExceptionScanner.References(CompatibilityExceptionScanner.SemanticProject));
-        var errors = infrastructure.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Take(5).ToList();
-        Assert.True(errors.Count == 0, "the Infrastructure compile has errors, so names would bind to nothing:\n" + string.Join("\n", errors));
-
-        var dependents = CompatibilityExceptionScanner.ProjectsReferencing(srcRoot, CompatibilityExceptionScanner.SemanticProject)
-            .Select(project => CompatibilityExceptionScanner.Compile(project,
-                GuardScanner.EnumerateSourceFiles(Path.Combine(srcRoot, project)).Select(CompatibilityExceptionScanner.Parse),
-                CompatibilityExceptionScanner.ImplicitUsings + CompatibilityExceptionScanner.WebImplicitUsings,
-                CompatibilityExceptionScanner.References(CompatibilityExceptionScanner.SemanticProject).Append(infrastructure.ToMetadataReference())));
+        var (infrastructure, dependents) = InfrastructureAndDependents(srcRoot);
 
         var user = infrastructure.GetTypeByMetadataName(UserType) ?? throw new InvalidOperationException(UserType + " not found");
         var owned = user.GetMembers().OfType<IPropertySymbol>().Select(p => p.Name)
@@ -184,6 +172,28 @@ public sealed class TwoFactorOwnershipTests
             foreach (var tree in compilation.SyntaxTrees.Where(t => t.FilePath.Length > 0))
                 hits.AddRange(WalkTree(compilation.GetSemanticModel(tree), tree, srcRoot, owned));
         return hits;
+    }
+
+    // The Infrastructure project and every src/ project that references it,
+    // compiled for a symbol walk; PasskeyOwnershipTests uses it too. A compile
+    // with errors would bind names to nothing, so it fails the walk.
+    internal static (Compilation Infrastructure, IReadOnlyList<Compilation> Dependents) InfrastructureAndDependents(string srcRoot)
+    {
+        var infrastructure = CompatibilityExceptionScanner.Compile(
+            CompatibilityExceptionScanner.SemanticProject,
+            GuardScanner.EnumerateSourceFiles(Path.Combine(srcRoot, CompatibilityExceptionScanner.SemanticProject)).Select(CompatibilityExceptionScanner.Parse),
+            CompatibilityExceptionScanner.ImplicitUsings,
+            CompatibilityExceptionScanner.References(CompatibilityExceptionScanner.SemanticProject));
+        var errors = infrastructure.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).Take(5).ToList();
+        Assert.True(errors.Count == 0, "the Infrastructure compile has errors, so names would bind to nothing:\n" + string.Join("\n", errors));
+
+        var dependents = CompatibilityExceptionScanner.ProjectsReferencing(srcRoot, CompatibilityExceptionScanner.SemanticProject)
+            .Select(project => (Compilation)CompatibilityExceptionScanner.Compile(project,
+                GuardScanner.EnumerateSourceFiles(Path.Combine(srcRoot, project)).Select(CompatibilityExceptionScanner.Parse),
+                CompatibilityExceptionScanner.ImplicitUsings + CompatibilityExceptionScanner.WebImplicitUsings,
+                CompatibilityExceptionScanner.References(CompatibilityExceptionScanner.SemanticProject).Append(infrastructure.ToMetadataReference())))
+            .ToList();
+        return (infrastructure, dependents);
     }
 
     private static IEnumerable<Hit> WalkTree(SemanticModel model, SyntaxTree tree, string srcRoot, HashSet<string> ownedColumns)

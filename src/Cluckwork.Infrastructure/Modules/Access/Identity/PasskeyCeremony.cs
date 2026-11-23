@@ -1,3 +1,4 @@
+using Cluckwork.Application.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -7,7 +8,9 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // options route and deleted once, by DELETE … RETURNING, when the ceremony is
 // finished. No AccountId: a sign-in ceremony has no farm until it ends, and a
 // bound one stores the user, whose id fixes the farm. A platform table read
-// only by key, as refresh_tokens is before sign-in.
+// only by key, as refresh_tokens is before sign-in. State holds the challenge,
+// so the type is a credential (G7.7).
+[Credential]
 public sealed class PasskeyCeremony
 {
     public Guid Id { get; set; }

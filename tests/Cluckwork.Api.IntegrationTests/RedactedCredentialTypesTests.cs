@@ -55,6 +55,8 @@ public sealed class RedactedCredentialTypesTests
         Assert.Contains(typeof(SecondFactorCode.Recovery), found);
         Assert.Contains(typeof(LeaderLeaseConnectionString), found);
         Assert.Contains(typeof(OtlpOptions), found);
+        Assert.Contains(typeof(PasskeyCeremony), found);
+        Assert.Contains(typeof(ConsumedCeremony), found);
     }
 
     [Fact]
@@ -246,6 +248,7 @@ public sealed class RedactedCredentialTypesTests
     [InlineData("Pin")]
     [InlineData("Salt")]
     [InlineData("Jwt")]
+    [InlineData("UserPasskeys")]
     [InlineData("RecoveryCodes")]
     [InlineData("APIKey")]
     [InlineData("JWT")]

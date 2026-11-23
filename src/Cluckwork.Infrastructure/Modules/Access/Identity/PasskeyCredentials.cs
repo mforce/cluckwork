@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Persistence;
@@ -51,6 +52,8 @@ public interface IPasskeyCredentials
     Task<int> CountAllAsync(CancellationToken ct);
 }
 
+// State holds the challenge (G7.7).
+[Credential]
 public sealed record ConsumedCeremony(string State)
 {
     public override string ToString() => "[redacted]";
@@ -145,6 +148,7 @@ internal sealed class PasskeyCredentials(
             : null;
     }
 
+    [Credential]
     private sealed record ConsumedRow(Guid? UserId, string State, DateTimeOffset ExpiresAt)
     {
         public override string ToString() => "[redacted]";
