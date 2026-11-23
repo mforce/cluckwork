@@ -44,7 +44,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(finished));
         Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
         Assert.False((await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("enabled").GetBoolean());
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
         Assert.True(await CeremonyExistsAsync(ceremony.Id), "a refusal before the transaction consumed the ceremony");
     }
 

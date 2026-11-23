@@ -44,8 +44,8 @@ public sealed partial class SecondFactorLoginTests
             .Where(p => p.UserId == victimId).Select(p => new { p.Data.Name, p.Data.PublicKey }).SingleAsync());
         Assert.Equal("Victim's key", row.Name);
         Assert.Equal(victimKey.PublicKey, row.PublicKey);
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, attackerId));
-        Assert.Equal((1, 1), await PasskeyStateAsync(victimAccount, victimId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, attackerId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(victimAccount, victimId));
         Assert.False(await CeremonyExistsAsync(attackerCeremony.Id));
     }
 
@@ -74,7 +74,7 @@ public sealed partial class SecondFactorLoginTests
         var response = await FinishPasskeyAsync(client, grant, ceremony.Id, new SoftwareAuthenticator().Attest(ceremony.Options));
 
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(response));
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
         Assert.False(await CeremonyExistsAsync(ceremony.Id));
     }
 }

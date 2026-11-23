@@ -48,9 +48,6 @@ public sealed partial class SecondFactorLoginTests
         return await FinishPasskeyAsync(client, grant, ceremony.Id, authenticator.Attest(ceremony.Options));
     }
 
-    private Task<(int Count, int Rows)> PasskeyStateAsync(Guid accountId, Guid userId) =>
-        factory.PasskeyStateAsync(accountId, userId);
-
     // The ceremony table has no tenant, so a plain scope reads it.
     private async Task<T> CeremoniesAsync<T>(Func<AppDbContext, Task<T>> work)
     {
@@ -60,9 +57,6 @@ public sealed partial class SecondFactorLoginTests
 
     private Task<bool> CeremonyExistsAsync(Guid ceremony) =>
         CeremoniesAsync(db => db.PasskeyCeremonies.AnyAsync(c => c.Id == ceremony));
-
-    private Task SeedPasskeysAsync(Guid accountId, Guid userId, int count) =>
-        factory.SeedPasskeysAsync(accountId, userId, count);
 
     // G7.3, G7.5: a first passkey with no app ends every other session and
     // connected app, and this device gets a fresh pair.
@@ -83,7 +77,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(authenticator.Id, body.GetProperty("passkey").GetProperty("id").GetString());
         Assert.True(body.GetProperty("passkey").GetProperty("synced").GetBoolean());
         var fresh = body.GetProperty("accessToken").GetString()!;
-        Assert.Equal((1, 1), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(accountId, userId));
         Assert.Equal(records, await IdempotencyRecordsAsync(accountId));
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(other.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(acting.AccessToken)).StatusCode);
@@ -100,7 +94,7 @@ public sealed partial class SecondFactorLoginTests
     public async Task ASecondPasskey_AndAFirstBesideTheApp_EndNothing()
     {
         var (_, accountId, userId, client, acting) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 1);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
         var (email, factor) = await SeedEnrolledAsync(asOwner: false);
         var appUser = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
         var appOther = await factory.LoginAsync(email);
@@ -111,8 +105,8 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
         Assert.Equal(HttpStatusCode.Created, besideApp.StatusCode);
         Assert.False((await second.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("accessToken", out _));
-        Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
-        Assert.Equal((1, 1), await PasskeyStateAsync(factor.AccountId, factor.UserId));
+        Assert.Equal((2, 2), await factory.PasskeyStateAsync(accountId, userId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(factor.AccountId, factor.UserId));
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(acting.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await GetMeAsync(appOther.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await RefreshAsync(factor.AccountId, appOther.RefreshToken)).StatusCode);
@@ -130,7 +124,7 @@ public sealed partial class SecondFactorLoginTests
         var response = await FinishPasskeyAsync(client, grant, ceremony.Id, attest(ceremony.Options));
 
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(response));
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
         Assert.False(await CeremonyExistsAsync(ceremony.Id));
         Assert.Equal(failed + 1, factory.EventsFor(SecurityEvents.PasskeyFailed).Count);
     }
@@ -149,7 +143,7 @@ public sealed partial class SecondFactorLoginTests
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         var (_, otherAccount, otherUser, otherClient, _) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 1);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
 
         // Used: the first finish registers, the same ceremony again is refused.
         var used = await StartPasskeyAsync(client);
@@ -190,8 +184,8 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(foreign));
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(late));
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(wrongPurpose));
-        Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
-        Assert.Equal((0, 0), await PasskeyStateAsync(otherAccount, otherUser));
+        Assert.Equal((2, 2), await factory.PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(otherAccount, otherUser));
         Assert.False(await CeremonyExistsAsync(alices.Id));
         Assert.False(await CeremonyExistsAsync(expired.Id));
     }
@@ -201,14 +195,14 @@ public sealed partial class SecondFactorLoginTests
     public async Task APasskeyAlreadyRegistered_IsRefused()
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 1);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
         var authenticator = new SoftwareAuthenticator();
         Assert.Equal(HttpStatusCode.Created, (await RegisterPasskeyAsync(client, authenticator)).StatusCode);
 
         var twice = await RegisterPasskeyAsync(client, authenticator);
 
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(twice));
-        Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((2, 2), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // G7.3: a sixth passkey is 409 and the count stays 5.
@@ -216,12 +210,12 @@ public sealed partial class SecondFactorLoginTests
     public async Task ASixthPasskey_Is409_AndTheCountStaysFive()
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 5);
+        await factory.SeedPasskeysAsync(accountId, userId, 5);
 
         var response = await RegisterPasskeyAsync(client, new SoftwareAuthenticator());
 
         Assert.Equal((HttpStatusCode.Conflict, "Auth.PasskeyLimitReached"), await TitleOf(response));
-        Assert.Equal((5, 5), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((5, 5), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // G7.3: two concurrent sixth registrations leave 5. The first pauses
@@ -231,7 +225,7 @@ public sealed partial class SecondFactorLoginTests
     public async Task TwoConcurrentSixthPasskeys_LeaveFive()
     {
         var (_, accountId, userId, client, session) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 4);
+        await factory.SeedPasskeysAsync(accountId, userId, 4);
         var other = factory.CreateAuthedClient(session.AccessToken);
         var (grantA, grantB) = (await GrantOf(await StepUpAsync(client, TestHarness.Password)),
             await GrantOf(await StepUpAsync(other, TestHarness.Password)));
@@ -256,7 +250,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(
             [(HttpStatusCode.Created, (string?)null), (HttpStatusCode.Conflict, "Auth.PasskeyLimitReached")],
             answers.OrderBy(a => a.Item1));
-        Assert.Equal((5, 5), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((5, 5), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // G7.4: two concurrent finishes of one ceremony register once. Two
@@ -266,7 +260,7 @@ public sealed partial class SecondFactorLoginTests
     public async Task TwoConcurrentFinishesOfOnePasskeyCeremony_RegisterOnce()
     {
         var (_, accountId, userId, client, session) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 1);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
         var other = factory.CreateAuthedClient(session.AccessToken);
         var (grantA, grantB) = (await GrantOf(await StepUpAsync(client, TestHarness.Password)),
             await GrantOf(await StepUpAsync(other, TestHarness.Password)));
@@ -286,7 +280,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.Created, second.StatusCode);
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(await first));
-        Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((2, 2), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // G7.4: a superseded session's finish is refused and still spends the
@@ -309,7 +303,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.True(factory.BeforeCommand.Fired, "the concurrent password change never ran");
         Assert.Equal((HttpStatusCode.Unauthorized, "Auth.CredentialsSuperseded"), await TitleOf(response));
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
         Assert.False(await CeremonyExistsAsync(ceremony.Id));
     }
 
@@ -388,6 +382,6 @@ public sealed partial class SecondFactorLoginTests
             });
             Assert.True(response.StatusCode == HttpStatusCode.Forbidden, $"{method} {path} answered {(int)response.StatusCode}");
         }
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
     }
 }

@@ -83,7 +83,7 @@ internal sealed class TwoFactorCredentials(
     public async Task<FactorOutcome> VerifyAsync(
         Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct)
     {
-        var user = await LockAsync(accountId, userId, ct);
+        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
         if (user is null || user.DisabledAt is not null || !user.TwoFactorEnabled || user.CredentialEpoch < 1
             || user.CredentialEpoch != binding.CredentialEpoch
             || !string.Equals(ProofBinding.HashStamp(user.SecurityStamp), binding.SecurityStampHash, StringComparison.Ordinal)
@@ -201,7 +201,7 @@ internal sealed class TwoFactorCredentials(
     public async Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct)
     {
         RequireTenant(accountId);
-        var user = await LockAsync(accountId, userId, ct)
+        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct)
             ?? throw new InvalidOperationException("Enrolment starts only for a user of the resolved farm.");
         var account = await accounts.GetCurrentAsync(ct)
             ?? throw new InvalidOperationException("Enrolment starts only under a resolved farm.");
@@ -220,7 +220,7 @@ internal sealed class TwoFactorCredentials(
         Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct)
     {
         RequireTenant(accountId);
-        var user = await LockAsync(accountId, userId, ct);
+        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
         if (user is null) return new ConfirmOutcome.Superseded();
 
         var pendingRow = await Rows(accountId, userId)
@@ -288,7 +288,7 @@ internal sealed class TwoFactorCredentials(
     public async Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct)
     {
         RequireTenant(accountId);
-        var user = await LockAsync(accountId, userId, ct);
+        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
         if (user is null || !user.TwoFactorEnabled) return null;
 
         await Rows(accountId, userId).Where(t => t.Name.StartsWith(RecoveryCodePrefix)).ExecuteDeleteAsync(ct);
@@ -303,7 +303,7 @@ internal sealed class TwoFactorCredentials(
     // ending sessions for an unenrolled user would cost them for nothing.
     public async Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct)
     {
-        var user = await LockAsync(accountId, userId, ct);
+        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
         if (user is null) return ClearOutcome.NotFound;
 
         var pendingDeleted = await Rows(accountId, userId)
@@ -387,10 +387,6 @@ internal sealed class TwoFactorCredentials(
 
     private Task<int> RecoveryCodesLeftAsync(Guid accountId, Guid userId, CancellationToken ct) =>
         Rows(accountId, userId).CountAsync(t => t.Name.StartsWith(RecoveryCodePrefix), ct);
-
-    // "Locks" in #1274 "The state it owns".
-    private Task<ApplicationUser?> LockAsync(Guid accountId, Guid userId, CancellationToken ct) =>
-        UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
 
     // A refused outcome writes nothing beyond a window rollover, or a spent
     // budget's missing window start.

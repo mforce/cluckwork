@@ -47,6 +47,10 @@ off. A serving start refuses an entry that:
 - does not use `https` (`http://localhost` is allowed in Development only);
 - names a host that `AllowedHosts` does not list.
 
+It also refuses a single value where the list belongs, such as
+`Passkeys__Origins=https://farm.example`: that binds no origin, so it would
+leave passkeys silently off. Number the entries from 0.
+
 A passkey works only at the host it was made on. A request whose host is not the
 host of a configured origin gets 404 `Passkeys.Off` from every route that runs a
 passkey ceremony. The passkey list, renaming and removing still work while

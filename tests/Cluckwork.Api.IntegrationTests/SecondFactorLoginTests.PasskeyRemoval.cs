@@ -39,7 +39,7 @@ public sealed partial class SecondFactorLoginTests
     {
         var (email, factor) = await SeedEnrolledAsync(asOwner: false);
         var client = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
-        await SeedPasskeysAsync(factor.AccountId, factor.UserId, 1);
+        await factory.SeedPasskeysAsync(factor.AccountId, factor.UserId, 1);
         var other = await factory.LoginAsync(email);
         return (factor, client, other, (await PasskeysOfAsync(factor.AccountId, factor.UserId)).Single().Id);
     }
@@ -57,7 +57,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var fresh = await TestHarness.ReadTokensAsync(response);
-        Assert.Equal((0, 0), await PasskeyStateAsync(factor.AccountId, factor.UserId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(factor.AccountId, factor.UserId));
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(other.AccessToken)).StatusCode);
         await AssertEverySessionAndAppEndedAsync(factor.AccountId, factor.UserId, freshRefreshRows: 1);
         Assert.Equal(HttpStatusCode.Unauthorized, await AppProbeAsync(app));
@@ -91,8 +91,8 @@ public sealed partial class SecondFactorLoginTests
         var sameFarmEmail = $"pk-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(factor.AccountId, sameFarmEmail, Roles.Manager);
         var sameFarmUser = await UserIdAsync(factor.AccountId, sameFarmEmail);
-        await SeedPasskeysAsync(accountId, userId, 1);
-        await SeedPasskeysAsync(factor.AccountId, sameFarmUser, 1);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
+        await factory.SeedPasskeysAsync(factor.AccountId, sameFarmUser, 1);
         var targets = new[] { (accountId, userId), (factor.AccountId, sameFarmUser) };
 
         foreach (var ((targetAccount, targetUser), code) in targets.Zip(factor.RecoveryCodes))
@@ -107,9 +107,9 @@ public sealed partial class SecondFactorLoginTests
             Assert.Equal(HttpStatusCode.NotFound, renamed.StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
             Assert.Equal(before, await PasskeysOfAsync(targetAccount, targetUser));
-            Assert.Equal((1, 1), await PasskeyStateAsync(targetAccount, targetUser));
+            Assert.Equal((1, 1), await factory.PasskeyStateAsync(targetAccount, targetUser));
         }
-        Assert.Equal((1, 1), await PasskeyStateAsync(factor.AccountId, factor.UserId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(factor.AccountId, factor.UserId));
     }
 
     // G7.13: two concurrent removals of one passkey, made directly (over HTTP
@@ -119,7 +119,7 @@ public sealed partial class SecondFactorLoginTests
     public async Task TwoConcurrentRemovalsOfOnePasskey_RemoveItOnce()
     {
         var (_, accountId, userId, _, _) = await SignedInPlainAsync(asOwner: false);
-        await SeedPasskeysAsync(accountId, userId, 2);
+        await factory.SeedPasskeysAsync(accountId, userId, 2);
         var credentialId = WebEncoders.Base64UrlDecode((await PasskeysOfAsync(accountId, userId))[0].Id);
         var arrived = 0;
         var both = new TaskCompletionSource();
@@ -140,7 +140,7 @@ public sealed partial class SecondFactorLoginTests
         var outcomes = await Task.WhenAll(Task.Run(RemoveAsync), Task.Run(RemoveAsync));
 
         Assert.Equal([false, true], outcomes.Order());
-        Assert.Equal((1, 1), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // G7.5: an Owner's removal ends every session of the target.
@@ -151,14 +151,14 @@ public sealed partial class SecondFactorLoginTests
         var email = $"pk-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, email, Roles.Manager);
         var userId = await UserIdAsync(accountId, email);
-        await SeedPasskeysAsync(accountId, userId, 2);
+        await factory.SeedPasskeysAsync(accountId, userId, 2);
         var session = await factory.LoginAsync(email);
         var app = await ConnectedAppToken.IssueAsync(factory, session.AccessToken);
 
         var response = await DeleteWithGrantAsync(owner, UserPasskeysPath(userId), await OwnerGrantAsync(owner));
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMeAsync(session.AccessToken)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await RefreshAsync(accountId, session.RefreshToken)).StatusCode);
         await AssertEverySessionAndAppEndedAsync(accountId, userId, freshRefreshRows: 0);
@@ -175,14 +175,14 @@ public sealed partial class SecondFactorLoginTests
     public async Task AnOwnersPasskeyRemoval_OfTheirOwnId_Is400_BeforeTheGrantIsSpent()
     {
         var (accountId, ownerId, owner) = await FarmWithOwnerAsync();
-        await SeedPasskeysAsync(accountId, ownerId, 1);
+        await factory.SeedPasskeysAsync(accountId, ownerId, 1);
         var grant = await OwnerGrantAsync(owner);
 
         var response = await DeleteWithGrantAsync(owner, UserPasskeysPath(ownerId), grant);
 
         Assert.Equal((HttpStatusCode.BadRequest, "Users.CannotRemoveOwnPasskeys"), await TitleOf(response));
         Assert.True((await ValidateGrantAsync(accountId, ownerId, grant)).IsSuccess, "the self-target 400 spent the grant");
-        Assert.Equal((1, 1), await PasskeyStateAsync(accountId, ownerId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(accountId, ownerId));
     }
 
     // G7.5: another farm's user is 404, and an Owner demoted while the
@@ -194,7 +194,7 @@ public sealed partial class SecondFactorLoginTests
         var email = $"pk-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, email, Roles.Manager);
         var userId = await UserIdAsync(accountId, email);
-        await SeedPasskeysAsync(accountId, userId, 1);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
         var (_, _, otherFarmOwner) = await FarmWithOwnerAsync();
         var actorEmail = $"pk-owner2-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, actorEmail, Roles.Owner);
@@ -215,7 +215,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(HttpStatusCode.NotFound, byOtherFarm.StatusCode);
         Assert.True(factory.BeforeCommand.Fired, "the concurrent demotion never ran");
         Assert.Equal((HttpStatusCode.Forbidden, AppError.Forbidden().Code), await TitleOf(byDemoted));
-        Assert.Equal((1, 1), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // G7.10: an Owner's password reset and the user's own password change
@@ -227,7 +227,7 @@ public sealed partial class SecondFactorLoginTests
         var email = $"pk-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, email, Roles.Manager);
         var userId = await UserIdAsync(accountId, email);
-        await SeedPasskeysAsync(accountId, userId, 2);
+        await factory.SeedPasskeysAsync(accountId, userId, 2);
         var before = await PasskeysOfAsync(accountId, userId);
 
         var reset = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{userId}/password")
@@ -243,7 +243,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.OK, change.StatusCode);
         Assert.Equal(before, await PasskeysOfAsync(accountId, userId));
-        Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
+        Assert.Equal((2, 2), await factory.PasskeyStateAsync(accountId, userId));
     }
 
     // r1 item 8: a name with a control character is a 400 at registration and
@@ -260,7 +260,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.BadRequest, registered.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, renamed.StatusCode);
-        Assert.Equal((1, 1), await PasskeyStateAsync(factor.AccountId, factor.UserId));
+        Assert.Equal((1, 1), await factory.PasskeyStateAsync(factor.AccountId, factor.UserId));
         Assert.True(await CeremonyExistsAsync(ceremony.Id), "a refused name consumed the ceremony");
         Assert.Equal([(id, (string?)"Seeded 0")], await PasskeysOfAsync(factor.AccountId, factor.UserId));
     }

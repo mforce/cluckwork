@@ -9,7 +9,7 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // finished. No AccountId: a sign-in ceremony has no farm until it ends, and a
 // bound one stores the user, whose id fixes the farm. A platform table read
 // only by key, as refresh_tokens is before sign-in. State holds the challenge,
-// so the type is a credential (G7.7).
+// so the type is a credential (G7.7); a class, it prints only its type name.
 [Credential]
 public sealed class PasskeyCeremony
 {
@@ -20,8 +20,6 @@ public sealed class PasskeyCeremony
     // Identity's state string: the challenge and, for a bound ceremony, the user.
     public string State { get; set; } = string.Empty;
     public DateTimeOffset ExpiresAt { get; set; }
-
-    public override string ToString() => "[redacted]";
 }
 
 public enum CeremonyPurpose : short
