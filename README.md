@@ -37,7 +37,7 @@ its API.
 ### Local development with Aspire
 
 Aspire is the preferred full-stack development path. Prerequisites: the
-**.NET 10 SDK**, **Node 26+**, **Docker**, and **Aspire CLI 13.5**. From the
+**.NET 10 SDK**, **Node 26+**, **Docker**, and **Aspire CLI 17.0**. From the
 repository root:
 
 ```bash
