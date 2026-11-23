@@ -250,11 +250,12 @@ public sealed partial class SecondFactorLoginTests
         // With the lock the second waits on the first, so this times out.
         await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(2)));
         resumeFirst.SetResult();
-        var answers = new[] { await first, await second };
+        var answers = new[] { await TitleOf(await first), await TitleOf(await second) };
 
+        // The loser is the cap's own refusal, not a lost concurrency check (r1 item 9).
         Assert.Equal(
-            [HttpStatusCode.Created, HttpStatusCode.Conflict],
-            answers.Select(r => r.StatusCode).Order());
+            [(HttpStatusCode.Created, (string?)null), (HttpStatusCode.Conflict, "Auth.PasskeyLimitReached")],
+            answers.OrderBy(a => a.Item1));
         Assert.Equal((5, 5), await PasskeyStateAsync(accountId, userId));
     }
 
