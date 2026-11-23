@@ -33,7 +33,7 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.__EFMigrationsHistory](public.__EFMigrationsHistory.md) | 2 |  | BASE TABLE |
 | [public.Accounts](public.Accounts.md) | 22 |  | BASE TABLE |
 | [public.AspNetRoles](public.AspNetRoles.md) | 4 |  | BASE TABLE |
-| [public.AspNetUsers](public.AspNetUsers.md) | 31 |  | BASE TABLE |
+| [public.AspNetUsers](public.AspNetUsers.md) | 32 |  | BASE TABLE |
 | [public.AuditEvents](public.AuditEvents.md) | 13 |  | BASE TABLE |
 | [public.Customers](public.Customers.md) | 10 |  | BASE TABLE |
 | [public.DailyEntries](public.DailyEntries.md) | 22 |  | BASE TABLE |
@@ -73,6 +73,8 @@ egg grades, and six packed-unit conversions — as guarded raw SQL
 | [public.OpenIddictScopes](public.OpenIddictScopes.md) | 9 |  | BASE TABLE |
 | [public.OpenIddictAuthorizations](public.OpenIddictAuthorizations.md) | 10 |  | BASE TABLE |
 | [public.OpenIddictTokens](public.OpenIddictTokens.md) | 13 |  | BASE TABLE |
+| [public.AspNetUserPasskeys](public.AspNetUserPasskeys.md) | 4 |  | BASE TABLE |
+| [public.passkey_ceremonies](public.passkey_ceremonies.md) | 5 |  | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -126,6 +128,8 @@ erDiagram
 "public.OpenIddictAuthorizations" }o--o| "public.OpenIddictApplications" : "FOREIGN KEY (#quot;ApplicationId#quot;) REFERENCES #quot;OpenIddictApplications#quot;(#quot;Id#quot;)"
 "public.OpenIddictTokens" }o--o| "public.OpenIddictApplications" : "FOREIGN KEY (#quot;ApplicationId#quot;) REFERENCES #quot;OpenIddictApplications#quot;(#quot;Id#quot;)"
 "public.OpenIddictTokens" }o--o| "public.OpenIddictAuthorizations" : "FOREIGN KEY (#quot;AuthorizationId#quot;) REFERENCES #quot;OpenIddictAuthorizations#quot;(#quot;Id#quot;)"
+"public.AspNetUserPasskeys" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserPasskeys" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 
 "public.__EFMigrationsHistory" {
   varchar_150_ MigrationId
@@ -193,6 +197,7 @@ erDiagram
   timestamp_with_time_zone SecondFactorRequiredSince
   bigint SecondFactorSignIns
   bigint SecondFactorWatermark
+  integer PasskeyCount
 }
 "public.AuditEvents" {
   uuid Id
@@ -703,6 +708,19 @@ erDiagram
   varchar_50_ Status
   varchar_400_ Subject
   varchar_150_ Type
+}
+"public.AspNetUserPasskeys" {
+  bytea CredentialId
+  uuid UserId FK
+  uuid AccountId FK
+  jsonb Data
+}
+"public.passkey_ceremonies" {
+  uuid Id
+  smallint Purpose
+  uuid UserId
+  text State
+  timestamp_with_time_zone ExpiresAt
 }
 ```
 

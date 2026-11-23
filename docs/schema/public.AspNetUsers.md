@@ -4,8 +4,8 @@
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| Id | uuid |  | false | [public.AspNetUserClaims](public.AspNetUserClaims.md) [public.AspNetUserLogins](public.AspNetUserLogins.md) [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) |  |  |
-| AccountId | uuid |  | false | [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) | [public.Accounts](public.Accounts.md) |  |
+| Id | uuid |  | false | [public.AspNetUserClaims](public.AspNetUserClaims.md) [public.AspNetUserLogins](public.AspNetUserLogins.md) [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) [public.AspNetUserPasskeys](public.AspNetUserPasskeys.md) |  |  |
+| AccountId | uuid |  | false | [public.AspNetUserRoles](public.AspNetUserRoles.md) [public.AspNetUserTokens](public.AspNetUserTokens.md) [public.AspNetUserPasskeys](public.AspNetUserPasskeys.md) | [public.Accounts](public.Accounts.md) |  |
 | DisplayName | text |  | true |  |  |  |
 | Language | varchar(16) |  | true |  |  |  |
 | MustChangePassword | boolean |  | false |  |  |  |
@@ -35,6 +35,7 @@
 | SecondFactorRequiredSince | timestamp with time zone |  | true |  |  |  |
 | SecondFactorSignIns | bigint | 0 | false |  |  |  |
 | SecondFactorWatermark | bigint | 0 | false |  |  |  |
+| PasskeyCount | integer | 0 | false |  |  |  |
 
 ## Viewpoints
 
@@ -57,6 +58,7 @@
 | AspNetUsers_MustChangePassword_not_null | n | NOT NULL "MustChangePassword" |
 | AspNetUsers_NormalizedEmail_not_null | n | NOT NULL "NormalizedEmail" |
 | AspNetUsers_NormalizedUserName_not_null | n | NOT NULL "NormalizedUserName" |
+| AspNetUsers_PasskeyCount_not_null | n | NOT NULL "PasskeyCount" |
 | AspNetUsers_PhoneNumberConfirmed_not_null | n | NOT NULL "PhoneNumberConfirmed" |
 | AspNetUsers_SecondFactorFailures_not_null | n | NOT NULL "SecondFactorFailures" |
 | AspNetUsers_SecondFactorSignIns_not_null | n | NOT NULL "SecondFactorSignIns" |
@@ -66,6 +68,7 @@
 | AspNetUsers_UpdatedAtUtc_not_null | n | NOT NULL "UpdatedAtUtc" |
 | AspNetUsers_UserName_not_null | n | NOT NULL "UserName" |
 | CK_AspNetUsers_CredentialEpoch | CHECK | CHECK (("CredentialEpoch" >= 1)) |
+| CK_AspNetUsers_PasskeyCount | CHECK | CHECK ((("PasskeyCount" >= 0) AND ("PasskeyCount" <= 5))) |
 | FK_AspNetUsers_Accounts_AccountId | FOREIGN KEY | FOREIGN KEY ("AccountId") REFERENCES "Accounts"("Id") ON DELETE RESTRICT |
 | PK_AspNetUsers | PRIMARY KEY | PRIMARY KEY ("Id") |
 | AK_AspNetUsers_Id_AccountId | UNIQUE | UNIQUE ("Id", "AccountId") |
@@ -96,6 +99,8 @@ erDiagram
 "public.AspNetUserRoles" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
 "public.AspNetUserTokens" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
+"public.AspNetUserPasskeys" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;) ON DELETE CASCADE"
+"public.AspNetUserPasskeys" }o--|| "public.AspNetUsers" : "FOREIGN KEY (#quot;UserId#quot;, #quot;AccountId#quot;) REFERENCES #quot;AspNetUsers#quot;(#quot;Id#quot;, #quot;AccountId#quot;) ON DELETE CASCADE"
 "public.AspNetUsers" }o--|| "public.Accounts" : "FOREIGN KEY (#quot;AccountId#quot;) REFERENCES #quot;Accounts#quot;(#quot;Id#quot;) ON DELETE RESTRICT"
 
 "public.AspNetUsers" {
@@ -130,6 +135,7 @@ erDiagram
   timestamp_with_time_zone SecondFactorRequiredSince
   bigint SecondFactorSignIns
   bigint SecondFactorWatermark
+  integer PasskeyCount
 }
 "public.AspNetUserClaims" {
   integer Id
@@ -154,6 +160,12 @@ erDiagram
   text Name
   text Value
   uuid AccountId FK
+}
+"public.AspNetUserPasskeys" {
+  bytea CredentialId
+  uuid UserId FK
+  uuid AccountId FK
+  jsonb Data
 }
 "public.Accounts" {
   uuid Id

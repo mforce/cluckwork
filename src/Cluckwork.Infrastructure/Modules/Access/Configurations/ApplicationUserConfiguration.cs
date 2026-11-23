@@ -20,5 +20,8 @@ public sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Appl
             "CK_AspNetUsers_CredentialEpoch", "\"CredentialEpoch\" >= 1"));
         builder.Property(u => u.PreferredStepperUnit).HasConversion<string>().HasMaxLength(16);
         builder.Property(u => u.StepUpLogoutEpoch).HasDefaultValue(0);
+        builder.Property(u => u.PasskeyCount).HasDefaultValue(0);
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_AspNetUsers_PasskeyCount", "\"PasskeyCount\" >= 0 AND \"PasskeyCount\" <= 5"));
     }
 }

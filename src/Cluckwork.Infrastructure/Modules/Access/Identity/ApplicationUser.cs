@@ -58,4 +58,9 @@ public sealed class ApplicationUser : IdentityUser<Guid>, IMutableRecord
     public int SecondFactorFailures { get; set; }
     public DateTimeOffset? SecondFactorFailuresSince { get; set; }
     public DateTimeOffset? SecondFactorRequiredSince { get; set; }
+
+    // #1282 decision 6: how many AspNetUserPasskeys rows the user has, written
+    // only by PasskeyCredentials under the user-row lock, so the cap of five is
+    // exact. A check constraint holds it between 0 and 5.
+    public int PasskeyCount { get; set; }
 }
