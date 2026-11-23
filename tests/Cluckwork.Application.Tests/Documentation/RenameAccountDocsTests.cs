@@ -238,9 +238,9 @@ public sealed class RenameAccountDocsTests
             .ToList();
         var glossary = Normalized(Read("specs/product/GLOSSARY.md"));
 
-        Assert.Equal(6, actors.Count);
-        Assert.Contains("one of six explicit **system actors**", glossary, StringComparison.Ordinal);
-        Assert.DoesNotContain("one of five explicit", glossary, StringComparison.Ordinal);
+        Assert.Equal(7, actors.Count);
+        Assert.Contains("one of seven explicit **system actors**", glossary, StringComparison.Ordinal);
+        Assert.DoesNotContain("one of six explicit", glossary, StringComparison.Ordinal);
         Assert.Contains(
             "and `(rename-account)` for a change to a farm's code (#732)",
             glossary, StringComparison.Ordinal);

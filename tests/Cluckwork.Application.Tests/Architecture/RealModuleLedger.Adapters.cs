@@ -18,6 +18,7 @@ internal static partial class RealModuleLedger
 
     internal static readonly AdapterClaim[] Adapters =
     [
+        new("Cluckwork.Api.Cli.ClearPasskeysCliCommand.RunAsync", ["Access", "Farm"]),
         new("Cluckwork.Api.Cli.BootstrapAdminCliCommand.RunAsync", ["Access"]),
         new("Cluckwork.Api.Cli.ListAccountsCliCommand.RunAsync", ["Farm"]),
         new("Cluckwork.Api.Cli.ProvisionAccountCliCommand.RunAsync", ["Access"]),

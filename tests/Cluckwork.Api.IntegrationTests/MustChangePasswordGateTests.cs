@@ -261,8 +261,8 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
 
     public Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
-        bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default) =>
-        inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, mustChangePassword, ct);
+        bool twoFactorCleared, int passkeysRemoved, bool mustChangePassword, CancellationToken ct = default) =>
+        inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, passkeysRemoved, mustChangePassword, ct);
 
     public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
         Guid accountId, Guid userId, CancellationToken ct = default) =>
@@ -287,6 +287,9 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
     public Task<Result> RemoveUserPasskeysAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
         inner.RemoveUserPasskeysAsync(accountId, userId, actingUserId, ct);
+
+    public Task<int> ClearPasskeysAsync(Guid accountId, string? reason, CancellationToken ct = default) =>
+        inner.ClearPasskeysAsync(accountId, reason, ct);
 
     public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>

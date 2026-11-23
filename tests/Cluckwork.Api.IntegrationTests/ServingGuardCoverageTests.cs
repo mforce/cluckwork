@@ -100,6 +100,12 @@ public sealed class ServingGuardCoverageTests
             ["EnsureEnrolledSessionCap"] = ["Auth:EnrolledSessionMaxDays must be a whole number from 1 to 365"],
             ["EnsureOwnerGraceDays"] = ["TwoFactor:OwnerGraceDays must be a whole number from 1 to 365"],
             ["EnsureRequireForOwners"] = ["TwoFactor:RequireForOwners must be true or false"],
+            ["EnsurePasskeyOrigins"] =
+            [
+                "Passkeys:Origins:0 must be an origin",
+                "Passkeys:Origins:0 must use https",
+                "Passkeys:Origins:0 names the host",
+            ],
         };
 
         Assert.NotEmpty(guardMethods);

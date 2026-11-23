@@ -145,7 +145,7 @@ public sealed partial class SecondFactorLoginTests
 
     // G7.5: an Owner's removal ends every session of the target.
     [Fact]
-    public async Task AnOwnersRemoval_EndsEverySessionOfTheTarget()
+    public async Task AnOwnersPasskeyRemoval_EndsEverySessionOfTheTarget()
     {
         var (accountId, ownerId, owner) = await FarmWithOwnerAsync();
         var email = $"pk-{Guid.NewGuid():N}@test.local";
@@ -172,7 +172,7 @@ public sealed partial class SecondFactorLoginTests
 
     // G7.5: the Owner's own id is refused before the grant is spent.
     [Fact]
-    public async Task AnOwnersRemoval_OfTheirOwnId_Is400_BeforeTheGrantIsSpent()
+    public async Task AnOwnersPasskeyRemoval_OfTheirOwnId_Is400_BeforeTheGrantIsSpent()
     {
         var (accountId, ownerId, owner) = await FarmWithOwnerAsync();
         await SeedPasskeysAsync(accountId, ownerId, 1);
@@ -188,7 +188,7 @@ public sealed partial class SecondFactorLoginTests
     // G7.5: another farm's user is 404, and an Owner demoted while the
     // request waits for the account lock is refused.
     [Fact]
-    public async Task AnOwnersRemoval_RefusesAnotherFarmsUser_AndADemotedActor()
+    public async Task AnOwnersPasskeyRemoval_RefusesAnotherFarmsUser_AndADemotedActor()
     {
         var (accountId, ownerId, _) = await FarmWithOwnerAsync();
         var email = $"pk-{Guid.NewGuid():N}@test.local";
@@ -216,5 +216,33 @@ public sealed partial class SecondFactorLoginTests
         Assert.True(factory.BeforeCommand.Fired, "the concurrent demotion never ran");
         Assert.Equal((HttpStatusCode.Forbidden, AppError.Forbidden().Code), (byDemoted.StatusCode, (await ProblemOf(byDemoted)).Title));
         Assert.Equal((1, 1), await PasskeyStateAsync(accountId, userId));
+    }
+
+    // G7.10: an Owner's password reset and the user's own password change
+    // leave every passkey.
+    [Fact]
+    public async Task APasswordResetOrChange_LeavesEveryPasskey()
+    {
+        var (accountId, _, owner) = await FarmWithOwnerAsync();
+        var email = $"pk-{Guid.NewGuid():N}@test.local";
+        await factory.SeedUserAsync(accountId, email, Roles.Manager);
+        var userId = await UserIdAsync(accountId, email);
+        await SeedPasskeysAsync(accountId, userId, 2);
+        var before = await PasskeysOfAsync(accountId, userId);
+
+        var reset = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{userId}/password")
+        {
+            Content = JsonContent.Create(new { newPassword = TestHarness.Password }),
+        };
+        reset.Headers.Add(Modules.Access.Auth.AuthEndpoints.StepUpHeaderName, await OwnerGrantAsync(owner));
+        reset.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.SendAsync(reset)).StatusCode);
+        var user = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var change = await user.PostWithKeyAsync("/api/v1/auth/change-password", Guid.NewGuid().ToString(),
+            new { currentPassword = TestHarness.Password, newPassword = NewPassword });
+
+        Assert.Equal(HttpStatusCode.OK, change.StatusCode);
+        Assert.Equal(before, await PasskeysOfAsync(accountId, userId));
+        Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
     }
 }

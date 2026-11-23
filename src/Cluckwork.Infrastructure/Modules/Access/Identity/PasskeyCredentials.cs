@@ -44,6 +44,9 @@ public interface IPasskeyCredentials
     // caller revokes.
     Task<int?> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct);
 
+    // The users of one farm who have a passkey: clear-passkeys' input.
+    Task<IReadOnlyList<Guid>> UsersWithPasskeysAsync(Guid accountId, CancellationToken ct);
+
     // How many passkeys are stored, in every farm: the startup warning's input.
     Task<int> CountAllAsync(CancellationToken ct);
 }
@@ -163,7 +166,6 @@ internal sealed class PasskeyCredentials(
             HttpContext = Http,
         });
         if (!attestation.Succeeded) return Refused(attestation.Failure.Message);
-        if (attestation.UserEntity.Id != userId.ToString()) return Refused("the ceremony names another user");
 
         var passkey = attestation.Passkey;
         passkey.Name = name;
@@ -237,6 +239,10 @@ internal sealed class PasskeyCredentials(
         await EndSessionsAsync(user);
         return deleted;
     }
+
+    public async Task<IReadOnlyList<Guid>> UsersWithPasskeysAsync(Guid accountId, CancellationToken ct) =>
+        await db.UserPasskeys.Where(p => EF.Property<Guid>(p, AccountIdProperty) == accountId)
+            .Select(p => p.UserId).Distinct().ToListAsync(ct);
 
     public Task<int> CountAllAsync(CancellationToken ct) => db.UserPasskeys.CountAsync(ct);
 

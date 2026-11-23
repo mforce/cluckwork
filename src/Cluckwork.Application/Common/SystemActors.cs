@@ -29,4 +29,7 @@ public static class SystemActors
 
     /// <summary>Operator changing a farm's code (#732). Author of the Account.Rename row.</summary>
     public const string RenameAccount = "(rename-account)";
+
+    /// <summary>Operator clearing passkeys before turning them off or moving the site (#1284). Author of the User.PasskeysCleared rows.</summary>
+    public const string ClearPasskeys = "(clear-passkeys)";
 }

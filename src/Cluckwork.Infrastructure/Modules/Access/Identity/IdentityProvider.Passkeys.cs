@@ -131,6 +131,31 @@ public sealed partial class IdentityProvider
             return Result.Success();
         }, ct);
 
+    // Decision 10: the clear-passkeys verb, for one farm in a fresh scope. The
+    // audit writer refuses a row without a tenant and an actor, so both are
+    // resolved here, as recover-admin does for its target.
+    public Task<int> ClearPasskeysAsync(Guid accountId, string? reason, CancellationToken ct = default)
+    {
+        tenant.Resolve(accountId);
+        currentUser.ResolveSystemActor(SystemActors.ClearPasskeys);
+        return AmbientTransaction.RunAsync(db.Database, async (transaction, token) =>
+        {
+            var cleared = 0;
+            foreach (var userId in await passkeys.UsersWithPasskeysAsync(accountId, token))
+            {
+                var count = await passkeys.RemoveAllAsync(accountId, userId, token) ?? 0;
+                if (count == 0) continue;
+                await RevokeAllActiveForUserAsync(userId, timeProvider.GetUtcNow(), token);
+                await audit.WriteAsync(AuditActions.UserPasskeysCleared, "User", userId,
+                    reason, details: new { count, reason }, ct: token);
+                cleared++;
+            }
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return cleared;
+        }, ct);
+    }
+
     // Decision 16: every other session and connected app ends, and the acting
     // device gets a fresh pair from the new epoch whose lineage starts now.
     private async Task<TokenPair> EndOtherSessionsAsync(Guid accountId, Guid userId, CancellationToken ct)

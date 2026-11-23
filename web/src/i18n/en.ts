@@ -3978,8 +3978,9 @@ export const en = {
       + "when everyone is locked out. \"(suspend-account)\" and \"(reactivate-account)\" take the whole farm "
       + "offline and bring it back. \"(rename-account)\" changes your farm's code, and records the old and "
       + "new codes. Those last four also record the machine they were run from and the reason given, so an "
-      + "emergency reset or an operator change is never anonymous. Everything else names the person who "
-      + "did it.",
+      + "emergency reset or an operator change is never anonymous. \"(clear-passkeys)\" removes passkeys "
+      + "before passkeys are turned off or the site moves to a new address, and records the reason given. "
+      + "Everything else names the person who did it.",
     auditRecordHistoryOlder:
       "Records created before this was added show no \"created by\" line. There is no creation entry in "
       + "the log for them, and none is invented after the fact. If such a record has been changed since, "

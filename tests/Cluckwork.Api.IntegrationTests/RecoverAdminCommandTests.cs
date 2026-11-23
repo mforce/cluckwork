@@ -194,7 +194,10 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
     {
         // #1274 G5.3: an enrolled admin, so the verb's delete of the two-factor
         // rows runs under the DML-only role and the verb's own key ring.
+        // #1284 G7.9: with two passkeys, so the verb's delete of the passkey
+        // rows runs there too.
         var factor = await EnrolAdminAsync();
+        await _factory.SeedPasskeysAsync(factor.AccountId, factor.UserId, 2);
         var roleConnectionString = await DmlOnlyRole.CreateConnectionStringAsync(_factory.ConnectionString);
 
         var (exitCode, stdout, stderr) = await RunAsync(
@@ -207,6 +210,16 @@ public sealed class RecoverAdminCommandTests : IClassFixture<BreakGlassRecoveryF
         Assert.True(0 == exitCode, $"expected exit 0, got {exitCode}. stdout={stdout} stderr={stderr}");
         Assert.Contains("Temporary password:", stdout);
         Assert.Equal((false, true, 0), await FactorStateAsync(factor));
+        Assert.Equal((0, 0), await _factory.PasskeyStateAsync(factor.AccountId, factor.UserId));
+        var details = await _factory.WithTenantScopeAsync(factor.AccountId, db => db.AuditEvents
+            .Where(a => a.EntityId == factor.UserId && a.Action == "User.BreakGlassReset")
+            .OrderByDescending(a => a.OccurredAtUtc).Select(a => a.DetailsJson).FirstAsync());
+        Assert.Equal(2, System.Text.Json.JsonDocument.Parse(details!).RootElement.GetProperty("passkeysRemoved").GetInt32());
+        using var scope = _factory.Services.CreateScope();
+        var signedIn = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
+            .LoginAsync(SeedDefaults.AccountId, _factory.AdminEmail, ExtractTemporaryPassword(stdout));
+        Assert.True(signedIn.IsSuccess && signedIn.Value is LoginStep.SignedIn,
+            "the printed temporary password should sign in with no code and no passkey");
     }
 
     // #589 — vary the fixture's account Slug (the admin lives on

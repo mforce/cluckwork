@@ -403,6 +403,19 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#1281 owner requirement", "TwoFactor:RequireForOwners must be true or false",
             Violate: psi => psi.Environment["TwoFactor__RequireForOwners"] = "yes",
             Satisfy: psi => psi.Environment.Remove("TwoFactor__RequireForOwners")),
+
+        // #1284 — the passkey origins. Unset is off, so Satisfy removes the key.
+        new("#1284 passkey origin shape", "Passkeys:Origins:0 must be an origin",
+            Violate: psi => psi.Environment["Passkeys__Origins__0"] = "https://farm.example/path",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
+
+        new("#1284 passkey origin scheme", "Passkeys:Origins:0 must use https",
+            Violate: psi => psi.Environment["Passkeys__Origins__0"] = "http://farm.example",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
+
+        new("#1284 passkey origin host", "Passkeys:Origins:0 names the host",
+            Violate: psi => psi.Environment["Passkeys__Origins__0"] = "https://not-listed.example",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
     ];
 
     private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>

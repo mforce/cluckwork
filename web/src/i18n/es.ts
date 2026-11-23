@@ -3271,7 +3271,8 @@ export const es = {
       + "de nuevo. \"(rename-account)\" cambia el código de granja y registra el código anterior y el "
       + "nuevo. Esos cuatro últimos registran además la máquina desde la que se ejecutaron y el motivo "
       + "indicado, de modo que un restablecimiento de emergencia o un cambio del operador nunca es anónimo. "
-      + "Todo lo demás nombra a la persona que lo hizo.",
+      + "\"(clear-passkeys)\" elimina las llaves de acceso antes de desactivarlas o de mover el sitio a otra "
+      + "dirección, y registra el motivo indicado. Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\". No hay "
       + "una entrada de creación en el registro para ellos, y no se inventa ninguna después. Si un registro "

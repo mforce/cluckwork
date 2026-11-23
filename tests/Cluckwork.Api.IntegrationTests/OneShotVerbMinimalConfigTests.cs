@@ -114,6 +114,9 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         // #1420 — Production on purpose. With no certificate configured the verb's own clean
         // exit 1 is the expected result; DataProtectionKeyRewrapTests pins that refusal.
         { "rewrap-key-ring", "Production" },
+        // #1284 — Production on purpose; an absent farm code is the verb's own clean exit 1
+        // before it changes anything.
+        { "clear-passkeys --farm no-such-farm", "Production" },
         // Seeding is deliberately blocked in Production (#280), so BOTH sides of
         // that are cases. The Testing arm is the one that actually seeds.
         { "seed --profile demo", "Testing" },
@@ -220,6 +223,8 @@ public sealed class OneShotVerbMinimalConfigTests(ServingGuardDatabaseFixture da
         // #1281 — only the serving host reads the grace and the requirement switch.
         ("TwoFactor", "TwoFactor__OwnerGraceDays", "not-a-number"),
         ("TwoFactor", "TwoFactor__RequireForOwners", "not-a-bool"),
+        // #1284 — only a serving host runs a passkey ceremony or checks the origins.
+        ("Passkeys", "Passkeys__Origins__0", "not an origin"),
         // #543 — SharedState:Redis:ConnectionString is a string, so it cannot
         // fail BINDING; its serving-only failure mode is the malformed-value boot
         // guard (EnsureSharedStateConnectionValid). "abortConnect=false" parses

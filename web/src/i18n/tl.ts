@@ -3384,7 +3384,9 @@ export const tl = {
       + "at muli itong ibinabalik. Ang \"(rename-account)\" ay nagbabago sa code ng bukid mo at itinatala "
       + "ang luma at bagong code. Itinatala rin ng huling apat na ito kung saang makina sila pinatakbo at "
       + "ang ibinigay na dahilan, kaya hindi kailanman anonimo ang isang emergency reset o pagbabago ng "
-      + "operator. Ang iba ay pinapangalanan ang taong gumawa.",
+      + "operator. Ang \"(clear-passkeys)\" ay nag-aalis ng mga passkey bago patayin ang mga passkey o "
+      + "ilipat ang site sa bagong address, at itinatala ang ibinigay na dahilan. Ang iba ay pinapangalanan "
+      + "ang taong gumawa.",
     auditRecordHistoryOlder:
       "Ang mga record na ginawa bago ito idagdag ay walang linyang \"ginawa ni\". Walang entry ng paggawa "
       + "sa log para sa kanila, at walang iniimbentong bago pagkatapos. Kung nabago ang ganoong record "

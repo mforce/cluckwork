@@ -6,7 +6,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Infrastructure.Jobs;
 using Cluckwork.Infrastructure.Modules.Access.Identity;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,9 +49,7 @@ public sealed partial class SecondFactorLoginTests
     }
 
     private Task<(int Count, int Rows)> PasskeyStateAsync(Guid accountId, Guid userId) =>
-        factory.WithTenantScopeAsync(accountId, async db => (
-            await db.Users.Where(u => u.Id == userId).Select(u => u.PasskeyCount).SingleAsync(),
-            await db.UserPasskeys.CountAsync(p => p.UserId == userId)));
+        factory.PasskeyStateAsync(accountId, userId);
 
     // The ceremony table has no tenant, so a plain scope reads it.
     private async Task<T> CeremoniesAsync<T>(Func<AppDbContext, Task<T>> work)
@@ -64,26 +61,8 @@ public sealed partial class SecondFactorLoginTests
     private Task<bool> CeremonyExistsAsync(Guid ceremony) =>
         CeremoniesAsync(db => db.PasskeyCeremonies.AnyAsync(c => c.Id == ceremony));
 
-    // Passkeys written straight to the table, with the count, for the cases
-    // that need many or need them fast.
     private Task SeedPasskeysAsync(Guid accountId, Guid userId, int count) =>
-        factory.WithTenantScopeAsync(accountId, async db =>
-        {
-            for (var i = 0; i < count; i++)
-                db.UserPasskeys.Add(new IdentityUserPasskey<Guid>
-                {
-                    CredentialId = Guid.NewGuid().ToByteArray(),
-                    UserId = userId,
-                    Data = new IdentityPasskeyData
-                    {
-                        PublicKey = [1], Name = $"Seeded {i}", CreatedAt = DateTimeOffset.UtcNow,
-                        AttestationObject = [1], ClientDataJson = "{}"u8.ToArray(),
-                    },
-                });
-            var user = await db.Users.SingleAsync(u => u.Id == userId);
-            user.PasskeyCount += count;
-            await db.SaveChangesAsync();
-        });
+        factory.SeedPasskeysAsync(accountId, userId, count);
 
     // G7.3, G7.5: a first passkey with no app ends every other session and
     // connected app, and this device gets a fresh pair.
@@ -141,20 +120,14 @@ public sealed partial class SecondFactorLoginTests
 
     // G7.3: the refusals after the ceremony is consumed answer 400 with the
     // one body, register nothing, and leave the ceremony gone (G7.4).
-    [Theory]
-    [InlineData("no user verification")]
-    [InlineData("an origin outside Passkeys:Origins")]
-    public async Task ARefusedAttestation_Is400_RegistersNothing_AndSpendsTheCeremony(string refusal)
+    private async Task AssertRefusedPasskeyAttestationAsync(Func<JsonElement, string> attest)
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
         var ceremony = await StartPasskeyAsync(client);
         var failed = factory.EventsFor(SecurityEvents.PasskeyFailed).Count;
-        var credential = refusal == "no user verification"
-            ? new SoftwareAuthenticator().Attest(ceremony.Options, uv: false)
-            : new SoftwareAuthenticator().Attest(ceremony.Options, origin: "https://evil.example");
 
-        var response = await FinishPasskeyAsync(client, grant, ceremony.Id, credential);
+        var response = await FinishPasskeyAsync(client, grant, ceremony.Id, attest(ceremony.Options));
 
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(response));
         Assert.Equal((0, 0), await PasskeyStateAsync(accountId, userId));
@@ -162,9 +135,17 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(failed + 1, factory.EventsFor(SecurityEvents.PasskeyFailed).Count);
     }
 
+    [Fact]
+    public Task APasskeyWithoutUserVerification_IsRefused() =>
+        AssertRefusedPasskeyAttestationAsync(options => new SoftwareAuthenticator().Attest(options, uv: false));
+
+    [Fact]
+    public Task APasskeyFromAnOriginOutsideTheList_IsRefused() =>
+        AssertRefusedPasskeyAttestationAsync(options => new SoftwareAuthenticator().Attest(options, origin: "https://evil.example"));
+
     // G7.3: a used, an expired and another user's ceremony are refused.
     [Fact]
-    public async Task AUsedExpiredOrForeignCeremony_IsRefused()
+    public async Task AUsedExpiredForeignOrOtherPurposePasskeyCeremony_IsRefused()
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         var (_, otherAccount, otherUser, otherClient, _) = await SignedInPlainAsync(asOwner: false);
@@ -183,6 +164,22 @@ public sealed partial class SecondFactorLoginTests
         var foreign = await FinishPasskeyAsync(otherClient, await GrantOf(await StepUpAsync(otherClient, TestHarness.Password)),
             alices.Id, new SoftwareAuthenticator().Attest(alices.Options));
 
+        // Another purpose: a registration state stored as a step-up ceremony
+        // of this user, so only the purpose check can refuse it.
+        var source = await StartPasskeyAsync(client);
+        var otherPurpose = Guid.NewGuid();
+        await CeremoniesAsync(async db =>
+        {
+            var row = await db.PasskeyCeremonies.AsNoTracking().SingleAsync(c => c.Id == source.Id);
+            db.PasskeyCeremonies.Add(new PasskeyCeremony
+            {
+                Id = otherPurpose, Purpose = CeremonyPurpose.StepUp, UserId = userId, State = row.State, ExpiresAt = row.ExpiresAt,
+            });
+            return await db.SaveChangesAsync();
+        });
+        var wrongPurpose = await FinishPasskeyAsync(client, await GrantOf(await StepUpAsync(client, TestHarness.Password)),
+            otherPurpose, new SoftwareAuthenticator().Attest(source.Options));
+
         // Expired: five minutes and a second later.
         var expired = await StartPasskeyAsync(client);
         factory.Clock.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
@@ -192,6 +189,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(again));
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(foreign));
         Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(late));
+        Assert.Equal((HttpStatusCode.BadRequest, "Auth.PasskeyRefused"), await TitleOf(wrongPurpose));
         Assert.Equal((2, 2), await PasskeyStateAsync(accountId, userId));
         Assert.Equal((0, 0), await PasskeyStateAsync(otherAccount, otherUser));
         Assert.False(await CeremonyExistsAsync(alices.Id));
@@ -200,7 +198,7 @@ public sealed partial class SecondFactorLoginTests
 
     // G7.3: a credential already registered, to this user or another, is refused.
     [Fact]
-    public async Task ACredentialAlreadyRegistered_IsRefused()
+    public async Task APasskeyAlreadyRegistered_IsRefused()
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         await SeedPasskeysAsync(accountId, userId, 1);
@@ -230,7 +228,7 @@ public sealed partial class SecondFactorLoginTests
     // before its insert, after reading the count under the user-row lock; the
     // second then runs. With the lock it waits, so it reads 5 and is refused.
     [Fact]
-    public async Task TwoConcurrentSixthRegistrations_LeaveFive()
+    public async Task TwoConcurrentSixthPasskeys_LeaveFive()
     {
         var (_, accountId, userId, client, session) = await SignedInPlainAsync(asOwner: false);
         await SeedPasskeysAsync(accountId, userId, 4);
@@ -255,7 +253,7 @@ public sealed partial class SecondFactorLoginTests
         var answers = new[] { await first, await second };
 
         Assert.Equal(
-            [HttpStatusCode.Conflict, HttpStatusCode.Created],
+            [HttpStatusCode.Created, HttpStatusCode.Conflict],
             answers.Select(r => r.StatusCode).Order());
         Assert.Equal((5, 5), await PasskeyStateAsync(accountId, userId));
     }
@@ -264,7 +262,7 @@ public sealed partial class SecondFactorLoginTests
     // authenticators answer the same challenge, so only the ceremony's single
     // use can refuse the second.
     [Fact]
-    public async Task TwoConcurrentFinishesOfOneCeremony_RegisterOnce()
+    public async Task TwoConcurrentFinishesOfOnePasskeyCeremony_RegisterOnce()
     {
         var (_, accountId, userId, client, session) = await SignedInPlainAsync(asOwner: false);
         await SeedPasskeysAsync(accountId, userId, 1);
@@ -293,7 +291,7 @@ public sealed partial class SecondFactorLoginTests
     // G7.4: a superseded session's finish is refused and still spends the
     // ceremony. The password changes while the request waits for the lock.
     [Fact]
-    public async Task ASessionSupersededUnderTheFinish_IsRefused_AndSpendsTheCeremony()
+    public async Task APasskeyFinishWhoseSessionWasSuperseded_IsRefused_AndSpendsTheCeremony()
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
@@ -316,7 +314,7 @@ public sealed partial class SecondFactorLoginTests
 
     // G7.4: the sweep deletes expired ceremonies only.
     [Fact]
-    public async Task TheCeremonySweep_DeletesOnlyExpiredRows()
+    public async Task ThePasskeyCeremonySweep_DeletesOnlyExpiredRows()
     {
         var now = factory.Clock.GetUtcNow();
         PasskeyCeremony Row(TimeSpan fromNow) => new()
