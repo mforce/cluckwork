@@ -26,3 +26,20 @@ The lab retains the discarded B layouts and A1 proof variants as exploration his
 ## Copy terms
 
 The user-facing terms are "two-factor authentication", "authenticator app" and "recovery code". The lab's `TERMS` object keeps those terms together.
+
+## Passkeys (#1283)
+
+The [amended screen list](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6941756512) governs this extension. The maintainer picked A for all eight screens on [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682). The picks and history above stay unchanged. Autofill is a separate comparison within the Sign-in screen.
+
+| Screen | Pick | Representative frames |
+| --- | --- | --- |
+| Account / Security | A, address under the name; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-account-a-1280-multi-address-light.png`, `pk-account-b-1280-multi-address-light.png`, `pk-account-a-390-one-owner-dark.png` |
+| Registration | A, existing inline proof and set-up panel; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-registration-a-1280-first-light.png`, `pk-registration-a-390-stepup-passkey-dark.png` |
+| Sign-in | A, below the password form; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-login-a-1280-ready-light.png`, `pk-login-b-1280-ready-light.png`, `pk-login-a-390-second-dark.png` |
+| Sign-in autofill | A, browser suggestion only; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-autofill-a-1280-suggestion-light.png`, `pk-autofill-b-390-suggestion-light.png` |
+| Step-up and connected-app consent | A, inline proof and method switch; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-stepup-a-1280-dialog-light.png`, `pk-stepup-a-390-consent-dark.png` |
+| Owner requirement | A, existing notice and set-up panel; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-owner-a-1280-notice-light.png`, `pk-owner-a-390-setup-dark.png` |
+| Passkey suggestion | A, existing auth card; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-suggestion-a-1280-offer-light.png`, `pk-suggestion-a-390-offer-dark.png` |
+| Users | A, existing inspector and confirmation; maintainer, [2026-11-18](https://github.com/mforce/cluckwork/issues/1283#issuecomment-6968264682) | `pk-users-a-1280-confirm-light.png`, `pk-users-a-390-selected-dark.png` |
+
+Frames go to `/home/mforce/.cluckwork-slices/1283-renders/`. No images are committed.
