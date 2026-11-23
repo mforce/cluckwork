@@ -584,6 +584,10 @@ public sealed partial class SecondFactorLoginTests
         ["StartTwoFactorEnrolment"] = "no body; the grant rides in the step-up header",
         ["RegenerateRecoveryCodes"] = "no body; the grant rides in the step-up header",
         ["TurnOffTwoFactor"] = "no body; the grant rides in the step-up header",
+        // #1284
+        ["StartPasskeyRegistration"] = "no body; the route reads only the session",
+        ["ListPasskeys"] = "a GET with no body",
+        ["RemovePasskey"] = "no body; the credential id rides in the route and the grant in the step-up header",
     };
 
     // The only route under the prefixes marked as reading its body by hand.
