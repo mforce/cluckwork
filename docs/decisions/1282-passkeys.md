@@ -210,9 +210,10 @@ Task<Result<StepUpGrant>> IssueAsync(Guid accountId, Guid userId, string? curren
 // Infrastructure/Modules/Access/Identity. The one owner of passkey state. Public port, internal implementation,
 // as ITwoFactorCredentials. Every method takes ids; writes run in the caller's AmbientTransaction.
 // requestHost is the route's Request.Host.Host, without the port. The owner never takes the request or
-// IHttpContextAccessor: a module contract that reaches either could open a service scope through
-// HttpContext.RequestServices, which McpSecondaryScopeTests refuses (#1284). It gives Identity's handler a
-// context built from the host, the one thing the handler and the origin hook read.
+// IHttpContextAccessor. McpSecondaryScopeTests refuses the accessor in a constructor; it walks constructors
+// only. The request stays out because Cluckwork.Application has no ASP.NET reference, so IAccessModule and
+// IIdentityProvider cannot name HttpContext (#1284). The owner gives Identity's handler a context built from
+// the host, the one thing the handler and the origin hook read.
 public interface IPasskeyCredentials
 {
 	Task<CeremonyStart> StartAsync(CeremonyPurpose purpose, Guid? userId, string requestHost, CancellationToken ct);

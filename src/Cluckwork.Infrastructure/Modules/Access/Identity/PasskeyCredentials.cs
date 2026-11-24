@@ -107,9 +107,10 @@ internal sealed class PasskeyCredentials(
     // Identity's handler reads only Request.Host.Host from the context it is
     // given (record 1282 "What Identity 10.0.15 does"), and the origin hook
     // reads the same. The route reads Request.Host.Host, which is already
-    // decoded, and the context built here gives it back unchanged; the owner
-    // never holds the request, which could open a service scope
-    // (McpSecondaryScopeTests).
+    // decoded, and the context built here gives it back unchanged. The owner
+    // takes no IHttpContextAccessor (McpSecondaryScopeTests walks
+    // constructors), and its callers cannot pass the request: Application has
+    // no ASP.NET reference.
     private static HttpContext ForHost(string requestHost) =>
         new DefaultHttpContext { Request = { Host = new HostString(requestHost) } };
 
