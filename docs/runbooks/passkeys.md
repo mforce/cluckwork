@@ -45,7 +45,8 @@ off. A serving start refuses an entry that:
 - is not an origin: a scheme, a host and an optional port, with no path, no
   trailing `/`, no query, fragment or user name, and no `*`;
 - does not use `https` (`http://localhost` is allowed in Development only);
-- names a host that `AllowedHosts` does not list.
+- names a host that `AllowedHosts` does not list;
+- names the same host as another entry, even with another port or case.
 
 It also refuses a single value where the list belongs, such as
 `Passkeys__Origins=https://farm.example`: that binds no origin, so it would

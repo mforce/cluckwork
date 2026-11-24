@@ -291,8 +291,8 @@ internal static class CluckworkIdentityServiceCollectionExtensions
 
     // #1282 decision 5: every Passkeys:Origins entry is an https origin (an
     // http://localhost one in Development only), with no path, query, fragment,
-    // user info or wildcard, at a host AllowedHosts lists. Unset or empty is
-    // off, and passes. A single value instead of a list binds no origin, so it
+    // user info or wildcard, at a host AllowedHosts lists and no other entry
+    // names. Unset or empty is off, and passes. A single value instead of a list binds no origin, so it
     // is refused rather than leaving passkeys silently off.
     internal static void EnsurePasskeyOrigins(IConfiguration configuration, IHostEnvironment environment)
     {
@@ -303,6 +303,7 @@ internal static class CluckworkIdentityServiceCollectionExtensions
 
         var allowedHosts = (configuration["AllowedHosts"] ?? string.Empty)
             .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var hosts = new Dictionary<string, IConfigurationSection>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in section.GetChildren())
         {
             var value = entry.Value ?? string.Empty;
@@ -317,6 +318,10 @@ internal static class CluckworkIdentityServiceCollectionExtensions
                     || (h.StartsWith("*.", StringComparison.Ordinal) && origin.Host.EndsWith(h[1..], StringComparison.OrdinalIgnoreCase))))
                 throw new InvalidOperationException(
                     $"{entry.Path} names the host '{origin.Host}', which AllowedHosts does not list.");
+            // IsOnFor needs exactly one origin per host, or that host stays off.
+            if (!hosts.TryAdd(origin.Host, entry))
+                throw new InvalidOperationException(
+                    $"{entry.Path} ('{value}') and {hosts[origin.Host].Path} ('{hosts[origin.Host].Value}') both name the host '{origin.Host}'. Passkeys work at a host only when one origin names it.");
         }
     }
 
