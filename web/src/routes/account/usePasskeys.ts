@@ -148,6 +148,8 @@ export function usePasskeys() {
     await run("create", async (current) => {
       toPhase("ready", grant);
       const { ceremony, options } = await startPasskeyRegistration();
+      // A page the user has left opens no browser prompt and spends no grant.
+      if (!current()) return;
       let credential: PublicKeyCredential | null;
       try {
         credential = await navigator.credentials.create({
@@ -157,8 +159,9 @@ export function usePasskeys() {
         if (!(err instanceof DOMException && err.name === "NotAllowedError")) throw browserError(err);
         credential = null;
       }
+      if (!current()) return;
       if (credential === null) {
-        if (current()) toPhase("cancelled", grant);
+        toPhase("cancelled", grant);
         return;
       }
       toPhase("spent", grant);
