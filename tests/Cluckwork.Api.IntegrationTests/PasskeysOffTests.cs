@@ -242,6 +242,33 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
             Assert.Contains(refusal, Assert.IsType<InvalidOperationException>(thrown).Message, StringComparison.Ordinal);
     }
 
+    // G7.8: passkeys are on at a host only when exactly one origin names it
+    // (IsOnFor), so two entries at one host would leave it off with no log.
+    [Theory]
+    [InlineData("https://farm.example", "https://farm.example:443", "farm.example")]
+    [InlineData("https://farm.example", "https://FARM.example:8443", "farm.example")]
+    [InlineData("https://farm.example", "https://farm.example", "farm.example")]
+    [InlineData("https://farm.example", "https://localhost", null)]
+    public void TwoOriginEntriesAtOneHost_FailTheBootCheck(string first, string second, string? host)
+    {
+        var thrown = Record.Exception(() => EnsurePasskeyOrigins("Production", new()
+        {
+            ["Passkeys:Origins:0"] = first,
+            ["Passkeys:Origins:1"] = second,
+            ["AllowedHosts"] = "farm.example;localhost",
+        }));
+
+        if (host is null)
+        {
+            Assert.Null(thrown);
+            return;
+        }
+        var message = Assert.IsType<InvalidOperationException>(thrown).Message;
+        Assert.Contains($"'{first}'", message, StringComparison.Ordinal);
+        Assert.Contains($"'{second}'", message, StringComparison.Ordinal);
+        Assert.Contains($"'{host}'", message, StringComparison.Ordinal);
+    }
+
     // G7.8: a single value binds no origin, so it is refused rather than
     // leaving passkeys silently off; an empty one is an empty list.
     [Fact]
