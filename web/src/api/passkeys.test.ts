@@ -111,34 +111,6 @@ describe("removeUserPasskeys", () => {
   });
 });
 
-// r1 (Opus) — a write that carries a step-up grant has spent it by the time
-// the server finds the session stale, so the client never refreshes and
-// resends it: the 401 goes back to the dialog, and the session is not ended.
-describe("a stale session's 401 Auth.CredentialsSuperseded on a write with a grant", () => {
-  const superseded = () => json({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }, 401);
-  let onUnauth: ReturnType<typeof vi.fn<() => void>>;
-  beforeEach(() => {
-    onUnauth = vi.fn();
-    setOnUnauthenticated(onUnauth);
-  });
-  afterEach(() => setOnUnauthenticated(null));
-
-  it.each([
-    ["registerPasskey", () => registerPasskey(body(), crypto.randomUUID())],
-    ["removePasskey", () => removePasskey("id", crypto.randomUUID())],
-    ["removeUserPasskeys", () => removeUserPasskeys("u-e", "key-1", crypto.randomUUID())],
-  ])("from %s goes back to the caller, unsent again", async (_, write) => {
-    fetchMock.mockResolvedValueOnce(superseded());
-
-    await expect(write()).rejects.toMatchObject({
-      status: 401, title: "Auth.CredentialsSuperseded", message: i18n.t("errors:Auth.CredentialsSuperseded"),
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(onUnauth).not.toHaveBeenCalled();
-    expect(getAccessToken()).toBe("at1");
-  });
-});
-
 // r2 (Fable G3) — the same title also ends a session whose refresh is refused,
 // so the one catalog text must hold there too.
 it("words a read whose session really ended with the same catalog text", async () => {

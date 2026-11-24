@@ -462,6 +462,18 @@ describe("the grant and the proof", () => {
     expect(passwordField()).toHaveValue("");
   });
 
+  it("closes the Rename dialog the instant the session ends", async () => {
+    mockList.mockResolvedValue({ enabled: true, passkeys: [passkey()] });
+    const view = render(tree(true));
+    await screen.findByRole("region", { name: t("passkeysHeading") });
+    await press(t("renameButton"), section());
+
+    view.rerender(tree(false));
+    view.rerender(tree(true));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("drops the create step's grant on Cancel, so Add steps up again", async () => {
     await renderAccount({ enabled: true, passkeys: [] });
     await toCreateStep();
@@ -536,5 +548,57 @@ describe("more of what the screens say", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     expect(await within(section()).findByRole("heading", { name: "Office laptop" })).toBeInTheDocument();
+  });
+});
+
+// r2 (Fable G4 and X7).
+describe("after a refusal", () => {
+  it("keeps the grant after a browser error other than a cancel", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    const proof = grant();
+    mockStepUp.mockResolvedValueOnce(proof);
+    mockStart.mockImplementation(async () => ({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON }));
+    create.mockRejectedValueOnce(new DOMException("blocked", "SecurityError"));
+
+    await toCreateStep();
+    await press(t("createPasskeyButton"));
+    expect(await screen.findByText(t("passkeyFailed"))).toBeInTheDocument();
+    create.mockResolvedValueOnce(credential().value);
+    mockRegister.mockResolvedValueOnce(passkey());
+    await press(t("createPasskeyButton"));
+
+    expect(mockStepUp).toHaveBeenCalledTimes(1);
+    expect(mockRegister).toHaveBeenCalledWith(expect.anything(), proof.token);
+  });
+
+  it("clears the old refusal when Start again returns to the create step", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
+    create.mockResolvedValue(credential().value);
+    mockRegister.mockRejectedValueOnce(new ApiError(400, "Auth.PasskeyRefused", i18n.t("errors:Auth.PasskeyRefused")));
+
+    await toCreateStep();
+    await press(t("createPasskeyButton"));
+    expect(await screen.findByText(i18n.t("errors:Auth.PasskeyRefused"))).toBeInTheDocument();
+    await press(t("startAgainButton"));
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
+    await press(t("continueButton"), dialog());
+    await screen.findByRole("button", { name: t("createPasskeyButton") });
+
+    expect(screen.queryByText(i18n.t("errors:Auth.PasskeyRefused"))).not.toBeInTheDocument();
+  });
+
+  it("reads the list again after a removal", async () => {
+    const key = passkey({ name: "Laptop" });
+    await renderAccount({ enabled: true, passkeys: [key] });
+    mockRemove.mockResolvedValueOnce(undefined);
+    mockList.mockResolvedValue({ enabled: true, passkeys: [] });
+
+    await press(t("removeButton"), section());
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
+    await press(t("removePasskeyButton"), dialog());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    expect(await within(section()).findByText(t("passkeysEmpty"))).toBeInTheDocument();
   });
 });

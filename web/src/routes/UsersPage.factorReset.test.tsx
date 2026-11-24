@@ -135,9 +135,32 @@ describe("UsersPage passkey removal (#1284)", () => {
   });
 });
 
+// r2 (Opus F02, Fable F3) — each kind is its own run scope and idempotency
+// key, so a failed two-factor reset's kept key never reaches the passkey
+// removal of the same user.
+it("gives each kind its own idempotency key for the same user", async () => {
+  vi.mocked(resetUserTwoFactor).mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+  renderWithProviders(<UsersPage />, { token: ADMIN });
+  await screen.findByText(ENROLLED.email);
+  const run = async (k: (typeof KINDS)[number]) => {
+    fireEvent.click(inspector(ENROLLED.email).getByRole("button", { name: k.action }));
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: PASSWORD } });
+    await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: k.submit })); });
+  };
+
+  await run(KINDS[0]);
+  expect(await within(dialog()).findByText("boom")).toBeInTheDocument();
+  fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await run(KINDS[1]);
+
+  const twoFactorKey = vi.mocked(resetUserTwoFactor).mock.calls[0]![1];
+  const passkeysKey = vi.mocked(removeUserPasskeys).mock.calls[0]![1];
+  expect(passkeysKey).not.toBe(twoFactorKey);
+});
+
 describe.each(KINDS)("UsersPage $kind", (k) => {
   const action = (email: string) => inspector(email).queryByRole("button", { name: k.action });
-  const mockSend = () => k.send();
   async function submit() {
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: PASSWORD } });
     await act(async () => { fireEvent.click(within(dialog()).getByRole("button", { name: k.submit })); });
@@ -146,7 +169,7 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     fireEvent.click(action(ENROLLED.email)!);
     await submit();
   }
-  const keyOf = (call: number) => mockSend().mock.calls[call]![1];
+  const keyOf = (call: number) => k.send().mock.calls[call]![1];
   const successMessage = () => t(k.done, { email: ENROLLED.email });
 
   it("is offered only for a user with that factor who is not the actor", async () => {
@@ -218,11 +241,11 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     await openAndSubmit();
 
     expect(mockStepUp).toHaveBeenCalledWith({ password: PASSWORD });
-    expect(mockSend()).toHaveBeenCalledTimes(1);
-    const [id, key, token] = mockSend().mock.calls[0]!;
+    expect(k.send()).toHaveBeenCalledTimes(1);
+    const [id, key, token] = k.send().mock.calls[0]!;
     expect([id, token]).toEqual([ENROLLED.id, "grant-1280"]);
     expect(key).toEqual(expect.any(String));
-    expect(mockStepUp.mock.invocationCallOrder[0]).toBeLessThan(mockSend().mock.invocationCallOrder[0]!);
+    expect(mockStepUp.mock.invocationCallOrder[0]).toBeLessThan(k.send().mock.invocationCallOrder[0]!);
     expect(mockListUsers).toHaveBeenCalledTimes(2);
     expect(await screen.findByText(successMessage())).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -237,7 +260,7 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     await openAndSubmit();
 
     expect(await within(dialog()).findByText("The current password is incorrect.")).toBeInTheDocument();
-    expect(mockSend()).not.toHaveBeenCalled();
+    expect(k.send()).not.toHaveBeenCalled();
     expect(mockListUsers).toHaveBeenCalledTimes(1);
   });
 
@@ -250,7 +273,7 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     ["", 404, k.notFound],
   ] as const)("words a %s %s answer and keeps the dialog open", async (title, status, key) => {
     const body = title ? JSON.stringify({ title, status, detail: "server English" }) : null;
-    mockSend().mockRejectedValue(await parseError(new Response(body, { status, statusText: "server English" })));
+    k.send().mockRejectedValue(await parseError(new Response(body, { status, statusText: "server English" })));
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
 
@@ -262,7 +285,7 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
   });
 
   it("keeps the server's text for an answer it does not word", async () => {
-    mockSend().mockRejectedValue(new ApiError(422, "Users.Something", "server English"));
+    k.send().mockRejectedValue(new ApiError(422, "Users.Something", "server English"));
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
 
@@ -281,14 +304,14 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     fireEvent.click(within(dialog()).getByRole("button", { name: "Cancel" }));
     await act(async () => { grant({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
 
-    expect(mockSend()).not.toHaveBeenCalled();
+    expect(k.send()).not.toHaveBeenCalled();
     expect(mockListUsers).toHaveBeenCalledTimes(1);
   });
 
   // The refresh below keeps listing the target with the factor, so a second
   // request for the same user runs under the same key scope.
   it("replays the same key after a failure, and rotates it after success", async () => {
-    mockSend().mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
+    k.send().mockRejectedValueOnce(new ApiError(500, "Server error", "boom"));
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
 
@@ -299,14 +322,14 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await openAndSubmit();
 
-    expect(mockSend()).toHaveBeenCalledTimes(3);
+    expect(k.send()).toHaveBeenCalledTimes(3);
     expect(keyOf(1)).toBe(keyOf(0));
     expect(keyOf(2)).not.toBe(keyOf(1));
   });
 
   it("rotates the key and refreshes, but reports nothing, when the dialog is dismissed during the request", async () => {
     let answer!: () => void;
-    mockSend().mockReturnValueOnce(new Promise((resolve) => { answer = () => resolve(undefined); }));
+    k.send().mockReturnValueOnce(new Promise((resolve) => { answer = () => resolve(undefined); }));
     renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
 
@@ -331,17 +354,17 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     view.unmount();
     await act(async () => { grant({ token: "late-grant", expiresAt: "2026-01-01T00:05:00Z" }); });
 
-    expect(mockSend()).not.toHaveBeenCalled();
+    expect(k.send()).not.toHaveBeenCalled();
   });
 
   it("still finishes a request already sent when the Users page unmounts", async () => {
     let answer!: () => void;
-    mockSend().mockReturnValue(new Promise((resolve) => { answer = () => resolve(undefined); }));
+    k.send().mockReturnValue(new Promise((resolve) => { answer = () => resolve(undefined); }));
     const view = renderWithProviders(<UsersPage />, { token: ADMIN });
     await screen.findByText(ENROLLED.email);
 
     await openAndSubmit();
-    expect(mockSend()).toHaveBeenCalledTimes(1);
+    expect(k.send()).toHaveBeenCalledTimes(1);
     view.unmount();
     await act(async () => { answer(); });
 
