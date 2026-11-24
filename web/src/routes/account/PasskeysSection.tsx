@@ -78,11 +78,9 @@ const COPY = {
 export function PasskeyStepUpDialog({ passkeys }: { passkeys: Passkeys }) {
   const { t } = useTranslation("account");
   const { stepUp, removing, onStepUp, dialog } = passkeys;
-  const copy = stepUp.action && COPY[stepUp.action];
   const remove = stepUp.action === "remove";
   return (
-    <StepUpDialog stepUp={stepUp} dialog={dialog} danger={remove} onSubmit={onStepUp}
-      copy={copy && { title: t(copy.title), body: t(copy.body), submit: t(copy.submit) }}
+    <StepUpDialog stepUp={stepUp} dialog={dialog} danger={remove} onSubmit={onStepUp} copy={(action) => COPY[action]}
       target={remove && (removing?.name ?? t("passkeyDefaultName"))}>
       {remove && <Alert severity="warning" role="note">{t("passkeySessionWarning")}</Alert>}
     </StepUpDialog>

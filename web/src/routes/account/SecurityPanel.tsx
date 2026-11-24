@@ -97,12 +97,10 @@ function copyFor(action: ProofAction, enrolled: boolean) {
 // The action's step-up. Start again opens it from the enrolment screen too,
 // so the page renders it outside both.
 export function ProofDialog({ twoFactor }: { twoFactor: TwoFactor }) {
-  const { t } = useTranslation("account");
   const { twoFactor: enrolled } = useAuth();
-  const { action, proofDialog, onProof, dialog } = twoFactor;
-  const copy = action && copyFor(action, enrolled);
+  const { stepUp, onProof, dialog } = twoFactor;
   return (
-    <StepUpDialog stepUp={proofDialog} dialog={dialog} danger={action === "turn-off"} onSubmit={onProof}
-      copy={copy && { title: t(copy.title), body: t(copy.body), submit: t(copy.submit) }} />
+    <StepUpDialog stepUp={stepUp} dialog={dialog} danger={stepUp.action === "turn-off"} onSubmit={onProof}
+      copy={(action) => copyFor(action, enrolled)} />
   );
 }

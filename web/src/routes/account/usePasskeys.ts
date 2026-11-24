@@ -16,9 +16,8 @@ const SCOPES = ["add", "remove", "rename", "create"] as const;
 // The create step after the step-up. Its grant is spent by the finish
 // whatever it answers, so a sent finish leaves the step "spent", and the next
 // try steps up again; a browser cancel sends nothing and keeps the grant.
-export type CreateStep = { step: "create"; first: boolean } & (
-  | { phase: "ready" | "cancelled"; grant: string }
-  | { phase: "spent" });
+type CreatePhase = { phase: "ready" | "cancelled"; grant: string } | { phase: "spent" };
+export type CreateStep = { step: "create"; first: boolean } & CreatePhase;
 
 export type PasskeyFlow =
   | { step: "list" }
@@ -57,6 +56,7 @@ export function usePasskeys() {
     if (isAuthenticated) return;
     setFlow(LIST);
     setRenaming(null);
+    setRemoving(null);
     for (const scope of SCOPES) dismissDialog(scope);
   }, [isAuthenticated, dismissDialog]);
 
@@ -105,11 +105,13 @@ export function usePasskeys() {
         setFlow({ step: "create", first, phase: "ready", grant });
         return;
       }
-      await removePasskey(target!.id, grant);
+      if (!target) return;
+      await removePasskey(target.id, grant);
       list.retry();
       if (!current()) return;
       setMessage(i18n.t("account:passkeyRemovedMessage"));
       stepUp.close();
+      setRemoving(null);
     }, { dialog: kind });
   }
 
@@ -125,10 +127,8 @@ export function usePasskeys() {
   }
 
   // Moves the create step to another phase, if the page is still on it.
-  function toPhase(phase: CreateStep["phase"], grant: string) {
-    setFlow((f) => (f.step !== "create" ? f
-      : phase === "spent" ? { step: "create", first: f.first, phase }
-      : { step: "create", first: f.first, phase, grant }));
+  function toPhase(next: CreatePhase) {
+    setFlow((f) => (f.step === "create" ? { step: "create", first: f.first, ...next } : f));
   }
 
   async function onCreate(e: FormEvent) {
@@ -142,7 +142,7 @@ export function usePasskeys() {
     const chosen = createName.trim();
     if (!chosen) return;
     await run("create", async (current) => {
-      toPhase("ready", grant);
+      toPhase({ phase: "ready", grant });
       const { ceremony, options } = await startPasskeyRegistration();
       // A page the user has left opens no browser prompt and spends no grant.
       if (!current()) return;
@@ -157,10 +157,10 @@ export function usePasskeys() {
       }
       if (!current()) return;
       if (credential === null) {
-        toPhase("cancelled", grant);
+        toPhase({ phase: "cancelled", grant });
         return;
       }
-      toPhase("spent", grant);
+      toPhase({ phase: "spent" });
       const passkey = await registerPasskey(
         { ceremony, credential: credential.toJSON() as RegistrationResponseJSON, name: chosen }, grant,
       );

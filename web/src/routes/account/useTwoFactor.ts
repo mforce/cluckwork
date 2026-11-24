@@ -57,8 +57,8 @@ export function useTwoFactor() {
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
   const [flow, setFlow] = useState<Flow>(SUMMARY);
-  const proofDialog = useStepUpDialog<ProofAction>(dialog);
-  const { action, proof, setProof, prove } = proofDialog;
+  const stepUp = useStepUpDialog<ProofAction>(dialog);
+  const { action, prove } = stepUp;
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const slot = useRecoveryCodesSlot();
@@ -82,7 +82,7 @@ export function useTwoFactor() {
     for (const scope of SCOPES) dismissDialog(scope);
   }, [isAuthenticated, dismissDialog]);
 
-  const { open } = proofDialog;
+  const { open } = stepUp;
   const openProof = useCallback((next: ProofAction) => {
     open(next);
     setMessage(null);
@@ -105,7 +105,7 @@ export function useTwoFactor() {
       if (!current()) return;
       setMessage(i18n.t("account:turnedOffMessage"));
     }
-    proofDialog.close();
+    stepUp.close();
   }
 
   // dialogCurrent is the Regenerate dialog's session; delivery.live() is the
@@ -124,7 +124,7 @@ export function useTwoFactor() {
     // has left this page, because the old set no longer works.
     delivery.deliver(recoveryCodes, { regenerated: true, email });
     if (!dialogCurrent()) return;
-    proofDialog.close();
+    stepUp.close();
   }
 
   async function onProof(e: FormEvent) {
@@ -209,7 +209,7 @@ export function useTwoFactor() {
   }
 
   return {
-    status, flow, action, proof, setProof, proofDialog, code, setCode, message, dialog,
+    status, flow, stepUp, code, setCode, message, dialog,
     openProof, onProof, onConfirm, leaveFlow, backToSummary,
   };
 }

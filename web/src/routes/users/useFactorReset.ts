@@ -15,26 +15,31 @@ export type FactorReset = "reset-two-factor" | "remove-passkeys";
 
 const name = (u: User) => u.displayName ?? u.email;
 
-export const FACTOR_RESETS = {
+// Every text field is the translated words for the target user.
+type Words = (u: User) => string;
+export const FACTOR_RESETS: Record<FactorReset, {
+  send: (id: string, key?: string, stepUpToken?: string) => Promise<void>;
+  title: Words; warning: Words; note: Words | null; submit: Words; done: Words; notFound: Words;
+}> = {
   "reset-two-factor": {
     send: resetUserTwoFactor,
-    done: "users:twoFactorResetMessage",
-    notFound: "users:resetTwoFactorNotFoundError",
     title: () => i18n.t("users:resetTwoFactorTitle"),
     warning: () => i18n.t("users:resetTwoFactorWarningBody"),
     note: null,
-    submit: "resetTwoFactorSubmitButton",
+    submit: () => i18n.t("users:resetTwoFactorSubmitButton"),
+    done: (u) => i18n.t("users:twoFactorResetMessage", { email: u.email }),
+    notFound: () => i18n.t("users:resetTwoFactorNotFoundError"),
   },
   "remove-passkeys": {
     send: removeUserPasskeys,
-    done: "users:passkeysRemovedMessage",
-    notFound: "users:removePasskeysNotFoundError",
-    title: (u: User) => i18n.t("users:removePasskeysTitle", { name: name(u) }),
-    warning: (u: User) => i18n.t("users:removePasskeysWarningBody", { count: u.passkeyCount }),
-    note: "removePasskeysNote",
-    submit: "removePasskeysSubmitButton",
+    title: (u) => i18n.t("users:removePasskeysTitle", { name: name(u) }),
+    warning: (u) => i18n.t("users:removePasskeysWarningBody", { count: u.passkeyCount }),
+    note: () => i18n.t("users:removePasskeysNote"),
+    submit: () => i18n.t("users:removePasskeysSubmitButton"),
+    done: (u) => i18n.t("users:passkeysRemovedMessage", { email: u.email }),
+    notFound: () => i18n.t("users:removePasskeysNotFoundError"),
   },
-} as const;
+};
 
 // Same shape as useDisableEnable: the flight guard, the message slots and the
 // idempotency keys stay on the page (#703), as does the step-up proof the
@@ -90,12 +95,12 @@ export function useFactorReset({
 
       await config.send(target.id, keyFor(scope), token).catch((err: unknown) => {
         // A 404 has no problem body for the errors catalog to key on.
-        throw err instanceof ApiError && err.status === 404 ? new Error(i18n.t(config.notFound)) : err;
+        throw err instanceof ApiError && err.status === 404 ? new Error(config.notFound(target)) : err;
       });
       clearKey(scope);
       setUsers(await listUsers());
       if (!current()) return;
-      setMessage(i18n.t(config.done, { email: target.email }));
+      setMessage(config.done(target));
       closeReset();
     }, { dialog: kind });
   }

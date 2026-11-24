@@ -98,12 +98,12 @@ export function AccountPage() {
 
   // #1277 — enrolment takes the page while it runs. New recovery codes open in
   // the slot above the routes (account/recoveryCodes.tsx).
-  const proofDialog = <><ProofDialog twoFactor={twoFactorSection} /><PasskeyStepUpDialog passkeys={passkeys} /><RenamePasskeyDialog passkeys={passkeys} /></>;
+  const dialogs = <><ProofDialog twoFactor={twoFactorSection} /><PasskeyStepUpDialog passkeys={passkeys} /><RenamePasskeyDialog passkeys={passkeys} /></>;
   const { flow } = twoFactorSection;
-  if (flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{proofDialog}</>;
+  if (flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{dialogs}</>;
   // #1284 — the passkey create step takes the page the same way.
   if (passkeys.flow.step !== "list")
-    return <><PasskeyFlow passkeys={passkeys} onSetUpApp={() => openProof("start")} />{proofDialog}</>;
+    return <><PasskeyFlow passkeys={passkeys} onSetUpApp={() => openProof("start")} />{dialogs}</>;
 
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
@@ -181,7 +181,7 @@ export function AccountPage() {
       </Accordion>
 
       <SecurityPanel twoFactor={twoFactorSection}><PasskeysSection passkeys={passkeys} /></SecurityPanel>
-      {proofDialog}
+      {dialogs}
 
       <ConnectedAppsPanel />
     </Box>

@@ -38,7 +38,8 @@ export function FactorResetDialog({
 }) {
   const identityId = useId();
   const warningId = useId();
-  const { t } = useTranslation("users");
+  // Re-renders the dialog when the language changes; FACTOR_RESETS reads i18n.
+  useTranslation("users");
   const { t: tc } = useTranslation("common");
   const config = FACTOR_RESETS[kind];
   return (
@@ -52,7 +53,7 @@ export function FactorResetDialog({
           <button type="button" className="link" onClick={closeReset}>{tc("cancel")}</button>
           <BusyButton variant="contained" type="submit" color="error" disabled={busy}
             busy={resetUser !== null && isPending(`${kind}:${resetUser.id}`)}>
-            {t(config.submit)}
+            {resetUser && config.submit(resetUser)}
           </BusyButton>
         </DialogActions>
       )}
@@ -65,7 +66,7 @@ export function FactorResetDialog({
         <Typography id={warningId} color="text.secondary" sx={{ lineHeight: 1.55 }}>
           {resetUser && config.warning(resetUser)}
         </Typography>
-        {config.note && <Typography color="text.secondary" sx={{ lineHeight: 1.55 }}>{t(config.note)}</Typography>}
+        {resetUser && config.note && <Typography color="text.secondary" sx={{ lineHeight: 1.55 }}>{config.note(resetUser)}</Typography>}
         <ConfirmItsYou value={proof} onChange={setProof} />
         <DialogError errors={errors} scope={kind} />
       </Stack>
