@@ -58,6 +58,12 @@ describe("registerPasskey", () => {
     expect(onTokens).not.toHaveBeenCalled();
   });
 
+  it("refuses an answer that holds no passkey", async () => {
+    fetchMock.mockResolvedValueOnce(json({}, 201));
+
+    await expect(registerPasskey(body(), crypto.randomUUID())).rejects.toThrow();
+  });
+
   it("adopts the fresh pair a first factor answers with", async () => {
     const fresh = token();
     fetchMock.mockResolvedValueOnce(json({ passkey: summary(), accessToken: fresh, accessTokenExpiry: "2099-01-01T00:00:00Z" }));

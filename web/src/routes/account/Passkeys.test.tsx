@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { AccountPage } from "../AccountPage";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import { account } from "../../test/fixtures";
+import { account, farmState } from "../../test/fixtures";
+import { AuthContext } from "../../auth/AuthContext";
+import { FarmContext } from "../../farm/FarmContext";
+import { MeContext } from "../../session/SessionContext";
+import { RecoveryCodesProvider } from "./recoveryCodes";
 import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, registerPasskey, removePasskey, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
 import type { Passkey, PasskeyList } from "../../api/cluckwork";
 import { ApiError, stepUp } from "../../api/client";
@@ -42,6 +47,7 @@ const create = vi.fn();
 const parse = vi.fn((options: unknown) => ({ parsed: options }));
 
 const t = (key: string, options: Record<string, unknown> = {}): string => i18n.t(`account:${key}` as "account:heading", options);
+const tc = (key: string): string => i18n.t(`common:${key}` as "common:cancel");
 const UNENROLLED = { sub: "u1", role: "Worker" };
 const ENROLLED = { ...UNENROLLED, two_factor: "true" };
 const FARM = account({ name: "Sunrise Farm" });
@@ -401,5 +407,131 @@ describe("renaming and removing", () => {
     await press(t("removePasskeyButton"), dialog());
 
     expect(await within(dialog()).findByText(t("sessionChanged"))).toBeInTheDocument();
+  });
+});
+
+// #308 — the grant, the typed proof and the create step never outlive the
+// dialog or the session (r1, Opus O04 and O05, Fable X1 to X4).
+describe("the grant and the proof", () => {
+  const tree = (isAuthenticated: boolean) => (
+    <MemoryRouter>
+      <AuthContext.Provider value={{
+        isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
+        mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
+        login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+      }}>
+        <RecoveryCodesProvider>
+          <MeContext.Provider value={{ id: "u1", email: "test@farm.local", name: null, role: "Worker", language: null, preferredStepperUnit: null }}>
+            <FarmContext.Provider value={farmState({ farm: FARM })}><AccountPage /></FarmContext.Provider>
+          </MeContext.Provider>
+        </RecoveryCodesProvider>
+      </AuthContext.Provider>
+    </MemoryRouter>
+  );
+  const passwordField = () => within(dialog()).getByLabelText(/Your current password/);
+
+  it("leaves the create step, and its grant, the instant the session ends", async () => {
+    mockList.mockResolvedValue({ enabled: true, passkeys: [] });
+    const view = render(tree(true));
+    await screen.findByRole("region", { name: t("passkeysHeading") });
+    await toCreateStep();
+
+    view.rerender(tree(false));
+    expect(screen.queryByRole("heading", { name: t("createPasskeyHeading") })).not.toBeInTheDocument();
+    view.rerender(tree(true));
+    await press(t("addPasskeyButton"), section());
+
+    expect(dialog()).toHaveTextContent(t("addPasskeyBody"));
+    expect(mockStepUp).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes the dialog and clears a typed proof the instant the session ends", async () => {
+    mockList.mockResolvedValue({ enabled: true, passkeys: [passkey()] });
+    const view = render(tree(true));
+    await screen.findByRole("region", { name: t("passkeysHeading") });
+    await press(t("removeButton"), section());
+    fireEvent.change(passwordField(), { target: { value: freshPassword() } });
+
+    view.rerender(tree(false));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    view.rerender(tree(true));
+    await press(t("removeButton"), section());
+
+    expect(passwordField()).toHaveValue("");
+  });
+
+  it("drops the create step's grant on Cancel, so Add steps up again", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    await toCreateStep();
+
+    await press(tc("cancel"));
+    expect(screen.queryByRole("heading", { name: t("createPasskeyHeading") })).not.toBeInTheDocument();
+    await press(t("addPasskeyButton"), section());
+
+    expect(dialog()).toHaveTextContent(t("addPasskeyBody"));
+  });
+
+  it("clears a typed proof when the dialog is cancelled", async () => {
+    await renderAccount({ enabled: true, passkeys: [passkey()] });
+    await press(t("removeButton"), section());
+    fireEvent.change(passwordField(), { target: { value: freshPassword() } });
+
+    await press(tc("cancel"), dialog());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await press(t("removeButton"), section());
+
+    expect(passwordField()).toHaveValue("");
+  });
+
+  it("clears the typed proof as the step-up is sent, so a refused one is typed again", async () => {
+    await renderAccount({ enabled: true, passkeys: [passkey()] });
+    mockStepUp.mockRejectedValueOnce(new ApiError(400, "Users.CurrentPasswordIncorrect", "The current password is incorrect."));
+    await press(t("removeButton"), section());
+    fireEvent.change(passwordField(), { target: { value: freshPassword() } });
+
+    await press(t("removePasskeyButton"), dialog());
+
+    expect(await within(dialog()).findByText("The current password is incorrect.")).toBeInTheDocument();
+    expect(passwordField()).toHaveValue("");
+  });
+});
+
+describe("more of what the screens say", () => {
+  it("says the sign-in changed when the registration was refused as superseded", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
+    create.mockResolvedValue(credential().value);
+    mockRegister.mockRejectedValueOnce(new ApiError(401, "Auth.CredentialsSuperseded", "superseded"));
+
+    await toCreateStep();
+    await press(t("createPasskeyButton"));
+
+    expect(await screen.findByText(t("sessionChanged"))).toBeInTheDocument();
+  });
+
+  it.each([[UNENROLLED, true], [ENROLLED, false]] as const)(
+    "offers the app's set-up on the unsupported screen only without the app (%o)", async (token, offered) => {
+      vi.stubGlobal("PublicKeyCredential", undefined);
+      if (token === ENROLLED) vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 10 });
+      await renderAccount({ enabled: true, passkeys: [] }, token);
+
+      await press(t("addPasskeyButton"), section());
+      await screen.findByRole("heading", { name: t("passkeyUnsupportedHeading") });
+
+      expect(screen.queryByRole("button", { name: t("setUpTitle") }) !== null).toBe(offered);
+    });
+
+  it("reads the list again after a rename", async () => {
+    const key = passkey({ name: "Laptop" });
+    await renderAccount({ enabled: true, passkeys: [key] });
+    mockRename.mockResolvedValueOnce(undefined);
+    mockList.mockResolvedValue({ enabled: true, passkeys: [{ ...key, name: "Office laptop" }] });
+
+    await press(t("renameButton"), section());
+    fireEvent.change(within(dialog()).getByLabelText(new RegExp(t("passkeyNameLabel"))), { target: { value: "Office laptop" } });
+    await press(t("saveNameButton"), dialog());
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    expect(await within(section()).findByRole("heading", { name: "Office laptop" })).toBeInTheDocument();
   });
 });
