@@ -86,17 +86,19 @@ export function useChangeEmail({
         await changeUserEmail(targetId, { email: trimmedEmail }, keyFor(scope), grant.token);
         if (!current()) return;
         clearKey(scope);
-        const fresh = await listUsers();
-        if (!current()) return;
+        // The actor's own change ended their sessions, so this read can be
+        // refused as superseded; the sign-in screen says why, not the dialog.
+        const fresh = await listUsers().catch((err: unknown) => {
+          if (targetId === myId && superseded(err)) return null;
+          throw err;
+        });
+        if (!current() || fresh === null) return;
         setUsers(fresh);
         setMessage(i18n.t("users:emailChangedMessage", { email: trimmedEmail }));
         closeEmail();
       } catch (err) {
         if (!current()) return;
-        if (targetId === myId && err instanceof ApiError
-          && err.status === 401 && err.title === "Auth.CredentialsSuperseded") {
-          return;
-        } else if (err instanceof ApiError && err.status === 409 && err.title === "Users.DuplicateEmail") {
+        if (err instanceof ApiError && err.status === 409 && err.title === "Users.DuplicateEmail") {
           setEmailFieldError(i18n.t("users:duplicateEmailMessage"));
         } else if (err instanceof ApiError && err.title === "Users.LastOwner") {
           errors.report("change-email", i18n.t("users:lastOwnerEmailMessage"));
@@ -110,3 +112,6 @@ export function useChangeEmail({
 
   return { openEmail, closeEmail, onChangeEmail };
 }
+
+const superseded = (err: unknown) =>
+  err instanceof ApiError && err.status === 401 && err.title === "Auth.CredentialsSuperseded";
