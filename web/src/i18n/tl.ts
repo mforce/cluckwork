@@ -311,7 +311,6 @@ export const tl = {
     turnedOffMessage: "Naka-off na ang two-factor authentication.",
     codesMissing: "May nangyaring mali, at walang dumating na recovery code. Gumawa ulit para makakuha ng bagong set.",
     regenerateNotEnabled: "Hindi naka-on ang two-factor authentication sa iyong account, kaya wala itong recovery code na papalitan.",
-    sessionChanged: "Nagbago ang iyong sign-in habang ipinapadala ito, kaya walang nagbago. Subukan ulit.",
     // #1284 — the Security section's passkeys (#1283 "Account / Security A" and "Registration A").
     passkeysHeading: "Mga passkey",
     passkeysHint: "Mag-sign in gamit ang iyong fingerprint, mukha o PIN ng device.",

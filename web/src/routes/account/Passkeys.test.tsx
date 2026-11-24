@@ -11,6 +11,7 @@ import { RecoveryCodesProvider } from "./recoveryCodes";
 import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, registerPasskey, removePasskey, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
 import type { Passkey, PasskeyList } from "../../api/cluckwork";
 import { ApiError, stepUp } from "../../api/client";
+import { parseError } from "../../api/errors";
 import i18n from "../../i18n";
 import { freshCode } from "../../test/codes";
 import { freshPassword } from "../../test/passwords";
@@ -400,13 +401,14 @@ describe("renaming and removing", () => {
 
   it("says the sign-in changed when the removal was refused as superseded", async () => {
     await renderAccount({ enabled: true, passkeys: [passkey()] });
-    mockRemove.mockRejectedValueOnce(new ApiError(401, "Auth.CredentialsSuperseded", "superseded"));
+    mockRemove.mockRejectedValueOnce(await parseError(new Response(
+      JSON.stringify({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }), { status: 401 })));
 
     await press(t("removeButton"), section());
     fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
     await press(t("removePasskeyButton"), dialog());
 
-    expect(await within(dialog()).findByText(t("sessionChanged"))).toBeInTheDocument();
+    expect(await within(dialog()).findByText(i18n.t("errors:Auth.CredentialsSuperseded"))).toBeInTheDocument();
   });
 });
 
@@ -501,12 +503,13 @@ describe("more of what the screens say", () => {
     await renderAccount({ enabled: true, passkeys: [] });
     mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
     create.mockResolvedValue(credential().value);
-    mockRegister.mockRejectedValueOnce(new ApiError(401, "Auth.CredentialsSuperseded", "superseded"));
+    mockRegister.mockRejectedValueOnce(await parseError(new Response(
+      JSON.stringify({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }), { status: 401 })));
 
     await toCreateStep();
     await press(t("createPasskeyButton"));
 
-    expect(await screen.findByText(t("sessionChanged"))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t("errors:Auth.CredentialsSuperseded"))).toBeInTheDocument();
   });
 
   it.each([[UNENROLLED, true], [ENROLLED, false]] as const)(

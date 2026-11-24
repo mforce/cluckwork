@@ -371,7 +371,6 @@ export const en = {
     turnedOffMessage: "Two-factor authentication is off.",
     codesMissing: "Something went wrong, and no recovery codes arrived. Regenerate them to get a new set.",
     regenerateNotEnabled: "Two-factor authentication is not on for your account, so it has no recovery codes to replace.",
-    sessionChanged: "Your sign-in changed while this was sent, so nothing changed. Try again.",
     // #1284 — the Security section's passkeys (#1283 "Account / Security A" and "Registration A").
     passkeysHeading: "Passkeys",
     passkeysHint: "Sign in with your fingerprint, face or device PIN.",

@@ -302,7 +302,6 @@ export const es = {
     turnedOffMessage: "La autenticación en dos pasos está desactivada.",
     codesMissing: "Algo salió mal y no llegaron códigos de recuperación. Regenérelos para obtener un juego nuevo.",
     regenerateNotEnabled: "La autenticación en dos pasos no está activada en su cuenta, así que no tiene códigos de recuperación que reemplazar.",
-    sessionChanged: "Su inicio de sesión cambió mientras se enviaba esto, así que no cambió nada. Inténtelo de nuevo.",
     // #1284 — the Security section's passkeys (#1283 "Account / Security A" and "Registration A").
     passkeysHeading: "Llaves de acceso",
     passkeysHint: "Inicie sesión con su huella, su cara o el PIN del dispositivo.",

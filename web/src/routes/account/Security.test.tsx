@@ -331,13 +331,14 @@ describe("an enrolled user's step-up actions", () => {
 
   it("reports a stale session's turn-off once, as nothing changed", async () => {
     await renderAccount(ON);
-    mockTurnOff.mockRejectedValueOnce(new ApiError(401, "Auth.CredentialsSuperseded", "Your credentials changed."));
+    mockTurnOff.mockRejectedValueOnce(await parseError(new Response(
+      JSON.stringify({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }), { status: 401 })));
 
     await press(t("turnOffButton"));
     prove(true);
     await press(t("turnOffButton"), dialog());
 
-    expect(await within(dialog()).findByRole("alert")).toHaveTextContent(t("sessionChanged"));
+    expect(await within(dialog()).findByRole("alert")).toHaveTextContent(i18n.t("errors:Auth.CredentialsSuperseded"));
     expect(mockTurnOff).toHaveBeenCalledTimes(1);
   });
 });

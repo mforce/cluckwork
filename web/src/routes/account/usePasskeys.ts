@@ -6,7 +6,7 @@ import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
 import i18n from "../../i18n";
-import { stale, useStepUpDialog } from "./useStepUpDialog";
+import { useStepUpDialog } from "./useStepUpDialog";
 
 // #1284 — the Security section's passkeys (record 1282). Add steps up first,
 // then names the passkey and runs the browser's ceremony (#1283
@@ -105,7 +105,7 @@ export function usePasskeys() {
         setFlow({ step: "create", first, phase: "ready", grant });
         return;
       }
-      await removePasskey(target!.id, grant).catch((err: unknown) => { throw stale(err); });
+      await removePasskey(target!.id, grant);
       list.retry();
       if (!current()) return;
       setMessage(i18n.t("account:passkeyRemovedMessage"));
@@ -163,7 +163,7 @@ export function usePasskeys() {
       toPhase("spent", grant);
       const passkey = await registerPasskey(
         { ceremony, credential: credential.toJSON() as RegistrationResponseJSON, name: chosen }, grant,
-      ).catch((err: unknown) => { throw stale(err); });
+      );
       list.retry();
       if (!current()) return;
       dismissDialog("create");

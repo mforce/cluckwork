@@ -10,7 +10,7 @@ import i18n from "../../i18n";
 import { newId } from "../../lib/ids";
 import { useMe } from "../../session/SessionContext";
 import { useRecoveryCodesSlot } from "./recoveryCodes";
-import { stale, useStepUpDialog } from "./useStepUpDialog";
+import { useStepUpDialog } from "./useStepUpDialog";
 import type { Delivery } from "./recoveryCodes";
 
 // #1277 — the Security section's two-factor authentication. Start,
@@ -136,7 +136,7 @@ export function useTwoFactor() {
       if (next !== "regenerate") {
         const token = await prove();
         if (!current()) return;
-        await send(next, token, current).catch((err: unknown) => { throw stale(err); });
+        await send(next, token, current);
         return;
       }
       // Taken before the step-up proof, so the slot reads the session then,
@@ -148,7 +148,7 @@ export function useTwoFactor() {
         // #1277 — a session that ended during the proof sends nothing: the
         // server would replace the set, and deliver would drop the only copy.
         if (!current() || !delivery.live()) return;
-        await regenerate(token, current, delivery).catch((err: unknown) => { throw stale(err); });
+        await regenerate(token, current, delivery);
       } finally {
         delivery.release();
       }
