@@ -206,7 +206,8 @@ public interface IIdentityProvider
     Task<Result> ResetUserTwoFactorAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
 
-    // #1284 (record 1282) — the caller's own passkeys. The access module
+    // #1284 (record 1282) — the caller's own passkeys. requestHost is the
+    // request's host without its port, which passkeys are bound to. The access module
     // answers Passkeys.Off for start and register while Passkeys:Origins does
     // not name this host, so neither runs then. Register runs after step-up:
     // credentialEpoch is the acting token's, compared under the user-row
@@ -215,13 +216,13 @@ public interface IIdentityProvider
     // List, rename and remove work while passkeys are off. Remove runs after
     // step-up, ends every other session and returns a fresh pair.
     Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
-        Guid accountId, Guid userId, CancellationToken ct = default);
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct = default);
 
     Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
         Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
-        CancellationToken ct = default);
+        string requestHost, CancellationToken ct = default);
 
-    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct = default);
 
     Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default);

@@ -100,13 +100,15 @@ public interface IAccessModule
     // #1284 — the caller's own passkeys (IIdentityProvider says what each
     // does). Register and remove spend a step-up grant first; credentialEpoch
     // is the acting token's claim.
-    Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(Guid accountId, Guid userId, CancellationToken ct);
+    // requestHost is the request's host without its port.
+    Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct);
 
     Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken,
-        Guid ceremony, string credentialJson, string name, CancellationToken ct);
+        Guid ceremony, string credentialJson, string name, string requestHost, CancellationToken ct);
 
-    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct);
+    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
 
     Task<Result> RenamePasskeyAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
 

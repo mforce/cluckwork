@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -29,8 +28,8 @@ public sealed class PasskeyOptions
 
     // Every route that runs a ceremony answers Passkeys.Off unless the
     // request's host is the host of exactly one configured origin.
-    internal bool IsOnFor(HttpContext http) =>
-        Parsed.Count(o => string.Equals(o.Host, http.Request.Host.Host, StringComparison.OrdinalIgnoreCase)) == 1;
+    internal bool IsOnFor(string requestHost) =>
+        Parsed.Count(o => string.Equals(o.Host, requestHost, StringComparison.OrdinalIgnoreCase)) == 1;
 
     // The ValidateOrigin hook: a configured origin (scheme and host without
     // case, port exact) at the request's own host, and never cross-origin. It

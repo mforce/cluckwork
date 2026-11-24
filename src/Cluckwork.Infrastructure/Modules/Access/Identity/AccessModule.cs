@@ -40,7 +40,7 @@ public sealed class AccessModule(
     ChangeOwnPasswordHandler changeOwnPassword,
     IIdentityProvider identity,
     IStepUpGrantService stepUp,
-    IPasskeyCredentials passkeys,
+    IOptions<PasskeyOptions> passkeyOrigins,
     FirstRunStatusService firstRun,
     AuthSecurityEventLogger securityEvents,
     IOptions<JwtOptions> jwt,
@@ -173,21 +173,22 @@ public sealed class AccessModule(
         new(PasskeyErrorCodes.Off, "Passkeys are not available at this address.");
 
     public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
-        Guid accountId, Guid userId, CancellationToken ct) =>
-        WhenPasskeysOnAsync(async () => Result.Success(await identity.StartPasskeyRegistrationAsync(accountId, userId, ct)));
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost,
+            async () => Result.Success(await identity.StartPasskeyRegistrationAsync(accountId, userId, requestHost, ct)));
 
     // Decision 15: the grant is spent at the finish, before the transaction.
     public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken,
-        Guid ceremony, string credentialJson, string name, CancellationToken ct) =>
-        WhenPasskeysOnAsync(() => WithGrantAsync(accountId, userId, stepUpToken,
-            () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct), ct));
+        Guid ceremony, string credentialJson, string name, string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost, () => WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, requestHost, ct), ct));
 
-    private Task<Result<T>> WhenPasskeysOnAsync<T>(Func<Task<Result<T>>> work) =>
-        passkeys.IsOn ? work() : Task.FromResult(Result.Failure<T>(PasskeysOff));
+    private Task<Result<T>> WhenPasskeysOnAsync<T>(string requestHost, Func<Task<Result<T>>> work) =>
+        passkeyOrigins.Value.IsOnFor(requestHost) ? work() : Task.FromResult(Result.Failure<T>(PasskeysOff));
 
-    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct) =>
-        identity.ListPasskeysAsync(accountId, userId, ct);
+    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
+        identity.ListPasskeysAsync(accountId, userId, requestHost, ct);
 
     public Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct) =>

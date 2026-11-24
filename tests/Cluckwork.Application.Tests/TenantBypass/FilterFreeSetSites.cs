@@ -190,7 +190,7 @@ internal static class FilterFreeSetSites
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.ReissueActingSessionAsync(Guid accountId, Guid userId, CancellationToken ct)",
             "db.RefreshTokens", "213c3d99",
             "by-user: db.RefreshTokens.Add of the acting session's fresh pair after a factor change (enrolment confirm, turn-off, a first passkey, a passkey removal); NewToken copies AccountId from the user row read by Id and AccountId (#1277, #1280, #1284)."),
-        new("Cluckwork.Infrastructure.Modules.Access.Identity.PasskeyCredentials.RegisterAsync(ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct)",
+        new("Cluckwork.Infrastructure.Modules.Access.Identity.PasskeyCredentials.RegisterAsync(ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, string requestHost, CancellationToken ct)",
             "db.UserPasskeys", "91e438e5",
             "by-user: db.UserPasskeys.Add of the caller's new passkey, under the user-row lock; the interceptor stamps AccountId from the resolved tenant and the composite key refuses another farm's user (#1284)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.PasskeyCeremonyPurge.DeleteExpiredBatchAsync(DateTimeOffset cutoff, int batchSize, CancellationToken ct)",

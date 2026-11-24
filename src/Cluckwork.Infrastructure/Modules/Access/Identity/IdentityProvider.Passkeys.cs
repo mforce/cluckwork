@@ -21,8 +21,8 @@ public sealed partial class IdentityProvider
         new(PasskeyErrorCodes.NotFound, "That passkey was not found.");
 
     public Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
-        Guid accountId, Guid userId, CancellationToken ct = default) =>
-        passkeys.StartRegistrationAsync(accountId, userId, ct);
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
+        passkeys.StartRegistrationAsync(accountId, userId, requestHost, ct);
 
     // Decision 3: the ceremony is consumed by the transaction's first
     // statement, and every refusal after it commits, so it is good for one
@@ -30,7 +30,7 @@ public sealed partial class IdentityProvider
     // session is compared under the user-row lock, as turn-off does.
     public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
         Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
-        CancellationToken ct = default) =>
+        string requestHost, CancellationToken ct = default) =>
         AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
         {
             // A refusal keeps the consumed ceremony, so it commits too.
@@ -49,7 +49,7 @@ public sealed partial class IdentityProvider
                 return await RefuseAsync(PasskeyRefused);
             }
 
-            switch (await passkeys.RegisterAsync(consumed, accountId, userId, credentialJson, name, token))
+            switch (await passkeys.RegisterAsync(consumed, accountId, userId, credentialJson, name, requestHost, token))
             {
                 case RegisterOutcome.LimitReached:
                     return await RefuseAsync(PasskeyLimitReached);
@@ -66,8 +66,8 @@ public sealed partial class IdentityProvider
             }
         }, ct);
 
-    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
-        passkeys.ListAsync(accountId, userId, ct);
+    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
+        passkeys.ListAsync(accountId, userId, requestHost, ct);
 
     public Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>

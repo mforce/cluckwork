@@ -16,14 +16,13 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // #1282 "Types": the one owner of passkey state. Public port, internal
 // implementation, as ITwoFactorCredentials. Every write runs in the caller's
 // transaction, locks the user row first, then loads the user; the caller
-// commits, a refused outcome included.
+// commits, a refused outcome included. requestHost is the request's host
+// without its port: the relying party ID and the origin check read it, and
+// nothing here reads the request itself.
 public interface IPasskeyCredentials
 {
-    // Passkeys:Origins is set and this request's host is one origin's host.
-    bool IsOn { get; }
-
     // A registration ceremony bound to the user, under the resolved tenant.
-    Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, CancellationToken ct);
+    Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
 
     // DELETE … RETURNING, the first statement of the caller's transaction.
     // Null when the ceremony is missing, expired, of another purpose or bound
@@ -32,9 +31,11 @@ public interface IPasskeyCredentials
 
     // Inserts and never updates: a credential id stored for anyone is refused.
     Task<RegisterOutcome> RegisterAsync(
-        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct);
+        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, string requestHost,
+        CancellationToken ct);
 
-    Task<PasskeyList> ListAsync(Guid accountId, Guid userId, CancellationToken ct);
+    // Enabled: Passkeys:Origins names requestHost.
+    Task<PasskeyList> ListAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
 
     Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
 
@@ -92,7 +93,6 @@ internal sealed class PasskeyCredentials(
     AppDbContext db,
     PasskeyHandler<ApplicationUser> handler,
     UserManager<ApplicationUser> userManager,
-    IHttpContextAccessor httpContextAccessor,
     IOptions<PasskeyOptions> origins,
     IOptions<IdentityPasskeyOptions> passkeyOptions,
     IAccountRepository accounts,
@@ -105,12 +105,14 @@ internal sealed class PasskeyCredentials(
 
     private const string AccountIdProperty = nameof(ApplicationUser.AccountId);
 
-    private HttpContext Http => httpContextAccessor.HttpContext
-        ?? throw new InvalidOperationException("Passkey ceremonies run only inside a request.");
+    // Identity's handler reads only Request.Host.Host from the context it is
+    // given (record 1282 "What Identity 10.0.15 does"), and the origin hook
+    // reads the same, so the owner hands it the host and never the request,
+    // which could open a service scope.
+    private static HttpContext ForHost(string requestHost) =>
+        new DefaultHttpContext { Request = { Host = new HostString(requestHost) } };
 
-    public bool IsOn => httpContextAccessor.HttpContext is { } http && origins.Value.IsOnFor(http);
-
-    public async Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, CancellationToken ct)
+    public async Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct)
     {
         var user = await db.Users.AsNoTracking()
             .Where(u => u.Id == userId && u.AccountId == accountId)
@@ -123,7 +125,7 @@ internal sealed class PasskeyCredentials(
         // (decision 5). The user handle is the user id, as FindByIdAsync takes it.
         var label = $"{user.Email} ({account.Name})";
         var options = await handler.MakeCreationOptionsAsync(
-            new PasskeyUserEntity { Id = userId.ToString(), Name = label, DisplayName = label }, Http);
+            new PasskeyUserEntity { Id = userId.ToString(), Name = label, DisplayName = label }, ForHost(requestHost));
         return new PasskeyCeremonyStart(
             await InsertCeremonyAsync(CeremonyPurpose.Registration, userId,
                 options.AttestationState ?? throw new InvalidOperationException("Identity returned no attestation state."), ct),
@@ -157,7 +159,8 @@ internal sealed class PasskeyCredentials(
     }
 
     public async Task<RegisterOutcome> RegisterAsync(
-        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct)
+        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, string requestHost,
+        CancellationToken ct)
     {
         // Postgres refuses \u0000 in the jsonb Data column, which the
         // credential's transports reach. The check refuses the whole
@@ -175,7 +178,7 @@ internal sealed class PasskeyCredentials(
         {
             CredentialJson = credentialJson,
             AttestationState = ceremony.State,
-            HttpContext = Http,
+            HttpContext = ForHost(requestHost),
         });
         if (!attestation.Succeeded) return Refused(attestation.Failure.Message);
 
@@ -232,13 +235,13 @@ internal sealed class PasskeyCredentials(
         return new RegisterOutcome.Refused();
     }
 
-    public async Task<PasskeyList> ListAsync(Guid accountId, Guid userId, CancellationToken ct)
+    public async Task<PasskeyList> ListAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct)
     {
         var rows = await Rows(accountId, userId).AsNoTracking()
             .OrderBy(p => p.Data.CreatedAt)
             .Select(p => new { p.CredentialId, p.Data.Name, p.Data.CreatedAt, p.Data.IsBackedUp, p.Data.ClientDataJson })
             .ToListAsync(ct);
-        return new PasskeyList(IsOn,
+        return new PasskeyList(origins.Value.IsOnFor(requestHost),
             rows.Select(r => Summary(r.CredentialId, r.Name, r.CreatedAt, r.IsBackedUp, r.ClientDataJson)).ToList());
     }
 

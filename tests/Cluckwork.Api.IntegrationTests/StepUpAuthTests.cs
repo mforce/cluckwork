@@ -724,16 +724,16 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, passkeysRemoved, mustChangePassword, ct);
 
         public Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
-            Guid accountId, Guid userId, CancellationToken ct = default) =>
-            inner.StartPasskeyRegistrationAsync(accountId, userId, ct);
+            Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
+            inner.StartPasskeyRegistrationAsync(accountId, userId, requestHost, ct);
 
         public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
             Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
-            CancellationToken ct = default) =>
-            inner.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct);
+            string requestHost, CancellationToken ct = default) =>
+            inner.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, requestHost, ct);
 
-        public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
-            inner.ListPasskeysAsync(accountId, userId, ct);
+        public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
+            inner.ListPasskeysAsync(accountId, userId, requestHost, ct);
 
         public Task<Result> RenamePasskeyAsync(
             Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>
