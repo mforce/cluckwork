@@ -191,6 +191,19 @@ describe.each(KINDS)("UsersPage $kind", (k) => {
     expect(within(confirm).queryByText(t("users:removePasskeysNote")) !== null).toBe(k.note);
   });
 
+  // r3 (Fable H1) — the words stay while the dialog fades out after Cancel.
+  it("keeps its submit label and note while the dialog closes", async () => {
+    renderWithProviders(<UsersPage />, { token: ADMIN });
+    await screen.findByText(ENROLLED.email);
+    fireEvent.click(action(ENROLLED.email)!);
+    const closing = dialog();
+
+    fireEvent.click(within(closing).getByRole("button", { name: "Cancel" }));
+
+    expect(within(closing).getByRole("button", { name: k.submit, hidden: true })).toBeInTheDocument();
+    expect(within(closing).queryByText(t("users:removePasskeysNote")) !== null).toBe(k.note);
+  });
+
   it("names the target and the signed-in Owner who confirms it", async () => {
     renderWithProviders(<UsersPage />, { token: ADMIN, me: OWNER_ME });
     await screen.findByText(ENROLLED.email);

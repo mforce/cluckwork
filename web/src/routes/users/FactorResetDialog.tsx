@@ -53,7 +53,7 @@ export function FactorResetDialog({
           <button type="button" className="link" onClick={closeReset}>{tc("cancel")}</button>
           <BusyButton variant="contained" type="submit" color="error" disabled={busy}
             busy={resetUser !== null && isPending(`${kind}:${resetUser.id}`)}>
-            {resetUser && config.submit(resetUser)}
+            {config.submit()}
           </BusyButton>
         </DialogActions>
       )}
@@ -66,7 +66,7 @@ export function FactorResetDialog({
         <Typography id={warningId} color="text.secondary" sx={{ lineHeight: 1.55 }}>
           {resetUser && config.warning(resetUser)}
         </Typography>
-        {resetUser && config.note && <Typography color="text.secondary" sx={{ lineHeight: 1.55 }}>{config.note(resetUser)}</Typography>}
+        {config.note && <Typography color="text.secondary" sx={{ lineHeight: 1.55 }}>{config.note()}</Typography>}
         <ConfirmItsYou value={proof} onChange={setProof} />
         <DialogError errors={errors} scope={kind} />
       </Stack>

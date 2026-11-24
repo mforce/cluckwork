@@ -15,11 +15,12 @@ export type FactorReset = "reset-two-factor" | "remove-passkeys";
 
 const name = (u: User) => u.displayName ?? u.email;
 
-// Every text field is the translated words for the target user.
+// Every text field is the translated words, for the target user where they
+// name one; submit and note name none, so a closing dialog keeps them.
 type Words = (u: User) => string;
 export const FACTOR_RESETS: Record<FactorReset, {
   send: (id: string, key?: string, stepUpToken?: string) => Promise<void>;
-  title: Words; warning: Words; note: Words | null; submit: Words; done: Words; notFound: Words;
+  title: Words; warning: Words; note: (() => string) | null; submit: () => string; done: Words; notFound: () => string;
 }> = {
   "reset-two-factor": {
     send: resetUserTwoFactor,
@@ -95,7 +96,7 @@ export function useFactorReset({
 
       await config.send(target.id, keyFor(scope), token).catch((err: unknown) => {
         // A 404 has no problem body for the errors catalog to key on.
-        throw err instanceof ApiError && err.status === 404 ? new Error(config.notFound(target)) : err;
+        throw err instanceof ApiError && err.status === 404 ? new Error(config.notFound()) : err;
       });
       clearKey(scope);
       setUsers(await listUsers());
