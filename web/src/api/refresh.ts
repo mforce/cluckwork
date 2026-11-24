@@ -2,7 +2,7 @@ import { getAccessToken, setAccessToken, clearAccessToken, bindAccount, getBound
 import { accountIdFromToken } from "../auth/claims";
 import { announceSessionChange } from "../auth/sessionSignal";
 import type { AccessTokenResponse } from "./types";
-import { raw, CSRF_HEADER, ACCOUNT_HEADER } from "./request";
+import { raw, CSRF_HEADER, ACCOUNT_HEADER, STEP_UP_HEADER } from "./request";
 import { ApiError } from "./errors";
 import { StaleSessionError, revokeSupersededCookie, onUnauthenticated, onTokensChanged, onTwoFactorEnrolmentRequired } from "./sessionState";
 import { withAuthCookieLock, REFRESH_TIMEOUT_MS } from "./authCookieLock";
@@ -311,9 +311,12 @@ export async function apiGetBlob(
 // the session stale under the user-row lock, after it may have spent its
 // step-up grant. Resending it on a refreshed session would act on a security
 // state the user never confirmed, so the refusal goes back to the dialog.
+// #1284 — the same holds for any request that carries a step-up grant: the
+// grant works once, so a resend could only be refused.
 const isUnresendable = (path: string, init: RequestInit, err: ApiError) =>
-  path.startsWith("/auth/two-factor") && (init.method ?? "GET") !== "GET"
-  && err.title === "Auth.CredentialsSuperseded";
+  err.title === "Auth.CredentialsSuperseded"
+  && (new Headers(init.headers).has(STEP_UP_HEADER)
+    || (path.startsWith("/auth/two-factor") && (init.method ?? "GET") !== "GET"));
 
 export async function apiFetch<T>(
   path: string,

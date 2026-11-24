@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setOnTokensChanged, STEP_UP_HEADER } from "./client";
-import { registerPasskey, removePasskey } from "./cluckwork";
+import { registerPasskey, removePasskey, removeUserPasskeys } from "./cluckwork";
 import { clearAccessToken, clearBoundAccount, getAccessToken, setAccessToken } from "../auth/tokenStore";
+import { setOnUnauthenticated } from "./client";
+import i18n from "../i18n";
 
 // #1284 — registering and removing your own passkey (record 1282 decisions
 // 10 and 16). Removal always hands this device a fresh pair; registration only
@@ -85,6 +87,48 @@ describe("removePasskey", () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await expect(removePasskey("id", crypto.randomUUID())).rejects.toThrow();
+    expect(getAccessToken()).toBe("at1");
+  });
+});
+
+describe("removeUserPasskeys", () => {
+  it("sends a DELETE to the user's passkeys route with the key and the step-up grant", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const grant = crypto.randomUUID();
+
+    await removeUserPasskeys("u-e", "key-1", grant);
+
+    expect(call()[0]).toMatch(/\/users\/u-e\/passkeys$/);
+    expect(call()[1].method).toBe("DELETE");
+    expect(new Headers(call()[1].headers).get("Idempotency-Key")).toBe("key-1");
+    expect(new Headers(call()[1].headers).get(STEP_UP_HEADER)).toBe(grant);
+  });
+});
+
+// r1 (Opus) — a write that carries a step-up grant has spent it by the time
+// the server finds the session stale, so the client never refreshes and
+// resends it: the 401 goes back to the dialog, and the session is not ended.
+describe("a stale session's 401 Auth.CredentialsSuperseded on a write with a grant", () => {
+  const superseded = () => json({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }, 401);
+  let onUnauth: ReturnType<typeof vi.fn<() => void>>;
+  beforeEach(() => {
+    onUnauth = vi.fn();
+    setOnUnauthenticated(onUnauth);
+  });
+  afterEach(() => setOnUnauthenticated(null));
+
+  it.each([
+    ["registerPasskey", () => registerPasskey(body(), crypto.randomUUID())],
+    ["removePasskey", () => removePasskey("id", crypto.randomUUID())],
+    ["removeUserPasskeys", () => removeUserPasskeys("u-e", "key-1", crypto.randomUUID())],
+  ])("from %s goes back to the caller, unsent again", async (_, write) => {
+    fetchMock.mockResolvedValueOnce(superseded());
+
+    await expect(write()).rejects.toMatchObject({
+      status: 401, title: "Auth.CredentialsSuperseded", message: i18n.t("errors:Auth.CredentialsSuperseded"),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onUnauth).not.toHaveBeenCalled();
     expect(getAccessToken()).toBe("at1");
   });
 });

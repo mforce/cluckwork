@@ -402,6 +402,8 @@ export const es = {
     "Auth.PasskeyRefused": "No se aceptó la llave de acceso. Inténtelo de nuevo.",
     "Auth.PasskeyLimitReached": "Ya tiene el máximo de llaves de acceso permitido. Quite una antes de añadir otra.",
     "Users.CannotRemoveOwnPasskeys": "No puede quitar aquí sus propias llaves de acceso. Quítelas en Cuenta / Seguridad.",
+    // A write with a step-up grant is never resent on a stale session (#1284).
+    "Auth.CredentialsSuperseded": "Su inicio de sesión cambió mientras se enviaba esto, así que no cambió nada. Inténtelo de nuevo.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Sus parvadas asignadas no tienen suficiente stock para esta venta. Un "
