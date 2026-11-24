@@ -53,12 +53,14 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
     );
   } else if (flow.step === "create") {
     const waiting = isPending("create");
+    const blank = !createName.trim();
     body = (
       <Stack spacing={2} component="form" onSubmit={onCreate} sx={{ maxWidth: "32rem" }}>
         <Typography variant="h2" ref={headingRef} tabIndex={-1}>{t("createPasskeyHeading")}</Typography>
         <Typography color="text.secondary">{t("createPasskeyHint")}</Typography>
         {flow.phase === "cancelled" && <Alert severity="warning">{t("passkeyCancelled")}</Alert>}
-        <TextField label={t("passkeyNameLabel")} helperText={t("passkeyNameHint")} value={createName} required disabled={busy}
+        <TextField label={t("passkeyNameLabel")} helperText={t(blank ? "passkeyNameRequired" : "passkeyNameHint")} error={blank}
+          value={createName} required disabled={busy}
           onChange={(e) => setCreateName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
         {email && farm && (
           <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
@@ -69,7 +71,7 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
         {waiting && <Alert severity="info">{t("passkeyWaiting")}</Alert>}
         <DialogError errors={errors} scope="create" />
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-          <BusyButton variant="contained" type="submit" busy={waiting} disabled={busy}>
+          <BusyButton variant="contained" type="submit" busy={waiting} disabled={busy || blank}>
             {t(CREATE_LABEL[flow.phase])}
           </BusyButton>
           <button type="button" className="link" onClick={leaveFlow} disabled={busy}>{tc("cancel")}</button>

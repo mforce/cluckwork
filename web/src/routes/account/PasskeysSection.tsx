@@ -54,7 +54,7 @@ export function PasskeysSection({ passkeys }: { passkeys: Passkeys }) {
                 <Button color="error" disabled={busy} onClick={() => openRemove(key)}>{t("removeButton")}</Button>
               </Stack>
             )}>
-              <Typography variant="h3" component="h4" sx={{ overflowWrap: "anywhere" }}>{key.name ?? t("passkeyUnnamed")}</Typography>
+              <Typography variant="h3" component="h4" sx={{ overflowWrap: "anywhere" }}>{key.name ?? t("passkeyDefaultName")}</Typography>
               <Typography variant="caption" color="text.secondary">
                 {t("passkeyCreatedLabel")} <FarmDate iso={farmDateOf(key.createdAt, timeZone)} />
                 {key.synced && ` · ${t("passkeySynced")}`}
@@ -83,7 +83,7 @@ export function PasskeyStepUpDialog({ passkeys }: { passkeys: Passkeys }) {
   return (
     <StepUpDialog stepUp={stepUp} dialog={dialog} danger={remove} onSubmit={onStepUp}
       copy={copy && { title: t(copy.title), body: t(copy.body), submit: t(copy.submit) }}
-      target={remove && (removing?.name ?? t("passkeyUnnamed"))}>
+      target={remove && (removing?.name ?? t("passkeyDefaultName"))}>
       {remove && <Alert severity="warning" role="note">{t("passkeySessionWarning")}</Alert>}
     </StepUpDialog>
   );
@@ -93,6 +93,7 @@ export function RenamePasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
   const { t } = useTranslation("account");
   const { t: tc } = useTranslation("common");
   const { renaming, newName, setNewName, closeRename, onRename, dialog: { busy, isPending, errors } } = passkeys;
+  const blank = !newName.trim();
   return (
     <Dialog
       open={renaming !== null}
@@ -102,7 +103,7 @@ export function RenamePasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
       actions={(
         <DialogActions>
           <button type="button" className="link" onClick={closeRename} disabled={busy}>{tc("cancel")}</button>
-          <BusyButton variant="contained" type="submit" disabled={busy} busy={isPending("rename")}>{t("saveNameButton")}</BusyButton>
+          <BusyButton variant="contained" type="submit" disabled={busy || blank} busy={isPending("rename")}>{t("saveNameButton")}</BusyButton>
         </DialogActions>
       )}
       formProps={{ onSubmit: onRename }}
@@ -110,6 +111,7 @@ export function RenamePasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
       <Stack spacing={2}>
         <Typography sx={{ lineHeight: 1.55 }}>{t("renamePasskeyBody")}</Typography>
         <TextField label={t("passkeyNameLabel")} value={newName} required disabled={busy}
+          error={blank} helperText={blank && t("passkeyNameRequired")}
           onChange={(e) => setNewName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
         <DialogError errors={errors} scope="rename" />
       </Stack>

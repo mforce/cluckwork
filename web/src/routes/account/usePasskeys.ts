@@ -32,18 +32,11 @@ const LIST: PasskeyFlow = { step: "list" };
 // options arrive as JSON and the credential goes back as JSON.
 const supported = () => typeof window.PublicKeyCredential?.parseCreationOptionsFromJSON === "function";
 
-// The name the create step proposes, which the user can change.
-function proposedName(): string {
-  const ua = navigator.userAgent;
-  return i18n.t(/iPad|Tablet/.test(ua) ? "account:passkeyNameTablet"
-    : /Mobi|Android|iPhone/.test(ua) ? "account:passkeyNamePhone" : "account:passkeyNameComputer");
-}
-
 // The browser's refusals, as the create step says them. NotAllowedError, a
 // cancel or a timeout, is not one: the step shows it as a cancel.
-function browserError(err: unknown): unknown {
-  if (!(err instanceof DOMException)) return err;
-  return new Error(i18n.t(err.name === "InvalidStateError" ? "account:passkeyExists" : "account:passkeyFailed"));
+function browserError(err: unknown): Error {
+  const exists = err instanceof DOMException && err.name === "InvalidStateError";
+  return new Error(i18n.t(exists ? "account:passkeyExists" : "account:passkeyFailed"));
 }
 
 export function usePasskeys() {
@@ -104,7 +97,9 @@ export function usePasskeys() {
       if (!current()) return;
       if (kind === "add") {
         stepUp.close();
-        setCreateName(proposedName());
+        // Start again, after a refused finish, keeps the name the user typed.
+        // Maintainer, 2026-11-24: one neutral name for everyone, no device guess.
+        if (flow.step !== "create") setCreateName(i18n.t("account:passkeyDefaultName"));
         openDialog("create");
         const first = !enrolled && list.data?.passkeys.length === 0;
         setFlow({ step: "create", first, phase: "ready", grant });
@@ -121,7 +116,7 @@ export function usePasskeys() {
   async function onRename(e: FormEvent) {
     e.preventDefault();
     const target = renaming;
-    if (!target || busy) return;
+    if (!target || busy || !newName.trim()) return;
     await run("rename", async (current) => {
       await renamePasskey(target.id, newName.trim());
       list.retry();
@@ -145,6 +140,7 @@ export function usePasskeys() {
     }
     const { grant } = flow;
     const chosen = createName.trim();
+    if (!chosen) return;
     await run("create", async (current) => {
       toPhase("ready", grant);
       const { ceremony, options } = await startPasskeyRegistration();

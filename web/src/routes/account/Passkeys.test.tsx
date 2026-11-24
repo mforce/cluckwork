@@ -174,12 +174,17 @@ describe("adding a passkey", () => {
     expect(screen.getByText(t("passkeyReady", { name: "Barn tablet" }))).toBeInTheDocument();
   });
 
-  it("proposes a name and says how the device will label the passkey", async () => {
+  // Maintainer, 2026-11-24: "One neutral name (Recommended)", whatever the device.
+  it.each([
+    ["a computer", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"],
+    ["a phone", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"],
+  ])("proposes the one neutral name on %s and says how the device will label the passkey", async (_, agent) => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(agent);
     await renderAccount({ enabled: true, passkeys: [] });
 
     await toCreateStep();
 
-    expect(screen.getByLabelText(new RegExp(t("passkeyNameLabel")))).toHaveValue(t("passkeyNameComputer"));
+    expect(screen.getByLabelText(new RegExp(t("passkeyNameLabel")))).toHaveValue(t("passkeyDefaultName"));
     expect(screen.getByText(t("passkeyDeviceName", { email: "test@farm.local", farm: "Sunrise Farm" }))).toBeInTheDocument();
   });
 
@@ -274,6 +279,71 @@ describe("adding a passkey", () => {
     await press(t("doneButton"));
 
     expect(await within(section()).findByRole("heading", { name: "Phone" })).toBeInTheDocument();
+  });
+});
+
+describe("names", () => {
+  it("refuses a create step name of only spaces, with no browser call and the grant kept", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
+    create.mockResolvedValue(credential().value);
+
+    await toCreateStep();
+    fireEvent.change(screen.getByLabelText(new RegExp(t("passkeyNameLabel"))), { target: { value: "   " } });
+    expect(screen.getByRole("button", { name: t("createPasskeyButton") })).toBeDisabled();
+    fireEvent.submit(screen.getByRole("button", { name: t("createPasskeyButton") }).closest("form")!);
+    await act(async () => {});
+
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(screen.getByText(t("passkeyNameRequired"))).toBeInTheDocument();
+  });
+
+  it("refuses a new name of only spaces", async () => {
+    await renderAccount({ enabled: true, passkeys: [passkey()] });
+
+    await press(t("renameButton"), section());
+    fireEvent.change(within(dialog()).getByLabelText(new RegExp(t("passkeyNameLabel"))), { target: { value: "   " } });
+    expect(within(dialog()).getByRole("button", { name: t("saveNameButton") })).toBeDisabled();
+    fireEvent.submit(dialog().querySelector("form")!);
+    await act(async () => {});
+
+    expect(mockRename).not.toHaveBeenCalled();
+    expect(within(dialog()).getByText(t("passkeyNameRequired"))).toBeInTheDocument();
+  });
+
+  it("keeps the typed name when Start again steps up after a refused finish", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
+    create.mockResolvedValue(credential().value);
+    mockRegister.mockRejectedValueOnce(new ApiError(400, "Auth.PasskeyRefused", i18n.t("errors:Auth.PasskeyRefused")));
+
+    await toCreateStep();
+    fireEvent.change(screen.getByLabelText(new RegExp(t("passkeyNameLabel"))), { target: { value: "Barn tablet" } });
+    await press(t("createPasskeyButton"));
+    await press(t("startAgainButton"));
+    fireEvent.change(within(dialog()).getByLabelText(/Your current password/), { target: { value: freshPassword() } });
+    await press(t("continueButton"), dialog());
+
+    expect(screen.getByLabelText(new RegExp(t("passkeyNameLabel")))).toHaveValue("Barn tablet");
+  });
+});
+
+describe("browser errors", () => {
+  it.each([
+    ["a DOMException other than the two it words", new DOMException("blocked", "SecurityError")],
+    ["an error that is not a DOMException", new TypeError("options are malformed")],
+  ])("says the passkey could not be created for %s", async (_, err) => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
+    create.mockRejectedValueOnce(err);
+
+    await toCreateStep();
+    await press(t("createPasskeyButton"));
+
+    expect(await screen.findByText(t("passkeyFailed"))).toBeInTheDocument();
+    expect(screen.queryByText(err.message)).not.toBeInTheDocument();
+    expect(mockRegister).not.toHaveBeenCalled();
   });
 });
 
