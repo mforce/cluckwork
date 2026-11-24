@@ -213,6 +213,19 @@ describe("adding a passkey", () => {
     expect(screen.queryByText(t("passkeySessionWarning")) !== null).toBe(warns);
   });
 
+  // r3 (Fable) — the warning is about the finish, so it stays while it can happen.
+  it("keeps the first passkey's warning after a browser cancel", async () => {
+    await renderAccount({ enabled: true, passkeys: [] });
+    mockStart.mockResolvedValue({ ceremony: crypto.randomUUID(), options: {} as PublicKeyCredentialCreationOptionsJSON });
+    create.mockRejectedValueOnce(new DOMException("cancelled", "NotAllowedError"));
+
+    await toCreateStep();
+    await press(t("createPasskeyButton"));
+    await screen.findByText(t("passkeyCancelled"));
+
+    expect(screen.getByText(t("passkeySessionWarning"))).toBeInTheDocument();
+  });
+
   it("keeps the grant after a browser cancel and offers Try again", async () => {
     await renderAccount({ enabled: true, passkeys: [] });
     const proof = grant();

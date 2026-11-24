@@ -74,3 +74,37 @@ it("says why nothing changed when the actor's own email change is refused as sup
   expect(result.current.emailUser).not.toBeNull();
   expect(result.current.dialog.errors.forDialog("change-email")).toBe(i18n.t("errors:Auth.CredentialsSuperseded"));
 });
+
+// r3 (Fable E4, E5) — after a successful own change, only a superseded read
+// stays silent, and it neither reports success nor closes the dialog.
+async function changeOwnEmail() {
+  const view = render();
+  act(() => view.result.current.h.openEmail(SELF));
+  act(() => view.result.current.setEmailValue("new-self@farm.test"));
+  act(() => view.result.current.setProof({ password: crypto.randomUUID() }));
+  await act(async () => { await view.result.current.h.onChangeEmail({ preventDefault() {} } as never); });
+  return view.result;
+}
+
+it("reports any other failure of the list read after an own change", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    .mockResolvedValueOnce(json({ title: "Server error", detail: "boom" }, 500));
+
+  const result = await changeOwnEmail();
+
+  expect(result.current.dialog.errors.forDialog("change-email")).toBe("boom");
+});
+
+it("neither reports success nor closes the dialog when the read after an own change is refused as superseded", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    .mockResolvedValueOnce(json({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }, 401))
+    .mockResolvedValueOnce(json({ title: "Identity.InvalidRefreshToken", detail: "The refresh token is invalid." }, 401));
+
+  const result = await changeOwnEmail();
+
+  expect(result.current.message).toBeNull();
+  expect(result.current.emailUser).not.toBeNull();
+  expect(result.current.dialog.errors.forDialog("change-email")).toBeUndefined();
+});
