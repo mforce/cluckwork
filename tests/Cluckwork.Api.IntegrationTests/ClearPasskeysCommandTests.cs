@@ -112,6 +112,8 @@ public sealed class ClearPasskeysCommandTests(CluckworkWebApplicationFactory fac
     [InlineData("--farm \"\"")]
     [InlineData("--all --farm=some-farm")]
     [InlineData("--all --Farm some-farm")]
+    [InlineData("--reason --all")]
+    [InlineData("--farm --all")]
     [InlineData("--farm no-such-farm")]
     public async Task NoScope_BothScopes_OrAnUnknownFarm_ExitNonZero_AndChangeNothing(string arguments)
     {
