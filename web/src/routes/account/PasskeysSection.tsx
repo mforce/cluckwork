@@ -1,8 +1,7 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, DialogActions, Stack, TextField, Typography } from "@mui/material";
-import { MAX_PASSKEYS } from "../../api/cluckwork";
-import type { Passkey } from "../../api/cluckwork";
+import { MAX_PASSKEYS, PASSKEY_NAME_MAX } from "../../api/cluckwork";
 import { BusyButton } from "../../components/BusyButton";
 import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
@@ -11,9 +10,6 @@ import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import { useFarm } from "../../farm/useFarm";
 import { farmDateOf } from "../../lib/relativeTime";
 import type { Passkeys } from "./usePasskeys";
-
-// The server's own limit (PasskeyNameMaxLength).
-const NAME_MAX = 64;
 
 // #1283 "Account / Security A": the passkeys under the app in the Security
 // accordion, each with its address under its name. While passkeys are off at
@@ -93,7 +89,6 @@ export function PasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
   const { t: tc } = useTranslation("common");
   const { open, proof, setProof, name, setName, closeDialog, onDialog, dialog: { busy, isPending, errors } } = passkeys;
   const copy = open && COPY[open.kind];
-  const target: Passkey | null = open && open.kind !== "add" ? open.passkey : null;
   return (
     <Dialog
       open={open !== null}
@@ -113,13 +108,13 @@ export function PasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
       formProps={{ onSubmit: onDialog }}
     >
       <Stack spacing={2}>
-        {open?.kind === "remove" && target && (
-          <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{target.name ?? t("passkeyUnnamed")}</Typography>
+        {open?.kind === "remove" && (
+          <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{open.passkey.name ?? t("passkeyUnnamed")}</Typography>
         )}
         <Typography id={bodyId} sx={{ lineHeight: 1.55 }}>{copy && t(copy.body)}</Typography>
         {open?.kind === "rename" && (
           <TextField label={t("passkeyNameLabel")} value={name} required disabled={busy}
-            onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: NAME_MAX } }} />
+            onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
         )}
         {open?.kind === "remove" && <Alert severity="warning" role="note">{t("passkeySessionWarning")}</Alert>}
         {open && open.kind !== "rename" && <ConfirmItsYou value={proof} onChange={setProof} disabled={busy} />}

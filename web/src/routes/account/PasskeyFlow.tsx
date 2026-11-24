@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, Paper, Stack, TextField, Typography } from "@mui/material";
+import { PASSKEY_NAME_MAX } from "../../api/cluckwork";
 import { useAuth } from "../../auth/useAuth";
 import { BusyButton } from "../../components/BusyButton";
 import { DialogError } from "../../components/DialogError";
@@ -56,7 +57,7 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
         <Typography color="text.secondary">{t("createPasskeyHint")}</Typography>
         {flow.cancelled && <Alert severity="warning">{t("passkeyCancelled")}</Alert>}
         <TextField label={t("passkeyNameLabel")} helperText={t("passkeyNameHint")} value={name} required disabled={busy}
-          onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 64 } }} />
+          onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
         {email && farm && (
           <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
             {t("passkeyDeviceName", { email, farm })}

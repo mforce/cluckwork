@@ -30,6 +30,8 @@ export interface PasskeyCeremony {
 }
 
 export const MAX_PASSKEYS = 5;
+// The server's own limit (AuthEndpoints.PasskeyNameMaxLength).
+export const PASSKEY_NAME_MAX = 64;
 
 export const listPasskeys = (signal?: AbortSignal) => apiGet<PasskeyList>("/auth/passkeys", signal);
 
