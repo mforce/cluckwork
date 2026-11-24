@@ -115,11 +115,19 @@ public sealed class ClearPasskeysCommandTests(CluckworkWebApplicationFactory fac
     [InlineData("--reason --all")]
     [InlineData("--farm --all")]
     [InlineData("--farm no-such-farm")]
-    public async Task NoScope_BothScopes_OrAnUnknownFarm_ExitNonZero_AndChangeNothing(string arguments)
+    // A flag with no value: each red when the missing-value check goes.
+    [InlineData("--all --reason --farm")]
+    [InlineData("--farm {farm} --reason --all")]
+    // A repeated flag.
+    [InlineData("--farm {farm} --farm {farm}")]
+    [InlineData("--farm {farm} --reason one --reason two")]
+    [InlineData("--all --all")]
+    // {farm} is the seeded farm's real code.
+    public async Task AMalformedScope_ExitsNonZero_AndChangesNothing(string arguments)
     {
-        var (_, members, _) = await FarmAsync();
+        var (slug, members, _) = await FarmAsync();
 
-        var (exitCode, stdout, stderr) = await RunAsync(arguments);
+        var (exitCode, stdout, stderr) = await RunAsync(arguments.Replace("{farm}", slug, StringComparison.Ordinal));
 
         Assert.True(exitCode != 0, $"expected a refusal, got exit 0. stdout={stdout} stderr={stderr}");
         Assert.Equal((2, 2), await factory.PasskeyStateAsync(members[0].AccountId, members[0].UserId));
