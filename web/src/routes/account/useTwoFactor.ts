@@ -87,7 +87,6 @@ export function useTwoFactor() {
     open(next);
     setMessage(null);
   }, [open]);
-  const closeProof = proofDialog.close;
 
   async function send(next: "start" | "turn-off", token: string, current: () => boolean) {
     if (next === "start") {
@@ -211,7 +210,7 @@ export function useTwoFactor() {
 
   return {
     status, flow, action, proof, setProof, proofDialog, code, setCode, message, dialog,
-    openProof, closeProof, onProof, onConfirm, leaveFlow, backToSummary,
+    openProof, onProof, onConfirm, leaveFlow, backToSummary,
   };
 }
 
