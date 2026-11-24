@@ -24,7 +24,7 @@ import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
 import { TwoFactorFlow } from "./account/TwoFactorFlow";
 import { PasskeyFlow } from "./account/PasskeyFlow";
-import { PasskeyDialog, PasskeysSection } from "./account/PasskeysSection";
+import { PasskeyStepUpDialog, PasskeysSection, RenamePasskeyDialog } from "./account/PasskeysSection";
 import { usePasskeys } from "./account/usePasskeys";
 import { takeSetUpRequest, useTwoFactor } from "./account/useTwoFactor";
 import { SECURITY_SUMMARY_ID } from "./account/recoveryCodes";
@@ -98,7 +98,7 @@ export function AccountPage() {
 
   // #1277 — enrolment takes the page while it runs. New recovery codes open in
   // the slot above the routes (account/recoveryCodes.tsx).
-  const proofDialog = <><ProofDialog twoFactor={twoFactorSection} /><PasskeyDialog passkeys={passkeys} /></>;
+  const proofDialog = <><ProofDialog twoFactor={twoFactorSection} /><PasskeyStepUpDialog passkeys={passkeys} /><RenamePasskeyDialog passkeys={passkeys} /></>;
   const { flow } = twoFactorSection;
   if (flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{proofDialog}</>;
   // #1284 — the passkey create step takes the page the same way.

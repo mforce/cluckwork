@@ -9,6 +9,8 @@ import { useFarm } from "../../farm/useFarm";
 import { useMe } from "../../session/SessionContext";
 import type { Passkeys } from "./usePasskeys";
 
+const CREATE_LABEL = { ready: "createPasskeyButton", cancelled: "tryAgainButton", spent: "startAgainButton" } as const;
+
 // #1283 "Registration A": after the step-up, the create step takes the
 // Account page, as the app's enrolment does (TwoFactorFlow).
 export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSetUpApp: () => void }) {
@@ -17,7 +19,7 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
   const { twoFactor: enrolled } = useAuth();
   const email = useMe()?.email;
   const farm = useFarm().farm?.name;
-  const { flow, name, setName, onCreate, leaveFlow, dialog: { busy, isPending, errors } } = passkeys;
+  const { flow, createName, setCreateName, onCreate, leaveFlow, dialog: { busy, isPending, errors } } = passkeys;
   // The control that opened this step has left the page, so its heading takes focus.
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -55,9 +57,9 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
       <Stack spacing={2} component="form" onSubmit={onCreate} sx={{ maxWidth: "32rem" }}>
         <Typography variant="h2" ref={headingRef} tabIndex={-1}>{t("createPasskeyHeading")}</Typography>
         <Typography color="text.secondary">{t("createPasskeyHint")}</Typography>
-        {flow.cancelled && <Alert severity="warning">{t("passkeyCancelled")}</Alert>}
-        <TextField label={t("passkeyNameLabel")} helperText={t("passkeyNameHint")} value={name} required disabled={busy}
-          onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
+        {flow.phase === "cancelled" && <Alert severity="warning">{t("passkeyCancelled")}</Alert>}
+        <TextField label={t("passkeyNameLabel")} helperText={t("passkeyNameHint")} value={createName} required disabled={busy}
+          onChange={(e) => setCreateName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
         {email && farm && (
           <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
             {t("passkeyDeviceName", { email, farm })}
@@ -68,7 +70,7 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
         <DialogError errors={errors} scope="create" />
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <BusyButton variant="contained" type="submit" busy={waiting} disabled={busy}>
-            {t(flow.grant === null ? "startAgainButton" : flow.cancelled ? "tryAgainButton" : "createPasskeyButton")}
+            {t(CREATE_LABEL[flow.phase])}
           </BusyButton>
           <button type="button" className="link" onClick={leaveFlow} disabled={busy}>{tc("cancel")}</button>
         </Stack>

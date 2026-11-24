@@ -4332,7 +4332,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
   // set, so a new caller and a stale row both fail. test/stepUpCallers.test.ts
   // pins the walk itself, its floor and that no two sites share a name.
   it("covers exactly the SPA's stepUp() call sites", () => {
-    const covered = new Set([...callers.map((c) => c.site), "ConnectPage.allow", "useTwoFactor.prove", "usePasskeys.prove"]);
+    const covered = new Set([...callers.map((c) => c.site), "ConnectPage.allow", "useStepUpDialog.prove"]);
     const found = new Set(productionStepUpCallSites());
 
     expect([...found].filter((site) => !covered.has(site))).toEqual([]);

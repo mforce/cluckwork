@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getTwoFactorStatus, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { EnrolmentStart } from "../../api/cluckwork";
-import { ApiError, confirmTwoFactor, NO_PROOF, stepUp, turnOffTwoFactor } from "../../api/client";
-import type { StepUpProof } from "../../api/client";
+import { ApiError, confirmTwoFactor, turnOffTwoFactor } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
@@ -11,6 +10,7 @@ import i18n from "../../i18n";
 import { newId } from "../../lib/ids";
 import { useMe } from "../../session/SessionContext";
 import { useRecoveryCodesSlot } from "./recoveryCodes";
+import { stale, useStepUpDialog } from "./useStepUpDialog";
 import type { Delivery } from "./recoveryCodes";
 
 // #1277 — the Security section's two-factor authentication. Start,
@@ -49,12 +49,6 @@ export function takeSetUpRequest(state: unknown): boolean {
 const isProblem = (err: unknown, status: number, title: string): err is ApiError =>
   err instanceof ApiError && err.status === status && err.title === title;
 
-// The stale-session refusal changed nothing on the server (#1280), and the API
-// layer never resends it, so the user only needs to try again.
-export function stale(err: unknown): unknown {
-  return isProblem(err, 401, "Auth.CredentialsSuperseded") ? new Error(i18n.t("account:sessionChanged")) : err;
-}
-
 export function useTwoFactor() {
   // #1281 — credentialKey: a new user or new credentials (a role change)
   // can mean the gate no longer refuses this user, so the status is read
@@ -63,8 +57,8 @@ export function useTwoFactor() {
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
   const [flow, setFlow] = useState<Flow>(SUMMARY);
-  const [action, setAction] = useState<ProofAction | null>(null);
-  const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
+  const proofDialog = useStepUpDialog<ProofAction>(dialog);
+  const { action, proof, setProof, prove } = proofDialog;
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const slot = useRecoveryCodesSlot();
@@ -80,28 +74,20 @@ export function useTwoFactor() {
   const [backToSummary, setBackToSummary] = useState(0);
   const email = useMe()?.email ?? "";
 
-  // #308 — a proof, a code, a key or a recovery code never outlives the session.
+  // #308 — a code, a key or a recovery code never outlives the session.
   useEffect(() => {
     if (isAuthenticated) return;
-    setProof(NO_PROOF);
     setCode("");
     setFlow(SUMMARY);
-    setAction(null);
     for (const scope of SCOPES) dismissDialog(scope);
   }, [isAuthenticated, dismissDialog]);
 
-  // Every way out clears the proof (cancel, send, logout), so opening does not.
+  const { open } = proofDialog;
   const openProof = useCallback((next: ProofAction) => {
-    openDialog(next);
+    open(next);
     setMessage(null);
-    setAction(next);
-  }, [openDialog]);
-
-  function closeProof() {
-    setProof(NO_PROOF);
-    setAction(null);
-    if (action) dismissDialog(action);
-  }
+  }, [open]);
+  const closeProof = proofDialog.close;
 
   async function send(next: "start" | "turn-off", token: string, current: () => boolean) {
     if (next === "start") {
@@ -120,8 +106,7 @@ export function useTwoFactor() {
       if (!current()) return;
       setMessage(i18n.t("account:turnedOffMessage"));
     }
-    setAction(null);
-    dismissDialog(next);
+    proofDialog.close();
   }
 
   // dialogCurrent is the Regenerate dialog's session; delivery.live() is the
@@ -140,15 +125,7 @@ export function useTwoFactor() {
     // has left this page, because the old set no longer works.
     delivery.deliver(recoveryCodes, { regenerated: true, email });
     if (!dialogCurrent()) return;
-    setAction(null);
-    dismissDialog("regenerate");
-  }
-
-  // The step-up proof every Security dialog sends first.
-  async function prove() {
-    const entered = proof;
-    setProof(NO_PROOF);
-    return (await stepUp(entered)).token;
+    proofDialog.close();
   }
 
   async function onProof(e: FormEvent) {
@@ -233,7 +210,7 @@ export function useTwoFactor() {
   }
 
   return {
-    status, flow, action, proof, setProof, code, setCode, message, dialog,
+    status, flow, action, proof, setProof, proofDialog, code, setCode, message, dialog,
     openProof, closeProof, onProof, onConfirm, leaveFlow, backToSummary,
   };
 }

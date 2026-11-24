@@ -1,31 +1,31 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { listPasskeys, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
 import type { Passkey } from "../../api/cluckwork";
-import { NO_PROOF, registerPasskey, removePasskey, stepUp } from "../../api/client";
-import type { StepUpProof } from "../../api/client";
+import { registerPasskey, removePasskey } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";
 import i18n from "../../i18n";
-import { stale } from "./useTwoFactor";
+import { stale, useStepUpDialog } from "./useStepUpDialog";
 
 // #1284 — the Security section's passkeys (record 1282). Add steps up first,
 // then names the passkey and runs the browser's ceremony (#1283
 // "Registration A"); Remove steps up in its dialog; Rename needs no step-up.
-const SCOPES = ["add", "create", "rename", "remove"] as const;
+const SCOPES = ["add", "remove", "rename", "create"] as const;
 
-// What the page shows. The grant lives only in the create step, which spends
-// it on the finish; null once spent, so the next try steps up again.
+// The create step after the step-up. Its grant is spent by the finish
+// whatever it answers, so a sent finish leaves the step "spent", and the next
+// try steps up again; a browser cancel sends nothing and keeps the grant.
+export type CreateStep = { step: "create"; first: boolean } & (
+  | { phase: "ready" | "cancelled"; grant: string }
+  | { phase: "spent" });
+
 export type PasskeyFlow =
   | { step: "list" }
-  | { step: "create"; grant: string | null; first: boolean; cancelled: boolean }
+  | CreateStep
   | { step: "created"; name: string }
   | { step: "unsupported" };
-
-export type PasskeyDialog =
-  | { kind: "add" }
-  | { kind: "rename" | "remove"; passkey: Passkey };
 
 const LIST: PasskeyFlow = { step: "list" };
 
@@ -51,92 +51,103 @@ export function usePasskeys() {
   const { isAuthenticated, twoFactor: enrolled, credentialKey } = useAuth();
   const dialog = useDialogAction(SCOPES);
   const { busy, run, openDialog, dismissDialog } = dialog;
+  const stepUp = useStepUpDialog<"add" | "remove">(dialog);
   const list = useLatestLoad([credentialKey], listPasskeys);
   const [flow, setFlow] = useState<PasskeyFlow>(LIST);
-  const [open, setOpen] = useState<PasskeyDialog | null>(null);
-  const [proof, setProof] = useState<StepUpProof>(NO_PROOF);
-  const [name, setName] = useState("");
+  const [removing, setRemoving] = useState<Passkey | null>(null);
+  const [renaming, setRenaming] = useState<Passkey | null>(null);
+  const [newName, setNewName] = useState("");
+  const [createName, setCreateName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
-  // #308 — a proof or a grant never outlives the session.
+  // #308 — a grant never outlives the session.
   useEffect(() => {
     if (isAuthenticated) return;
-    setProof(NO_PROOF);
     setFlow(LIST);
-    setOpen(null);
+    setRenaming(null);
     for (const scope of SCOPES) dismissDialog(scope);
   }, [isAuthenticated, dismissDialog]);
 
-  const openAdd = useCallback(() => {
+  function openAdd() {
     setMessage(null);
     if (!supported()) {
       setFlow({ step: "unsupported" });
       return;
     }
-    openDialog("add");
-    setOpen({ kind: "add" });
-  }, [openDialog]);
+    stepUp.open("add");
+  }
 
-  function openFor(kind: "rename" | "remove", passkey: Passkey) {
+  function openRemove(passkey: Passkey) {
     setMessage(null);
-    openDialog(kind);
-    setName(passkey.name ?? "");
-    setOpen({ kind, passkey });
+    setRemoving(passkey);
+    stepUp.open("remove");
   }
 
-  // Every way out clears the proof (cancel, send, logout), so opening does not.
-  function closeDialog() {
-    setProof(NO_PROOF);
-    if (open) dismissDialog(open.kind);
-    setOpen(null);
+  function openRename(passkey: Passkey) {
+    setMessage(null);
+    openDialog("rename");
+    setNewName(passkey.name ?? "");
+    setRenaming(passkey);
   }
 
-  async function prove() {
-    const entered = proof;
-    setProof(NO_PROOF);
-    return (await stepUp(entered)).token;
+  function closeRename() {
+    dismissDialog("rename");
+    setRenaming(null);
   }
 
-  async function onDialog(e: FormEvent) {
+  async function onStepUp(e: FormEvent) {
     e.preventDefault();
-    const target = open;
-    if (!target || busy) return;
-    await run(target.kind, async (current) => {
-      if (target.kind === "rename") {
-        await renamePasskey(target.passkey.id, name.trim());
-        list.retry();
-        if (current()) closeDialog();
-        return;
-      }
-      const grant = await prove();
+    const kind = stepUp.action;
+    const target = removing;
+    if (!kind || busy) return;
+    await run(kind, async (current) => {
+      const grant = await stepUp.prove();
       if (!current()) return;
-      if (target.kind === "add") {
-        closeDialog();
-        setName(proposedName());
+      if (kind === "add") {
+        stepUp.close();
+        setCreateName(proposedName());
         openDialog("create");
         const first = !enrolled && list.data?.passkeys.length === 0;
-        setFlow({ step: "create", grant, first, cancelled: false });
+        setFlow({ step: "create", first, phase: "ready", grant });
         return;
       }
-      await removePasskey(target.passkey.id, grant).catch((err: unknown) => { throw stale(err); });
+      await removePasskey(target!.id, grant).catch((err: unknown) => { throw stale(err); });
       list.retry();
       if (!current()) return;
       setMessage(i18n.t("account:passkeyRemovedMessage"));
-      closeDialog();
-    }, { dialog: target.kind });
+      stepUp.close();
+    }, { dialog: kind });
+  }
+
+  async function onRename(e: FormEvent) {
+    e.preventDefault();
+    const target = renaming;
+    if (!target || busy) return;
+    await run("rename", async (current) => {
+      await renamePasskey(target.id, newName.trim());
+      list.retry();
+      if (current()) closeRename();
+    });
+  }
+
+  // Moves the create step to another phase, if the page is still on it.
+  function toPhase(phase: CreateStep["phase"], grant: string) {
+    setFlow((f) => (f.step !== "create" ? f
+      : phase === "spent" ? { step: "create", first: f.first, phase }
+      : { step: "create", first: f.first, phase, grant }));
   }
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (flow.step !== "create" || busy) return;
-    if (flow.grant === null) {
+    if (flow.phase === "spent") {
       openAdd();
       return;
     }
     const { grant } = flow;
-    const chosen = name.trim();
+    const chosen = createName.trim();
     await run("create", async (current) => {
-      setFlow((f) => (f.step === "create" ? { ...f, cancelled: false } : f));
+      toPhase("ready", grant);
       const { ceremony, options } = await startPasskeyRegistration();
       let credential: PublicKeyCredential | null;
       try {
@@ -148,11 +159,10 @@ export function usePasskeys() {
         credential = null;
       }
       if (credential === null) {
-        if (current()) setFlow((f) => (f.step === "create" ? { ...f, cancelled: true } : f));
+        if (current()) toPhase("cancelled", grant);
         return;
       }
-      // The finish spends the grant, whatever it answers.
-      setFlow((f) => (f.step === "create" ? { ...f, grant: null } : f));
+      toPhase("spent", grant);
       const passkey = await registerPasskey(
         { ceremony, credential: credential.toJSON() as RegistrationResponseJSON, name: chosen }, grant,
       ).catch((err: unknown) => { throw stale(err); });
@@ -169,8 +179,8 @@ export function usePasskeys() {
   }
 
   return {
-    list, flow, open, proof, setProof, name, setName, message, dialog,
-    openAdd, openFor, closeDialog, onDialog, onCreate, leaveFlow,
+    list, flow, stepUp, removing, renaming, newName, setNewName, createName, setCreateName, message, dialog,
+    openAdd, openRemove, openRename, closeRename, onStepUp, onRename, onCreate, leaveFlow,
   };
 }
 

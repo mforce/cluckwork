@@ -1,0 +1,54 @@
+import { useId } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { DialogActions, Stack, Typography } from "@mui/material";
+import { BusyButton } from "../../components/BusyButton";
+import { Dialog } from "../../components/Dialog";
+import { DialogError } from "../../components/DialogError";
+import { ConfirmItsYou } from "../../components/StepUpProofFields";
+import type { DialogAction } from "../../components/useDialogAction";
+import type { StepUpDialogState } from "./useStepUpDialog";
+
+// The lab's proof() block in a dialog (#1275): what the action is about
+// (target), what it does, anything it adds (children), then the step-up proof.
+export function StepUpDialog<K extends string>({ stepUp, dialog, copy, danger = false, onSubmit, target, children }: {
+  stepUp: StepUpDialogState<K>;
+  dialog: Pick<DialogAction<K>, "busy" | "isPending" | "errors">;
+  copy: { title: string; body: string; submit: string } | null;
+  danger?: boolean;
+  onSubmit: (e: FormEvent) => void;
+  target?: ReactNode;
+  children?: ReactNode;
+}) {
+  const bodyId = useId();
+  const { t: tc } = useTranslation("common");
+  const { action, proof, setProof, close } = stepUp;
+  const { busy, isPending, errors } = dialog;
+  return (
+    <Dialog
+      open={action !== null}
+      title={copy?.title ?? ""}
+      onClose={close}
+      closeDisabled={busy}
+      describedBy={bodyId}
+      actions={(
+        <DialogActions>
+          <button type="button" className="link" onClick={close} disabled={busy}>{tc("cancel")}</button>
+          <BusyButton variant="contained" type="submit" color={danger ? "error" : "primary"} disabled={busy}
+            busy={action !== null && isPending(action)}>
+            {copy?.submit}
+          </BusyButton>
+        </DialogActions>
+      )}
+      formProps={{ onSubmit }}
+    >
+      <Stack spacing={2}>
+        {target && <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{target}</Typography>}
+        <Typography id={bodyId} sx={{ lineHeight: 1.55 }}>{copy?.body}</Typography>
+        {children}
+        <ConfirmItsYou value={proof} onChange={setProof} disabled={busy} />
+        {action && <DialogError errors={errors} scope={action} />}
+      </Stack>
+    </Dialog>
+  );
+}
