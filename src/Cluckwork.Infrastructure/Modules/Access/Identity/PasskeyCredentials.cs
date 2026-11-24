@@ -159,9 +159,10 @@ internal sealed class PasskeyCredentials(
     public async Task<RegisterOutcome> RegisterAsync(
         ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct)
     {
-        // Postgres refuses \u0000 in the jsonb Data column, and any string in
-        // the credential can carry one into it, so the whole credential is
-        // refused once, here, after the ceremony is consumed.
+        // Postgres refuses \u0000 in the jsonb Data column, which the
+        // credential's transports reach. The check refuses the whole
+        // credential once, here, after the ceremony is consumed, rather than
+        // field by field.
         if (credentialJson.Contains(@"\u0000", StringComparison.Ordinal)) return Refused("the credential holds a NUL character");
 
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);

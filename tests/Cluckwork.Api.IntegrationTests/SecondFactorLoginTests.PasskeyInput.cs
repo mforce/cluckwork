@@ -9,9 +9,10 @@ namespace Cluckwork.Api.IntegrationTests;
 // #1284: what a finish refuses in the browser's credential and at the origin.
 public sealed partial class SecondFactorLoginTests
 {
-    // Postgres refuses \u0000 in the jsonb Data column, and any string the
-    // credential carries can hold one, so the finish refuses it once for the
-    // whole credential, with the one body, and the ceremony stays spent.
+    // The finish refuses a credential that holds \u0000 anywhere, with the one
+    // body, and the ceremony stays spent. The transports case guards the
+    // jsonb column, where Postgres would answer 409; the attachment case,
+    // which is never stored, pins that the refusal covers the whole credential.
     private async Task AssertANulInThePasskeyCredentialIsRefusedAsync(Action<JsonNode> addNul)
     {
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);

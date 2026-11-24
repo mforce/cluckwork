@@ -15,30 +15,31 @@ public sealed class ClearPasskeysCliCommand : ICliCommand
     {
         try
         {
-            // A flag the verb does not know, --farm=x or --Farm among them,
-            // refuses, so a mistyped scope never widens the run.
+            // One pass reads every argument. A flag the verb does not know
+            // (--farm=x, --Farm), or --farm or --reason with no value after it,
+            // refuses, so a mistyped argument never widens the run.
+            var all = false;
+            string? farm = null, reason = null;
             for (var i = 1; i < args.Length; i++)
             {
-                if (args[i] is "--farm" or "--reason") i++;
-                else if (args[i] != "--all")
+                if (args[i] == "--all")
                 {
-                    await Console.Error.WriteLineAsync(
-                        $"clear-passkeys does not know '{args[i]}'. Use --all or --farm <farm-code>, and --reason <text>. Nothing was changed.");
-                    return 1;
+                    all = true;
+                    continue;
                 }
+                if (args[i] is not ("--farm" or "--reason"))
+                    return await RefuseAsync($"clear-passkeys does not know '{args[i]}'.");
+                if (i + 1 == args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    return await RefuseAsync($"clear-passkeys needs a value after {args[i]}.");
+                if (args[i] == "--farm") farm = args[++i];
+                else reason = args[++i];
             }
 
-            // Exactly one scope: --all with no --farm flag at all, or --farm
-            // with a farm code. A bare or empty --farm beside --all refuses
-            // too, rather than reading as --all (decision 10).
-            var all = args.Contains("--all");
-            var slug = AccountSlugLookup.Normalize(CliDispatcher.ArgValue(args, "--farm"));
-            if (all ? args.Contains("--farm") : slug is null)
-            {
-                await Console.Error.WriteLineAsync(
-                    "clear-passkeys requires exactly one of --all or --farm <farm-code>. Nothing was changed.");
-                return 1;
-            }
+            // Exactly one scope: --all with no --farm, or --farm with a farm
+            // code (decision 10).
+            var slug = AccountSlugLookup.Normalize(farm);
+            if (all ? farm is not null : slug is null)
+                return await RefuseAsync("clear-passkeys requires exactly one of --all or --farm <farm-code>.");
 
             List<(string Slug, Guid Id)> farms = [];
             using (var lookup = app.Services.CreateScope())
@@ -47,15 +48,11 @@ public sealed class ClearPasskeysCliCommand : ICliCommand
                 foreach (var code in all ? (await directory.ListAsync()).Select(f => f.Slug) : [slug!])
                 {
                     if (await directory.FindIdBySlugAsync(code) is not { } id)
-                    {
-                        await Console.Error.WriteLineAsync($"No farm with code '{code}'. Nothing was changed.");
-                        return 1;
-                    }
+                        return await RefuseAsync($"No farm with code '{code}'.");
                     farms.Add((code, id));
                 }
             }
 
-            var reason = CliDispatcher.ArgValue(args, "--reason");
             foreach (var (code, id) in farms)
             {
                 using var scope = app.Services.CreateScope();
@@ -71,5 +68,12 @@ public sealed class ClearPasskeysCliCommand : ICliCommand
             await Console.Error.WriteLineAsync($"clear-passkeys failed: {ex.Message}");
             return 1;
         }
+    }
+
+    private static async Task<int> RefuseAsync(string message)
+    {
+        await Console.Error.WriteLineAsync(
+            message + " Use --all or --farm <farm-code>, and --reason <text>. Nothing was changed.");
+        return 1;
     }
 }
