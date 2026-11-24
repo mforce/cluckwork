@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setOnTokensChanged, STEP_UP_HEADER } from "./client";
 import { registerPasskey, removePasskey, removeUserPasskeys } from "./cluckwork";
 import { clearAccessToken, clearBoundAccount, getAccessToken, setAccessToken } from "../auth/tokenStore";
-import { setOnUnauthenticated } from "./client";
+import { apiGet, setOnUnauthenticated } from "./client";
 import i18n from "../i18n";
 
 // #1284 — registering and removing your own passkey (record 1282 decisions
@@ -137,4 +137,18 @@ describe("a stale session's 401 Auth.CredentialsSuperseded on a write with a gra
     expect(onUnauth).not.toHaveBeenCalled();
     expect(getAccessToken()).toBe("at1");
   });
+});
+
+// r2 (Fable G3) — the same title also ends a session whose refresh is refused,
+// so the one catalog text must hold there too.
+it("words a read whose session really ended with the same catalog text", async () => {
+  const onUnauth = vi.fn();
+  setOnUnauthenticated(onUnauth);
+  fetchMock
+    .mockResolvedValueOnce(json({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }, 401))
+    .mockResolvedValueOnce(json({ title: "Identity.InvalidRefreshToken", detail: "The refresh token is invalid." }, 401));
+
+  await expect(apiGet("/stock")).rejects.toMatchObject({ message: i18n.t("errors:Auth.CredentialsSuperseded") });
+  expect(onUnauth).toHaveBeenCalledWith("Auth.CredentialsSuperseded");
+  setOnUnauthenticated(null);
 });

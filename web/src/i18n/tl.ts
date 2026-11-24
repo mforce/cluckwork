@@ -409,8 +409,10 @@ export const tl = {
     "Auth.PasskeyRefused": "Hindi tinanggap ang passkey. Subukan ulit.",
     "Auth.PasskeyLimitReached": "Naabot mo na ang pinakamaraming passkey na puwede. Mag-alis muna ng isa bago magdagdag ng iba.",
     "Users.CannotRemoveOwnPasskeys": "Hindi mo puwedeng alisin dito ang sarili mong mga passkey. Alisin ang mga ito sa Account / Seguridad.",
-    // A write with a step-up grant is never resent on a stale session (#1284).
-    "Auth.CredentialsSuperseded": "Nagbago ang iyong sign-in habang ipinapadala ito, kaya walang nagbago. Subukan ulit.",
+    // #1284 — every 401 with this title reads it: a request with a step-up
+    // grant, which the API layer never resends (refresh.ts isUnresendable),
+    // and any request whose session really ended, before the sign-in screen.
+    "Auth.CredentialsSuperseded": "Nagbago ang iyong sign-in, kaya hindi ito nagawa. Subukan ulit, o mag-sign in ulit kung hihilingin sa iyo.",
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "

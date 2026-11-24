@@ -474,8 +474,10 @@ export const en = {
     "Auth.PasskeyRefused": "The passkey was not accepted. Try again.",
     "Auth.PasskeyLimitReached": "You have the most passkeys allowed. Remove one before adding another.",
     "Users.CannotRemoveOwnPasskeys": "You can't remove your own passkeys here. Remove them in Account / Security.",
-    // A write with a step-up grant is never resent on a stale session (#1284).
-    "Auth.CredentialsSuperseded": "Your sign-in changed while this was sent, so nothing changed. Try again.",
+    // #1284 — every 401 with this title reads it: a request with a step-up
+    // grant, which the API layer never resends (refresh.ts isUnresendable),
+    // and any request whose session really ended, before the sign-in screen.
+    "Auth.CredentialsSuperseded": "Your sign-in changed, so this was not done. Try again, or sign in again if you are asked to.",
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
     // #612 — the distinct 422 a restricted plain Worker gets when their
     // assigned flocks fall short but the farm's full stock would have
