@@ -257,6 +257,8 @@ describe("adding a passkey", () => {
     await press(t("createPasskeyButton"));
 
     expect(await screen.findByText(i18n.t("errors:Auth.PasskeyRefused"))).toBeInTheDocument();
+    // r4 (Fable N3) — the spent step still warns about the finish it retries.
+    expect(screen.getByText(t("passkeySessionWarning"))).toBeInTheDocument();
     await press(t("startAgainButton"));
 
     expect(dialog()).toHaveTextContent(t("addPasskeyBody"));

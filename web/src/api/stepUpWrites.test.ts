@@ -23,9 +23,11 @@ const grant = () => crypto.randomUUID();
 const credential = () => ({ id: crypto.randomUUID(), rawId: crypto.randomUUID(), type: "public-key" }) as unknown as RegistrationResponseJSON;
 
 // The grant-carrying requests: the Users writes, consent (a GET), the
-// two-factor writes and the passkey writes. plainResend marks the plain
-// requests whose expired-token 401 the shared resend case below can answer;
-// the token writers run under the auth-cookie lock and adopt a pair instead.
+// two-factor writes and the passkey writes. plainResend marks the requests
+// the shared expired-token case below runs. Three are not marked, each a
+// token writer under the auth-cookie lock: turnOffTwoFactor, which adopts a
+// pair, and registerPasskey and removePasskey, whose answers the case's
+// generic reply cannot stand in for (no passkey, no access token).
 type Caller = { name: string; send: () => Promise<unknown>; plainResend: boolean };
 const WITH_GRANT: Caller[] = [
   { name: "createUser", send: () => createUser({ email: "a@farm.test", password: freshPassword(), role: "Worker" }, "k", grant()), plainResend: true },
@@ -39,8 +41,8 @@ const WITH_GRANT: Caller[] = [
   { name: "resetUserTwoFactor", send: () => resetUserTwoFactor("u2", "k", grant()), plainResend: true },
   { name: "removeUserPasskeys", send: () => removeUserPasskeys("u2", "k", grant()), plainResend: true },
   { name: "approveConsent (a GET)", send: () => approveConsent("?client_id=x", grant(), ["read"]), plainResend: true },
-  { name: "startTwoFactor", send: () => startTwoFactor(grant()), plainResend: false },
-  { name: "regenerateRecoveryCodes", send: () => regenerateRecoveryCodes(grant()), plainResend: false },
+  { name: "startTwoFactor", send: () => startTwoFactor(grant()), plainResend: true },
+  { name: "regenerateRecoveryCodes", send: () => regenerateRecoveryCodes(grant()), plainResend: true },
   { name: "turnOffTwoFactor", send: () => turnOffTwoFactor(grant()), plainResend: false },
   { name: "registerPasskey", send: () => registerPasskey({ ceremony: crypto.randomUUID(), credential: credential(), name: "Passkey" }, grant()), plainResend: false },
   { name: "removePasskey", send: () => removePasskey("id", grant()), plainResend: false },
@@ -77,6 +79,11 @@ describe("a 401 Auth.CredentialsSuperseded", () => {
       expect(onUnauth).not.toHaveBeenCalled();
       expect(getAccessToken()).toBe("at1");
     });
+});
+
+it("leaves out of the resend case only the three token writers it cannot answer", () => {
+  expect(WITH_GRANT.filter((c) => !c.plainResend).map((c) => c.name))
+    .toEqual(["turnOffTwoFactor", "registerPasskey", "removePasskey"]);
 });
 
 describe("an expired token's plain 401", () => {
