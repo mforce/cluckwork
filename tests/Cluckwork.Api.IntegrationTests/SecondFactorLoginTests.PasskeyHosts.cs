@@ -73,14 +73,9 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
 
         // The refused finish left the grant unspent: it still registers a
-        // passkey at the configured localhost origin.
-        var atLocalhost = await (await client.PostAsync(PasskeysPath + "/options", null)).Content.ReadFromJsonAsync<JsonElement>();
-        var registered = await client.SendAsync(AtHost(HttpMethod.Post, PasskeysPath, "localhost", new
-        {
-            ceremony = atLocalhost.GetProperty("ceremony").GetGuid(),
-            credential = JsonDocument.Parse(new SoftwareAuthenticator().Attest(atLocalhost.GetProperty("options").Clone())).RootElement,
-            name = "Phone",
-        }, grant));
+        // passkey through the same app, at its default host, localhost.
+        var ceremony = await StartPasskeyAsync(client);
+        var registered = await FinishPasskeyAsync(client, grant, ceremony.Id, new SoftwareAuthenticator().Attest(ceremony.Options));
         Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
     }
 }
