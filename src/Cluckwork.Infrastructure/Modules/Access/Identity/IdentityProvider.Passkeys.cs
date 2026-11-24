@@ -20,11 +20,9 @@ public sealed partial class IdentityProvider
     private static readonly Error PasskeyNotFound =
         new(PasskeyErrorCodes.NotFound, "That passkey was not found.");
 
-    // AccessModule answers Passkeys.Off for these two before anything else,
-    // before the finish's step-up grant is read (decision 5).
-    public async Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+    public Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
         Guid accountId, Guid userId, CancellationToken ct = default) =>
-        Result.Success(await passkeys.StartRegistrationAsync(accountId, userId, ct));
+        passkeys.StartRegistrationAsync(accountId, userId, ct);
 
     // Decision 3: the ceremony is consumed by the transaction's first
     // statement, and every refusal after it commits, so it is good for one

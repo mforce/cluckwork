@@ -174,18 +174,17 @@ public sealed class AccessModule(
 
     public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
         Guid accountId, Guid userId, CancellationToken ct) =>
-        passkeys.IsOn
-            ? identity.StartPasskeyRegistrationAsync(accountId, userId, ct)
-            : Task.FromResult(Result.Failure<PasskeyCeremonyStart>(PasskeysOff));
+        WhenPasskeysOnAsync(async () => Result.Success(await identity.StartPasskeyRegistrationAsync(accountId, userId, ct)));
 
     // Decision 15: the grant is spent at the finish, before the transaction.
     public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken,
         Guid ceremony, string credentialJson, string name, CancellationToken ct) =>
-        passkeys.IsOn
-            ? WithGrantAsync(accountId, userId, stepUpToken,
-                () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct), ct)
-            : Task.FromResult(Result.Failure<PasskeyRegistration>(PasskeysOff));
+        WhenPasskeysOnAsync(() => WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, ct), ct));
+
+    private Task<Result<T>> WhenPasskeysOnAsync<T>(Func<Task<Result<T>>> work) =>
+        passkeys.IsOn ? work() : Task.FromResult(Result.Failure<T>(PasskeysOff));
 
     public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct) =>
         identity.ListPasskeysAsync(accountId, userId, ct);

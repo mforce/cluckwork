@@ -159,6 +159,11 @@ internal sealed class PasskeyCredentials(
     public async Task<RegisterOutcome> RegisterAsync(
         ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, CancellationToken ct)
     {
+        // Postgres refuses \u0000 in the jsonb Data column, and any string in
+        // the credential can carry one into it, so the whole credential is
+        // refused once, here, after the ceremony is consumed.
+        if (credentialJson.Contains(@"\u0000", StringComparison.Ordinal)) return Refused("the credential holds a NUL character");
+
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
         if (user is null) return Refused("the user is not in the farm");
         // G7.4: a locked user is refused at every step, this finish included.
@@ -175,9 +180,10 @@ internal sealed class PasskeyCredentials(
 
         // An insert, never Identity's add-or-update: the handler's duplicate
         // check runs before this write, so a credential id that someone else
-        // stored in between would otherwise update their row. The
-        // key refuses it instead, inside a savepoint, so the consumed ceremony
-        // still commits.
+        // stored in between would otherwise update their row. The key refuses
+        // it instead. EF wraps SaveChanges in its own savepoint inside the
+        // caller's transaction, so the failed insert rolls back alone and the
+        // consumed ceremony still commits.
         var passkey = attestation.Passkey;
         var row = new IdentityUserPasskey<Guid>
         {
@@ -200,8 +206,6 @@ internal sealed class PasskeyCredentials(
         // Decision 10: a first factor ends every other session, as enrolment
         // confirm does. A passkey beside the app, or a later one, ends nothing.
         var firstFactor = user.PasskeyCount == 0 && !user.TwoFactorEnabled;
-        var transaction = db.Database.CurrentTransaction!;
-        await transaction.CreateSavepointAsync(InsertSavepoint, ct);
         db.UserPasskeys.Add(row);
         user.PasskeyCount++;
         try
@@ -212,17 +216,12 @@ internal sealed class PasskeyCredentials(
         }
         catch (DbUpdateException e) when (e.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.UniqueViolation })
         {
-            await transaction.RollbackToSavepointAsync(InsertSavepoint, ct);
-            db.Entry(row).State = EntityState.Detached;
-            await db.Entry(user).ReloadAsync(ct);
             return Refused("the credential is already registered");
         }
 
         return new RegisterOutcome.Registered(
             Summary(row.CredentialId, name, row.Data.CreatedAt, row.Data.IsBackedUp, row.Data.ClientDataJson), firstFactor);
     }
-
-    private const string InsertSavepoint = "passkey_insert";
 
     // Decision 12: Identity's message never leaves a debug log.
     private RegisterOutcome Refused(string reason)

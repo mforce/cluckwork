@@ -178,7 +178,6 @@ public sealed partial class IdentityProvider
             db.Entry(entity).State = EntityState.Detached;
     }
 
-    // 256-bit random token; only the SHA-256 hash is persisted.
     // #1274 decision 8, #1282 decision 16: after a factor change every other
     // session and connected app ends, and the acting device gets a fresh pair
     // from the new epoch whose lineage starts now. The caller saves and commits.
@@ -193,6 +192,7 @@ public sealed partial class IdentityProvider
         return jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
     }
 
+    // 256-bit random token; only the SHA-256 hash is persisted.
     private static (string Raw, string Hash) GenerateRefreshToken()
     {
         var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));

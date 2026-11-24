@@ -15,15 +15,18 @@ internal sealed class SoftwareAuthenticator
     private readonly ECDsa _key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
 
     // A new credential id, or one copied from another authenticator to race it.
-    public SoftwareAuthenticator(byte[]? credentialId = null) =>
+    public SoftwareAuthenticator(byte[]? credentialId = null)
+    {
         CredentialId = credentialId is null ? RandomNumberGenerator.GetBytes(16) : [.. credentialId];
+        var q = _key.ExportParameters(includePrivateParameters: false).Q;
+        // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
+        PublicKey = new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
+    }
 
     public byte[] CredentialId { get; }
 
     // The COSE key as Identity stores it, to compare a stored row with.
-    public byte[] PublicKey => _cose ?? throw new InvalidOperationException("Attest first.");
-
-    private byte[]? _cose;
+    public byte[] PublicKey { get; }
 
     public string Id => WebEncoders.Base64UrlEncode(CredentialId);
 
@@ -41,15 +44,10 @@ internal sealed class SoftwareAuthenticator
         });
         var rpId = creationOptions.GetProperty("rp").GetProperty("id").GetString()!;
         var flags = (byte)(UserPresent | (uv ? UserVerified : 0) | BackupEligible | BackedUp | AttestedData);
-        var parameters = _key.ExportParameters(includePrivateParameters: false);
-
-        // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
-        _cose = new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(parameters.Q.X!).Int(-3).Bytes(parameters.Q.Y!)
-            .ToArray();
         var authData = new Cbor()
             .Raw(SHA256.HashData(Encoding.UTF8.GetBytes(rpId))).Raw([flags]).Raw([0, 0, 0, 0])
             .Raw(new byte[16]).Raw([(byte)(CredentialId.Length >> 8), (byte)CredentialId.Length]).Raw(CredentialId)
-            .Raw(_cose)
+            .Raw(PublicKey)
             .ToArray();
         var attestationObject = new Cbor()
             .Map(3).Text("fmt").Text("none").Text("attStmt").Map(0).Text("authData").Bytes(authData)

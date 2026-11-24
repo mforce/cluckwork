@@ -15,6 +15,19 @@ public sealed class ClearPasskeysCliCommand : ICliCommand
     {
         try
         {
+            // A flag the verb does not know, --farm=x or --Farm among them,
+            // refuses, so a mistyped scope never widens the run.
+            for (var i = 1; i < args.Length; i++)
+            {
+                if (args[i] is "--farm" or "--reason") i++;
+                else if (args[i] != "--all")
+                {
+                    await Console.Error.WriteLineAsync(
+                        $"clear-passkeys does not know '{args[i]}'. Use --all or --farm <farm-code>, and --reason <text>. Nothing was changed.");
+                    return 1;
+                }
+            }
+
             // Exactly one scope: --all with no --farm flag at all, or --farm
             // with a farm code. A bare or empty --farm beside --all refuses
             // too, rather than reading as --all (decision 10).

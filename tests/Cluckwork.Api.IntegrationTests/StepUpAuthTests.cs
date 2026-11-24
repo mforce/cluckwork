@@ -723,7 +723,7 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             bool twoFactorCleared, int passkeysRemoved, bool mustChangePassword, CancellationToken ct = default) =>
             inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, passkeysRemoved, mustChangePassword, ct);
 
-        public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+        public Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
             Guid accountId, Guid userId, CancellationToken ct = default) =>
             inner.StartPasskeyRegistrationAsync(accountId, userId, ct);
 
