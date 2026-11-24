@@ -2453,6 +2453,7 @@ export const en = {
     removePasskeysNote:
       "Their authenticator app and recovery codes stay in place. Reset two-factor authentication is a separate action.",
     passkeysRemovedMessage: "Passkeys removed for {{email}}. Every session and connected app of this user ended.",
+    removePasskeysNotFoundError: "This user was not found. Reload the page.",
     ownPasskeysHint: "Manage your own passkeys in Account / Security.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/

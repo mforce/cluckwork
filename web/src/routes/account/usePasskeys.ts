@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { listPasskeys, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
+import { listPasskeys, registerPasskey, removePasskey, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
 import type { Passkey } from "../../api/cluckwork";
-import { registerPasskey, removePasskey } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
 import { useLatestLoad } from "../../components/useLatestLoad";

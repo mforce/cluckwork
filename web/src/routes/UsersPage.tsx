@@ -85,7 +85,6 @@ export function UsersPage() {
   const [pwStepUpProof, setPwStepUpProof] = useState<StepUpProof>(NO_PROOF);
   const [roleStepUpProof, setRoleStepUpProof] = useState<StepUpProof>(NO_PROOF);
   const [resetStepUpProof, setResetStepUpProof] = useState<StepUpProof>(NO_PROOF);
-  const [passkeysStepUpProof, setPasskeysStepUpProof] = useState<StepUpProof>(NO_PROOF);
 
   const { isAuthenticated, userId: myId } = useAuth();
   // #356 — this screen's own identity, so the disable/enable actions can be
@@ -108,7 +107,6 @@ export function UsersPage() {
       setPwStepUpProof(NO_PROOF);
       setRoleStepUpProof(NO_PROOF);
       setResetStepUpProof(NO_PROOF);
-      setPasskeysStepUpProof(NO_PROOF);
       setStepUpProof(NO_PROOF);
       setFlockStepUpProof(NO_PROOF);
       // `emailStepUpProof` is cleared by the change-email effect below,
@@ -223,12 +221,10 @@ export function UsersPage() {
   const { openEmail } = email;
   const disable = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpProof, setStepUpProof });
   const { openStepUp } = disable;
-  const resetTwoFactor = useFactorReset({ kind: "reset-two-factor", dialog, setUsers, keyFor, clearKey, setMessage, resetStepUpProof, setResetStepUpProof });
+  const resets = { dialog, setUsers, keyFor, clearKey, setMessage, proof: resetStepUpProof, setProof: setResetStepUpProof };
+  const resetTwoFactor = useFactorReset({ kind: "reset-two-factor", ...resets });
   const { openReset } = resetTwoFactor;
-  const removePasskeys = useFactorReset({
-    kind: "remove-passkeys", dialog, setUsers, keyFor, clearKey, setMessage,
-    resetStepUpProof: passkeysStepUpProof, setResetStepUpProof: setPasskeysStepUpProof,
-  });
+  const removePasskeys = useFactorReset({ kind: "remove-passkeys", ...resets });
   const flock = useFlockAccess({
     dialog, keyFor, clearKey,
     assignFlock, setAssignFlock, setAssignFlockGen, assignFlockSnapshot, setAssignPickerOpen,
@@ -409,10 +405,9 @@ export function UsersPage() {
 
       <DisableEnableDialog {...disable} {...{ busy, isPending, errors, stepUpProof, setStepUpProof }} />
 
-      <FactorResetDialog {...resetTwoFactor} {...{ busy, isPending, errors, resetStepUpProof, setResetStepUpProof }} />
+      <FactorResetDialog {...resetTwoFactor} {...{ busy, isPending, errors }} />
 
-      <FactorResetDialog {...removePasskeys} {...{ busy, isPending, errors }}
-        resetStepUpProof={passkeysStepUpProof} setResetStepUpProof={setPasskeysStepUpProof} />
+      <FactorResetDialog {...removePasskeys} {...{ busy, isPending, errors }} />
     </section>
   );
 }

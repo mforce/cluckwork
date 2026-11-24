@@ -3,9 +3,9 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { AccountPage } from "../AccountPage";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { account } from "../../test/fixtures";
-import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
+import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, registerPasskey, removePasskey, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
 import type { Passkey, PasskeyList } from "../../api/cluckwork";
-import { ApiError, registerPasskey, removePasskey, stepUp } from "../../api/client";
+import { ApiError, stepUp } from "../../api/client";
 import i18n from "../../i18n";
 import { freshCode } from "../../test/codes";
 import { freshPassword } from "../../test/passwords";
@@ -21,12 +21,12 @@ vi.mock("../../api/cluckwork", async (importOriginal) => ({
   listPasskeys: vi.fn(),
   renamePasskey: vi.fn(),
   startPasskeyRegistration: vi.fn(),
+  registerPasskey: vi.fn(),
+  removePasskey: vi.fn(),
 }));
 vi.mock("../../api/client", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/client")>(),
   stepUp: vi.fn(),
-  registerPasskey: vi.fn(),
-  removePasskey: vi.fn(),
   logout: vi.fn(),
   setOnTokensChanged: vi.fn(),
   setOnUnauthenticated: vi.fn(),

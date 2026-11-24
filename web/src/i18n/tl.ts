@@ -1970,6 +1970,7 @@ export const tl = {
     removePasskeysNote:
       "Mananatili ang kanyang authenticator app at mga recovery code. Hiwalay na aksyon ang pag-reset ng two-factor authentication.",
     passkeysRemovedMessage: "Inalis ang mga passkey ni {{email}}. Natapos ang bawat session at connected app ng user na ito.",
+    removePasskeysNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
     ownPasskeysHint: "Pamahalaan ang sarili mong mga passkey sa Account / Seguridad.",
   },
 

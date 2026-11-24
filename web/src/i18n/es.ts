@@ -1907,6 +1907,7 @@ export const es = {
     removePasskeysNote:
       "Su aplicación de autenticación y sus códigos de recuperación se mantienen. Restablecer la autenticación en dos pasos es una acción aparte.",
     passkeysRemovedMessage: "Se quitaron las llaves de acceso de {{email}}. Terminaron todas las sesiones y aplicaciones conectadas de este usuario.",
+    removePasskeysNotFoundError: "No se encontró este usuario. Recargue la página.",
     ownPasskeysHint: "Administre sus propias llaves de acceso en Cuenta / Seguridad.",
   },
 

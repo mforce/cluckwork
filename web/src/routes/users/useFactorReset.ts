@@ -9,17 +9,37 @@ import i18n from "../../i18n";
 
 // #1280 — an Owner resets another user's two-factor so they can enrol again.
 // #1284 — and, as a separate action, removes their passkeys (record 1282
-// decision 10). Each kind is its own dialog, run scope and idempotency key.
+// decision 10). Each kind is its own dialog, run scope and idempotency key,
+// and one record here says everything about it.
 export type FactorReset = "reset-two-factor" | "remove-passkeys";
 
-const RESETS = {
-  "reset-two-factor": { send: resetUserTwoFactor, done: "users:twoFactorResetMessage" },
-  "remove-passkeys": { send: removeUserPasskeys, done: "users:passkeysRemovedMessage" },
+const name = (u: User) => u.displayName ?? u.email;
+
+export const FACTOR_RESETS = {
+  "reset-two-factor": {
+    send: resetUserTwoFactor,
+    done: "users:twoFactorResetMessage",
+    notFound: "users:resetTwoFactorNotFoundError",
+    title: () => i18n.t("users:resetTwoFactorTitle"),
+    warning: () => i18n.t("users:resetTwoFactorWarningBody"),
+    note: null,
+    submit: "resetTwoFactorSubmitButton",
+  },
+  "remove-passkeys": {
+    send: removeUserPasskeys,
+    done: "users:passkeysRemovedMessage",
+    notFound: "users:removePasskeysNotFoundError",
+    title: (u: User) => i18n.t("users:removePasskeysTitle", { name: name(u) }),
+    warning: (u: User) => i18n.t("users:removePasskeysWarningBody", { count: u.passkeyCount }),
+    note: "removePasskeysNote",
+    submit: "removePasskeysSubmitButton",
+  },
 } as const;
 
 // Same shape as useDisableEnable: the flight guard, the message slots and the
 // idempotency keys stay on the page (#703), as does the step-up proof the
-// page clears on logout (#308).
+// page clears on logout (#308). One proof serves every kind: only one of
+// their dialogs is open at a time, and each open and close clears it.
 export function useFactorReset({
   kind,
   dialog,
@@ -27,8 +47,8 @@ export function useFactorReset({
   keyFor,
   clearKey,
   setMessage,
-  resetStepUpProof,
-  setResetStepUpProof,
+  proof,
+  setProof,
 }: {
   kind: FactorReset;
   dialog: DialogAction<FactorReset>;
@@ -36,21 +56,22 @@ export function useFactorReset({
   keyFor: (scope: string) => string;
   clearKey: (scope: string) => void;
   setMessage: Dispatch<SetStateAction<string | null>>;
-  resetStepUpProof: StepUpProof;
-  setResetStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
+  proof: StepUpProof;
+  setProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const { busy, run, openDialog, dismissDialog } = dialog;
   const [resetUser, setResetUser] = useState<User | null>(null);
+  const config = FACTOR_RESETS[kind];
 
   function openReset(u: User) {
     openDialog(kind);
     setMessage(null);
-    setResetStepUpProof(NO_PROOF);
+    setProof(NO_PROOF);
     setResetUser(u);
   }
 
   function closeReset() {
-    setResetStepUpProof(NO_PROOF);
+    setProof(NO_PROOF);
     setResetUser(null);
     dismissDialog(kind);
   }
@@ -62,22 +83,22 @@ export function useFactorReset({
     setMessage(null);
     const scope = `${kind}:${target.id}`;
     await run(scope, async (current) => {
-      const enteredProof = resetStepUpProof;
-      setResetStepUpProof(NO_PROOF);
+      const enteredProof = proof;
+      setProof(NO_PROOF);
       const token = (await stepUp(enteredProof)).token;
       if (!current()) return;
 
-      await RESETS[kind].send(target.id, keyFor(scope), token).catch((err: unknown) => {
+      await config.send(target.id, keyFor(scope), token).catch((err: unknown) => {
         // A 404 has no problem body for the errors catalog to key on.
-        throw err instanceof ApiError && err.status === 404 ? new Error(i18n.t("users:resetTwoFactorNotFoundError")) : err;
+        throw err instanceof ApiError && err.status === 404 ? new Error(i18n.t(config.notFound)) : err;
       });
       clearKey(scope);
       setUsers(await listUsers());
       if (!current()) return;
-      setMessage(i18n.t(RESETS[kind].done, { email: target.email }));
+      setMessage(i18n.t(config.done, { email: target.email }));
       closeReset();
     }, { dialog: kind });
   }
 
-  return { kind, resetUser, openReset, closeReset, onReset };
+  return { kind, resetUser, openReset, closeReset, onReset, proof, setProof };
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerPasskey, removePasskey, setOnTokensChanged, STEP_UP_HEADER } from "./client";
+import { setOnTokensChanged, STEP_UP_HEADER } from "./client";
+import { registerPasskey, removePasskey } from "./cluckwork";
 import { clearAccessToken, clearBoundAccount, getAccessToken, setAccessToken } from "../auth/tokenStore";
 
 // #1284 — registering and removing your own passkey (record 1282 decisions

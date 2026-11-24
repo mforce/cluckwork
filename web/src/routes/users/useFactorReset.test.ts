@@ -14,7 +14,7 @@ it("clears the proof the moment the dialog closes", () => {
     const reset = useFactorReset({
       kind: "reset-two-factor", dialog: useDialogAction(["reset-two-factor", "remove-passkeys"]),
       setUsers: vi.fn(), keyFor: () => "key", clearKey: vi.fn(), setMessage: vi.fn(),
-      resetStepUpProof: proof, setResetStepUpProof: setProof,
+      proof, setProof,
     });
     return { proof, setProof, reset };
   });

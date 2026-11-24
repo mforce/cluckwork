@@ -111,6 +111,6 @@ describe("UsersPage passkey removal (#1284)", () => {
 
     await openAndSubmit();
 
-    expect(await within(dialog()).findByText(t("resetTwoFactorNotFoundError"))).toBeInTheDocument();
+    expect(await within(dialog()).findByText(t("removePasskeysNotFoundError"))).toBeInTheDocument();
   });
 });
