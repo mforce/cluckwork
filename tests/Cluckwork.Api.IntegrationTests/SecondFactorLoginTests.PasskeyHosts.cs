@@ -27,6 +27,8 @@ public sealed partial class SecondFactorLoginTests
         var (_, accountId, userId, client, _) = await SignedInPlainAsync(asOwner: false);
         var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
 
+        // The list goes first: a first passkey ends this session (decision 16).
+        var listed = await client.SendAsync(AtHost(HttpMethod.Get, PasskeysPath, "localhost:8443"));
         var options = await client.SendAsync(AtHost(HttpMethod.Post, PasskeysPath + "/options", "localhost:8443"));
         Assert.Equal(HttpStatusCode.OK, options.StatusCode);
         var body = await options.Content.ReadFromJsonAsync<JsonElement>();
@@ -39,6 +41,7 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal(HttpStatusCode.OK, finish.StatusCode);
         Assert.Equal((1, 1), await factory.PasskeyStateAsync(accountId, userId));
+        Assert.True((await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("enabled").GetBoolean());
     }
 
     // An internationalised host is not supported: the request's host is read
@@ -56,12 +59,28 @@ public sealed partial class SecondFactorLoginTests
         var client = idn.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
 
+        var grant = await GrantOf(await StepUpAsync(client, TestHarness.Password));
+
         var options = await client.SendAsync(AtHost(HttpMethod.Post, PasskeysPath + "/options", "xn--hhner-kva.example"));
         var listed = await client.SendAsync(AtHost(HttpMethod.Get, PasskeysPath, "xn--hhner-kva.example"));
+        var finish = await client.SendAsync(AtHost(HttpMethod.Post, PasskeysPath, "xn--hhner-kva.example",
+            new { ceremony = Guid.NewGuid(), credential = new { id = "AQID" }, name = "Phone" }, grant));
 
         Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(options));
         Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
         Assert.False((await listed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("enabled").GetBoolean());
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(finish));
         Assert.Equal((0, 0), await factory.PasskeyStateAsync(accountId, userId));
+
+        // The refused finish left the grant unspent: it still registers a
+        // passkey at the configured localhost origin.
+        var atLocalhost = await (await client.PostAsync(PasskeysPath + "/options", null)).Content.ReadFromJsonAsync<JsonElement>();
+        var registered = await client.SendAsync(AtHost(HttpMethod.Post, PasskeysPath, "localhost", new
+        {
+            ceremony = atLocalhost.GetProperty("ceremony").GetGuid(),
+            credential = JsonDocument.Parse(new SoftwareAuthenticator().Attest(atLocalhost.GetProperty("options").Clone())).RootElement,
+            name = "Phone",
+        }, grant));
+        Assert.Equal(HttpStatusCode.OK, registered.StatusCode);
     }
 }
