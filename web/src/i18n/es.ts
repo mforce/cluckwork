@@ -348,8 +348,7 @@ export const es = {
     passkeyManageHint: "Puede renombrarla o quitarla en Cuenta / Seguridad.",
     passkeyUnsupportedHeading: "No se puede crear una llave de acceso aquí",
     passkeyUnsupported: "Este navegador o dispositivo no admite llaves de acceso.",
-    passkeyUnsupportedHint: "Pruebe con un navegador compatible u otro dispositivo. También puede configurar la aplicación de autenticación.",
-    passkeyUnsupportedHintEnrolled: "Pruebe con un navegador compatible u otro dispositivo.",
+    passkeyUnsupportedHint: "Pruebe con un navegador compatible u otro dispositivo.",
     backToSecurityButton: "Volver a Seguridad",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
@@ -401,7 +400,7 @@ export const es = {
     "Passkeys.Off": "Las llaves de acceso están desactivadas en esta dirección web.",
     "Passkeys.NotFound": "No se encontró esta llave de acceso. Recargue la página.",
     "Auth.PasskeyRefused": "No se aceptó la llave de acceso. Inténtelo de nuevo.",
-    "Auth.PasskeyLimitReached": "Tiene 5 llaves de acceso. Quite una antes de añadir otra.",
+    "Auth.PasskeyLimitReached": "Ya tiene el máximo de llaves de acceso permitido. Quite una antes de añadir otra.",
     "Users.CannotRemoveOwnPasskeys": "No puede quitar aquí sus propias llaves de acceso. Quítelas en Cuenta / Seguridad.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":

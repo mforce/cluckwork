@@ -42,7 +42,7 @@ export function PasskeyFlow({ passkeys, onSetUpApp }: { passkeys: Passkeys; onSe
       <Stack spacing={2}>
         <Typography variant="h2" ref={headingRef} tabIndex={-1}>{t("passkeyUnsupportedHeading")}</Typography>
         <Alert severity="warning">{t("passkeyUnsupported")}</Alert>
-        <Typography>{t(enrolled ? "passkeyUnsupportedHintEnrolled" : "passkeyUnsupportedHint")}</Typography>
+        <Typography>{t("passkeyUnsupportedHint")}</Typography>
         <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap", gap: 1 }}>
           <Button variant="contained" onClick={leaveFlow}>{t("backToSecurityButton")}</Button>
           {!enrolled && (

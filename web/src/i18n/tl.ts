@@ -357,8 +357,7 @@ export const tl = {
     passkeyManageHint: "Puwede mo itong palitan ng pangalan o alisin sa Account / Seguridad.",
     passkeyUnsupportedHeading: "Hindi makagawa ng passkey dito",
     passkeyUnsupported: "Hindi sinusuportahan ng browser o device na ito ang mga passkey.",
-    passkeyUnsupportedHint: "Subukan ang suportadong browser o ibang device. Puwede mo ring i-set up ang authenticator app.",
-    passkeyUnsupportedHintEnrolled: "Subukan ang suportadong browser o ibang device.",
+    passkeyUnsupportedHint: "Subukan ang suportadong browser o ibang device.",
     backToSecurityButton: "Bumalik sa Seguridad",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
@@ -410,7 +409,7 @@ export const tl = {
     "Passkeys.Off": "Naka-off ang mga passkey sa web address na ito.",
     "Passkeys.NotFound": "Hindi nakita ang passkey na ito. I-reload ang page.",
     "Auth.PasskeyRefused": "Hindi tinanggap ang passkey. Subukan ulit.",
-    "Auth.PasskeyLimitReached": "May 5 passkey ka na. Mag-alis muna ng isa bago magdagdag ng iba.",
+    "Auth.PasskeyLimitReached": "Naabot mo na ang pinakamaraming passkey na puwede. Mag-alis muna ng isa bago magdagdag ng iba.",
     "Users.CannotRemoveOwnPasskeys": "Hindi mo puwedeng alisin dito ang sarili mong mga passkey. Alisin ang mga ito sa Account / Seguridad.",
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":

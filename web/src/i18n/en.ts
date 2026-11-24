@@ -417,8 +417,7 @@ export const en = {
     passkeyManageHint: "You can rename or remove it in Account / Security.",
     passkeyUnsupportedHeading: "Cannot create a passkey here",
     passkeyUnsupported: "This browser or device does not support passkeys.",
-    passkeyUnsupportedHint: "Try a supported browser or another device. You can also set up the authenticator app.",
-    passkeyUnsupportedHintEnrolled: "Try a supported browser or another device.",
+    passkeyUnsupportedHint: "Try a supported browser or another device.",
     backToSecurityButton: "Back to Security",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
@@ -475,7 +474,7 @@ export const en = {
     "Passkeys.Off": "Passkeys are off at this web address.",
     "Passkeys.NotFound": "This passkey was not found. Reload the page.",
     "Auth.PasskeyRefused": "The passkey was not accepted. Try again.",
-    "Auth.PasskeyLimitReached": "You have 5 passkeys. Remove one before adding another.",
+    "Auth.PasskeyLimitReached": "You have the most passkeys allowed. Remove one before adding another.",
     "Users.CannotRemoveOwnPasskeys": "You can't remove your own passkeys here. Remove them in Account / Security.",
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
     // #612 — the distinct 422 a restricted plain Worker gets when their
