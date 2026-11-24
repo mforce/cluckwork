@@ -355,6 +355,14 @@ describe("browser errors", () => {
 });
 
 describe("renaming and removing", () => {
+  it("describes the Rename dialog by its body text", async () => {
+    await renderAccount({ enabled: true, passkeys: [passkey()] });
+
+    await press(t("renameButton"), section());
+
+    expect(screen.getByRole("dialog", { name: t("renamePasskeyTitle") })).toHaveAccessibleDescription(t("renamePasskeyBody"));
+  });
+
   it("renames with the trimmed name and no step-up", async () => {
     const key = passkey();
     await renderAccount({ enabled: true, passkeys: [key] });

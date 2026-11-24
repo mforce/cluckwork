@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Box, Button, DialogActions, Stack, TextField, Typography } from "@mui/material";
 import { MAX_PASSKEYS, PASSKEY_NAME_MAX } from "../../api/cluckwork";
@@ -88,6 +89,7 @@ export function PasskeyStepUpDialog({ passkeys }: { passkeys: Passkeys }) {
 }
 
 export function RenamePasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
+  const bodyId = useId();
   const { t } = useTranslation("account");
   const { t: tc } = useTranslation("common");
   const { renaming, newName, setNewName, closeRename, onRename, dialog: { busy, isPending, errors } } = passkeys;
@@ -98,6 +100,7 @@ export function RenamePasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
       title={t("renamePasskeyTitle")}
       onClose={closeRename}
       closeDisabled={busy}
+      describedBy={bodyId}
       actions={(
         <DialogActions>
           <button type="button" className="link" onClick={closeRename} disabled={busy}>{tc("cancel")}</button>
@@ -107,7 +110,7 @@ export function RenamePasskeyDialog({ passkeys }: { passkeys: Passkeys }) {
       formProps={{ onSubmit: onRename }}
     >
       <Stack spacing={2}>
-        <Typography sx={{ lineHeight: 1.55 }}>{t("renamePasskeyBody")}</Typography>
+        <Typography id={bodyId} sx={{ lineHeight: 1.55 }}>{t("renamePasskeyBody")}</Typography>
         <TextField label={t("passkeyNameLabel")} value={newName} required disabled={busy}
           error={blank} helperText={blank && t("passkeyNameRequired")}
           onChange={(e) => setNewName(e.target.value)} slotProps={{ htmlInput: { maxLength: PASSKEY_NAME_MAX } }} />
