@@ -4114,7 +4114,8 @@ export const es = {
       "Una forma de demostrar que es usted con su teléfono o computadora: comprueba su huella, su cara o su PIN, y "
       + "luego demuestra que guarda una clave creada para su cuenta. Como la aplicación de autenticación, es un "
       + "segundo factor. Añada hasta cinco en Cuenta › Seguridad. Una llave de acceso solo funciona en la dirección "
-      + "web donde se creó. Quitar las llaves de acceso de otro usuario es una acción del propietario en la pantalla "
+      + "web donde se creó. Donde las llaves de acceso están desactivadas, Cuenta › Seguridad muestra las que tiene "
+      + "solo con Quitar. Quitar las llaves de acceso de otro usuario es una acción del propietario en la pantalla "
       + "Usuarios, aparte de restablecer la autenticación en dos pasos.",
     glossaryResetTwoFactorTerm: "Restablecer la autenticación en dos pasos",
     glossaryResetTwoFactorDef:

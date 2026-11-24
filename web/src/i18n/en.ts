@@ -4747,7 +4747,8 @@ export const en = {
     glossaryPasskeyDef:
       "A way to prove it's you with your phone or computer: it checks your fingerprint, face or PIN, then proves "
       + "it holds a key made for your account. Like the authenticator app, it is a second factor. Add up to five in "
-      + "Account › Security. A passkey works only at the web address where it was made. Removing another user's "
+      + "Account › Security. A passkey works only at the web address where it was made. Where passkeys are off, "
+      + "Account › Security lists the ones you have with Remove only. Removing another user's "
       + "passkeys is an Owner's action on the Users screen, separate from resetting two-factor authentication.",
     glossaryResetTwoFactorTerm: "Reset two-factor authentication",
     glossaryResetTwoFactorDef:

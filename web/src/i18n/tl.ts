@@ -4239,7 +4239,8 @@ export const tl = {
       "Isang paraan para patunayang ikaw ito gamit ang iyong phone o computer: sinusuri nito ang iyong fingerprint, "
       + "mukha o PIN, tapos pinapatunayan na hawak nito ang key na ginawa para sa iyong account. Tulad ng "
       + "authenticator app, isa itong second factor. Magdagdag ng hanggang lima sa Account › Seguridad. Gumagana "
-      + "lang ang passkey sa web address kung saan ito ginawa. Aksyon ng Owner sa Users screen ang pag-alis ng mga "
+      + "lang ang passkey sa web address kung saan ito ginawa. Kung saan naka-off ang mga passkey, ipinapakita ng "
+      + "Account › Seguridad ang mga passkey mo na may Alisin lang. Aksyon ng Owner sa Users screen ang pag-alis ng mga "
       + "passkey ng ibang user, hiwalay sa pag-reset ng two-factor authentication.",
     glossaryResetTwoFactorTerm: "Pag-reset ng two-factor authentication",
     glossaryResetTwoFactorDef:
