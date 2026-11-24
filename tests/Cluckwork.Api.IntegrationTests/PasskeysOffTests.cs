@@ -244,10 +244,13 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
 
     // G7.8: passkeys are on at a host only when exactly one origin names it
     // (IsOnFor), so two entries at one host would leave it off with no log.
+    // Uri.Host lower-cases an ASCII host, so the FARM row checks the port, not
+    // the comparer; the à and À row keeps its case and needs OrdinalIgnoreCase.
     [Theory]
     [InlineData("https://farm.example", "https://farm.example:443", "farm.example")]
     [InlineData("https://farm.example", "https://FARM.example:8443", "farm.example")]
     [InlineData("https://farm.example", "https://farm.example", "farm.example")]
+    [InlineData("https://aàb.example", "https://aÀb.example", "aÀb.example")]
     [InlineData("https://farm.example", "https://localhost", null)]
     public void TwoOriginEntriesAtOneHost_FailTheBootCheck(string first, string second, string? host)
     {
@@ -255,7 +258,7 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         {
             ["Passkeys:Origins:0"] = first,
             ["Passkeys:Origins:1"] = second,
-            ["AllowedHosts"] = "farm.example;localhost",
+            ["AllowedHosts"] = "farm.example;localhost;aàb.example;aÀb.example",
         }));
 
         if (host is null)

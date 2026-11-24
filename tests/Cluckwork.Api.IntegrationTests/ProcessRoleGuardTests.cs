@@ -420,6 +420,19 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#1284 passkey origin host", "Passkeys:Origins:0 names the host",
             Violate: psi => psi.Environment["Passkeys__Origins__0"] = "https://not-listed.example",
             Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
+
+        // Two entries at one host; the host is the one #319's Satisfy lists.
+        new("#1284 passkey origins at one host", "both name the host",
+            Violate: psi =>
+            {
+                psi.Environment["Passkeys__Origins__0"] = "https://cluckwork-test.example";
+                psi.Environment["Passkeys__Origins__1"] = "https://cluckwork-test.example:8443";
+            },
+            Satisfy: psi =>
+            {
+                psi.Environment.Remove("Passkeys__Origins__0");
+                psi.Environment.Remove("Passkeys__Origins__1");
+            }),
     ];
 
     private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>
