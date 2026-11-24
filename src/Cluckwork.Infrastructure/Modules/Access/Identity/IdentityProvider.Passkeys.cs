@@ -66,8 +66,8 @@ public sealed partial class IdentityProvider
             }
         }, ct);
 
-    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
-        passkeys.ListAsync(accountId, userId, requestHost, ct);
+    public Task<IReadOnlyList<PasskeySummary>> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+        passkeys.ListAsync(accountId, userId, ct);
 
     public Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>

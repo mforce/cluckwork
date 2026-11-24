@@ -34,8 +34,7 @@ public interface IPasskeyCredentials
         ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, string requestHost,
         CancellationToken ct);
 
-    // Enabled: Passkeys:Origins names requestHost.
-    Task<PasskeyList> ListAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
+    Task<IReadOnlyList<PasskeySummary>> ListAsync(Guid accountId, Guid userId, CancellationToken ct);
 
     Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
 
@@ -107,8 +106,10 @@ internal sealed class PasskeyCredentials(
 
     // Identity's handler reads only Request.Host.Host from the context it is
     // given (record 1282 "What Identity 10.0.15 does"), and the origin hook
-    // reads the same, so the owner hands it the host and never the request,
-    // which could open a service scope.
+    // reads the same. The route reads Request.Host.Host, which is already
+    // decoded, and the context built here gives it back unchanged; the owner
+    // never holds the request, which could open a service scope
+    // (McpSecondaryScopeTests).
     private static HttpContext ForHost(string requestHost) =>
         new DefaultHttpContext { Request = { Host = new HostString(requestHost) } };
 
@@ -235,14 +236,13 @@ internal sealed class PasskeyCredentials(
         return new RegisterOutcome.Refused();
     }
 
-    public async Task<PasskeyList> ListAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct)
+    public async Task<IReadOnlyList<PasskeySummary>> ListAsync(Guid accountId, Guid userId, CancellationToken ct)
     {
         var rows = await Rows(accountId, userId).AsNoTracking()
             .OrderBy(p => p.Data.CreatedAt)
             .Select(p => new { p.CredentialId, p.Data.Name, p.Data.CreatedAt, p.Data.IsBackedUp, p.Data.ClientDataJson })
             .ToListAsync(ct);
-        return new PasskeyList(origins.Value.IsOnFor(requestHost),
-            rows.Select(r => Summary(r.CredentialId, r.Name, r.CreatedAt, r.IsBackedUp, r.ClientDataJson)).ToList());
+        return [.. rows.Select(r => Summary(r.CredentialId, r.Name, r.CreatedAt, r.IsBackedUp, r.ClientDataJson))];
     }
 
     public async Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct)

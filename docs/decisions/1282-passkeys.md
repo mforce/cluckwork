@@ -209,28 +209,32 @@ Task<Result<StepUpGrant>> IssueAsync(Guid accountId, Guid userId, string? curren
 ```csharp
 // Infrastructure/Modules/Access/Identity. The one owner of passkey state. Public port, internal implementation,
 // as ITwoFactorCredentials. Every method takes ids; writes run in the caller's AmbientTransaction.
+// requestHost is the route's Request.Host.Host, without the port. The owner never takes the request or
+// IHttpContextAccessor: a module contract that reaches either could open a service scope through
+// HttpContext.RequestServices, which McpSecondaryScopeTests refuses (#1284). It gives Identity's handler a
+// context built from the host, the one thing the handler and the origin hook read.
 public interface IPasskeyCredentials
 {
-	Task<CeremonyStart> StartAsync(CeremonyPurpose purpose, Guid? userId, HttpContext http, CancellationToken ct);
+	Task<CeremonyStart> StartAsync(CeremonyPurpose purpose, Guid? userId, string requestHost, CancellationToken ct);
 	Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);        // the one cross-farm lookup (decision 11)
 	Task<ConsumedCeremony?> ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct);
 		// DELETE … RETURNING; the first statement of the caller's owned transaction; null when missing, expired,
 		// of another purpose, or bound to another user
 	Task<AssertionOutcome> AssertAsync(ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson,
-		HttpContext http, CancellationToken ct);                                           // the handler, then the signer check
+		string requestHost, CancellationToken ct);                                         // the handler, then the signer check
 	Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct);   // after the tenant is resolved
-	Task<RegisterOutcome> RegisterAsync(Guid ceremony, Guid accountId, Guid userId, string credentialJson, string name,
-		HttpContext http, CancellationToken ct);
+	Task<RegisterOutcome> RegisterAsync(ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson,
+		string name, string requestHost, CancellationToken ct);                            // inserts; never Identity's add-or-update
 	Task<IReadOnlyList<PasskeySummary>> ListAsync(Guid accountId, Guid userId, CancellationToken ct);
 	Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
-	Task<RemoveOutcome> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);
-	Task<int> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct);          // Owner removal, recover-admin; never reads Data
+	Task<bool> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);   // false: no such passkey
+	Task<int?> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct);         // Owner removal, recover-admin; never reads Data; null: no such user
 }
 
 public enum CeremonyPurpose { SignIn = 1, SecondStep = 2, StepUp = 3, Registration = 4 }
 public sealed record CeremonyStart(Guid Ceremony, string OptionsJson);
 public readonly record struct PasskeyOwner(Guid AccountId, Guid UserId, byte[] CredentialId);
-public sealed record ConsumedCeremony(string State) { public override string ToString() => "[redacted]"; }
+public sealed record ConsumedCeremony(Guid? UserId, string State, DateTimeOffset ExpiresAt) { public override string ToString() => "[redacted]"; }
 // Who must have signed: the user, and at sign-in the exact credential the server looked up.
 public readonly record struct ExpectedSigner(Guid UserId, byte[]? CredentialId);
 public abstract record AssertionOutcome
@@ -238,9 +242,15 @@ public abstract record AssertionOutcome
 	public sealed record Accepted(Guid UserId, UserPasskeyInfo Passkey) : AssertionOutcome;
 	public sealed record Refused(string Reason) : AssertionOutcome;   // Reason: Identity's failure message, logged at debug only
 }
-public enum RegisterOutcome { Registered, RegisteredFirstFactor, Refused, LimitReached }
-public enum RemoveOutcome { NotFound, Removed, LastFactor }
+public abstract record RegisterOutcome
+{
+	public sealed record Registered(PasskeySummary Passkey, bool FirstFactor) : RegisterOutcome;
+	public sealed record Refused : RegisterOutcome;
+	public sealed record LimitReached : RegisterOutcome;
+}
 ```
+
+#1284 shipped the registration, list, rename and removal members above in this shape; #1443 adds the Owner's last-factor refusal to the removal path (409 `Auth.LastFactor`).
 
 `FactorOutcome.Accepted` gains `UserPasskeyInfo? Passkey`, set when a passkey matched, so the caller saves the new sign count and backup state with `RecordUseAsync` after it resolves the tenant (decision 7). `VerifyAsync` gains one optional argument, `ConsumedCeremony? passkeyCeremony`, required when the code is a `SecondFactorCode.Passkey`.
 

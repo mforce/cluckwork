@@ -18,17 +18,15 @@ public static partial class AuthEndpoints
     // A name the user reads in Account → Security.
     internal const int PasskeyNameMaxLength = 64;
 
-    // A passkey is bound to the request's host. The Host header carries it, so
-    // no handler here takes the request itself.
-    private static string HostOf(string? hostHeader) => new HostString(hostHeader ?? string.Empty).Host;
-
+    // A passkey is bound to the request's host: Request.Host.Host, without the
+    // port, which the routes pass down as the module reads no request.
     private static async Task<IResult> StartPasskeyRegistration(
-        [FromHeader(Name = "Host")] string? host,
+        HttpRequest http,
         IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
 
-        var result = await access.StartPasskeyRegistrationAsync(tenant.AccountId, currentUser.UserId, HostOf(host), ct);
+        var result = await access.StartPasskeyRegistrationAsync(tenant.AccountId, currentUser.UserId, http.Host.Host, ct);
         return result.IsSuccess
             ? Results.Ok(new PasskeyOptionsResponse(result.Value.Ceremony, JsonSerializer.Deserialize<JsonElement>(result.Value.OptionsJson)))
             : StepUpRouteProblem(result.Error);
@@ -39,7 +37,7 @@ public static partial class AuthEndpoints
     private static async Task<IResult> RegisterPasskey(
         RegisterPasskeyRequest request,
         [FromHeader(Name = StepUpHeaderName)] string? stepUpToken,
-        [FromHeader(Name = "Host")] string? host,
+        HttpRequest http,
         IAccessModule access, ICurrentUser currentUser, TenantContext tenant, ClaimsPrincipal user,
         HttpResponse response, IWebHostEnvironment env, CancellationToken ct)
     {
@@ -50,7 +48,7 @@ public static partial class AuthEndpoints
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["credential"] = ["The passkey response is missing."] });
 
         var result = await access.RegisterPasskeyAsync(tenant.AccountId, currentUser.UserId, epoch, stepUpToken,
-            request.Ceremony, credential.GetRawText(), name, HostOf(host), ct);
+            request.Ceremony, credential.GetRawText(), name, http.Host.Host, ct);
         if (!result.IsSuccess) return StepUpRouteProblem(result.Error);
 
         if (result.Value.Tokens is not { } pair)
@@ -60,11 +58,11 @@ public static partial class AuthEndpoints
     }
 
     private static async Task<IResult> ListPasskeys(
-        [FromHeader(Name = "Host")] string? host,
+        HttpRequest http,
         IAccessModule access, ICurrentUser currentUser, TenantContext tenant, CancellationToken ct)
     {
         if (!currentUser.IsResolved || !tenant.IsResolved) return Results.Unauthorized();
-        return Results.Ok(await access.ListPasskeysAsync(tenant.AccountId, currentUser.UserId, HostOf(host), ct));
+        return Results.Ok(await access.ListPasskeysAsync(tenant.AccountId, currentUser.UserId, http.Host.Host, ct));
     }
 
     private static async Task<IResult> RenamePasskey(

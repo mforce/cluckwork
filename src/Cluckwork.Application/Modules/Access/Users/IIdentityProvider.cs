@@ -222,7 +222,7 @@ public interface IIdentityProvider
         Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
         string requestHost, CancellationToken ct = default);
 
-    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct = default);
+    Task<IReadOnlyList<PasskeySummary>> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default);
 
     Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default);

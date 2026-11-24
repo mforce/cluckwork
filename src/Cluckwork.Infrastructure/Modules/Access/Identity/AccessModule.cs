@@ -187,8 +187,9 @@ public sealed class AccessModule(
     private Task<Result<T>> WhenPasskeysOnAsync<T>(string requestHost, Func<Task<Result<T>>> work) =>
         passkeyOrigins.Value.IsOnFor(requestHost) ? work() : Task.FromResult(Result.Failure<T>(PasskeysOff));
 
-    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
-        identity.ListPasskeysAsync(accountId, userId, requestHost, ct);
+    // Enabled: this host runs passkey ceremonies. The list itself works while off.
+    public async Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
+        new(passkeyOrigins.Value.IsOnFor(requestHost), await identity.ListPasskeysAsync(accountId, userId, ct));
 
     public Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct) =>

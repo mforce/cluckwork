@@ -273,8 +273,8 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
         string requestHost, CancellationToken ct = default) =>
         inner.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, requestHost, ct);
 
-    public Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
-        inner.ListPasskeysAsync(accountId, userId, requestHost, ct);
+    public Task<IReadOnlyList<PasskeySummary>> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+        inner.ListPasskeysAsync(accountId, userId, ct);
 
     public Task<Result> RenamePasskeyAsync(
         Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>
