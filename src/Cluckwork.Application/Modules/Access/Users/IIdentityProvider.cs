@@ -208,9 +208,10 @@ public interface IIdentityProvider
 
     // #1284 (record 1282) — the caller's own passkeys. The access module
     // answers Passkeys.Off for start and register while Passkeys:Origins does
-    // not name this host, so neither runs then. Register runs after step-up: credentialEpoch is the acting token's,
-    // compared under the user-row lock, and a first factor ends every other
-    // session and connected app and returns the acting session's fresh pair.
+    // not name this host, so neither runs then. Register runs after step-up:
+    // credentialEpoch is the acting token's, compared under the user-row
+    // lock, and a first factor ends every other session and connected app
+    // and returns the acting session's fresh pair.
     // List, rename and remove work while passkeys are off. Remove runs after
     // step-up, ends every other session and returns a fresh pair.
     Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
