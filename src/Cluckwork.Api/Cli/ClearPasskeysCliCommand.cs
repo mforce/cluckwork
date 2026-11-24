@@ -16,21 +16,28 @@ public sealed class ClearPasskeysCliCommand : ICliCommand
         try
         {
             // One pass reads every argument. A flag the verb does not know
-            // (--farm=x, --Farm), or --farm or --reason with no value after it,
-            // refuses, so a mistyped argument never widens the run.
+            // (--farm=x, --Farm), a flag given twice, or --farm or --reason
+            // with no value after it refuses, so a mistyped argument never
+            // widens the run. A value cannot start with --, so a flag is never
+            // read as the value before it.
             var all = false;
             string? farm = null, reason = null;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 1; i < args.Length; i++)
             {
+                if (args[i] is not ("--all" or "--farm" or "--reason"))
+                    return await RefuseAsync($"clear-passkeys does not know '{args[i]}'.");
+                if (!seen.Add(args[i]))
+                    return await RefuseAsync($"clear-passkeys takes {args[i]} once.");
                 if (args[i] == "--all")
                 {
                     all = true;
                     continue;
                 }
-                if (args[i] is not ("--farm" or "--reason"))
-                    return await RefuseAsync($"clear-passkeys does not know '{args[i]}'.");
-                if (i + 1 == args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                if (i + 1 == args.Length)
                     return await RefuseAsync($"clear-passkeys needs a value after {args[i]}.");
+                if (args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    return await RefuseAsync($"The value after {args[i]} cannot start with --.");
                 if (args[i] == "--farm") farm = args[++i];
                 else reason = args[++i];
             }

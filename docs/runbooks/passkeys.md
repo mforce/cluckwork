@@ -83,8 +83,9 @@ Farm '<farm code>': removed the passkeys of 3 user(s); their sessions and connec
 
 With neither `--all` nor `--farm`, or with both, the verb refuses and changes
 nothing. So does an argument it does not know (such as `--farm=code` or
-`--Farm`) and `--farm` or `--reason` with no value after it. An unknown farm
-code exits 1 and changes nothing. Each farm runs in its
+`--Farm`), a flag given twice, and `--farm` or `--reason` with no value after
+it. A value cannot start with `--`, so write a reason such as `--rotate keys`
+another way. An unknown farm code exits 1 and changes nothing. Each farm runs in its
 own transaction, so a failure part way through `--all` leaves the farms before it
 cleared.
 
