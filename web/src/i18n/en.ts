@@ -372,6 +372,54 @@ export const en = {
     codesMissing: "Something went wrong, and no recovery codes arrived. Regenerate them to get a new set.",
     regenerateNotEnabled: "Two-factor authentication is not on for your account, so it has no recovery codes to replace.",
     sessionChanged: "Your sign-in changed while this was sent, so nothing changed. Try again.",
+    // #1284 — the Security section's passkeys (#1283 "Account / Security A" and "Registration A").
+    passkeysHeading: "Passkeys",
+    passkeysHint: "Sign in with your fingerprint, face or device PIN.",
+    passkeysOffHint: "Passkeys are off at this web address. You can remove a passkey, but not add one.",
+    passkeysCount: "{{count}} of {{max}} passkeys",
+    passkeysLimit: "You have {{max}} passkeys. Remove one before adding another.",
+    passkeysMultiAddress: "A passkey works only at the web address where it was made.",
+    passkeysEmpty: "No passkeys yet.",
+    passkeysLoadFailed: "Your passkeys could not be loaded.",
+    passkeyUnnamed: "Passkey",
+    passkeyCreatedLabel: "Created",
+    passkeySynced: "Synced to your other devices",
+    addPasskeyButton: "Add passkey",
+    renameButton: "Rename",
+    removeButton: "Remove",
+    addPasskeyTitle: "Add passkey",
+    addPasskeyBody: "First, confirm it is you.",
+    renamePasskeyTitle: "Rename passkey",
+    renamePasskeyBody: "Choose a name you will recognise.",
+    saveNameButton: "Save name",
+    removePasskeyTitle: "Remove passkey?",
+    removePasskeyBody: "You will no longer be able to use this passkey to sign in.",
+    removePasskeyButton: "Remove passkey",
+    passkeySessionWarning: "Other devices and connected apps must sign in again. This device stays signed in.",
+    passkeyRemovedMessage: "Passkey removed. Other devices and connected apps must sign in again.",
+    createPasskeyHeading: "Create passkey",
+    createPasskeyHint: "Your phone or computer will ask you to confirm with your fingerprint, face or PIN.",
+    passkeyNameLabel: "Passkey name",
+    passkeyNameHint: "Choose a name you will recognise.",
+    passkeyNamePhone: "Phone",
+    passkeyNameTablet: "Tablet",
+    passkeyNameComputer: "Computer",
+    passkeyDeviceName: "Saved on your device as {{email}} ({{farm}}).",
+    createPasskeyButton: "Create passkey",
+    tryAgainButton: "Try again",
+    passkeyWaiting: "Finish creating the passkey in your browser.",
+    passkeyCancelled: "Passkey creation was cancelled. No passkey was added.",
+    passkeyExists: "This device already has a passkey for your account.",
+    passkeyFailed: "The passkey could not be created. Try again.",
+    passkeyCreatedHeading: "Passkey created",
+    passkeyReady: "{{name}} is ready to use.",
+    passkeyReadyHint: "Your device checks your fingerprint, face or PIN when you use this passkey.",
+    passkeyManageHint: "You can rename or remove it in Account / Security.",
+    passkeyUnsupportedHeading: "Cannot create a passkey here",
+    passkeyUnsupported: "This browser or device does not support passkeys.",
+    passkeyUnsupportedHint: "Try a supported browser or another device. You can also set up the authenticator app.",
+    passkeyUnsupportedHintEnrolled: "Try a supported browser or another device.",
+    backToSecurityButton: "Back to Security",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
@@ -423,6 +471,12 @@ export const en = {
     "Identity.StepUpRequired": "Your confirmation is no longer valid. Enter your current password again, and a new code if you use two-factor authentication.",
     "Auth.Forbidden": "You do not have permission to do this.",
     "Users.CannotResetOwnTwoFactor": "You can't reset your own two-factor authentication. Ask another Owner.",
+    // #1284 — the passkey routes' refusals (record 1282 "What a caller sees").
+    "Passkeys.Off": "Passkeys are off at this web address.",
+    "Passkeys.NotFound": "This passkey was not found. Reload the page.",
+    "Auth.PasskeyRefused": "The passkey was not accepted. Try again.",
+    "Auth.PasskeyLimitReached": "You have 5 passkeys. Remove one before adding another.",
+    "Users.CannotRemoveOwnPasskeys": "You can't remove your own passkeys here. Remove them in Account / Security.",
     "Me.Language.Format": "Language must be a 2–8 letter code, for example 'en'.",
     // #612 — the distinct 422 a restricted plain Worker gets when their
     // assigned flocks fall short but the farm's full stock would have
@@ -2383,6 +2437,23 @@ export const en = {
     signedInAsCaption: "Signed in as {{email}}",
     twoFactorResetMessage: "Two-factor authentication was reset for {{email}}.",
     resetTwoFactorNotFoundError: "This user was not found. Reload the page.",
+    // #1284 — an Owner removes another user's passkeys (#1283 "Users A").
+    passkeysField: "Passkeys",
+    passkeysNone: "None",
+    passkeysRegistered_one: "{{count}} registered",
+    passkeysRegistered_other: "{{count}} registered",
+    removePasskeysButton: "remove passkeys",
+    // {{name}} is the target's display name, else their email, DATA.
+    removePasskeysTitle: "Remove {{name}}'s passkeys?",
+    removePasskeysSubmitButton: "Remove passkeys",
+    removePasskeysWarningBody_one:
+      "Remove their passkey. Every session and connected app of this user ends, including their current device.",
+    removePasskeysWarningBody_other:
+      "Remove all {{count}} passkeys. Every session and connected app of this user ends, including their current device.",
+    removePasskeysNote:
+      "Their authenticator app and recovery codes stay in place. Reset two-factor authentication is a separate action.",
+    passkeysRemovedMessage: "Passkeys removed for {{email}}. Every session and connected app of this user ended.",
+    ownPasskeysHint: "Manage your own passkeys in Account / Security.",
   },
   // Expenses screen — category management (a dialog panel: create/deactivate/
   // reactivate) + record/correct expenses, filtered by month and category
@@ -3374,7 +3445,7 @@ export const en = {
     signingInStepUp:
       "Some actions on the <strong>Users</strong> screen ask you to <strong>re-enter your current password</strong> "
       + "right there in the dialog: creating any user, resetting any user's password, changing any user's role, "
-      + "changing a login email, disabling a user, re-enabling a user, resetting a user's two-factor authentication, "
+      + "changing a login email, disabling a user, re-enabling a user, resetting a user's two-factor authentication, removing a user's passkeys, "
       + "assigning a worker to a flock, and "
       + "removing a worker's flock assignment. This confirms it's really you before "
       + "handing out access or cutting someone else's off. Display-name changes do not ask again. "
@@ -3383,7 +3454,8 @@ export const en = {
       + "code</strong>. Each code works once, so for a second action straight after, wait for the next code. "
       + "Under <strong>Account</strong> › <strong>Security</strong>, <strong>Set up</strong> asks for your password, and "
       + "<strong>Replace authenticator app</strong>, <strong>Regenerate</strong> and <strong>Turn off</strong> ask "
-      + "for your password and a code.",
+      + "for your password and a code. <strong>Add passkey</strong> and a passkey's <strong>Remove</strong> ask "
+      + "for your password, and a code too when two-factor authentication is on.",
     signingInAppAddress:
       "<strong>Connecting an AI app.</strong> To connect a compatible AI app, add Cluckwork in the app with "
       + "this address: <code>{{address}}</code>. The app opens Cluckwork in your browser; sign in if asked. "
@@ -3533,6 +3605,11 @@ export const en = {
       + "<strong>reset two-factor</strong> stops their authenticator app and recovery codes working and signs "
       + "them out of every device and connected app. They sign in again with their password only, and can then "
       + "set up two-factor authentication again. You can't reset your own.",
+    rolesRemovePasskeys:
+      "<strong>Removing a user's passkeys</strong> (Users screen, Admin/owner only) is offered for a user who has "
+      + "any. <strong>remove passkeys</strong> removes every passkey they added and signs them out of every device "
+      + "and connected app. Their authenticator app and recovery codes stay; resetting two-factor authentication "
+      + "is a separate action. You can't remove your own here; use Account › Security.",
     rolesChangeEmail:
       "Owners can replace a user's <strong>login email</strong> immediately from the Users screen. The new "
       + "address is used at the next sign-in, every open session ends, and no confirmation email is sent. "
@@ -4100,6 +4177,15 @@ export const en = {
       + "app</strong> moves Cluckwork to a new phone, and <strong>Turn off</strong> removes it. Set up asks "
       + "for your password first, and the other three for your password and a code. Turning it on, replacing the app and turning it off sign out your "
       + "other devices and connected apps.",
+    accountPasskeys:
+      "<strong>Passkeys</strong>, in the same section, let you sign in with your fingerprint, face or device PIN. "
+      + "<strong>Add passkey</strong> asks for your password, and a code too when two-factor authentication is on; "
+      + "you then name the passkey and your browser creates it. You can have up to five. "
+      + "<strong>Rename</strong> changes a name, and <strong>Remove</strong> asks for your password again. "
+      + "Adding your first passkey while two-factor authentication is off, and removing a passkey, sign out your "
+      + "other devices and connected apps; this device stays signed in. A passkey works only at the web address "
+      + "where it was made, so where the farm uses more than one address each passkey shows its own. While "
+      + "passkeys are off at this address, the list keeps only <strong>Remove</strong>.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
       "<strong>Owners</strong> must use two-factor authentication. Until your deadline, the <strong>Dashboard</strong> and the <strong>Account</strong> screen show the date and time to set it up by, with <strong>Set up</strong>. After the deadline, Cluckwork shows only the set-up screen until two-factor authentication is on, then opens the page you asked for. Set it up before the deadline: when the set-up screen opens, changes not yet saved on the screen you were on are lost, and you enter them again after set-up. While it is required, <strong>Turn off</strong> is not offered.",
@@ -4312,13 +4398,14 @@ export const en = {
     glossaryStepUpAuthDef:
       "An extra check on top of being signed in: before creating any user, resetting any user's password, "
       + "changing any user's role, changing a login email, disabling a user, re-enabling a user, resetting a "
-      + "user's two-factor authentication, assigning a "
+      + "user's two-factor authentication, removing a user's passkeys, assigning a "
       + "worker to a flock, or removing a worker's flock assignment, the Users "
       + "screen asks you to re-enter your current password right there in the dialog. It confirms it's really "
       + "you before handing out — or taking away — access. Display-name changes do not ask again. "
       + "With two-factor authentication on, the dialog also asks for a code from your authenticator app or a recovery code. "
       + "Under Account › Security, Set up asks for your password, and Replace authenticator app, Regenerate and Turn off "
-      + "ask for your password and a code.",
+      + "ask for your password and a code. Add passkey and a passkey's Remove ask for your password, and a code "
+      + "too when two-factor authentication is on.",
     glossarySomethingWentWrongScreenTerm: "\"Something went wrong\" screen",
     glossarySomethingWentWrongScreenDef:
       "What a screen shows when it hits an error, instead of going blank. Saved data is safe — anything "
@@ -4656,6 +4743,12 @@ export const en = {
       + " An Owner can't turn it off while two-factor authentication is required.",
 
     // #1280
+    glossaryPasskeyTerm: "Passkey",
+    glossaryPasskeyDef:
+      "A way to prove it's you with your phone or computer: it checks your fingerprint, face or PIN, then proves "
+      + "it holds a key made for your account. Like the authenticator app, it is a second factor. Add up to five in "
+      + "Account › Security. A passkey works only at the web address where it was made. Removing another user's "
+      + "passkeys is an Owner's action on the Users screen, separate from resetting two-factor authentication.",
     glossaryResetTwoFactorTerm: "Reset two-factor authentication",
     glossaryResetTwoFactorDef:
       "An Owner removes another user's two-factor authentication so they can set it up again, for example "

@@ -312,6 +312,54 @@ export const tl = {
     codesMissing: "May nangyaring mali, at walang dumating na recovery code. Gumawa ulit para makakuha ng bagong set.",
     regenerateNotEnabled: "Hindi naka-on ang two-factor authentication sa iyong account, kaya wala itong recovery code na papalitan.",
     sessionChanged: "Nagbago ang iyong sign-in habang ipinapadala ito, kaya walang nagbago. Subukan ulit.",
+    // #1284 — the Security section's passkeys (#1283 "Account / Security A" and "Registration A").
+    passkeysHeading: "Mga passkey",
+    passkeysHint: "Mag-sign in gamit ang iyong fingerprint, mukha o PIN ng device.",
+    passkeysOffHint: "Naka-off ang mga passkey sa web address na ito. Puwede kang mag-alis ng passkey, pero hindi magdagdag.",
+    passkeysCount: "{{count}} sa {{max}} passkey",
+    passkeysLimit: "May {{max}} passkey ka na. Mag-alis muna ng isa bago magdagdag ng iba.",
+    passkeysMultiAddress: "Gumagana lang ang passkey sa web address kung saan ito ginawa.",
+    passkeysEmpty: "Wala ka pang passkey.",
+    passkeysLoadFailed: "Hindi ma-load ang iyong mga passkey.",
+    passkeyUnnamed: "Passkey",
+    passkeyCreatedLabel: "Ginawa noong",
+    passkeySynced: "Naka-sync sa iba mo pang device",
+    addPasskeyButton: "Magdagdag ng passkey",
+    renameButton: "Palitan ang pangalan",
+    removeButton: "Alisin",
+    addPasskeyTitle: "Magdagdag ng passkey",
+    addPasskeyBody: "Una, kumpirmahin na ikaw ito.",
+    renamePasskeyTitle: "Palitan ang pangalan ng passkey",
+    renamePasskeyBody: "Pumili ng pangalang makikilala mo.",
+    saveNameButton: "I-save ang pangalan",
+    removePasskeyTitle: "Alisin ang passkey?",
+    removePasskeyBody: "Hindi mo na magagamit ang passkey na ito para mag-sign in.",
+    removePasskeyButton: "Alisin ang passkey",
+    passkeySessionWarning: "Kailangang mag-sign in ulit ng ibang device at mga connected app. Mananatiling naka-sign in ang device na ito.",
+    passkeyRemovedMessage: "Inalis ang passkey. Kailangang mag-sign in ulit ng ibang device at mga connected app.",
+    createPasskeyHeading: "Gumawa ng passkey",
+    createPasskeyHint: "Hihilingin ng iyong phone o computer na kumpirmahin mo gamit ang iyong fingerprint, mukha o PIN.",
+    passkeyNameLabel: "Pangalan ng passkey",
+    passkeyNameHint: "Pumili ng pangalang makikilala mo.",
+    passkeyNamePhone: "Phone",
+    passkeyNameTablet: "Tablet",
+    passkeyNameComputer: "Computer",
+    passkeyDeviceName: "Naka-save sa iyong device bilang {{email}} ({{farm}}).",
+    createPasskeyButton: "Gumawa ng passkey",
+    tryAgainButton: "Subukan ulit",
+    passkeyWaiting: "Tapusin ang paggawa ng passkey sa iyong browser.",
+    passkeyCancelled: "Kinansela ang paggawa ng passkey. Walang nadagdag na passkey.",
+    passkeyExists: "May passkey na para sa iyong account ang device na ito.",
+    passkeyFailed: "Hindi magawa ang passkey. Subukan ulit.",
+    passkeyCreatedHeading: "Nagawa ang passkey",
+    passkeyReady: "Handa nang gamitin ang {{name}}.",
+    passkeyReadyHint: "Sinusuri ng iyong device ang iyong fingerprint, mukha o PIN kapag ginamit mo ang passkey na ito.",
+    passkeyManageHint: "Puwede mo itong palitan ng pangalan o alisin sa Account / Seguridad.",
+    passkeyUnsupportedHeading: "Hindi makagawa ng passkey dito",
+    passkeyUnsupported: "Hindi sinusuportahan ng browser o device na ito ang mga passkey.",
+    passkeyUnsupportedHint: "Subukan ang suportadong browser o ibang device. Puwede mo ring i-set up ang authenticator app.",
+    passkeyUnsupportedHintEnrolled: "Subukan ang suportadong browser o ibang device.",
+    backToSecurityButton: "Bumalik sa Seguridad",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
@@ -358,6 +406,12 @@ export const tl = {
     "Identity.StepUpRequired": "Hindi na valid ang iyong kumpirmasyon. Ilagay ulit ang kasalukuyan mong password, at isang bagong code kung gumagamit ka ng two-factor authentication.",
     "Auth.Forbidden": "Wala kang pahintulot na gawin ito.",
     "Users.CannotResetOwnTwoFactor": "Hindi mo puwedeng i-reset ang sarili mong two-factor authentication. Humingi ng tulong sa ibang Owner.",
+    // #1284 — the passkey routes' refusals (record 1282 "What a caller sees").
+    "Passkeys.Off": "Naka-off ang mga passkey sa web address na ito.",
+    "Passkeys.NotFound": "Hindi nakita ang passkey na ito. I-reload ang page.",
+    "Auth.PasskeyRefused": "Hindi tinanggap ang passkey. Subukan ulit.",
+    "Auth.PasskeyLimitReached": "May 5 passkey ka na. Mag-alis muna ng isa bago magdagdag ng iba.",
+    "Users.CannotRemoveOwnPasskeys": "Hindi mo puwedeng alisin dito ang sarili mong mga passkey. Alisin ang mga ito sa Account / Seguridad.",
     "Me.Language.Format": "Dapat 2–8 letrang code ang wika, halimbawa 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Wala pang sapat na stock ang mga kawan na nakatalaga sa iyo para sa "
@@ -1900,6 +1954,23 @@ export const tl = {
     signedInAsCaption: "Naka-sign in bilang {{email}}",
     twoFactorResetMessage: "Na-reset ang two-factor authentication ni {{email}}.",
     resetTwoFactorNotFoundError: "Hindi nakita ang user na ito. I-reload ang page.",
+    // #1284 — an Owner removes another user's passkeys (#1283 "Users A").
+    passkeysField: "Mga passkey",
+    passkeysNone: "Wala",
+    passkeysRegistered_one: "{{count}} naka-register",
+    passkeysRegistered_other: "{{count}} naka-register",
+    removePasskeysButton: "alisin ang mga passkey",
+    // {{name}} is the target's display name, else their email, DATA.
+    removePasskeysTitle: "Alisin ang mga passkey ni {{name}}?",
+    removePasskeysSubmitButton: "Alisin ang mga passkey",
+    removePasskeysWarningBody_one:
+      "Aalisin ang kanyang passkey. Matatapos ang bawat session at connected app ng user na ito, kasama ang kanyang kasalukuyang device.",
+    removePasskeysWarningBody_other:
+      "Aalisin ang lahat ng {{count}} passkey. Matatapos ang bawat session at connected app ng user na ito, kasama ang kanyang kasalukuyang device.",
+    removePasskeysNote:
+      "Mananatili ang kanyang authenticator app at mga recovery code. Hiwalay na aksyon ang pag-reset ng two-factor authentication.",
+    passkeysRemovedMessage: "Inalis ang mga passkey ni {{email}}. Natapos ang bawat session at connected app ng user na ito.",
+    ownPasskeysHint: "Pamahalaan ang sarili mong mga passkey sa Account / Seguridad.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -2721,7 +2792,7 @@ export const tl = {
       + "kasalukuyan mong password</strong> mismo sa dialog: ang paggawa ng kahit anong user, ang pag-reset ng "
       + "password ng kahit sinong user, ang pagpapalit ng tungkulin ng kahit sinong user, ang pagpapalit ng email "
       + "sa pag-sign in, ang pag-disable ng user, ang muling pag-enable ng user, ang pag-reset ng two-factor "
-      + "authentication ng user, ang pag-assign ng manggagawa sa "
+      + "authentication ng user, ang pag-alis ng mga passkey ng user, ang pag-assign ng manggagawa sa "
       + "isang kawan, at ang pag-alis ng assignment ng manggagawa sa isang kawan. Kinukumpirma nito na ikaw "
       + "talaga bago magbigay o mag-alis ng access. Hindi muling hinihingi ito sa mga pagbabago ng display name. "
       + "Kapag naka-on ang two-factor authentication sa iyong account, ang mga aksyong ito, ang <strong>Payagan</strong> "
@@ -2730,7 +2801,9 @@ export const tl = {
       + "kaagad pagkatapos, hintayin ang susunod na code. "
       + "Sa <strong>Account</strong> › <strong>Seguridad</strong>, hinihingi ng <strong>I-set up</strong> ang iyong "
       + "password, at hinihingi ng <strong>Palitan ang authenticator app</strong>, <strong>Gumawa ulit</strong> at "
-      + "<strong>I-off</strong> ang iyong password at isang code.",
+      + "<strong>I-off</strong> ang iyong password at isang code. Hinihingi ng <strong>Magdagdag ng passkey</strong> "
+      + "at ng <strong>Alisin</strong> sa isang passkey ang iyong password, at isang code rin kapag naka-on ang "
+      + "two-factor authentication.",
     signingInAppAddress:
       "<strong>Pagkonekta ng AI app.</strong> Para ikonekta ang isang compatible na AI app, idagdag ang Cluckwork "
       + "sa app gamit ang address na ito: <code>{{address}}</code>. Bubuksan ng app ang Cluckwork sa iyong "
@@ -2901,6 +2974,12 @@ export const tl = {
       + "code, at ina-sign out sila sa lahat ng device at nakakonektang app. Mag-si-sign in sila ulit gamit lang "
       + "ang password, at puwede nilang i-set up ulit ang two-factor authentication. Hindi mo puwedeng i-reset "
       + "ang sa iyo.",
+    rolesRemovePasskeys:
+      "Ang <strong>pag-alis ng mga passkey ng user</strong> (Users screen, Admin/owner lang) ay inaalok para sa "
+      + "user na mayroon nito. Inaalis ng <strong>alisin ang mga passkey</strong> ang lahat ng passkey na idinagdag "
+      + "niya at ina-sign out siya sa lahat ng device at connected app. Mananatili ang kanyang authenticator app at "
+      + "mga recovery code; hiwalay na aksyon ang pag-reset ng two-factor authentication. Hindi mo puwedeng alisin "
+      + "dito ang sa iyo; gamitin ang Account › Seguridad.",
     rolesChangeEmail:
       "Maaaring agad palitan ng mga Owner ang <strong>email sa pag-sign in</strong> ng isang user sa Users "
       + "screen. Ang bagong address ang gagamitin sa susunod na pag-sign in, matatapos ang lahat ng bukas na "
@@ -3516,6 +3595,17 @@ export const tl = {
       + "ang Cluckwork sa bagong phone, at inaalis ito ng <strong>I-off</strong>. Hinihingi muna ng I-set up "
       + "ang iyong password, at ng tatlo pa ang iyong password at isang code. Ang pag-on, pagpapalit ng app at pag-off ay nagsa-sign out sa iba "
       + "mo pang device at mga connected app.",
+    accountPasskeys:
+      "Ang <strong>Mga passkey</strong>, sa parehong section, ay nagpapahintulot na mag-sign in ka gamit ang iyong "
+      + "fingerprint, mukha o PIN ng device. Hinihingi ng <strong>Magdagdag ng passkey</strong> ang iyong password, "
+      + "at isang code rin kapag naka-on ang two-factor authentication; pagkatapos ay papangalanan mo ang passkey at "
+      + "gagawin ito ng iyong browser. Hanggang lima ang puwede mong magkaroon. Pinapalitan ng "
+      + "<strong>Palitan ang pangalan</strong> ang isang pangalan, at hinihingi ulit ng <strong>Alisin</strong> ang "
+      + "iyong password. Ang pagdagdag ng una mong passkey habang naka-off ang two-factor authentication, at ang "
+      + "pag-alis ng passkey, ay nagsa-sign out sa iba mo pang device at mga connected app; mananatiling naka-sign in "
+      + "ang device na ito. Gumagana lang ang passkey sa web address kung saan ito ginawa, kaya kapag higit sa isa "
+      + "ang address ng farm, ipinapakita ng bawat passkey ang sarili nitong address. Habang naka-off ang mga "
+      + "passkey sa address na ito, <strong>Alisin</strong> lang ang natitira sa listahan.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
       "Kailangang gumamit ng two-factor authentication ang mga <strong>Owner</strong>. Hanggang sa iyong deadline, ipinapakita ng <strong>Dashboard</strong> at ng screen na <strong>Account</strong> ang petsa at oras kung kailan ito dapat i-set up, kasama ang <strong>I-set up</strong>. Pagkalipas ng deadline, ang setup screen lang ang ipapakita ng Cluckwork hanggang naka-on ang two-factor authentication, tapos bubuksan nito ang page na hiningi mo. I-set up ito bago ang deadline: kapag bumukas ang setup screen, mawawala ang mga pagbabagong hindi pa naka-save sa screen na kinaroroonan mo, at kailangan mo itong ilagay ulit pagkatapos ng setup. Habang kailangan ito, hindi iniaalok ang <strong>I-off</strong>.",
@@ -3753,14 +3843,15 @@ export const tl = {
     glossaryStepUpAuthDef:
       "Isang karagdagang tsek bukod sa pagiging naka-sign in: bago gumawa ng kahit anong user, mag-reset ng "
       + "password ng kahit sinong user, magpalit ng tungkulin ng kahit sinong user, magpalit ng email sa pag-sign in, "
-      + "mag-disable ng user, muling mag-enable ng user, mag-reset ng two-factor authentication ng user, "
+      + "mag-disable ng user, muling mag-enable ng user, mag-reset ng two-factor authentication ng user, mag-alis ng mga passkey ng user, "
       + "mag-assign ng manggagawa sa isang kawan, o mag-alis ng "
       + "assignment ng manggagawa sa isang kawan, hinihiling ng Users screen na muling ilagay ang kasalukuyan "
       + "mong password mismo sa dialog. Kinukumpirma nito na ikaw talaga bago magbigay — o mag-alis — ng access. "
       + "Hindi muling hinihingi ito sa mga pagbabago ng display name. "
       + "Kapag naka-on ang two-factor authentication, humihingi rin ang dialog ng code mula sa iyong authenticator app o isang recovery code. "
       + "Sa Account › Seguridad, hinihingi ng I-set up ang iyong password, at hinihingi ng Palitan ang authenticator app, "
-      + "Gumawa ulit at I-off ang iyong password at isang code.",
+      + "Gumawa ulit at I-off ang iyong password at isang code. Hinihingi ng Magdagdag ng passkey at ng Alisin sa "
+      + "isang passkey ang iyong password, at isang code rin kapag naka-on ang two-factor authentication.",
     glossarySomethingWentWrongScreenTerm: "Screen na \"Something went wrong\"",
     glossarySomethingWentWrongScreenDef:
       "Ipinapakita ito ng isang screen kapag may error, sa halip na maging blangko. Ligtas ang naka-save "
@@ -4143,6 +4234,13 @@ export const tl = {
       + "app, at password lang ang gagamitin mo sa pag-sign in."
       + " Hindi ito puwedeng i-off ng isang Owner habang kailangan ang two-factor authentication.",
 
+    glossaryPasskeyTerm: "Passkey",
+    glossaryPasskeyDef:
+      "Isang paraan para patunayang ikaw ito gamit ang iyong phone o computer: sinusuri nito ang iyong fingerprint, "
+      + "mukha o PIN, tapos pinapatunayan na hawak nito ang key na ginawa para sa iyong account. Tulad ng "
+      + "authenticator app, isa itong second factor. Magdagdag ng hanggang lima sa Account › Seguridad. Gumagana "
+      + "lang ang passkey sa web address kung saan ito ginawa. Aksyon ng Owner sa Users screen ang pag-alis ng mga "
+      + "passkey ng ibang user, hiwalay sa pag-reset ng two-factor authentication.",
     glossaryResetTwoFactorTerm: "Pag-reset ng two-factor authentication",
     glossaryResetTwoFactorDef:
       "Inaalis ng isang Owner ang two-factor authentication ng ibang user para ma-set up niya ito ulit, "

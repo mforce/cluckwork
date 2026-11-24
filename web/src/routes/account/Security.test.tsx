@@ -9,7 +9,7 @@ import { AuthContext } from "../../auth/AuthContext";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
 import { RecoveryCodesProvider, SECURITY_SUMMARY_ID } from "./recoveryCodes";
-import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
+import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
 import { parseError } from "../../api/errors";
@@ -25,6 +25,7 @@ vi.mock("../../api/cluckwork", async (importOriginal) => ({
   startTwoFactor: vi.fn(),
   regenerateRecoveryCodes: vi.fn(),
   listMyConnectedApps: vi.fn(),
+  listPasskeys: vi.fn(),
 }));
 vi.mock("../../api/client", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/client")>(),
@@ -72,6 +73,7 @@ const prove = (enrolled: boolean) => {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(listMyConnectedApps).mockResolvedValue([]);
+  vi.mocked(listPasskeys).mockResolvedValue({ enabled: true, passkeys: [] });
   mockStepUp.mockImplementation(async () => grant());
 });
 

@@ -13,6 +13,8 @@ export interface User {
   disabledAt: string | null;
   // #1280 — the Users page offers the two-factor reset only when this is true.
   twoFactorEnabled: boolean;
+  // #1284 — the Users page offers Remove passkeys only when this is above 0.
+  passkeyCount: number;
 }
 
 export const listUsers = () => apiGet<User[]>("/users");
@@ -127,3 +129,11 @@ export const resetUserTwoFactor = (
   id: string, key?: string, stepUpToken?: string,
 ) => apiDelete<void>(
   `/users/${id}/two-factor`, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);
+
+// #1284 — an Owner removes every passkey of another user (record 1282
+// decision 10). Step-up is unconditional; a user who had any is signed out
+// everywhere.
+export const removeUserPasskeys = (
+  id: string, key?: string, stepUpToken?: string,
+) => apiDelete<void>(
+  `/users/${id}/passkeys`, key, stepUpToken ? { [STEP_UP_HEADER]: stepUpToken } : undefined);

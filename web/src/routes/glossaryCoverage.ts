@@ -37,7 +37,6 @@ export const NOT_YET = "Not yet in the in-app glossary when #1186 landed.";
 const INTERNAL = "An internal mechanism; no screen names it.";
 const OPERATOR = "A run-then-exit operator command, not part of the app.";
 export const SPEC_ONLY: Record<string, string> = {
-  "passkey": "Planned (#320); no screen shows it until #1284 adds the in-app entry.",
   "flock": NOT_YET,
   "placement date": NOT_YET,
   "initial count": NOT_YET,

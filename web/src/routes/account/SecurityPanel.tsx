@@ -17,7 +17,8 @@ import type { ProofAction, TwoFactor } from "./useTwoFactor";
 
 // #1275 "Account": the status, the recovery codes left, Regenerate and Turn
 // off together in one accordion.
-export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
+// #1284 — children: the passkeys, under the app in the same accordion.
+export function SecurityPanel({ twoFactor, children }: { twoFactor: TwoFactor; children?: ReactNode }) {
   const { t } = useTranslation("account");
   const { status, message, openProof } = twoFactor;
   const state = status.data;
@@ -70,6 +71,7 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
               </Row>
             </>
           )}
+          {children}
         </Stack>
       </AccordionDetails>
     </Accordion>

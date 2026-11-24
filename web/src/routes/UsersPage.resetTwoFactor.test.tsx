@@ -16,6 +16,7 @@ import i18n from "../i18n";
 vi.mock("../api/cluckwork", () => ({
   listUsers: vi.fn(),
   resetUserTwoFactor: vi.fn(),
+  removeUserPasskeys: vi.fn(),
   listFlockAssignments: vi.fn(),
   listFlocks: vi.fn(),
   getFlock: vi.fn(),
@@ -31,7 +32,7 @@ const mockStepUp = vi.mocked(stepUp);
 
 const PASSWORD = crypto.randomUUID();
 const user = (id: string, email: string, twoFactorEnabled: boolean): User =>
-  ({ id, email, displayName: null, role: "Worker", disabledAt: null, twoFactorEnabled });
+  ({ id, email, displayName: null, role: "Worker", disabledAt: null, twoFactorEnabled, passkeyCount: 0 });
 // The ADMIN token's sub is "u1", so SELF is the actor's own row.
 const ENROLLED = { ...user("u-e", "enrolled@farm.test", true), displayName: "Ben" };
 const UNENROLLED = user("u-n", "plain@farm.test", false);

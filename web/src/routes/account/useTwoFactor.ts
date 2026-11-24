@@ -51,7 +51,7 @@ const isProblem = (err: unknown, status: number, title: string): err is ApiError
 
 // The stale-session refusal changed nothing on the server (#1280), and the API
 // layer never resends it, so the user only needs to try again.
-function stale(err: unknown): unknown {
+export function stale(err: unknown): unknown {
   return isProblem(err, 401, "Auth.CredentialsSuperseded") ? new Error(i18n.t("account:sessionChanged")) : err;
 }
 
