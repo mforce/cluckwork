@@ -81,7 +81,7 @@ describe("a 401 Auth.CredentialsSuperseded", () => {
     });
 });
 
-it("leaves out of the resend case only the three token writers it cannot answer", () => {
+it("leaves out of the resend case only the three token writers", () => {
   expect(WITH_GRANT.filter((c) => !c.plainResend).map((c) => c.name))
     .toEqual(["turnOffTwoFactor", "registerPasskey", "removePasskey"]);
 });
