@@ -130,9 +130,9 @@ public sealed partial class SecondFactorLoginTests
     private sealed class CancelAfterCheck(ITwoFactorCredentials inner, CancellationTokenSource cancel) : ITwoFactorCredentials
     {
         public async Task<FactorOutcome> VerifyAsync(
-            Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct)
+            Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
         {
-            var outcome = await inner.VerifyAsync(accountId, userId, code, binding, ct);
+            var outcome = await inner.VerifyAsync(accountId, userId, code, binding, passkey, ct);
             await cancel.CancelAsync();
             return outcome;
         }

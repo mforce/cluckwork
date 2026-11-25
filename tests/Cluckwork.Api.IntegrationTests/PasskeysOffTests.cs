@@ -74,6 +74,32 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await client.SendAsync(finish)));
     }
 
+    // G8.5: a passkey is a factor while passkeys are off, so the password alone
+    // gets the pending state, listing the passkey only; every passkey route
+    // under /auth/login runs no ceremony and answers 404 (#1285).
+    [Fact]
+    public async Task APasskeyUsersPassword_GetsThePendingState_WhilePasskeysAreOff()
+    {
+        var email = $"off-signin-{Guid.NewGuid():N}@test.local";
+        var (accountId, userId, _) = await SignedInAsync(email);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
+        var anonymous = factory.CreateClient(TestHarness.Cookieless(factory));
+        var credential = new { id = "AQID" };
+
+        var response = await factory.TryLoginAsync(email, TestHarness.Password);
+        var factors = (await TestHarness.ReadProblemAsync(response)).GetProperty("secondFactors");
+        var challenge = (await TestHarness.ReadPendingLoginAsync(response)).Challenge;
+
+        Assert.Equal(["passkey"], factors.EnumerateArray().Select(f => f.GetString()));
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await anonymous.PostAsync("/api/v1/auth/login/passkey/options", null)));
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await anonymous.PostAsJsonAsync(
+            "/api/v1/auth/login/passkey", new { ceremony = Guid.NewGuid(), credential })));
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await anonymous.PostAsJsonAsync(
+            TestHarness.SecondFactorPath + "/passkey-options", new { challenge })));
+        Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await anonymous.PostAsJsonAsync(
+            TestHarness.SecondFactorPath, new { challenge, passkey = new { ceremony = Guid.NewGuid(), credential } })));
+    }
+
     // Decision 5: a finish while off answers 404 before the grant is read, so a
     // caller with no grant gets 404 too, and a grant sent with it stays unspent.
     [Fact]

@@ -90,6 +90,7 @@ public class CluckworkWebApplicationFactory : WebApplicationFactory<Program>, IA
         builder.UseSetting("RateLimiting:Login:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:Refresh:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:SecondFactor:PermitLimit", "1000000");
+        builder.UseSetting("RateLimiting:PasskeyOptions:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthToken:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthAuthorize:PermitLimit", "1000000");
         builder.UseSetting("RateLimiting:OAuthRegister:PermitLimit", "1000000");

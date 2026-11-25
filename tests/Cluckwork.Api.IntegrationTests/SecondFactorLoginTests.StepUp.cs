@@ -399,7 +399,7 @@ public sealed partial class SecondFactorLoginTests
         var identity = scope.ServiceProvider.GetRequiredService<IIdentityProvider>();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => TestHarness.InTransactionAsync(db,
-            _ => identity.CompleteSecondFactorLoginAsync(pending.Challenge, WrongCode(factor))));
+            _ => identity.CompleteSecondFactorLoginAsync(pending.Challenge, new SecondFactorInput.Code(WrongCode(factor)))));
     }
 
     [Fact]

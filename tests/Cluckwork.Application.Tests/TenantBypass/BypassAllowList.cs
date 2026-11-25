@@ -68,10 +68,17 @@ internal static class BypassAllowList
         },
         new()
         {
-            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct)",
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CompleteSecondFactorLoginAsync(string challenge, SecondFactorInput input, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.SecondFactor.cs",
-            Hash = "b3e52a5d",
-            Justification = "The login code step reads the challenge's account to refuse a suspended farm (#579), the read refresh uses; scoped to the challenge's account id, IgnoreQueryFilters because the code step is anonymous and TenantContext is unresolved (#1278).",
+            Hash = "4f567b40",
+            Justification = "The login code step reads the challenge's account through AccountIsActiveAsync to refuse a suspended farm (#579); scoped to the challenge's account id (#1278, #1285).",
+        },
+        new()
+        {
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.AccountIsActiveAsync(Guid accountId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.SecondFactor.cs",
+            Hash = "e862813d",
+            Justification = "The sign-in finishes' suspended-farm read, the read refresh uses: by the account id the challenge or the passkey's row names, IgnoreQueryFilters because the code step and passkey sign-in are anonymous and TenantContext is unresolved (#1278, #1285).",
         },
         new()
         {

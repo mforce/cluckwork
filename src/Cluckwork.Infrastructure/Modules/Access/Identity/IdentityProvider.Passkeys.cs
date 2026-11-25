@@ -11,7 +11,7 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // removal, which runs inside it as the two-factor reset does.
 public sealed partial class IdentityProvider
 {
-    private static readonly Error PasskeyRefused =
+    internal static readonly Error PasskeyRefused =
         new(PasskeyErrorCodes.Refused, "That passkey did not work. Try again.");
 
     private static readonly Error PasskeyLimitReached =

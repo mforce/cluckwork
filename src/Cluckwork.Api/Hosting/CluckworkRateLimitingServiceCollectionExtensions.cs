@@ -125,6 +125,12 @@ internal static class CluckworkRateLimitingServiceCollectionExtensions
                     rateLimiting.SecondFactor.PermitLimit,
                     TimeSpan.FromSeconds(rateLimiting.SecondFactor.WindowSeconds)));
             limiter.AddPolicy<string>(
+                RateLimitingOptions.PasskeyOptionsPolicyName,
+                new DistributedFixedWindowPolicy(
+                    RateLimitingOptions.PasskeyOptionsPolicyName,
+                    rateLimiting.PasskeyOptions.PermitLimit,
+                    TimeSpan.FromSeconds(rateLimiting.PasskeyOptions.WindowSeconds)));
+            limiter.AddPolicy<string>(
                 RateLimitingOptions.ClientErrorsPolicyName,
                 new DistributedFixedWindowPolicy(
                     RateLimitingOptions.ClientErrorsPolicyName,

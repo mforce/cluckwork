@@ -218,8 +218,19 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
         inner.LoginAsync(accountId, email, password, ct);
 
     public Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
-        string challenge, string code, CancellationToken ct = default) =>
-        inner.CompleteSecondFactorLoginAsync(challenge, code, ct);
+        string challenge, SecondFactorInput input, CancellationToken ct = default) =>
+        inner.CompleteSecondFactorLoginAsync(challenge, input, ct);
+
+    public Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(
+        string challenge, string requestHost, CancellationToken ct = default) =>
+        inner.StartSecondFactorPasskeyAsync(challenge, requestHost, ct);
+
+    public Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default) =>
+        inner.StartPasskeySignInAsync(requestHost, ct);
+
+    public Task<Result<TokenPair>> PasskeyLoginAsync(
+        Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default) =>
+        inner.PasskeyLoginAsync(ceremony, credentialJson, farmAccountId, requestHost, ct);
 
     public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
         inner.RefreshAsync(refreshToken, ct, expectedAccountId);

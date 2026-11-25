@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
@@ -157,26 +158,44 @@ public static partial class AuthEndpoints
                 {
                     ["challenge"] = pending.Challenge,
                     ["challengeExpiresAt"] = pending.ExpiresAt,
+                    // #1282 decision 7: which proofs the code step accepts.
+                    ["secondFactors"] = pending.SecondFactors,
                 });
 
         return SignedIn(response, ((LoginStep.SignedIn)result.Value).Tokens, access, env);
     }
 
     private static async Task<IResult> LoginSecondFactor(
-        SecondFactorLoginRequest request, IAccessModule access, HttpResponse response,
+        SecondFactorLoginRequest request, HttpRequest http, IAccessModule access, HttpResponse response,
         IWebHostEnvironment env, CancellationToken ct)
     {
-        var result = await access.CompleteSecondFactorLoginAsync(request.Challenge, request.Code, ct);
+        SecondFactorInput input;
+        if (request.Passkey is { } passkey)
+        {
+            if (passkey.Credential is not { ValueKind: JsonValueKind.Object } credential)
+                return MissingCredential();
+            input = new SecondFactorInput.Passkey(
+                new SecondFactorCode.Passkey(passkey.Ceremony, credential.GetRawText()), http.Host.Host);
+        }
+        else
+        {
+            input = new SecondFactorInput.Code(request.Code);
+        }
+
+        var result = await access.CompleteSecondFactorLoginAsync(request.Challenge, input, ct);
         if (result.IsSuccess)
             return SignedIn(response, result.Value, access, env);
 
-        // 401 only when the user must sign in again; a wrong code is 400.
+        // 401 only when the user must sign in again; a wrong code or a refused
+        // passkey is 400, so apiFetch does not refresh and resend (#1282 decision 12).
         switch (result.Error)
         {
             case RetryLaterError retry:
                 return RetryLater(response, retry);
             case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:
                 return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
+            case { Code: PasskeyErrorCodes.Off }:
+                return Results.Problem(result.Error.Description, statusCode: 404, title: result.Error.Code);
             default:
                 return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
         }

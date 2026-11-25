@@ -24,6 +24,28 @@ public interface IPasskeyCredentials
     // A registration ceremony bound to the user, under the resolved tenant.
     Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
 
+    // #1285: a sign-in ceremony, issued before any farm or user is known
+    // (decision 3), so allowCredentials is empty.
+    Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct);
+
+    // #1285: the second sign-in step's ceremony, bound to the challenge's
+    // user; allowCredentials lists their passkeys. Null when the user is gone.
+    Task<PasskeyCeremonyStart?> StartSecondStepAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
+
+    // #1285 (decision 11): the one lookup made before the farm is known, by
+    // credential id alone. A routing hint: AssertAsync's signer check decides.
+    Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);
+
+    // #1285: Identity's handler, then the signer check. Refused unless the
+    // user the handler verified is the expected one and, when the expected
+    // signer names a credential, the credential is that one byte for byte.
+    Task<AssertionOutcome> AssertAsync(
+        ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson, string requestHost, CancellationToken ct);
+
+    // #1285 (decision 7): the new sign count and backup state of the passkey
+    // that signed, saved after the caller resolved the user's tenant.
+    Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct);
+
     // DELETE … RETURNING, the first statement of the caller's transaction.
     // Null when the ceremony is missing, expired, of another purpose or bound
     // to another user; the row is gone either way.
@@ -58,6 +80,42 @@ public interface IPasskeyCredentials
 // State holds the challenge (G7.7).
 [Credential]
 public sealed record ConsumedCeremony(Guid? UserId, string State, DateTimeOffset ExpiresAt)
+{
+    public override string ToString() => "[redacted]";
+}
+
+// The user and shadow AccountId of the row that holds a credential id. None
+// is a secret, but G7.7's walk reads every Passkey type as a credential.
+public readonly record struct PasskeyOwner(Guid AccountId, Guid UserId, byte[] CredentialId)
+{
+    public override string ToString() => "[redacted]";
+}
+
+// Who must have signed: the user, and at sign-in the exact credential the
+// server looked up.
+public readonly record struct ExpectedSigner(Guid UserId, byte[]? CredentialId)
+{
+    public override string ToString() => "[redacted]";
+}
+
+public abstract record AssertionOutcome
+{
+    private AssertionOutcome() { }
+
+    public sealed record Accepted(Guid UserId, UserPasskeyInfo Passkey) : AssertionOutcome
+    {
+        public override string ToString() => "[redacted]";
+    }
+
+    // Reason is Identity's failure message, logged at debug level only (decision 12).
+    public sealed record Refused(string Reason) : AssertionOutcome;
+}
+
+// What VerifyAsync needs beside a SecondFactorCode.Passkey: the ceremony
+// ConsumeAsync returned (null when it refused it), the credential the server
+// looked up at sign-in (null at the second step), and the request's host.
+[Credential]
+public sealed record PasskeyAssertion(ConsumedCeremony? Ceremony, byte[]? CredentialId, string RequestHost)
 {
     public override string ToString() => "[redacted]";
 }
@@ -133,6 +191,68 @@ internal sealed class PasskeyCredentials(
             await InsertCeremonyAsync(CeremonyPurpose.Registration, userId,
                 options.AttestationState ?? throw new InvalidOperationException("Identity returned no attestation state."), ct),
             options.CreationOptionsJson);
+    }
+
+    public async Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct) =>
+        await StartAssertionAsync(CeremonyPurpose.SignIn, user: null, requestHost, ct);
+
+    public async Task<PasskeyCeremonyStart?> StartSecondStepAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
+        await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.AccountId == accountId, ct) is { } user
+            ? await StartAssertionAsync(CeremonyPurpose.SecondStep, user, requestHost, ct)
+            : null;
+
+    // A bound ceremony's state names the user, so Identity checks the
+    // credential against them; the row carries their id for ConsumeAsync.
+    private async Task<PasskeyCeremonyStart> StartAssertionAsync(
+        CeremonyPurpose purpose, ApplicationUser? user, string requestHost, CancellationToken ct)
+    {
+        var options = await handler.MakeRequestOptionsAsync(user, ForHost(requestHost));
+        return new PasskeyCeremonyStart(
+            await InsertCeremonyAsync(purpose, user?.Id,
+                options.AssertionState ?? throw new InvalidOperationException("Identity returned no assertion state."), ct),
+            options.RequestOptionsJson);
+    }
+
+    public async Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct) =>
+        await db.UserPasskeys.AsNoTracking()
+            .Where(p => p.CredentialId == credentialId)
+            .Select(p => new { AccountId = EF.Property<Guid>(p, AccountIdProperty), p.UserId })
+            .SingleOrDefaultAsync(ct) is { } row
+            ? new PasskeyOwner(row.AccountId, row.UserId, credentialId)
+            : null;
+
+    public async Task<AssertionOutcome> AssertAsync(
+        ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson, string requestHost, CancellationToken ct)
+    {
+        var assertion = await handler.PerformAssertionAsync(new PasskeyAssertionContext
+        {
+            CredentialJson = credentialJson,
+            AssertionState = ceremony.State,
+            HttpContext = ForHost(requestHost),
+        });
+        if (!assertion.Succeeded) return AssertionRefused(assertion.Failure.Message);
+
+        // Decision 11: Identity takes the user from userHandle and the
+        // credential from the JSON's id, and never reads rawId, so the lookup
+        // and the signature can disagree; disagreement is a refusal.
+        if (assertion.User.Id != expected.UserId) return AssertionRefused("another user signed");
+        if (expected.CredentialId is { } credentialId && !assertion.Passkey.CredentialId.AsSpan().SequenceEqual(credentialId))
+            return AssertionRefused("another credential signed");
+        return new AssertionOutcome.Accepted(assertion.User.Id, assertion.Passkey);
+    }
+
+    private AssertionOutcome AssertionRefused(string reason)
+    {
+        logger.LogDebug("Passkey assertion refused: {Reason}", reason);
+        return new AssertionOutcome.Refused(reason);
+    }
+
+    public async Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct)
+    {
+        var row = await Rows(accountId, userId).SingleAsync(p => p.CredentialId == passkey.CredentialId, ct);
+        row.Data.SignCount = passkey.SignCount;
+        row.Data.IsBackedUp = passkey.IsBackedUp;
+        await db.SaveChangesAsync(ct);
     }
 
     private async Task<Guid> InsertCeremonyAsync(CeremonyPurpose purpose, Guid? userId, string state, CancellationToken ct)

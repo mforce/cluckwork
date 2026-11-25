@@ -14,8 +14,9 @@ public interface ITwoFactorCredentials
     // The one read: untracked, unlocked, by Id and AccountId.
     Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct);
 
+    // passkey is required for a SecondFactorCode.Passkey and ignored otherwise.
     Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct);
+        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct);
 
     // Runs under the resolved tenant of accountId, like ConfirmEnrolmentAsync.
     Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct);
@@ -49,10 +50,14 @@ public abstract record FactorOutcome
 {
     private FactorOutcome() { }
 
-    // RecoveryCodesLeft is set when a recovery code was spent.
-    public sealed record Accepted(int? RecoveryCodesLeft) : FactorOutcome;
+    // RecoveryCodesLeft is set when a recovery code was spent; Passkey when a
+    // passkey signed, so the caller saves its sign count (record 1282 decision 7).
+    public sealed record Accepted(int? RecoveryCodesLeft, Microsoft.AspNetCore.Identity.UserPasskeyInfo? Passkey = null) : FactorOutcome
+    {
+        public override string ToString() => "[redacted]";
+    }
 
-    // Wrong (charged); reused or locked (not charged).
+    // Wrong (charged); reused, locked or a refused passkey (not charged).
     public sealed record Rejected(bool Charged) : FactorOutcome;
 
     // Disabled, epoch, stamp or sign-in count moved, or two-factor off.

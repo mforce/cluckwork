@@ -116,8 +116,10 @@ public static class SecurityEvents
     public const string TwoFactorEnrolled = "Auth.TwoFactorEnrolled";
 
     // #1282 decision 19 — a refused passkey anywhere, ClientIp only, as
-    // SecondFactorFailed; a registered and a removed passkey, after step-up.
+    // SecondFactorFailed; an accepted passkey-alone sign-in (#1285); a
+    // registered and a removed passkey, after step-up.
     public const string PasskeyFailed = "Auth.PasskeyFailed";
+    public const string PasskeySignIn = "Auth.PasskeySignIn";
     public const string PasskeyRegistered = "Auth.PasskeyRegistered";
     public const string PasskeyRemoved = "Auth.PasskeyRemoved";
 

@@ -151,8 +151,9 @@ public sealed partial class SecondFactorLoginTests
         var email = $"pk-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, email, Roles.Manager);
         var userId = await UserIdAsync(accountId, email);
-        await factory.SeedPasskeysAsync(accountId, userId, 2);
+        // Signed in first: a user with a passkey gets the second step for a password (#1285).
         var session = await factory.LoginAsync(email);
+        await factory.SeedPasskeysAsync(accountId, userId, 2);
         var app = await ConnectedAppToken.IssueAsync(factory, session.AccessToken);
 
         var response = await DeleteWithGrantAsync(owner, UserPasskeysPath(userId), await OwnerGrantAsync(owner));
@@ -227,7 +228,12 @@ public sealed partial class SecondFactorLoginTests
         var email = $"pk-{Guid.NewGuid():N}@test.local";
         await factory.SeedUserAsync(accountId, email, Roles.Manager);
         var userId = await UserIdAsync(accountId, email);
-        await factory.SeedPasskeysAsync(accountId, userId, 2);
+        // A real passkey, so the user signs in after the reset: the password
+        // alone gets the second step once a passkey is stored (#1285).
+        var key = new SoftwareAuthenticator();
+        Assert.Equal(HttpStatusCode.OK, (await RegisterPasskeyAsync(
+            factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken), key)).StatusCode);
+        await factory.SeedPasskeysAsync(accountId, userId, 1);
         var before = await PasskeysOfAsync(accountId, userId);
 
         var reset = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/users/{userId}/password")
@@ -237,7 +243,9 @@ public sealed partial class SecondFactorLoginTests
         reset.Headers.Add(Modules.Access.Auth.AuthEndpoints.StepUpHeaderName, await OwnerGrantAsync(owner));
         reset.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
         Assert.Equal(HttpStatusCode.NoContent, (await owner.SendAsync(reset)).StatusCode);
-        var user = factory.CreateAuthedClient((await factory.LoginAsync(email)).AccessToken);
+        var signedIn = await SignInWithPasskeyAsync(key);
+        Assert.Equal(HttpStatusCode.OK, signedIn.StatusCode);
+        var user = factory.CreateAuthedClient((await TestHarness.ReadTokensAsync(signedIn)).AccessToken);
         var change = await user.PostWithKeyAsync("/api/v1/auth/change-password", Guid.NewGuid().ToString(),
             new { currentPassword = TestHarness.Password, newPassword = NewPassword });
 

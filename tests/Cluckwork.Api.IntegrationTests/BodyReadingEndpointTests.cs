@@ -60,7 +60,14 @@ public sealed class BodyReadingEndpointTests(CluckworkWebApplicationFactory fact
         ["POST /api/v1/auth/login"] =
             "Login binds LoginRequest and takes HttpResponse to set the refresh cookie; it never reads the raw body.",
         ["POST /api/v1/auth/login/second-factor"] =
-            "LoginSecondFactor binds SecondFactorLoginRequest and takes HttpResponse to set the refresh cookie and Retry-After.",
+            "LoginSecondFactor binds SecondFactorLoginRequest, takes HttpRequest for the host a passkey is bound to, and HttpResponse to set the refresh cookie and Retry-After.",
+        // #1285: HttpRequest only for Request.Host.Host, the passkey's relying party.
+        ["POST /api/v1/auth/login/passkey/options"] =
+            "StartPasskeySignIn has no body and takes HttpRequest only for the host the ceremony is bound to.",
+        ["POST /api/v1/auth/login/passkey"] =
+            "PasskeyLogin binds PasskeyLoginRequest, takes HttpRequest for the host and HttpResponse to set the refresh cookie.",
+        ["POST /api/v1/auth/login/second-factor/passkey-options"] =
+            "StartSecondFactorPasskey binds SecondFactorPasskeyOptionsRequest and takes HttpRequest only for the host.",
         ["POST /api/v1/auth/change-password"] =
             "ChangePassword binds ChangeOwnPasswordRequest and takes HttpResponse to rotate the refresh cookie and set Retry-After.",
         ["POST /api/v1/auth/step-up"] =

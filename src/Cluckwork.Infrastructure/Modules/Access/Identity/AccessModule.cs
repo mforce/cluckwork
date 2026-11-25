@@ -122,8 +122,32 @@ public sealed class AccessModule(
     public Task<Result<LoginStep>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct) =>
         identity.LoginAsync(accountId, email, password, ct);
 
-    public Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct) =>
-        identity.CompleteSecondFactorLoginAsync(challenge, code, ct);
+    // A passkey answer runs a ceremony, so it is Passkeys.Off at a host no
+    // origin names; a code is not.
+    public Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, SecondFactorInput input, CancellationToken ct) =>
+        input is SecondFactorInput.Passkey passkey
+            ? WhenPasskeysOnAsync(passkey.RequestHost, () => identity.CompleteSecondFactorLoginAsync(challenge, input, ct))
+            : identity.CompleteSecondFactorLoginAsync(challenge, input, ct);
+
+    public Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(string challenge, string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost, () => identity.StartSecondFactorPasskeyAsync(challenge, requestHost, ct));
+
+    public Task<Result<PasskeyCeremonyStart>> StartPasskeySignInAsync(string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost, async () => Result.Success(await identity.StartPasskeySignInAsync(requestHost, ct)));
+
+    // Record 1282 decision 11: a typed farm code is resolved first; the
+    // passkey's own farm must match it.
+    public Task<Result<TokenPair>> PasskeyLoginAsync(
+        Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost, async () =>
+        {
+            if (string.IsNullOrWhiteSpace(farmCode))
+                return await identity.PasskeyLoginAsync(ceremony, credentialJson, farmAccountId: null, requestHost, ct);
+            if (await identity.ResolveFarmCodeAsync(farmCode, ct) is { } farm)
+                return await identity.PasskeyLoginAsync(ceremony, credentialJson, farm.AccountId, requestHost, ct);
+            securityEvents.PasskeyFailed();
+            return Result.Failure<TokenPair>(IdentityProvider.PasskeyRefused);
+        });
 
     public Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct) => firstRun.IsProvisionedAsync(ct);
 

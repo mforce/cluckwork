@@ -15,8 +15,11 @@ internal sealed class SoftwareAuthenticator
     private readonly ECDsa _key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
 
     // A new credential id, or one copied from another authenticator to race it.
-    public SoftwareAuthenticator(byte[]? credentialId = null)
+    // counts: each assertion reports a sign count one above the last, as a
+    // security key does; otherwise 0, as synced passkeys report (#1285).
+    public SoftwareAuthenticator(byte[]? credentialId = null, bool counts = false)
     {
+        Counts = counts;
         CredentialId = credentialId is null ? RandomNumberGenerator.GetBytes(16) : [.. credentialId];
         var q = _key.ExportParameters(includePrivateParameters: false).Q;
         // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
@@ -25,8 +28,34 @@ internal sealed class SoftwareAuthenticator
 
     public byte[] CredentialId { get; }
 
+    public bool Counts { get; }
+
+    // The last sign count this authenticator reported.
+    public uint Counter { get; private set; }
+
+    // The user handle the registration's options named, base64url.
+    public string? UserHandle { get; set; }
+
+    // The same key, credential, user handle and count: a cloned authenticator.
+    public SoftwareAuthenticator Clone()
+    {
+        var clone = new SoftwareAuthenticator(CredentialId, Counts, _key.ExportParameters(includePrivateParameters: true))
+        {
+            UserHandle = UserHandle,
+        };
+        clone.Counter = Counter;
+        return clone;
+    }
+
+    private SoftwareAuthenticator(byte[] credentialId, bool counts, ECParameters key) : this(credentialId, counts)
+    {
+        _key.ImportParameters(key);
+        var q = _key.ExportParameters(includePrivateParameters: false).Q;
+        PublicKey = new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
+    }
+
     // The COSE key as Identity stores it, to compare a stored row with.
-    public byte[] PublicKey { get; }
+    public byte[] PublicKey { get; private set; }
 
     public string Id => WebEncoders.Base64UrlEncode(CredentialId);
 
@@ -42,6 +71,7 @@ internal sealed class SoftwareAuthenticator
             origin,
             crossOrigin,
         });
+        UserHandle = creationOptions.GetProperty("user").GetProperty("id").GetString();
         var rpId = creationOptions.GetProperty("rp").GetProperty("id").GetString()!;
         var flags = (byte)(UserPresent | (uv ? UserVerified : 0) | BackupEligible | BackedUp | AttestedData);
         var authData = new Cbor()
@@ -63,6 +93,44 @@ internal sealed class SoftwareAuthenticator
                 clientDataJSON = WebEncoders.Base64UrlEncode(clientData),
                 attestationObject = WebEncoders.Base64UrlEncode(attestationObject),
                 transports = new[] { "internal" },
+            },
+            clientExtensionResults = new { },
+            authenticatorAttachment = "platform",
+        });
+    }
+
+    // The browser's answer to navigator.credentials.get for these request
+    // options (#1285), signed over authenticatorData and the client data's hash.
+    public string Assert(JsonElement requestOptions, string origin = "https://localhost", bool uv = true)
+    {
+        var clientData = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            type = "webauthn.get",
+            challenge = requestOptions.GetProperty("challenge").GetString(),
+            origin,
+            crossOrigin = false,
+        });
+        if (Counts) Counter++;
+        var rpId = requestOptions.GetProperty("rpId").GetString()!;
+        var flags = (byte)(UserPresent | (uv ? UserVerified : 0) | BackupEligible | BackedUp);
+        var authData = new Cbor()
+            .Raw(SHA256.HashData(Encoding.UTF8.GetBytes(rpId))).Raw([flags])
+            .Raw([(byte)(Counter >> 24), (byte)(Counter >> 16), (byte)(Counter >> 8), (byte)Counter])
+            .ToArray();
+        var signature = _key.SignData([.. authData, .. SHA256.HashData(clientData)], HashAlgorithmName.SHA256,
+            DSASignatureFormat.Rfc3279DerSequence);
+
+        return JsonSerializer.Serialize(new
+        {
+            id = Id,
+            rawId = Id,
+            type = "public-key",
+            response = new
+            {
+                clientDataJSON = WebEncoders.Base64UrlEncode(clientData),
+                authenticatorData = WebEncoders.Base64UrlEncode(authData),
+                signature = WebEncoders.Base64UrlEncode(signature),
+                userHandle = UserHandle,
             },
             clientExtensionResults = new { },
             authenticatorAttachment = "platform",

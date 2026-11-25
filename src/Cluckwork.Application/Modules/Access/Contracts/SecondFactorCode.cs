@@ -23,6 +23,12 @@ public abstract record SecondFactorCode
     // XXXX-XXXX-XXXX-XXXX in upper case (decision 9).
     public sealed record Recovery(string Normalized) : SecondFactorCode;
 
+    // #1285 (record 1282 decision 7): a passkey assertion, built by the route
+    // from the request's passkey object and never parsed from the code string.
+    // CredentialJson is the browser's PublicKeyCredential JSON, passed to
+    // Identity unparsed.
+    public sealed record Passkey(Guid Ceremony, string CredentialJson) : SecondFactorCode;
+
     public sealed override string ToString() => "[redacted]";
 
     public static bool TryParse(string? raw, [NotNullWhen(true)] out SecondFactorCode? code)

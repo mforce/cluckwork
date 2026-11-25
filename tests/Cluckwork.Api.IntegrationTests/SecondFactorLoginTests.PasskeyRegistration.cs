@@ -329,7 +329,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.True(await CeremonyExistsAsync(live.Id));
     }
 
-    // G7.4: every route under /api/v1/auth/passkeys answers without an
+    // G7.4, G8.7: every passkey route under /api/v1/auth/ answers without an
     // Idempotency-Key and stores no idempotency record.
     [Fact]
     public async Task EveryPasskeyRoute_NeedsNoIdempotencyKey_AndStoresNoRecord()
@@ -337,11 +337,12 @@ public sealed partial class SecondFactorLoginTests
         var (_, accountId, _, client, _) = await SignedInPlainAsync(asOwner: false);
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
-            .Where(e => e.RoutePattern.RawText?.StartsWith("/api/v1/auth/passkeys", StringComparison.Ordinal) == true)
+            .Where(e => e.RoutePattern.RawText is { } raw && raw.StartsWith("/api/v1/auth/", StringComparison.Ordinal)
+                && raw.Contains("passkey", StringComparison.Ordinal))
             .SelectMany(e => e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!.HttpMethods
                 .Select(method => (Method: method, Path: e.RoutePattern.RawText!.Replace("{id}", "AQID", StringComparison.Ordinal))))
             .ToList();
-        Assert.True(routes.Count >= 5, $"the walk found {routes.Count} passkey routes");
+        Assert.True(routes.Count >= 8, $"the walk found {routes.Count} passkey routes, below its floor of 8");
         var records = await IdempotencyRecordsAsync(accountId);
 
         foreach (var (method, path) in routes)

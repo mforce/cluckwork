@@ -37,7 +37,7 @@ public sealed partial class SecondFactorLoginTests
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var credentials = scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>();
-        return await TestHarness.InTransactionAsync(db, ct => credentials.VerifyAsync(factor.AccountId, factor.UserId, code, binding, ct));
+        return await TestHarness.InTransactionAsync(db, ct => credentials.VerifyAsync(factor.AccountId, factor.UserId, code, binding, passkey: null, ct));
     }
 
     private static SecondFactorCode Parsed(string raw) =>
@@ -90,7 +90,7 @@ public sealed partial class SecondFactorLoginTests
 
         using var scope = factory.Services.CreateScope();
         var result = await scope.ServiceProvider.GetRequiredService<IIdentityProvider>()
-            .CompleteSecondFactorLoginAsync(pending.Challenge, factor.RecoveryCodes[0]);
+            .CompleteSecondFactorLoginAsync(pending.Challenge, new SecondFactorInput.Code(factor.RecoveryCodes[0]));
 
         Assert.Equal(SecondFactorErrorCodes.ChallengeExpired, result.Error.Code);
         Assert.False(scope.ServiceProvider.GetRequiredService<TenantContext>().IsResolved);

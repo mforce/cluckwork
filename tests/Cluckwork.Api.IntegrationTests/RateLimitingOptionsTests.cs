@@ -23,6 +23,21 @@ public sealed class RateLimitingOptionsTests
         Assert.Throws<InvalidOperationException>(options.Validate);
     }
 
+    // #1285 G8.9: autofill asks at every sign-in page load (record 1282 decision 13).
+    [Fact]
+    public void Passkey_options_default_is_60_per_900_seconds() =>
+        Assert.Equal((60, 900), (new RateLimitingOptions().PasskeyOptions.PermitLimit, new RateLimitingOptions().PasskeyOptions.WindowSeconds));
+
+    [Fact]
+    public void Zero_passkey_options_permit_limit_is_rejected()
+    {
+        var options = new RateLimitingOptions
+        {
+            PasskeyOptions = new RateLimitingOptions.FixedWindow { PermitLimit = 0, WindowSeconds = 900 }
+        };
+        Assert.Throws<InvalidOperationException>(options.Validate);
+    }
+
     [Fact]
     public void Negative_refresh_window_is_rejected()
     {

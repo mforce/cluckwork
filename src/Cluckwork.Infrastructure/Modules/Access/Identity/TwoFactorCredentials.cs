@@ -36,7 +36,8 @@ internal sealed class TwoFactorCredentials(
     UserManager<ApplicationUser> userManager,
     TimeProvider timeProvider,
     AuthSecurityEventLogger securityEvents,
-    IAccountRepository accounts) : ITwoFactorCredentials, IOwnerGraceStart
+    IAccountRepository accounts,
+    IPasskeyCredentials passkeys) : ITwoFactorCredentials, IOwnerGraceStart
 {
     // Stored with every row or value: changing one makes every stored key
     // unreadable or orphaned.
@@ -79,12 +80,14 @@ internal sealed class TwoFactorCredentials(
                 .SetProperty(u => u.SecondFactorRequiredSince, now)
                 .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
 
-    // #1274 "Verifying a code", steps 1 to 6.
+    // #1274 "Verifying a code", steps 1 to 6; #1282 "Checking a passkey".
     public async Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct)
+        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
     {
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        if (user is null || user.DisabledAt is not null || !user.TwoFactorEnabled || user.CredentialEpoch < 1
+        // A code needs the app; a passkey needs a passkey (record 1282 step 1).
+        var hasFactor = code is SecondFactorCode.Passkey ? user?.PasskeyCount > 0 : user?.TwoFactorEnabled == true;
+        if (user is null || user.DisabledAt is not null || !hasFactor || user.CredentialEpoch < 1
             || user.CredentialEpoch != binding.CredentialEpoch
             || !string.Equals(ProofBinding.HashStamp(user.SecurityStamp), binding.SecurityStampHash, StringComparison.Ordinal)
             || (binding.SignIns is { } signIns && signIns != user.SecondFactorSignIns))
@@ -92,14 +95,34 @@ internal sealed class TwoFactorCredentials(
 
         // Charging a locked row would count the guess and re-lock the account.
         if (await userManager.IsLockedOutAsync(user))
-            return new FactorOutcome.Rejected(Charged: false);
+            return code is SecondFactorCode.Passkey ? PasskeyRefused() : new FactorOutcome.Rejected(Charged: false);
 
         return code switch
         {
             SecondFactorCode.Totp totp => await VerifyTotpAsync(accountId, user, totp, binding, ct),
             SecondFactorCode.Recovery recovery => await VerifyRecoveryAsync(accountId, user, recovery, binding, ct),
+            SecondFactorCode.Passkey proof => await VerifyPasskeyAsync(user, proof, passkey, binding, ct),
             _ => throw new UnreachableException(),
         };
+    }
+
+    // Record 1282 "Checking a passkey", steps 3 to 5. A refusal is never
+    // charged and never touches the daily budget (decision 8).
+    private async Task<FactorOutcome> VerifyPasskeyAsync(
+        ApplicationUser user, SecondFactorCode.Passkey proof, PasskeyAssertion? passkey, ProofBinding binding, CancellationToken ct)
+    {
+        if (passkey?.Ceremony is not { } ceremony) return PasskeyRefused();
+        var outcome = await passkeys.AssertAsync(
+            ceremony, new ExpectedSigner(user.Id, passkey.CredentialId), proof.CredentialJson, passkey.RequestHost, ct);
+        return outcome is AssertionOutcome.Accepted accepted
+            ? await AcceptAsync(user, binding, recoveryCodesLeft: null, accepted.Passkey)
+            : PasskeyRefused();
+    }
+
+    private FactorOutcome.Rejected PasskeyRefused()
+    {
+        securityEvents.PasskeyFailed();
+        return new FactorOutcome.Rejected(Charged: false);
     }
 
     // Steps 3 to 6 for an authenticator code.
@@ -188,14 +211,15 @@ internal sealed class TwoFactorCredentials(
     }
 
     // Step 6.
-    private async Task<FactorOutcome> AcceptAsync(ApplicationUser user, ProofBinding binding, int? recoveryCodesLeft)
+    private async Task<FactorOutcome> AcceptAsync(
+        ApplicationUser user, ProofBinding binding, int? recoveryCodesLeft, UserPasskeyInfo? passkey = null)
     {
         user.AccessFailedCount = 0;
         // Decision 2: every accepted login, by either factor, ends the challenge it used.
         if (binding.SignIns is not null)
             user.SecondFactorSignIns++;
         await SaveAsync(user);
-        return new FactorOutcome.Accepted(recoveryCodesLeft);
+        return new FactorOutcome.Accepted(recoveryCodesLeft, passkey);
     }
 
     public async Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct)
