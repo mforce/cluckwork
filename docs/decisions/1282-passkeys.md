@@ -7,7 +7,7 @@
 > [`1274-two-factor-authentication.md`](1274-two-factor-authentication.md) and
 > replaces none of it.
 
-**Status:** accepted design; #1284 built storage, registration, removal and recovery
+**Status:** accepted design; #1284 built storage, registration, removal and recovery; #1285's backend built sign-in
 **Date:** 2026-11-17
 
 ## What happened
@@ -549,4 +549,4 @@ The glossary already holds every term this record uses: **Passkey** and its farm
 
 ## How it is enforced
 
-Each slice adds the guards listed for it above and the `src/AGENTS.md` line for the rules it lands. Since #1284, G7.1 to G7.13 hold storage, registration, removal and recovery: `PasskeyStorageModelTests`, `UserPasskeyTenantWriteTests`, `PasskeyOwnershipTests` (G7.6), the credential walk (G7.7), `SecondFactorLoginTests.Passkey*`, `PasskeysOffTests`, `ClearPasskeysCommandTests`, `RecoverAdminCommandTests`, the `BypassAllowList` and `FilterFreeSetSites` rows, and `GlobalUserLookupGuardTests`, which keeps `FindByPasskeyIdAsync` in `PasskeyCredentials.cs`. Sign-in (#1285), step-up and the Owner requirement (#1443) and the suggestion (#1444) still rely on review until they land.
+Each slice adds the guards listed for it above and the `src/AGENTS.md` line for the rules it lands. Since #1284, G7.1 to G7.13 hold storage, registration, removal and recovery: `PasskeyStorageModelTests`, `UserPasskeyTenantWriteTests`, `PasskeyOwnershipTests` (G7.6), the credential walk (G7.7), `SecondFactorLoginTests.Passkey*`, `PasskeysOffTests`, `ClearPasskeysCommandTests`, `RecoverAdminCommandTests`, the `BypassAllowList` and `FilterFreeSetSites` rows, and `GlobalUserLookupGuardTests`, which keeps `FindByPasskeyIdAsync` in `PasskeyCredentials.cs`. Since #1285's backend, G8.1 to G8.7 and G8.9 hold sign-in: `SecondFactorLoginTests.PasskeySignIn.cs`, `SecondFactorLoginTests.PasskeySecondStep.cs`, `PasskeysOffTests`, `PasskeyOptionsRateLimitTests`, `RateLimitingOptionsTests`, and the `PasskeyOwnershipTests` and `TwoFactorOwnershipTests` rows; G8.8 lands with its SPA. Step-up and the Owner requirement (#1443) and the suggestion (#1444) still rely on review until they land.
