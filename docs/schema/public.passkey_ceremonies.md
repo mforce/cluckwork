@@ -25,6 +25,7 @@
 | Name | Definition |
 | ---- | ---------- |
 | PK_passkey_ceremonies | CREATE UNIQUE INDEX "PK_passkey_ceremonies" ON public.passkey_ceremonies USING btree ("Id") |
+| IX_passkey_ceremonies_ExpiresAt | CREATE INDEX "IX_passkey_ceremonies_ExpiresAt" ON public.passkey_ceremonies USING btree ("ExpiresAt") |
 
 ## Relations
 

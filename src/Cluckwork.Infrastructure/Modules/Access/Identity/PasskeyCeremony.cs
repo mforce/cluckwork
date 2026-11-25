@@ -39,5 +39,8 @@ public sealed class PasskeyCeremonyConfiguration : IEntityTypeConfiguration<Pass
         builder.Property(c => c.Id).ValueGeneratedNever();
         builder.Property(c => c.Purpose).HasConversion<short>();
         builder.Property(c => c.State).IsRequired();
+        // #1285: every sign-in page load adds a row, and the sweep deletes by
+        // ExpiresAt (PasskeyCeremonyPurge).
+        builder.HasIndex(c => c.ExpiresAt);
     }
 }
