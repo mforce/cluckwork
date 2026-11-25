@@ -56,7 +56,7 @@ public sealed partial class IdentityProvider
 
     // Decision 3: reads the challenge to learn the user, without spending it.
     public async Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(
-        string challenge, string requestHost, CancellationToken ct = default)
+        string? challenge, string requestHost, CancellationToken ct = default)
     {
         if (ReadChallenge(challenge) is { } claims
             && await passkeys.StartSecondStepAsync(claims.AccountId, claims.UserId, requestHost, ct) is { } start)
@@ -64,7 +64,7 @@ public sealed partial class IdentityProvider
         return Result.Failure<PasskeyCeremonyStart>(LogExpiredChallenge());
     }
 
-    private ChallengeClaims? ReadChallenge(string challenge) =>
+    private ChallengeClaims? ReadChallenge(string? challenge) =>
         SecondFactorChallenge.Read(challenge, jwtOptions.Value, timeProvider.GetUtcNow());
 
     private Task<bool?> AccountIsActiveAsync(Guid accountId, CancellationToken ct) =>

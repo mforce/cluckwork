@@ -30,7 +30,7 @@ public interface IIdentityProvider
     // #1285 (record 1282 decision 3): a ceremony bound to the challenge's
     // user, read without spending the challenge.
     Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(
-        string challenge, string requestHost, CancellationToken ct = default);
+        string? challenge, string requestHost, CancellationToken ct = default);
 
     // #1285: a sign-in ceremony with no farm and no user (decision 11).
     Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default);

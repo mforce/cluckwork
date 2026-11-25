@@ -87,8 +87,8 @@ public sealed class PasskeysOffTests(PasskeysOffTests.OffFactory factory) : ICla
         var credential = new { id = "AQID" };
 
         var response = await factory.TryLoginAsync(email, TestHarness.Password);
-        var factors = (await TestHarness.ReadProblemAsync(response)).GetProperty("secondFactors");
         var challenge = (await TestHarness.ReadPendingLoginAsync(response)).Challenge;
+        var factors = (await TestHarness.ReadProblemAsync(response)).GetProperty("secondFactors");
 
         Assert.Equal(["passkey"], factors.EnumerateArray().Select(f => f.GetString()));
         Assert.Equal((HttpStatusCode.NotFound, "Passkeys.Off"), await TitleOf(await anonymous.PostAsync("/api/v1/auth/login/passkey/options", null)));

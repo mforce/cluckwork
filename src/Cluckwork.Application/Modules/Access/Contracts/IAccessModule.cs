@@ -60,7 +60,7 @@ public interface IAccessModule
 
     // #1285: the passkey routes under /auth/login. Each answers Passkeys.Off
     // while Passkeys:Origins does not name requestHost (record 1282 decision 5).
-    Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(string challenge, string requestHost, CancellationToken ct);
+    Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(string? challenge, string requestHost, CancellationToken ct);
 
     Task<Result<PasskeyCeremonyStart>> StartPasskeySignInAsync(string requestHost, CancellationToken ct);
 

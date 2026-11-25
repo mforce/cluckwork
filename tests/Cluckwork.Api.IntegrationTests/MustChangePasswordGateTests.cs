@@ -222,7 +222,7 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
         inner.CompleteSecondFactorLoginAsync(challenge, input, ct);
 
     public Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(
-        string challenge, string requestHost, CancellationToken ct = default) =>
+        string? challenge, string requestHost, CancellationToken ct = default) =>
         inner.StartSecondFactorPasskeyAsync(challenge, requestHost, ct);
 
     public Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default) =>

@@ -21,9 +21,14 @@ internal sealed class SoftwareAuthenticator
     {
         Counts = counts;
         CredentialId = credentialId is null ? RandomNumberGenerator.GetBytes(16) : [.. credentialId];
-        var q = _key.ExportParameters(includePrivateParameters: false).Q;
-        // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
-        PublicKey = new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
+        PublicKey = CoseKey(_key);
+    }
+
+    // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
+    private static byte[] CoseKey(ECDsa key)
+    {
+        var q = key.ExportParameters(includePrivateParameters: false).Q;
+        return new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
     }
 
     public byte[] CredentialId { get; }
@@ -50,8 +55,7 @@ internal sealed class SoftwareAuthenticator
     private SoftwareAuthenticator(byte[] credentialId, bool counts, ECParameters key) : this(credentialId, counts)
     {
         _key.ImportParameters(key);
-        var q = _key.ExportParameters(includePrivateParameters: false).Q;
-        PublicKey = new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
+        PublicKey = CoseKey(_key);
     }
 
     // The COSE key as Identity stores it, to compare a stored row with.

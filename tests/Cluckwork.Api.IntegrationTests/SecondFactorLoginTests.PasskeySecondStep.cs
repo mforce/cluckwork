@@ -25,9 +25,10 @@ public sealed partial class SecondFactorLoginTests
     private async Task<(PendingLogin Pending, string[] SecondFactors)> PasswordStepWithFactorsAsync(string email)
     {
         var response = await factory.TryLoginAsync(email, TestHarness.Password);
+        var pending = await TestHarness.ReadPendingLoginAsync(response);
         var factors = (await TestHarness.ReadProblemAsync(response)).GetProperty("secondFactors")
             .EnumerateArray().Select(f => f.GetString()!).ToArray();
-        return (await TestHarness.ReadPendingLoginAsync(response), factors);
+        return (pending, factors);
     }
 
     private async Task<Ceremony> StartSecondStepAsync(string challenge)

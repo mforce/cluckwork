@@ -62,6 +62,7 @@ public sealed partial class SecondFactorLoginTests
 
     private static async Task AssertPasskeyRefusedAsync(HttpResponseMessage response, HttpStatusCode status = HttpStatusCode.Unauthorized)
     {
+        Assert.Equal(status, response.StatusCode);
         var (code, title, detail) = await ProblemOf(response);
         Assert.Equal((status, PasskeyErrorCodes.Refused, "That passkey did not work. Try again."), (code, title, detail));
         Assert.False(response.Headers.Contains("Set-Cookie"), "a refused passkey set a cookie");

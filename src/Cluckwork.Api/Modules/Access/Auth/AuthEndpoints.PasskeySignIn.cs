@@ -14,7 +14,7 @@ public static partial class AuthEndpoints
 
     private static async Task<IResult> StartSecondFactorPasskey(
         SecondFactorPasskeyOptionsRequest request, HttpRequest http, IAccessModule access, CancellationToken ct) =>
-        PasskeyOptions(await access.StartSecondFactorPasskeyAsync(request.Challenge ?? string.Empty, http.Host.Host, ct));
+        PasskeyOptions(await access.StartSecondFactorPasskeyAsync(request.Challenge, http.Host.Host, ct));
 
     // Decision 12: every refusal is the one 401 Auth.PasskeyRefused body,
     // apart from a suspended farm.

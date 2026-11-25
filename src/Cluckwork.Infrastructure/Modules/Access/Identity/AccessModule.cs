@@ -129,7 +129,7 @@ public sealed class AccessModule(
             ? WhenPasskeysOnAsync(passkey.RequestHost, () => identity.CompleteSecondFactorLoginAsync(challenge, input, ct))
             : identity.CompleteSecondFactorLoginAsync(challenge, input, ct);
 
-    public Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(string challenge, string requestHost, CancellationToken ct) =>
+    public Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(string? challenge, string requestHost, CancellationToken ct) =>
         WhenPasskeysOnAsync(requestHost, () => identity.StartSecondFactorPasskeyAsync(challenge, requestHost, ct));
 
     public Task<Result<PasskeyCeremonyStart>> StartPasskeySignInAsync(string requestHost, CancellationToken ct) =>
