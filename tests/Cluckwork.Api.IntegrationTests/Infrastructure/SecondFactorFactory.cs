@@ -17,6 +17,8 @@ public sealed class SecondFactorFactory : CluckworkWebApplicationFactory
 {
     public const string OAuthProbePath = "/test/two-factor/oauth";
 
+    public const string PasskeyOrigin = "https://localhost";
+
     public LogSink Sink { get; } = new();
 
     public TransientCommitFaultInterceptor CommitFault { get; } = new();
@@ -30,6 +32,10 @@ public sealed class SecondFactorFactory : CluckworkWebApplicationFactory
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
+        // #1284 — passkeys on for this host, whose requests arrive as localhost.
+        // The record's boot check wants the origin's host in AllowedHosts.
+        builder.UseSetting("Passkeys:Origins:0", PasskeyOrigin);
+        builder.UseSetting("AllowedHosts", "cluckwork.test;localhost");
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<ILogEventSink>(Sink);

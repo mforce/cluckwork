@@ -191,6 +191,28 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             EnsureRequireForOwners(configuration);
         }
 
+        // #1284 (record 1282 decisions 2, 4, 5): AddIdentityCore registers no
+        // passkey handler and Cluckwork has no SignInManager, so the handler is
+        // registered here, as its concrete type, and its options are set in
+        // code. Only the serving host runs a ceremony, so the origin check is
+        // serving-only, and a one-shot verb never reads the list.
+        services.AddOptions<PasskeyOptions>().Bind(configuration.GetSection(PasskeyOptions.SectionName));
+        if (role is ProcessRole.Serving)
+        {
+            EnsurePasskeyOrigins(configuration, environment);
+            services.AddHostedService<PasskeysOffWarning>();
+        }
+        services.AddOptions<IdentityPasskeyOptions>().Configure<Microsoft.Extensions.Options.IOptions<PasskeyOptions>>((options, origins) =>
+        {
+            options.AttestationConveyancePreference = "none";
+            options.UserVerificationRequirement = "required";
+            // Sign-in with a blank farm code and autofill need a discoverable credential.
+            options.ResidentKeyRequirement = "required";
+            options.ValidateOrigin = origins.Value.AcceptsAsync;
+        });
+        services.AddScoped<PasskeyHandler<ApplicationUser>>();
+        services.AddPasskeyCredentials();
+
         AddUserFeatures(services);
 
         var oauthIssuer = OAuthIssuer(configuration, environment, role);
@@ -267,6 +289,42 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             throw new InvalidOperationException($"{key} must be true or false, and '{value}' is not.");
     }
 
+    // #1282 decision 5: every Passkeys:Origins entry is an https origin (an
+    // http://localhost one in Development only), with no path, query, fragment,
+    // user info or wildcard, at a host AllowedHosts lists and no other entry
+    // names. Unset or empty is off, and passes. A single value instead of a list binds no origin, so it
+    // is refused rather than leaving passkeys silently off.
+    internal static void EnsurePasskeyOrigins(IConfiguration configuration, IHostEnvironment environment)
+    {
+        var section = configuration.GetSection($"{PasskeyOptions.SectionName}:{nameof(PasskeyOptions.Origins)}");
+        if (!string.IsNullOrEmpty(section.Value))
+            throw new InvalidOperationException(
+                $"{section.Path} must be a list ({section.Path}:0, {section.Path}:1 and so on), and '{section.Value}' is a single value.");
+
+        var allowedHosts = (configuration["AllowedHosts"] ?? string.Empty)
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var hosts = new Dictionary<string, IConfigurationSection>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in section.GetChildren())
+        {
+            var value = entry.Value ?? string.Empty;
+            if (PasskeyOptions.ParseOrigin(value) is not { } origin)
+                throw new InvalidOperationException(
+                    $"{entry.Path} must be an origin: a scheme, a host and an optional port, and '{value}' is not.");
+            if (origin.Scheme != Uri.UriSchemeHttps
+                && !(origin.Scheme == Uri.UriSchemeHttp && origin.IsLoopback && environment.IsDevelopment()))
+                throw new InvalidOperationException(
+                    $"{entry.Path} must use https (http://localhost in Development only), and '{value}' does not.");
+            if (!allowedHosts.Any(h => h == "*" || string.Equals(h, origin.Host, StringComparison.OrdinalIgnoreCase)
+                    || (h.StartsWith("*.", StringComparison.Ordinal) && origin.Host.EndsWith(h[1..], StringComparison.OrdinalIgnoreCase))))
+                throw new InvalidOperationException(
+                    $"{entry.Path} names the host '{origin.Host}', which AllowedHosts does not list.");
+            // IsOnFor needs exactly one origin per host, or that host stays off.
+            if (!hosts.TryAdd(origin.Host, entry))
+                throw new InvalidOperationException(
+                    $"{entry.Path} ('{value}') and {hosts[origin.Host].Path} ('{hosts[origin.Host].Value}') both name the host '{origin.Host}'. Passkeys work at a host only when one origin names it.");
+        }
+    }
+
     private static Uri EnsureOAuthIssuer(string? issuer)
     {
         if (string.IsNullOrWhiteSpace(issuer))
@@ -327,6 +385,8 @@ internal static class CluckworkIdentityServiceCollectionExtensions
             Cluckwork.Application.Modules.Access.Users.EnableUser.EnableUserHandler>();
         services.AddScoped<
             Cluckwork.Application.Modules.Access.Users.ResetUserTwoFactor.ResetUserTwoFactorHandler>();
+        services.AddScoped<
+            Cluckwork.Application.Modules.Access.Users.RemoveUserPasskeys.RemoveUserPasskeysHandler>();
         services.AddScoped<SetLanguageHandler>();
         services.AddScoped<SetStepperUnitHandler>();
         services.AddScoped<

@@ -150,11 +150,12 @@ public sealed partial class IdentityProvider
         var rows = await db.Users
             .Where(u => u.AccountId == accountId)
             .OrderBy(u => u.Email)
-            .Select(u => new { u.Id, u.Email, u.DisplayName, u.DisabledAt, u.TwoFactorEnabled })
+            .Select(u => new { u.Id, u.Email, u.DisplayName, u.DisabledAt, u.TwoFactorEnabled, u.PasskeyCount })
             .ToListAsync(ct);
         return rows
             .Select(u => new UserSummary(
-                u.Id, u.Email!, u.DisplayName, lookup.GetValueOrDefault(u.Id, "Worker"), u.DisabledAt, u.TwoFactorEnabled))
+                u.Id, u.Email!, u.DisplayName, lookup.GetValueOrDefault(u.Id, "Worker"), u.DisabledAt, u.TwoFactorEnabled,
+                u.PasskeyCount))
             .ToList();
     }
 

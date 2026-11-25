@@ -166,10 +166,11 @@ public interface IIdentityProvider
     // have resolved the tenant to accountId first so the audit row can be
     // stamped (IAuditWriter fails closed on an unresolved tenant).
     // #1274 decision 16: recover-admin clears two-factor first and says so in
-    // the row's twoFactorCleared, and sets MustChangePassword.
+    // the row's twoFactorCleared, and sets MustChangePassword. #1284: it also
+    // removes the user's passkeys first and says how many in passkeysRemoved.
     Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
-        bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default);
+        bool twoFactorCleared, int passkeysRemoved, bool mustChangePassword, CancellationToken ct = default);
 
     // #1280 — the caller turns their own two-factor off, after step-up. For an
     // enrolled user it ends every other session and connected app, writes
@@ -204,6 +205,40 @@ public interface IIdentityProvider
     // connected apps end; an ended enrolment alone is audited with pending.
     Task<Result> ResetUserTwoFactorAsync(
         Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
+
+    // #1284 (record 1282) — the caller's own passkeys. requestHost is the
+    // request's host without its port, which passkeys are bound to. The access module
+    // answers Passkeys.Off for start and register while Passkeys:Origins does
+    // not name this host, so neither runs then. Register runs after step-up:
+    // credentialEpoch is the acting token's, compared under the user-row
+    // lock, and a first factor ends every other session and connected app
+    // and returns the acting session's fresh pair.
+    // List, rename and remove work while passkeys are off. Remove runs after
+    // step-up, ends every other session and returns a fresh pair.
+    Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct = default);
+
+    Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
+        string requestHost, CancellationToken ct = default);
+
+    Task<IReadOnlyList<PasskeySummary>> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default);
+
+    Task<Result> RenamePasskeyAsync(
+        Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default);
+
+    Task<Result<TokenPair>> RemovePasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, byte[] credentialId, CancellationToken ct = default);
+
+    // An Owner removes every passkey of another user of the farm (foreign id ->
+    // NotFound), with the actor re-checked inside the account lock. A target
+    // who had any loses every session and connected app.
+    Task<Result> RemoveUserPasskeysAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default);
+
+    // #1284 — the clear-passkeys verb's work for one farm, under that farm's
+    // tenant and the (clear-passkeys) system actor, which this resolves.
+    Task<int> ClearPasskeysAsync(Guid accountId, string? reason, CancellationToken ct = default);
 
     // #165 — self-service change, proving the current password. Revokes every
     // refresh token for the user and returns a FRESH pair, so other devices are

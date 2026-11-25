@@ -80,6 +80,7 @@ erDiagram
   timestamp_with_time_zone SecondFactorRequiredSince
   bigint SecondFactorSignIns
   bigint SecondFactorWatermark
+  integer PasskeyCount
 }
 "public.AspNetRoles" {
   uuid Id

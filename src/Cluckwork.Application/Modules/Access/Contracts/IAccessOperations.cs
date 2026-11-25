@@ -15,6 +15,12 @@ public interface IAccessOperations
         string? name, string? slug, string? ownerEmail,
         string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct);
 
+    // #1284 (record 1282 decision 10) — the clear-passkeys verb, one farm per
+    // call, in its own scope and transaction: every user of the farm who has a
+    // passkey loses them all, their sessions and connected apps end, and each
+    // gets one User.PasskeysCleared row. Returns how many users it cleared.
+    Task<int> ClearPasskeysAsync(Guid accountId, string? reason, CancellationToken ct);
+
     Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role, string? name, CancellationToken ct);
 }

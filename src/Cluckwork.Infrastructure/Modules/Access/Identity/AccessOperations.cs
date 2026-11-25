@@ -22,6 +22,9 @@ public sealed class AccessOperations(
         string? locale, string? currencyCode, string? timeZoneId, CancellationToken ct)
         => provisioner.ProvisionAsync(name, slug, ownerEmail, locale, currencyCode, timeZoneId, ct);
 
+    public Task<int> ClearPasskeysAsync(Guid accountId, string? reason, CancellationToken ct) =>
+        identity.ClearPasskeysAsync(accountId, reason, ct);
+
     public Task<Result<Guid>> CreateUserAsync(
         Guid accountId, string email, string password, string? role, string? name, CancellationToken ct) =>
         identity.CreateUserAsync(accountId, email, password, role, name, mustChangePassword: false, ct: ct);

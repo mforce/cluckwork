@@ -25,7 +25,8 @@ public sealed class AdminRecoveryService(
     UserManager<ApplicationUser> userManager,
     IIdentityProvider identity,
     IAccountRepository accounts,
-    ITwoFactorCredentials twoFactor)
+    ITwoFactorCredentials twoFactor,
+    IPasskeyCredentials passkeys)
 {
     public async Task<Result<AdminRecoveryResult>> RecoverAsync(
         string? email, Guid? accountId, string? reason, CancellationToken ct = default)
@@ -154,9 +155,14 @@ public sealed class AdminRecoveryService(
             if (cleared == ClearOutcome.NotFound)
                 return Result.Failure<AdminRecoveryResult>(Error.NotFound("Recovery", normalized));
 
+            // #1282 decision 10: the target's passkeys go too, in this
+            // transaction, without reading Data, so a forced password change
+            // never follows a passkey sign-in (decision 19).
+            var passkeysRemoved = await passkeys.RemoveAllAsync(target.AccountId, target.Id, token) ?? 0;
+
             var password = TemporaryPassword.Generate();
             var reset = await identity.BreakGlassResetAsync(target.AccountId, target.Id, password, reason,
-                twoFactorCleared: cleared == ClearOutcome.Cleared, mustChangePassword: true, token);
+                twoFactorCleared: cleared == ClearOutcome.Cleared, passkeysRemoved, mustChangePassword: true, token);
             if (reset.IsFailure)
                 return Result.Failure<AdminRecoveryResult>(reset.Error);
 

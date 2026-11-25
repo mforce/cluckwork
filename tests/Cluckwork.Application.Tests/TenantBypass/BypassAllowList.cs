@@ -82,6 +82,20 @@ internal static class BypassAllowList
         },
         new()
         {
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.UserRowLock.LoadLockedAsync(AppDbContext db, Guid accountId, Guid userId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/UserRowLock.cs",
+            Hash = "aa84dcec",
+            Justification = "Takes TakeAsync's user-row lock, then loads that user by Id AND AccountId and reloads it, for the two-factor and passkey owners (#1274 \"Locks\", #1284).",
+        },
+        new()
+        {
+            Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.PasskeyCredentials.ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct)",
+            File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/PasskeyCredentials.cs",
+            Hash = "bf981dc5",
+            Justification = "The passkey ceremony's single use (#1282 decision 3): one raw DELETE ... RETURNING by the ceremony's random Id and purpose on passkey_ceremonies, which has no AccountId; a bound ceremony is refused unless its UserId is the caller's, which fixes the farm. This hash covers the whole method, so dropping that user check makes it stale.",
+        },
+        new()
+        {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.ExecuteLineageFenceAsync(string currentHash, string[] ancestorHashes, Guid rootUserId, Guid rootAccountId, int rootIssuedEpoch, DateTimeOffset now, string rotatedStamp, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.Logout.cs",
             Hash = "82fdf44e",

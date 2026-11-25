@@ -7,7 +7,7 @@
 > [`1274-two-factor-authentication.md`](1274-two-factor-authentication.md) and
 > replaces none of it.
 
-**Status:** accepted design, no code yet
+**Status:** accepted design; #1284 built storage, registration, removal and recovery
 **Date:** 2026-11-17
 
 ## What happened
@@ -209,28 +209,34 @@ Task<Result<StepUpGrant>> IssueAsync(Guid accountId, Guid userId, string? curren
 ```csharp
 // Infrastructure/Modules/Access/Identity. The one owner of passkey state. Public port, internal implementation,
 // as ITwoFactorCredentials. Every method takes ids; writes run in the caller's AmbientTransaction.
+// requestHost is the route's Request.Host.Host, without the port. The owner never takes the request or
+// IHttpContextAccessor. IAccessModule and IIdentityProvider cannot name HttpContext, because
+// Cluckwork.Application has no ASP.NET reference. Keeping the request out of the owner's methods is a
+// convention: IdentityProvider holds IHttpContextAccessor and could pass the context on, and
+// McpSecondaryScopeTests, which refuses the accessor, walks constructors only (#1284). The owner gives
+// Identity's handler a context built from the host, the one thing the handler and the origin hook read.
 public interface IPasskeyCredentials
 {
-	Task<CeremonyStart> StartAsync(CeremonyPurpose purpose, Guid? userId, HttpContext http, CancellationToken ct);
+	Task<CeremonyStart> StartAsync(CeremonyPurpose purpose, Guid? userId, string requestHost, CancellationToken ct);
 	Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);        // the one cross-farm lookup (decision 11)
 	Task<ConsumedCeremony?> ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct);
 		// DELETE … RETURNING; the first statement of the caller's owned transaction; null when missing, expired,
 		// of another purpose, or bound to another user
 	Task<AssertionOutcome> AssertAsync(ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson,
-		HttpContext http, CancellationToken ct);                                           // the handler, then the signer check
+		string requestHost, CancellationToken ct);                                         // the handler, then the signer check
 	Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct);   // after the tenant is resolved
-	Task<RegisterOutcome> RegisterAsync(Guid ceremony, Guid accountId, Guid userId, string credentialJson, string name,
-		HttpContext http, CancellationToken ct);
+	Task<RegisterOutcome> RegisterAsync(ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson,
+		string name, string requestHost, CancellationToken ct);                            // inserts; never Identity's add-or-update
 	Task<IReadOnlyList<PasskeySummary>> ListAsync(Guid accountId, Guid userId, CancellationToken ct);
 	Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
-	Task<RemoveOutcome> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);
-	Task<int> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct);          // Owner removal, recover-admin; never reads Data
+	Task<bool> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);   // false: no such passkey
+	Task<int?> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct);         // Owner removal, recover-admin; never reads Data; null: no such user
 }
 
 public enum CeremonyPurpose { SignIn = 1, SecondStep = 2, StepUp = 3, Registration = 4 }
 public sealed record CeremonyStart(Guid Ceremony, string OptionsJson);
 public readonly record struct PasskeyOwner(Guid AccountId, Guid UserId, byte[] CredentialId);
-public sealed record ConsumedCeremony(string State) { public override string ToString() => "[redacted]"; }
+public sealed record ConsumedCeremony(Guid? UserId, string State, DateTimeOffset ExpiresAt) { public override string ToString() => "[redacted]"; }
 // Who must have signed: the user, and at sign-in the exact credential the server looked up.
 public readonly record struct ExpectedSigner(Guid UserId, byte[]? CredentialId);
 public abstract record AssertionOutcome
@@ -238,9 +244,15 @@ public abstract record AssertionOutcome
 	public sealed record Accepted(Guid UserId, UserPasskeyInfo Passkey) : AssertionOutcome;
 	public sealed record Refused(string Reason) : AssertionOutcome;   // Reason: Identity's failure message, logged at debug only
 }
-public enum RegisterOutcome { Registered, RegisteredFirstFactor, Refused, LimitReached }
-public enum RemoveOutcome { NotFound, Removed, LastFactor }
+public abstract record RegisterOutcome
+{
+	public sealed record Registered(PasskeySummary Passkey, bool FirstFactor) : RegisterOutcome;
+	public sealed record Refused : RegisterOutcome;
+	public sealed record LimitReached : RegisterOutcome;
+}
 ```
+
+#1284 shipped the registration, list, rename and removal members above in this shape; #1443 adds the Owner's last-factor refusal to the removal path (409 `Auth.LastFactor`).
 
 `FactorOutcome.Accepted` gains `UserPasskeyInfo? Passkey`, set when a passkey matched, so the caller saves the new sign count and backup state with `RecordUseAsync` after it resolves the tenant (decision 7). `VerifyAsync` gains one optional argument, `ConsumedCeremony? passkeyCeremony`, required when the code is a `SecondFactorCode.Passkey`.
 
@@ -360,7 +372,7 @@ Every user keeps a password; nothing removes it, and recovery uses it (decision 
 
 #### 10. Recovery (item 8)
 
-- **First passkey.** Registering a user's first passkey when they have no app (`PasskeyCount` 0 and `TwoFactorEnabled` false) bumps `CredentialEpoch`, rotates the stamp, calls `RevokeAllActiveForUserAsync`, and answers with a fresh pair for this device, as enrolment confirm does (#1274 decision 8). Later passkeys, and a first passkey beside the app, end nothing. `UserManager.AddOrUpdatePasskeyAsync` rotates only `ConcurrencyStamp` (probe line 10), so the bump is `RegisterAsync`'s own write.
+- **First passkey.** Registering a user's first passkey when they have no app (`PasskeyCount` 0 and `TwoFactorEnabled` false) bumps `CredentialEpoch`, rotates the stamp, calls `RevokeAllActiveForUserAsync`, and answers with a fresh pair for this device, as enrolment confirm does (#1274 decision 8). Later passkeys, and a first passkey beside the app, end nothing. Registration inserts the row itself and never calls `UserManager.AddOrUpdatePasskeyAsync`, whose update path would change another user's row when a duplicate credential races the duplicate check (#1284 review), so the bump and the stamp rotation are `RegisterAsync`'s own write, in the same save as the row.
 - **Own removal.** Removing one of their own passkeys first reads the row untracked: an Owner whose last factor this passkey is gets 409 `Auth.LastFactor` before the grant is spent (#1443). It then spends the step-up grant, and, under the user-row lock, compares the row's `CredentialEpoch` with the acting token's `credential_epoch`, as turn-off and registration do, and answers 401 `Auth.CredentialsSuperseded` on a mismatch. It then deletes the row, bumps the epoch, rotates the stamp, revokes every other session and connected app, and answers with a fresh pair. `RemoveAsync` and `RenameAsync` take the user-row lock, then load the user, as `TwoFactorCredentials.LockAsync` does (`TwoFactorCredentials.cs:396-408`), then find the row by user, farm and credential ID and answer `NotFound` (404) when there is none, so another user's credential ID, in any farm, changes nothing. `RemoveAsync` decrements `PasskeyCount` by the rows it actually deleted, never on `UserManager.RemovePasskeyAsync`'s `Succeeded`, which is true when nothing matched (`UserStore.cs:853-866`, `UserManager.cs:2710-2718`); with the lookup under the lock, that rule is a second line behind the lookup. G7.13 pins both.
 - **An Owner's last factor** (#1443). While `TwoFactor:RequireForOwners` is on, an Owner cannot remove their last passkey when they have no app (409 `Auth.LastFactor`), and cannot turn the app off when they have no passkey (today's 403 `Auth.OwnerCannotTurnOffTwoFactor`, `TwoFactorEnrolment.cs:26`, now only in that case). Both refusals come first from an untracked read of the row, before the grant is spent (the grant is spent in `AccessModule.WithGrantAsync`, `AccessModule.cs:165-169`). Turn-off keeps today's refusal there (`AuthEndpoints.TwoFactor.cs:26-32`), now when the read shows no passkey, so an Owner with only the app keeps their grant, as `AnOwner_CannotTurnTheirOwnTwoFactorOff` (`SecondFactorLoginTests.TurnOff.cs:143-154`) pins; a passkey removal gets the same read, so an Owner with one passkey and no app keeps theirs. Both removals then check again under the user-row lock, with `TwoFactorEnabled` and `PasskeyCount` read there; a refusal at that point has spent the grant, which happens only when the other factor was removed between the read and the lock. The acting-epoch comparison and the locked check both stand behind "an Owner always keeps a factor": a request from a session minted before another factor change fails the comparison first.
 - **An Owner removes another user's passkeys.** `DELETE /api/v1/users/{id}/passkeys` follows `DELETE /api/v1/users/{id}/two-factor` (`UserEndpoints.cs:99`): Owner only, a step-up grant, the account lock and `RequireActiveOwnerAsync` inside the transaction, 400 `Users.CannotRemoveOwnPasskeys` for the Owner's own id before the grant is spent (as `Users.CannotResetOwnTwoFactor`, `UserEndpoints.TwoFactor.cs:27`). `RemoveAllAsync` deletes the rows and zeroes the count; for a user who had any, the caller bumps the epoch, rotates the stamp and revokes. It is a separate action from the two-factor reset.
@@ -489,12 +501,12 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 
 - **G7.1** The migration adds `AspNetUserPasskeys` with the shadow `AccountId`, `AspNetUsers.PasskeyCount` with its default and check constraint, and `passkey_ceremonies`, and alters no existing column; `InitialCreate` is untouched. An `AppDbContext` built with `new` and no service provider maps `IdentityUserPasskey<Guid>`, and the design-time factory's model, diffed against the snapshot, has no pending change, the passkey table included. Mutations: set `Stores.SchemaVersion` to version 3 instead of the explicit mapping, which adds `AlterColumn` operations; move the mapping into a DI-only path, which leaves the bare context without the table.
 - **G7.2** `AspNetUserPasskeys` copies the six `UserTokenTenantWriteTests` cases (detached add for another farm's user, detached remove, forged remove, add with no tenant, tracked relabel, tracked remove). Mutations: drop the foreign key; drop the shadow property.
-- **G7.3** Registration refuses, each with a test: a session with `must_change_password` (403 from `MustChangePasswordMiddleware`, G7.12's case), no UV flag, an origin outside `Passkeys:Origins`, a request host that matches no origin, a used or expired ceremony, another user's ceremony, a sixth passkey (409, and the count stays 5), and a credential already registered. Two concurrent sixth registrations leave 5. Mutations: set `UserVerificationRequirement` to `preferred`; return `true` from `ValidateOrigin`; skip the purpose or user check on the ceremony; check the cap without the user-row lock.
+- **G7.3** Registration refuses, each with a test: a session with `must_change_password` (403 from `MustChangePasswordMiddleware`, G7.12's case), no UV flag, an origin outside `Passkeys:Origins`, a request host that matches no origin, a used or expired ceremony, another user's ceremony, a sixth passkey (409, and the count stays 5), and a credential already registered. A credential whose JSON holds `\u0000` anywhere is refused too, after the ceremony is consumed, because Postgres refuses the NUL in the jsonb `Data` column, which `transports` reaches (#1284 review). Two concurrent sixth registrations leave 5. Mutations: set `UserVerificationRequirement` to `preferred`; return `true` from `ValidateOrigin`; skip the purpose or user check on the ceremony; check the cap without the user-row lock.
 - **G7.4** A ceremony is consumed once: two concurrent finishes give one success, and a refused finish leaves the row gone, a locked or superseded user's included. The purge sweep deletes only expired rows. Every route under `/api/v1/auth/passkeys`, `/api/v1/auth/login` and `/api/v1/auth/step-up` that the slices add answers without an `Idempotency-Key`, stores no idempotency record, and keeps a refused finish's delete, with a floor on the routes it walks. Mutations: read the row without deleting it; delete it after the handler, outside the transaction; consume it after the lockout check; take `/api/v1/auth/passkeys` off `ResponseNotCacheable`; drop `ConsumeAsync`'s user check (its `BypassAllowList` hash goes stale). A refused finish that comes before `ConsumeAsync` (the six in "Checking a passkey", an unknown farm code among them) leaves the row for the sweep, and no case expects it gone.
 - **G7.5** A first passkey with no app ends every other session and connected app and leaves this device a fresh pair; a second passkey, and a first beside the app, end nothing; a user's removal of their own passkey ends the others and keeps this device; an Owner's removal ends every session of the target, refuses the Owner's own id before spending the grant, and refuses another farm's user and a demoted actor. Mutations: skip the bump on a first passkey; bump on every registration; drop the self check; skip `RequireActiveOwnerAsync`.
 - **G7.6** One owner. A `SemanticModel` walk of `src/` finds every reference to `PasskeyHandler<>`, `IPasskeyHandler<>`, `IdentityPasskeyOptions`, `UserManager`'s and `IUserPasskeyStore<>`'s `*Passkey*` members, `db.UserPasskeys`, the ceremony set and `PasskeyCount`. Each must sit in `PasskeyCredentials`, its entity configuration, the registration in `CluckworkIdentityServiceCollectionExtensions`, or a member listed with a reason, keyed by assembly and display signature as G3.20 is, with the same failure rules (an unused, repeated or unresolvable row fails) and floors (3 owned names, 10 owner references). Every member that writes rows also writes `PasskeyCount`. `db.Set<PasskeyCeremony>()` fails the walk wherever it appears, inside `PasskeyCredentials` too, because the tenant-bypass legs see the ceremony table only through `PasskeyCeremonies`. The one exception is that property's own getter, `public DbSet<PasskeyCeremony> PasskeyCeremonies => Set<PasskeyCeremony>();`, exempt by its symbol, `AppDbContext.PasskeyCeremonies.get`, never by file; the walk asserts that exactly one such exempt site exists. The sweep lives in its own class, as `RefreshTokenPurge` does, so `PasskeyCeremonyPurge.DeleteExpiredBatchAsync` reads `db.PasskeyCeremonies` outside `PasskeyCredentials` and is a listed member with its reason. Mutations: call `RemovePasskeyAsync` from `IdentityProvider`; write `PasskeyCount` outside the owner; delete a row without decrementing; read the ceremonies through `db.Set<PasskeyCeremony>()` inside `PasskeyCredentials`; exempt a second getter.
 - **G7.7** The credential walk gains the word `Passkey`, with exclusion rows for each member it finds that holds no secret (for example `PasskeyCount` as `int`). The ceremony row's `State` and every passkey request body redact. Mutations: delete a new type's override; drop the word.
-- **G7.8** `EnsurePasskeyOrigins` fails a serving boot for each bad entry (http outside Development, wildcard, path, query, user info, a host not in `AllowedHosts`) and passes unset, empty and good lists; a one-shot verb runs with an unparseable value; rows in `ServingGuardCoverageTests`, `ProcessRoleGuardTests` and `OneShotVerbMinimalConfigTests`. With it unset, every route that runs a ceremony answers 404, and the list, rename and both removals still work; the own-removal case uses a user who also has the app, who steps up with the password and a code, so #1443 does not turn it red. Mutations: accept `http` in Production; skip the `AllowedHosts` check; run the check in a one-shot verb; answer the list 404 while off.
+- **G7.8** `EnsurePasskeyOrigins` fails a serving boot for each bad entry (http outside Development, wildcard, path, query, user info, a host not in `AllowedHosts`, a host another entry names) and passes unset, empty and good lists; a one-shot verb runs with an unparseable value; rows in `ServingGuardCoverageTests`, `ProcessRoleGuardTests` and `OneShotVerbMinimalConfigTests`. With it unset, every route that runs a ceremony answers 404, and the list, rename and both removals still work; the own-removal case uses a user who also has the app, who steps up with the password and a code, so #1443 does not turn it red. Mutations: accept `http` in Production; skip the `AllowedHosts` check; skip the one-entry-per-host check; run the check in a one-shot verb; answer the list 404 while off.
 - **G7.9** `recover-admin` under the DML-only role deletes the target's passkeys in its transaction, zeroes `PasskeyCount`, writes `passkeysRemoved`, and the user then signs in with the temporary password and no passkey. Extends `RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers`. Mutation: skip `RemoveAllAsync`. What it proves: the verb needs only DML on the new tables. What it does not: the test role is granted DML on every table after the migrations run (`tests/Cluckwork.Api.IntegrationTests/Infrastructure/DmlOnlyRole.cs:19-21`), so it cannot show that a production role created before #1284's migration gets grants on `AspNetUserPasskeys` and `passkey_ceremonies`. #1284's runbook says the operator grants them, or relies on default privileges, before running the verb.
 - **G7.10** A password reset and a password change leave every passkey. Mutation: call `RemoveAllAsync` from the shared reset.
 - **G7.11** `clear-passkeys --farm <code>` deletes only that farm's passkeys, zeroes each count, bumps each affected user's epoch and stamp so their sessions and connected apps are refused, and writes one `User.PasskeysCleared` row per affected user; `--all` covers every farm; no scope refuses and changes nothing; an unknown farm code exits non-zero. Each row's actor is `(clear-passkeys)` and its tenant is the user's farm. The verb has rows in the two registries and passes the guards that read them. Mutations: skip the epoch bump; ignore the farm filter; write one row for the whole run; default to `--all`; resolve one tenant for every farm.
@@ -537,4 +549,4 @@ The glossary already holds every term this record uses: **Passkey** and its farm
 
 ## How it is enforced
 
-Nothing enforces this design yet; it relies on review until the slices land. Each slice adds the guards listed for it above and the `src/AGENTS.md` line for the rules it lands.
+Each slice adds the guards listed for it above and the `src/AGENTS.md` line for the rules it lands. Since #1284, G7.1 to G7.13 hold storage, registration, removal and recovery: `PasskeyStorageModelTests`, `UserPasskeyTenantWriteTests`, `PasskeyOwnershipTests` (G7.6), the credential walk (G7.7), `SecondFactorLoginTests.Passkey*`, `PasskeysOffTests`, `ClearPasskeysCommandTests`, `RecoverAdminCommandTests`, the `BypassAllowList` and `FilterFreeSetSites` rows, and `GlobalUserLookupGuardTests`, which keeps `FindByPasskeyIdAsync` in `PasskeyCredentials.cs`. Sign-in (#1285), step-up and the Owner requirement (#1443) and the suggestion (#1444) still rely on review until they land.

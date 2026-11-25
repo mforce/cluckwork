@@ -261,8 +261,35 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
 
     public Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
-        bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default) =>
-        inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, mustChangePassword, ct);
+        bool twoFactorCleared, int passkeysRemoved, bool mustChangePassword, CancellationToken ct = default) =>
+        inner.BreakGlassResetAsync(accountId, userId, newPassword, reason, twoFactorCleared, passkeysRemoved, mustChangePassword, ct);
+
+    public Task<PasskeyCeremonyStart> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct = default) =>
+        inner.StartPasskeyRegistrationAsync(accountId, userId, requestHost, ct);
+
+    public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, Guid ceremony, string credentialJson, string name,
+        string requestHost, CancellationToken ct = default) =>
+        inner.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, requestHost, ct);
+
+    public Task<IReadOnlyList<PasskeySummary>> ListPasskeysAsync(Guid accountId, Guid userId, CancellationToken ct = default) =>
+        inner.ListPasskeysAsync(accountId, userId, ct);
+
+    public Task<Result> RenamePasskeyAsync(
+        Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct = default) =>
+        inner.RenamePasskeyAsync(accountId, userId, credentialId, name, ct);
+
+    public Task<Result<TokenPair>> RemovePasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, byte[] credentialId, CancellationToken ct = default) =>
+        inner.RemovePasskeyAsync(accountId, userId, credentialEpoch, credentialId, ct);
+
+    public Task<Result> RemoveUserPasskeysAsync(
+        Guid accountId, Guid userId, Guid actingUserId, CancellationToken ct = default) =>
+        inner.RemoveUserPasskeysAsync(accountId, userId, actingUserId, ct);
+
+    public Task<int> ClearPasskeysAsync(Guid accountId, string? reason, CancellationToken ct = default) =>
+        inner.ClearPasskeysAsync(accountId, reason, ct);
 
     public Task<Result<TokenPair?>> TurnOffTwoFactorAsync(
         Guid accountId, Guid userId, int credentialEpoch, CancellationToken ct = default) =>

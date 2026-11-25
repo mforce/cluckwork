@@ -65,6 +65,12 @@ public sealed class GlobalUserLookupGuardTests
         "CountCodesAsync",
     ];
 
+    // #1284 (record 1282 decision 11): the one cross-farm passkey lookup, by
+    // credential id across every user, lives in PasskeyCredentials alone.
+    private static readonly string[] PasskeyLookup = ["FindByPasskeyIdAsync"];
+
+    private const string PasskeyCredentialsFile = "Cluckwork.Infrastructure/Modules/Access/Identity/PasskeyCredentials.cs";
+
     // The one type allowed to make an account-scoped lookup out of a global
     // primitive, plus break-glass, which is cross-account BY DESIGN (#265): an
     // operator recovering an account may not know which farm it is in, and
@@ -157,6 +163,41 @@ public sealed class GlobalUserLookupGuardTests
             + "TwoFactorCredentials (#1274); only build output and migration-shaped files are skipped:\n  "
             + string.Join("\n  ", result.Offenders));
     }
+
+    [Fact]
+    public void OnlyPasskeyCredentials_LooksAPasskeyUpAcrossFarms()
+    {
+        var result = ScanForPasskeyLookup(SourceFiles());
+
+        AssertScanned("passkey", result);
+        // The exemption names a file; a moved or renamed owner must update it.
+        Assert.True(File.Exists(Path.Combine(SourceRoot(), PasskeyCredentialsFile)), PasskeyCredentialsFile + " is gone");
+        Assert.True(result.Offenders.Count == 0,
+            "Identity's cross-farm passkey lookup found outside PasskeyCredentials.cs (#1284):\n  "
+            + string.Join("\n  ", result.Offenders));
+    }
+
+    // The token reaches the scanner, and only the owner's file may name it.
+    [Fact]
+    public void ThePasskeyLookup_IsCaughtOutsideTheOwnersFile()
+    {
+        var root = Directory.CreateTempSubdirectory("cw-1284-");
+        try
+        {
+            var probe = Path.Combine(root.FullName, "Identity", "Probe.cs");
+            Directory.CreateDirectory(Path.GetDirectoryName(probe)!);
+            File.WriteAllText(probe, "class Probe { void M(dynamic users) => users.FindByPasskeyIdAsync(null); }\n");
+
+            Assert.Single(ScanForPasskeyLookup([probe]).Offenders);
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    private static ScanResult ScanForPasskeyLookup(IEnumerable<string> files) =>
+        ScanFiles(files, PasskeyLookup, [PasskeyCredentialsFile]);
 
     // Each real walk and its fixtures share one of these calls, so the list a
     // walk scans is the list its fixtures prove.

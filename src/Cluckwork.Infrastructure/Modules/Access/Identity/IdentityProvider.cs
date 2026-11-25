@@ -26,6 +26,7 @@ public sealed partial class IdentityProvider(
     Cluckwork.Application.Modules.Farm.Accounts.IAccountRepository accounts,
     IAccountUserDirectory directory,
     ITwoFactorCredentials twoFactor,
+    IPasskeyCredentials passkeys,
     TenantContext tenant,
     CurrentUserContext currentUser,
     IOptions<EnrolledSessionOptions> enrolledSessions) : IIdentityProvider

@@ -71,6 +71,8 @@ internal static partial class RealModuleLedger
             "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."),
         new("AspNetUserRoles", "Access",
             "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."),
+        new("AspNetUserPasskeys", "Access",
+            "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."),
         new("AspNetUserTokens", "Access",
             "Design 3.3 assigns Identity claim, join and token tables to Access; this framework CLR namespace is outside the Cluckwork namespace owner map."),
         new("AuditEvents", "Platform",

@@ -41,7 +41,7 @@ public sealed partial class IdentityProvider
 
     public async Task<Result> BreakGlassResetAsync(
         Guid accountId, Guid userId, string newPassword, string? reason,
-        bool twoFactorCleared, bool mustChangePassword, CancellationToken ct = default)
+        bool twoFactorCleared, int passkeysRemoved, bool mustChangePassword, CancellationToken ct = default)
     {
         // Same account-scoped lookup as SetUserPasswordAsync — a foreign id
         // resolves to NotFound, never a cross-tenant reset.
@@ -59,7 +59,7 @@ public sealed partial class IdentityProvider
         // SystemActors.BreakGlass before calling in, and IAuditWriter now
         // refuses an event with no actor at all. These details still matter for
         // exactly the reason above: the actor names the COMMAND, not a person.
-        var details = new { host = Environment.MachineName, osUser = Environment.UserName, twoFactorCleared };
+        var details = new { host = Environment.MachineName, osUser = Environment.UserName, twoFactorCleared, passkeysRemoved };
 
         // A DISTINCT audit action + the operator's reason so a break-glass reset
         // stands out from an ordinary Owner-initiated one (#265).

@@ -12,6 +12,7 @@ internal static class CluckworkJobServiceCollectionExtensions
         services.AddSingleton<RefreshTokenPurgeSweep>();
         services.AddSingleton<IdempotencyRecordPurgeSweep>();
         services.AddSingleton<OAuthPurgeSweep>();
+        services.AddSingleton<PasskeyCeremonyPurgeSweep>();
         // #271 — the single-runner gate the worker acquires before polling.
         services.AddSingleton<ILeaderLease>(sp => new PostgresLeaderLease(
             sp.GetRequiredService<LeaderLeaseConnectionString>().Value,

@@ -227,6 +227,19 @@ recovery-code store's `ReplaceCodesAsync`, `RedeemCodeAsync` and `CountCodesAsyn
 file except build output (`bin/`, `obj/`) and migration-shaped files: an EF migration or snapshot
 name under a `Migrations` directory.
 
+**`AspNetUserPasskeys` gets it from its first migration (#1284, 2026-11-23).** Passkeys
+(record [1282](1282-passkeys.md) decision 6) live in Identity's version 3 table, which
+`AppDbContext` maps itself, with the same shadow `AccountId`, concurrency token and composite
+foreign key `(UserId, AccountId) → AspNetUsers(Id, AccountId)` with cascade. No query filter; the
+table stays on #536's non-tenant track, and every `db.UserPasskeys` site is a classified row,
+`PasskeyCredentials.FindOwnerAsync` (#1285) the one cross-farm lookup among them. The table is
+new, so its migration needs no backfill. The unresolved-tenant `DELETE` arm above applies here
+too, held shut the same way. Pinned by `UserPasskeyTenantWriteTests` and
+`PasskeyStorageModelTests`; that only `PasskeyCredentials` writes these rows and
+`AspNetUsers.PasskeyCount` is G7.6 (`PasskeyOwnershipTests`). The ceremony table,
+`passkey_ceremonies`, has no `AccountId` at all: a sign-in ceremony has no farm until it ends,
+and a bound one stores the user's id (record 1282 decision 3).
+
 **Accepted risk, deliberately:** `AspNetUserClaims`, `AspNetUserLogins` and
 `AspNetRoleClaims` keep no tenant column. Nothing in `src/` writes or reads them, any direct
 `db.<Set>` access is already a #536 candidate requiring an allow-list entry, and `AspNetRoles` is
@@ -459,9 +472,10 @@ Most of it is enforced by the guards named per section. The parts that are **not
 - the accepted risk on the three claim/login/role-claim Identity tables (§5, #670, #1276) —
   **nothing enforces that no writer appears**; a direct `db.<Set>` access is caught by #536's
   scanner, a `UserManager` claim/login call is not, and relies on review;
-- the unresolved-tenant `DELETE` arm on `AspNetUserRoles` and `AspNetUserTokens` (§5, #670,
-  #1276) — **held shut by #536's scanner's classification of every `db.UserRoles` and
-  `db.UserTokens` site, not by a write layer**; and
+- the unresolved-tenant `DELETE` arm on `AspNetUserRoles`, `AspNetUserTokens` and
+  `AspNetUserPasskeys` (§5, #670, #1276, #1284) — **held shut by #536's scanner's
+  classification of every `db.UserRoles`, `db.UserTokens` and `db.UserPasskeys` site, not by a
+  write layer**; and
   `RoleManager.DeleteAsync`'s cascade across every farm's grants — **nothing enforces that no
   caller appears**; both rely on review;
 - the "no slug as a metric label" and "no `AccessFailedAsync` on the unknown-farm branch"

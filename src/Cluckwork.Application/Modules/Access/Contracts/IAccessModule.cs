@@ -33,6 +33,9 @@ public interface IAccessModule
     Task<Result> ResetUserTwoFactorAsync(
         ResetUserTwoFactorCommand command, Guid accountId, Guid actingUserId, CancellationToken ct);
 
+    Task<Result> RemoveUserPasskeysAsync(
+        RemoveUserPasskeysCommand command, Guid accountId, Guid actingUserId, CancellationToken ct);
+
     Task<IReadOnlyList<UserFlockAssignment>> ListFlockAssignmentsAsync(Guid userId, CancellationToken ct);
 
     Task<Result<Guid>> AssignFlockAsync(
@@ -93,6 +96,24 @@ public interface IAccessModule
 
     Task<Result<IReadOnlyList<string>>> RegenerateRecoveryCodesAsync(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct);
+
+    // #1284 — the caller's own passkeys (IIdentityProvider says what each
+    // does). Register and remove spend a step-up grant first; credentialEpoch
+    // is the acting token's claim.
+    // requestHost is the request's host without its port.
+    Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct);
+
+    Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken,
+        Guid ceremony, string credentialJson, string name, string requestHost, CancellationToken ct);
+
+    Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
+
+    Task<Result> RenamePasskeyAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
+
+    Task<Result<TokenPair>> RemovePasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, byte[] credentialId, CancellationToken ct);
 
     // An enrolled user also proves code; anyone else's code is ignored.
     Task<Result<StepUpGrant>> IssueStepUpGrantAsync(

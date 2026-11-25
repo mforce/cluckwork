@@ -115,6 +115,12 @@ public static class SecurityEvents
     public const string TwoFactorEnrolmentStarted = "Auth.TwoFactorEnrolmentStarted";
     public const string TwoFactorEnrolled = "Auth.TwoFactorEnrolled";
 
+    // #1282 decision 19 — a refused passkey anywhere, ClientIp only, as
+    // SecondFactorFailed; a registered and a removed passkey, after step-up.
+    public const string PasskeyFailed = "Auth.PasskeyFailed";
+    public const string PasskeyRegistered = "Auth.PasskeyRegistered";
+    public const string PasskeyRemoved = "Auth.PasskeyRemoved";
+
     // Operational, no fields: a stored authenticator key or pending payload no
     // longer decrypts (a certificate change that did not keep the old certificate
     // listed, #1338, or a ring deletion, #794).

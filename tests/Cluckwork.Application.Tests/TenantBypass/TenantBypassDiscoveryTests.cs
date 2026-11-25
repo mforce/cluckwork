@@ -72,6 +72,12 @@ public sealed class TenantBypassDiscoveryTests
         //    third-party clients, no AccountId, the same category as the
         //    Identity tables. OpenIddict's own stores read them; any query
         //    from src/ is a bypass occurrence, allow-list entry required.
+        //  * #1284 (record 1282 decision 6) — three new mapped types on the
+        //    non-tenant track: IdentityUserPasskey`1 (AspNetUserPasskeys, the
+        //    UserTokens treatment: shadow AccountId, no query filter), its owned
+        //    JSON IdentityPasskeyData, and PasskeyCeremony (passkey_ceremonies,
+        //    no AccountId: a sign-in ceremony has no farm until it ends). Every
+        //    site is a classified FilterFreeSetSites or BypassAllowList row.
         //  * `Money` appears in the raw model as OWNED value-type entities
         //    (one per owning table: FeedUsages, InventoryItems, InventoryLots,
         //    SalesOrderItems, SalesOrders). Owned types have no DbSet and no
@@ -84,15 +90,18 @@ public sealed class TenantBypassDiscoveryTests
             nameof(ApplicationUser),
             "DataProtectionKey",
             "IdempotencyRecord",
+            "IdentityPasskeyData",
             "IdentityRoleClaim`1",
             "IdentityUserClaim`1",
             "IdentityUserLogin`1",
+            "IdentityUserPasskey`1",
             "IdentityUserRole`1",
             "IdentityUserToken`1",
             "OpenIddictEntityFrameworkCoreApplication`1",
             "OpenIddictEntityFrameworkCoreAuthorization`1",
             "OpenIddictEntityFrameworkCoreScope`1",
             "OpenIddictEntityFrameworkCoreToken`1",
+            "PasskeyCeremony",
             "RefreshToken",
         };
 

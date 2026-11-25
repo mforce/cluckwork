@@ -22,6 +22,7 @@ public static class CliDispatcher
         new ReactivateAccountCliCommand(),
         new RenameAccountCliCommand(),
         new RewrapKeyRingCliCommand(),
+        new ClearPasskeysCliCommand(),
     ];
 
     // Whether these args dispatch to a one-off verb rather than start the web

@@ -403,6 +403,36 @@ public sealed class ProcessRoleGuardTests(ServingGuardDatabaseFixture database)
         new("#1281 owner requirement", "TwoFactor:RequireForOwners must be true or false",
             Violate: psi => psi.Environment["TwoFactor__RequireForOwners"] = "yes",
             Satisfy: psi => psi.Environment.Remove("TwoFactor__RequireForOwners")),
+
+        // #1284 — the passkey origins. Unset is off, so Satisfy removes the key.
+        new("#1284 passkey origins as one value", "Passkeys:Origins must be a list",
+            Violate: psi => psi.Environment["Passkeys__Origins"] = "https://farm.example",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins")),
+
+        new("#1284 passkey origin shape", "Passkeys:Origins:0 must be an origin",
+            Violate: psi => psi.Environment["Passkeys__Origins__0"] = "https://farm.example/path",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
+
+        new("#1284 passkey origin scheme", "Passkeys:Origins:0 must use https",
+            Violate: psi => psi.Environment["Passkeys__Origins__0"] = "http://farm.example",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
+
+        new("#1284 passkey origin host", "Passkeys:Origins:0 names the host",
+            Violate: psi => psi.Environment["Passkeys__Origins__0"] = "https://not-listed.example",
+            Satisfy: psi => psi.Environment.Remove("Passkeys__Origins__0")),
+
+        // Two entries at one host; the host is the one #319's Satisfy lists.
+        new("#1284 passkey origins at one host", "both name the host",
+            Violate: psi =>
+            {
+                psi.Environment["Passkeys__Origins__0"] = "https://cluckwork-test.example";
+                psi.Environment["Passkeys__Origins__1"] = "https://cluckwork-test.example:8443";
+            },
+            Satisfy: psi =>
+            {
+                psi.Environment.Remove("Passkeys__Origins__0");
+                psi.Environment.Remove("Passkeys__Origins__1");
+            }),
     ];
 
     private static void SatisfyOAuthIssuer(ProcessStartInfo psi) =>

@@ -54,6 +54,10 @@ public sealed class IdempotencyMiddleware(RequestDelegate next)
         // returns a live token pair, and #1277's enrolment routes return a key
         // and recovery codes; none may land in idempotency_records.
         "/api/v1/auth/two-factor",
+        // #1284 (record 1282) — a prefix. Registration and removal return a
+        // live token pair, and a refused finish's ceremony delete must commit,
+        // which IdempotentUnit's rollback of a non-2xx answer would undo.
+        "/api/v1/auth/passkeys",
     ];
 
     public async Task InvokeAsync(

@@ -30,7 +30,7 @@ internal static partial class CredentialTypes
     {
         "Password", "Token", "Secret", "Challenge", "Grant", "Key", "Code", "Stamp", "Pem",
         "Otp", "Totp", "Verifier", "Nonce", "Signature", "Cookie", "Credential", "Proof",
-        "Pwd", "Bearer", "Passphrase", "Passcode", "Pin", "Salt", "Jwt",
+        "Pwd", "Bearer", "Passphrase", "Passcode", "Pin", "Salt", "Jwt", "Passkey",
     };
 
     // A member that matches a word but holds no credential. On names the type
@@ -62,6 +62,7 @@ internal static partial class CredentialTypes
         new(null, "DiscountReasonCode", typeof(DiscountReasonCode), "a discount reason"),
         new(null, "StatusCode", typeof(int), "an HTTP status code"),
         new(null, "RecoveryCodesLeft", typeof(int), "a count of recovery codes, not the codes"),
+        new(null, "PasskeyCount", typeof(int), "a count of passkeys, not the passkeys"),
         new(null, "ConcurrencyStamp", typeof(string), "an optimistic-concurrency value"),
         new(null, "GrantTypes", typeof(string[]), "names of OAuth grant types from client metadata"),
         new(null, "TokenEndpointAuthMethod", typeof(string), "the name of an OAuth client auth method"),
@@ -72,6 +73,12 @@ internal static partial class CredentialTypes
         new(typeof(AppDbContext), nameof(AppDbContext.RefreshTokens), typeof(DbSet<RefreshToken>), "a query root, not a value"),
         new(typeof(AppDbContext), nameof(AppDbContext.OAuthTokens), typeof(DbSet<OpenIddictEntityFrameworkCoreToken<Guid>>), "a query root, not a value"),
         new(typeof(AppDbContext), nameof(AppDbContext.UserTokens), typeof(DbSet<IdentityUserToken<Guid>>), "a query root, not a value"),
+        new(typeof(AppDbContext), nameof(AppDbContext.UserPasskeys), typeof(DbSet<IdentityUserPasskey<Guid>>), "a query root, not a value"),
+        new(typeof(AppDbContext), nameof(AppDbContext.PasskeyCeremonies), typeof(DbSet<PasskeyCeremony>), "a query root, not a value"),
+        new(typeof(PasskeyList), nameof(PasskeyList.Passkeys), typeof(IReadOnlyList<PasskeySummary>),
+            "passkey summaries: a credential id, which is not a secret (record 1282 decision 11), a name, a date and the sync state; never a key"),
+        new(typeof(RegisterOutcome.Registered), nameof(RegisterOutcome.Registered.Passkey), typeof(PasskeySummary),
+            "a passkey summary: a credential id, which is not a secret (record 1282 decision 11), a name, a date and the sync state; never a key"),
         new(typeof(AppDbContext), nameof(AppDbContext.DataProtectionKeys), typeof(DbSet<DataProtectionKey>), "a query root, not a value"),
         new(typeof(SlotGrant), nameof(SlotGrant.Key), typeof(string), "the rate-limit slot's lease key"),
         new(typeof(IdempotencyScope), nameof(IdempotencyScope.KeyHash), typeof(string), "a hash of the Idempotency-Key header"),

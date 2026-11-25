@@ -110,7 +110,8 @@ public static partial class AuthEndpoints
             ? epoch
             : null;
 
-    // The refusals of the routes that spend a step-up grant. A missing or spent
+    // The refusals of the /auth routes whose codes are mapped here: the routes
+    // that spend a step-up grant, and the passkey routes. A missing or spent
     // grant is 403, as on the Users routes. Only a session that went stale
     // under the request is 401, as CredentialEpochMiddleware answers it,
     // because the SPA refreshes and resends on a 401. Anything else is a bug,
@@ -121,6 +122,9 @@ public static partial class AuthEndpoints
             StepUpErrorCodes.Required => StatusCodes.Status403Forbidden,
             CredentialErrorCodes.Superseded => StatusCodes.Status401Unauthorized,
             EnrolmentErrorCodes.NotEnabled => StatusCodes.Status409Conflict,
+            PasskeyErrorCodes.Off or PasskeyErrorCodes.NotFound => StatusCodes.Status404NotFound,
+            PasskeyErrorCodes.Refused => StatusCodes.Status400BadRequest,
+            PasskeyErrorCodes.LimitReached => StatusCodes.Status409Conflict,
             _ => throw new InvalidOperationException($"No answer is mapped for {error.Code}."),
         });
 }

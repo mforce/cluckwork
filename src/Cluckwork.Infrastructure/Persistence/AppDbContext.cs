@@ -53,6 +53,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options, TenantContext 
     public DbSet<SimulationSeedState> SimulationSeedStates => Set<SimulationSeedState>();
     public DbSet<DurableJob> DurableJobs => Set<DurableJob>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasskeyCeremony> PasskeyCeremonies => Set<PasskeyCeremony>();
     public DbSet<UserRoleAssignment> UserRoleAssignments => Set<UserRoleAssignment>();
     public DbSet<FarmLogo> FarmLogos => Set<FarmLogo>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();

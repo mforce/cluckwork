@@ -2,7 +2,6 @@ using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 
@@ -59,19 +58,12 @@ public sealed partial class IdentityProvider
             // one gets a fresh pair from the new epoch. The new key's code was
             // the second factor, so the lineage starts now (G3.31).
             var recoveryCodes = (outcome as ConfirmOutcome.Enrolled)?.RecoveryCodes;
-            var user = await db.Users.SingleAsync(u => u.Id == userId && u.AccountId == accountId, token);
-            var now = timeProvider.GetUtcNow();
-            await RevokeAllActiveForUserAsync(user.Id, now, token);
-            var (rawToken, tokenHash) = GenerateRefreshToken();
-            db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: now));
-            await audit.WriteAsync(AuditActions.UserTwoFactorEnabled, "User", user.Id,
+            var pair = await ReissueActingSessionAsync(accountId, userId, token);
+            await audit.WriteAsync(AuditActions.UserTwoFactorEnabled, "User", userId,
                 reason: null, details: new { replaced = recoveryCodes is null }, ct: token);
             await db.SaveChangesAsync(token);
-
-            var roles = await userManager.GetRolesAsync(user);
-            var pair = jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
             await transaction.CommitAsync(token);
-            securityEvents.TwoFactorEnrolled(user.Id);
+            securityEvents.TwoFactorEnrolled(userId);
             return Result.Success(new EnrolmentConfirmation(pair, recoveryCodes));
         }, ct);
     }

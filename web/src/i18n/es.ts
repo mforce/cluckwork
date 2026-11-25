@@ -2374,6 +2374,11 @@ export const es = {
     "auditAction.User.TwoFactorReset": "Autenticación en dos pasos restablecida",
     "auditAction.User.TwoFactorEnabled": "Autenticación en dos pasos activada",
     "auditAction.User.RecoveryCodesRegenerated": "Códigos de recuperación regenerados",
+    "auditAction.User.PasskeyRegistered": "Llave de acceso añadida",
+    "auditAction.User.PasskeyRenamed": "Llave de acceso renombrada",
+    "auditAction.User.PasskeyRemoved": "Llave de acceso eliminada",
+    "auditAction.User.PasskeysRemovedByOwner": "Llaves de acceso eliminadas por un Propietario",
+    "auditAction.User.PasskeysCleared": "Llaves de acceso borradas por el operador",
     "auditAction.User.RoleChanged": "Rol cambiado",
     "auditAction.User.EmailChanged": "Correo de inicio de sesión cambiado",
     "auditAction.User.Disabled": "Usuario deshabilitado",
@@ -3266,7 +3271,8 @@ export const es = {
       + "de nuevo. \"(rename-account)\" cambia el código de granja y registra el código anterior y el "
       + "nuevo. Esos cuatro últimos registran además la máquina desde la que se ejecutaron y el motivo "
       + "indicado, de modo que un restablecimiento de emergencia o un cambio del operador nunca es anónimo. "
-      + "Todo lo demás nombra a la persona que lo hizo.",
+      + "\"(clear-passkeys)\" elimina las llaves de acceso antes de desactivarlas o de mover el sitio a otra "
+      + "dirección, y registra el motivo indicado. Todo lo demás nombra a la persona que lo hizo.",
     auditRecordHistoryOlder:
       "Los registros creados antes de que esto se agregara no muestran la línea de \"creado por\". No hay "
       + "una entrada de creación en el registro para ellos, y no se inventa ninguna después. Si un registro "

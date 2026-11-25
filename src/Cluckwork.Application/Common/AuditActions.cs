@@ -56,6 +56,15 @@ public static class AuditActions
     public const string UserTwoFactorEnabled = "User.TwoFactorEnabled";
     // #1277 — the user replaced their recovery codes. No details, never a code.
     public const string UserRecoveryCodesRegenerated = "User.RecoveryCodesRegenerated";
+    // #1284 (record 1282 decision 19) — passkeys. Registered carries
+    // firstFactor: true when it ended every other session; RemovedByOwner and
+    // Cleared carry the count, Cleared also the operator's reason. Never a
+    // credential id or key.
+    public const string UserPasskeyRegistered = "User.PasskeyRegistered";
+    public const string UserPasskeyRenamed = "User.PasskeyRenamed";
+    public const string UserPasskeyRemoved = "User.PasskeyRemoved";
+    public const string UserPasskeysRemovedByOwner = "User.PasskeysRemovedByOwner";
+    public const string UserPasskeysCleared = "User.PasskeysCleared";
     public const string UserFlockAssign = "User.FlockAssign";
     public const string UserFlockUnassign = "User.FlockUnassign";
     // #799 — a person's connected app was disconnected, by them or by the farm's Owner;

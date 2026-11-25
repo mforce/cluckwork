@@ -7,6 +7,7 @@ using Cluckwork.Application.Modules.Access.Users.ChangeUserRole;
 using Cluckwork.Application.Modules.Access.Users.CreateUser;
 using Cluckwork.Application.Modules.Access.Users.DisableUser;
 using Cluckwork.Application.Modules.Access.Users.EnableUser;
+using Cluckwork.Application.Modules.Access.Users.RemoveUserPasskeys;
 using Cluckwork.Application.Modules.Access.Users.ResetUserTwoFactor;
 using Cluckwork.Application.Modules.Access.Users.SetLanguage;
 using Cluckwork.Application.Modules.Access.Users.SetStepperUnit;
@@ -31,6 +32,7 @@ public sealed class AccessModule(
     DisableUserHandler disableUser,
     EnableUserHandler enableUser,
     ResetUserTwoFactorHandler resetUserTwoFactor,
+    RemoveUserPasskeysHandler removeUserPasskeys,
     AssignFlockHandler assignFlock,
     UnassignFlockHandler unassignFlock,
     SetLanguageHandler setLanguage,
@@ -38,6 +40,7 @@ public sealed class AccessModule(
     ChangeOwnPasswordHandler changeOwnPassword,
     IIdentityProvider identity,
     IStepUpGrantService stepUp,
+    IOptions<PasskeyOptions> passkeyOrigins,
     FirstRunStatusService firstRun,
     AuthSecurityEventLogger securityEvents,
     IOptions<JwtOptions> jwt,
@@ -78,6 +81,10 @@ public sealed class AccessModule(
     public Task<Result> ResetUserTwoFactorAsync(
         ResetUserTwoFactorCommand command, Guid accountId, Guid actingUserId, CancellationToken ct) =>
         resetUserTwoFactor.HandleAsync(command, accountId, actingUserId, ct);
+
+    public Task<Result> RemoveUserPasskeysAsync(
+        RemoveUserPasskeysCommand command, Guid accountId, Guid actingUserId, CancellationToken ct) =>
+        removeUserPasskeys.HandleAsync(command, accountId, actingUserId, ct);
 
     // #859 — names come from Flock Management's lookup, whose filtered read
     // decides which flocks this caller may see (#613): one bounded read for the
@@ -158,6 +165,40 @@ public sealed class AccessModule(
         Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, CancellationToken ct) =>
         WithGrantAsync(accountId, userId, stepUpToken,
             () => identity.RegenerateRecoveryCodesAsync(accountId, userId, credentialEpoch, ct), ct);
+
+    // #1282 decision 5: the routes that run a ceremony answer Passkeys.Off
+    // while Passkeys:Origins does not name this host, the finish before its
+    // step-up grant is read, so the grant stays unspent.
+    private static readonly Error PasskeysOff =
+        new(PasskeyErrorCodes.Off, "Passkeys are not available at this address.");
+
+    public Task<Result<PasskeyCeremonyStart>> StartPasskeyRegistrationAsync(
+        Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost,
+            async () => Result.Success(await identity.StartPasskeyRegistrationAsync(accountId, userId, requestHost, ct)));
+
+    // Decision 15: the grant is spent at the finish, before the transaction.
+    public Task<Result<PasskeyRegistration>> RegisterPasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken,
+        Guid ceremony, string credentialJson, string name, string requestHost, CancellationToken ct) =>
+        WhenPasskeysOnAsync(requestHost, () => WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.RegisterPasskeyAsync(accountId, userId, credentialEpoch, ceremony, credentialJson, name, requestHost, ct), ct));
+
+    private Task<Result<T>> WhenPasskeysOnAsync<T>(string requestHost, Func<Task<Result<T>>> work) =>
+        passkeyOrigins.Value.IsOnFor(requestHost) ? work() : Task.FromResult(Result.Failure<T>(PasskeysOff));
+
+    // Enabled: this host runs passkey ceremonies. The list itself works while off.
+    public async Task<PasskeyList> ListPasskeysAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
+        new(passkeyOrigins.Value.IsOnFor(requestHost), await identity.ListPasskeysAsync(accountId, userId, ct));
+
+    public Task<Result> RenamePasskeyAsync(
+        Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct) =>
+        identity.RenamePasskeyAsync(accountId, userId, credentialId, name, ct);
+
+    public Task<Result<TokenPair>> RemovePasskeyAsync(
+        Guid accountId, Guid userId, int credentialEpoch, string? stepUpToken, byte[] credentialId, CancellationToken ct) =>
+        WithGrantAsync(accountId, userId, stepUpToken,
+            () => identity.RemovePasskeyAsync(accountId, userId, credentialEpoch, credentialId, ct), ct);
 
     // The caller's own two-factor routes check their step-up grant here, not
     // in a handler. The grant is spent before the work starts, so the work
