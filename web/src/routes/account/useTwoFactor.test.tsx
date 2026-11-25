@@ -35,7 +35,7 @@ describe("new recovery codes", () => {
     const { result } = renderHook(useTwoFactor, { wrapper: RecoveryCodesProvider });
     await waitFor(() => expect(result.current.status.data?.enabled).toBe(true));
     act(() => result.current.openProof("regenerate"));
-    act(() => result.current.setProof({ password: crypto.randomUUID() }));
+    act(() => result.current.stepUp.setProof({ password: crypto.randomUUID() }));
 
     await act(async () => { await result.current.onProof({ preventDefault() {} } as FormEvent); });
 

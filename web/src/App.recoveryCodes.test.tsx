@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
-import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes } from "./api/cluckwork";
+import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, regenerateRecoveryCodes } from "./api/cluckwork";
 import { stepUp } from "./api/client";
 import { askConsent } from "./api/oauth";
 import { clearAccessToken } from "./auth/tokenStore";
@@ -30,6 +30,7 @@ vi.mock("./api/cluckwork", async (importOriginal) => ({
   getTwoFactorStatus: vi.fn(),
   regenerateRecoveryCodes: vi.fn(),
   listMyConnectedApps: vi.fn(),
+  listPasskeys: vi.fn(),
 }));
 vi.mock("./api/client", async (importOriginal) => ({
   ...await importOriginal<typeof import("./api/client")>(),
@@ -41,6 +42,7 @@ const t = (key: string): string => i18n.t(`account:${key}` as "account:heading")
 beforeEach(() => {
   vi.mocked(getTwoFactorStatus).mockResolvedValue({ enabled: true, recoveryCodesLeft: 1 });
   vi.mocked(listMyConnectedApps).mockResolvedValue([]);
+  vi.mocked(listPasskeys).mockResolvedValue({ enabled: true, passkeys: [] });
   vi.mocked(stepUp).mockResolvedValue({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
   setStoredToken({ sub: "u1", role: "Worker", two_factor: "true" });
   // The one request this tree makes that the mocks above do not answer; any

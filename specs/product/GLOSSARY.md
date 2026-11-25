@@ -1472,7 +1472,10 @@ authenticator app, and removing a user's passkeys is a separate action from
 **Reset two-factor authentication**.
 
 Passkeys are off until the operator lists the app's web addresses in
-`Passkeys:Origins`; until then no screen offers them. Signing in with a
+`Passkeys:Origins`; until then no screen offers to add a passkey or sign in
+with one, and **Account** → **Security** lists any passkeys a user already
+has with **Remove** only, the same at a web address that is not on the
+list. Signing in with a
 passkey needs no farm code: the passkey says which farm it belongs to. If a
 farm code is already in the field, the passkey must belong to that farm. A
 passkey works only at the web address where it was made, and **Account** →

@@ -9,44 +9,51 @@ import { Dialog } from "../../components/Dialog";
 import { DialogError } from "../../components/DialogError";
 import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import type { DialogErrors } from "../../components/useDialogErrors";
+import { FACTOR_RESETS } from "./useFactorReset";
+import type { FactorReset } from "./useFactorReset";
 
 // #1280 — the two-factor reset's confirmation, the #1275 "Users reset" design:
 // who is reset and what that ends, then who confirms it with the step-up proof.
-export function ResetTwoFactorDialog({
+// #1284 — the passkey removal's, the #1283 "Users A" design, the same way.
+export function FactorResetDialog({
+  kind,
   resetUser,
   closeReset,
   onReset,
   busy,
   isPending,
   errors,
-  resetStepUpProof,
-  setResetStepUpProof,
+  proof,
+  setProof,
 }: {
+  kind: FactorReset;
   resetUser: User | null;
   closeReset: () => void;
   onReset: (e: FormEvent) => void;
   busy: boolean;
   isPending: (scope: string) => boolean;
   errors: DialogErrors;
-  resetStepUpProof: StepUpProof;
-  setResetStepUpProof: Dispatch<SetStateAction<StepUpProof>>;
+  proof: StepUpProof;
+  setProof: Dispatch<SetStateAction<StepUpProof>>;
 }) {
   const identityId = useId();
   const warningId = useId();
-  const { t } = useTranslation("users");
+  // Re-renders the dialog when the language changes; FACTOR_RESETS reads i18n.
+  useTranslation("users");
   const { t: tc } = useTranslation("common");
+  const config = FACTOR_RESETS[kind];
   return (
     <Dialog
       open={resetUser !== null}
-      title={t("resetTwoFactorTitle")}
+      title={resetUser ? config.title(resetUser) : ""}
       onClose={closeReset}
       describedBy={`${identityId} ${warningId}`}
       actions={(
         <DialogActions>
           <button type="button" className="link" onClick={closeReset}>{tc("cancel")}</button>
           <BusyButton variant="contained" type="submit" color="error" disabled={busy}
-            busy={resetUser !== null && isPending(`reset-two-factor:${resetUser.id}`)}>
-            {t("resetTwoFactorSubmitButton")}
+            busy={resetUser !== null && isPending(`${kind}:${resetUser.id}`)}>
+            {config.submit()}
           </BusyButton>
         </DialogActions>
       )}
@@ -57,10 +64,11 @@ export function ResetTwoFactorDialog({
           {[resetUser?.displayName, resetUser?.email].filter(Boolean).join(" · ")}
         </Typography>
         <Typography id={warningId} color="text.secondary" sx={{ lineHeight: 1.55 }}>
-          {t("resetTwoFactorWarningBody")}
+          {resetUser && config.warning(resetUser)}
         </Typography>
-        <ConfirmItsYou value={resetStepUpProof} onChange={setResetStepUpProof} />
-        <DialogError errors={errors} scope="reset-two-factor" />
+        {config.note && <Typography color="text.secondary" sx={{ lineHeight: 1.55 }}>{config.note()}</Typography>}
+        <ConfirmItsYou value={proof} onChange={setProof} />
+        <DialogError errors={errors} scope={kind} />
       </Stack>
     </Dialog>
   );

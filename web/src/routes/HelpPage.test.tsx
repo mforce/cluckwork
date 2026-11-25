@@ -82,6 +82,13 @@ describe("HelpPage", () => {
     expect(screen.getAllByRole("listitem").some((item) => item.textContent === text)).toBe(true);
   });
 
+  // #1284 — passkeys on Account, and an Owner's removal of another user's.
+  it.each(["accountPasskeys", "rolesRemovePasskeys"] as const)("shows the %s paragraph", (key) => {
+    render(<HelpPage />);
+    const text = en.help[key].replace(/<\/?strong>/g, "");
+    expect(screen.getAllByRole("listitem").some((item) => item.textContent === text)).toBe(true);
+  });
+
   it("documents Owner-only farm settings, the currency lock and the logo (#123/#729)", () => {
     render(<HelpPage />);
     expect(screen.getByRole("heading", { name: "Farm settings (owner only)", level: 3 })).toBeInTheDocument();

@@ -23,6 +23,9 @@ import { roleLabel } from "../i18n/enums";
 import { errText } from "../lib/errText";
 import { ProofDialog, SecurityPanel } from "./account/SecurityPanel";
 import { TwoFactorFlow } from "./account/TwoFactorFlow";
+import { PasskeyFlow } from "./account/PasskeyFlow";
+import { PasskeyStepUpDialog, PasskeysSection, RenamePasskeyDialog } from "./account/PasskeysSection";
+import { usePasskeys } from "./account/usePasskeys";
 import { takeSetUpRequest, useTwoFactor } from "./account/useTwoFactor";
 import { SECURITY_SUMMARY_ID } from "./account/recoveryCodes";
 import { TwoFactorDeadlineBanner } from "./TwoFactorDeadlineBanner";
@@ -45,6 +48,7 @@ export function AccountPage() {
   const [message, setMessage] = useState<string | null>(null);
   const { busy, run } = usePendingAction();
   const twoFactorSection = useTwoFactor();
+  const passkeys = usePasskeys();
   const setUpRequest = useLocation().state as unknown;
   const { openProof, backToSummary } = twoFactorSection;
   useEffect(() => {
@@ -94,9 +98,12 @@ export function AccountPage() {
 
   // #1277 — enrolment takes the page while it runs. New recovery codes open in
   // the slot above the routes (account/recoveryCodes.tsx).
-  const proofDialog = <ProofDialog twoFactor={twoFactorSection} />;
+  const dialogs = <><ProofDialog twoFactor={twoFactorSection} /><PasskeyStepUpDialog passkeys={passkeys} /><RenamePasskeyDialog passkeys={passkeys} /></>;
   const { flow } = twoFactorSection;
-  if (flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{proofDialog}</>;
+  if (flow.step !== "summary") return <><TwoFactorFlow twoFactor={twoFactorSection} />{dialogs}</>;
+  // #1284 — the passkey create step takes the page the same way.
+  if (passkeys.flow.step !== "list")
+    return <><PasskeyFlow passkeys={passkeys} onSetUpApp={() => openProof("start")} />{dialogs}</>;
 
   return (
     <Box component="section" sx={{ maxWidth: "760px" }}>
@@ -173,8 +180,8 @@ export function AccountPage() {
         </AccordionDetails>
       </Accordion>
 
-      <SecurityPanel twoFactor={twoFactorSection} />
-      {proofDialog}
+      <SecurityPanel twoFactor={twoFactorSection}><PasskeysSection passkeys={passkeys} /></SecurityPanel>
+      {dialogs}
 
       <ConnectedAppsPanel />
     </Box>

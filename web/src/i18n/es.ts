@@ -302,7 +302,51 @@ export const es = {
     turnedOffMessage: "La autenticación en dos pasos está desactivada.",
     codesMissing: "Algo salió mal y no llegaron códigos de recuperación. Regenérelos para obtener un juego nuevo.",
     regenerateNotEnabled: "La autenticación en dos pasos no está activada en su cuenta, así que no tiene códigos de recuperación que reemplazar.",
-    sessionChanged: "Su inicio de sesión cambió mientras se enviaba esto, así que no cambió nada. Inténtelo de nuevo.",
+    // #1284 — the Security section's passkeys (#1283 "Account / Security A" and "Registration A").
+    passkeysHeading: "Llaves de acceso",
+    passkeysHint: "Inicie sesión con su huella, su cara o el PIN del dispositivo.",
+    passkeysOffHint: "Las llaves de acceso están desactivadas en esta dirección web. Puede quitar una llave de acceso, pero no añadir una.",
+    passkeysCount: "{{count}} de {{max}} llaves de acceso",
+    passkeysLimit: "Tiene {{max}} llaves de acceso. Quite una antes de añadir otra.",
+    passkeysMultiAddress: "Una llave de acceso solo funciona en la dirección web donde se creó.",
+    passkeysEmpty: "Todavía no tiene llaves de acceso.",
+    passkeysLoadFailed: "No se pudieron cargar sus llaves de acceso.",
+    passkeyDefaultName: "Llave de acceso",
+    passkeyCreatedLabel: "Creada",
+    passkeySynced: "Sincronizada con sus otros dispositivos",
+    addPasskeyButton: "Añadir llave de acceso",
+    renameButton: "Renombrar",
+    removeButton: "Quitar",
+    addPasskeyTitle: "Añadir llave de acceso",
+    addPasskeyBody: "Primero, confirme que es usted.",
+    renamePasskeyTitle: "Renombrar llave de acceso",
+    renamePasskeyBody: "Elija un nombre que reconozca.",
+    saveNameButton: "Guardar nombre",
+    removePasskeyTitle: "¿Quitar la llave de acceso?",
+    removePasskeyBody: "Ya no podrá usar esta llave de acceso para iniciar sesión.",
+    removePasskeyButton: "Quitar llave de acceso",
+    passkeySessionWarning: "Los otros dispositivos y aplicaciones conectadas tendrán que iniciar sesión de nuevo. Este dispositivo sigue con la sesión iniciada.",
+    passkeyRemovedMessage: "Llave de acceso quitada. Los otros dispositivos y aplicaciones conectadas tendrán que iniciar sesión de nuevo.",
+    createPasskeyHeading: "Crear llave de acceso",
+    createPasskeyHint: "Su teléfono o computadora le pedirá que confirme con su huella, su cara o su PIN.",
+    passkeyNameLabel: "Nombre de la llave de acceso",
+    passkeyNameHint: "Elija un nombre que reconozca.",
+    passkeyNameRequired: "Escriba un nombre.",
+    passkeyDeviceName: "Se guarda en su dispositivo como {{email}} ({{farm}}).",
+    createPasskeyButton: "Crear llave de acceso",
+    tryAgainButton: "Intentar de nuevo",
+    passkeyWaiting: "Termine de crear la llave de acceso en su navegador.",
+    passkeyCancelled: "Se canceló la creación de la llave de acceso. No se añadió ninguna llave de acceso.",
+    passkeyExists: "Este dispositivo ya tiene una llave de acceso para su cuenta.",
+    passkeyFailed: "No se pudo crear la llave de acceso. Inténtelo de nuevo.",
+    passkeyCreatedHeading: "Llave de acceso creada",
+    passkeyReady: "{{name}} está lista para usarse.",
+    passkeyReadyHint: "Su dispositivo comprueba su huella, su cara o su PIN cuando usa esta llave de acceso.",
+    passkeyManageHint: "Puede renombrarla o quitarla en Cuenta / Seguridad.",
+    passkeyUnsupportedHeading: "No se puede crear una llave de acceso aquí",
+    passkeyUnsupported: "Este navegador o dispositivo no admite llaves de acceso.",
+    passkeyUnsupportedHint: "Pruebe con un navegador compatible u otro dispositivo.",
+    backToSecurityButton: "Volver a Seguridad",
   },
   // #799 — Connected apps: the Account panel and the Owner's farm-wide page.
   connectedApps: {
@@ -349,6 +393,16 @@ export const es = {
     "Identity.StepUpRequired": "Su confirmación ya no es válida. Vuelva a ingresar su contraseña actual y, si usa la autenticación en dos pasos, un código nuevo.",
     "Auth.Forbidden": "No tiene permiso para hacer esto.",
     "Users.CannotResetOwnTwoFactor": "No puede restablecer su propia autenticación en dos pasos. Pida a otro propietario.",
+    // #1284 — the passkey routes' refusals (record 1282 "What a caller sees").
+    "Passkeys.Off": "Las llaves de acceso están desactivadas en esta dirección web.",
+    "Passkeys.NotFound": "No se encontró esta llave de acceso. Recargue la página.",
+    "Auth.PasskeyRefused": "No se aceptó la llave de acceso. Inténtelo de nuevo.",
+    "Auth.PasskeyLimitReached": "Ya tiene el máximo de llaves de acceso permitido. Quite una antes de añadir otra.",
+    "Users.CannotRemoveOwnPasskeys": "No puede quitar aquí sus propias llaves de acceso. Quítelas en Cuenta / Seguridad.",
+    // #1284 — every 401 with this title reads it: a request with a step-up
+    // grant, which the API layer never resends (refresh.ts isUnresendable),
+    // and any request whose session really ended, before the sign-in screen.
+    "Auth.CredentialsSuperseded": "Su inicio de sesión cambió, así que esto no se hizo. Inténtelo de nuevo, o vuelva a iniciar sesión si se lo piden.",
     "Me.Language.Format": "El idioma debe ser un código de 2 a 8 letras, por ejemplo 'en'.",
     "EggLot.AssignedFlocksInsufficientStock":
       "Sus parvadas asignadas no tienen suficiente stock para esta venta. Un "
@@ -1837,6 +1891,24 @@ export const es = {
     signedInAsCaption: "Sesión iniciada como {{email}}",
     twoFactorResetMessage: "Se restableció la autenticación en dos pasos de {{email}}.",
     resetTwoFactorNotFoundError: "No se encontró este usuario. Recargue la página.",
+    // #1284 — an Owner removes another user's passkeys (#1283 "Users A").
+    passkeysField: "Llaves de acceso",
+    passkeysNone: "Ninguna",
+    passkeysRegistered_one: "{{count}} registrada",
+    passkeysRegistered_other: "{{count}} registradas",
+    removePasskeysButton: "quitar llaves de acceso",
+    // {{name}} is the target's display name, else their email, DATA.
+    removePasskeysTitle: "¿Quitar las llaves de acceso de {{name}}?",
+    removePasskeysSubmitButton: "Quitar llaves de acceso",
+    removePasskeysWarningBody_one:
+      "Quitar su llave de acceso. Terminan todas las sesiones y aplicaciones conectadas de este usuario, incluido su dispositivo actual.",
+    removePasskeysWarningBody_other:
+      "Quitar las {{count}} llaves de acceso. Terminan todas las sesiones y aplicaciones conectadas de este usuario, incluido su dispositivo actual.",
+    removePasskeysNote:
+      "Su aplicación de autenticación y sus códigos de recuperación se mantienen. Restablecer la autenticación en dos pasos es una acción aparte.",
+    passkeysRemovedMessage: "Se quitaron las llaves de acceso de {{email}}. Terminaron todas las sesiones y aplicaciones conectadas de este usuario.",
+    removePasskeysNotFoundError: "No se encontró este usuario. Recargue la página.",
+    ownPasskeysHint: "Administre sus propias llaves de acceso en Cuenta / Seguridad.",
   },
 
   // machine-drafted (#182) — pending native review. Task 25c (B4): new
@@ -2628,7 +2700,7 @@ export const es = {
       "Algunas acciones en la pantalla <strong>Usuarios</strong> le piden <strong>volver a ingresar su contraseña "
       + "actual</strong> directamente en el diálogo: crear cualquier usuario, restablecer la contraseña de cualquier "
       + "usuario, cambiar el rol de cualquier usuario, cambiar un correo de inicio de sesión, deshabilitar un usuario, "
-      + "volver a habilitar un usuario, restablecer la autenticación en dos pasos de un usuario, asignar un "
+      + "volver a habilitar un usuario, restablecer la autenticación en dos pasos de un usuario, quitar las llaves de acceso de un usuario, asignar un "
       + "trabajador a un lote, y quitarle a un trabajador la asignación "
       + "de un lote. Esto confirma que realmente es usted antes de otorgar acceso o retirárselo "
       + "a otra persona. Los cambios de nombre para mostrar no vuelven a pedirla. "
@@ -2638,7 +2710,9 @@ export const es = {
       + "acción justo después, espere el siguiente código. "
       + "En <strong>Cuenta</strong> › <strong>Seguridad</strong>, <strong>Configurar</strong> pide su contraseña, y "
       + "<strong>Reemplazar aplicación de autenticación</strong>, <strong>Regenerar</strong> y "
-      + "<strong>Desactivar</strong> piden su contraseña y un código.",
+      + "<strong>Desactivar</strong> piden su contraseña y un código. <strong>Añadir llave de acceso</strong> y "
+      + "<strong>Quitar</strong> en una llave de acceso piden su contraseña, y también un código si la "
+      + "autenticación en dos pasos está activada.",
     signingInAppAddress:
       "<strong>Conectar una aplicación de IA.</strong> Para conectar una aplicación de IA compatible, "
       + "agregue Cluckwork en la aplicación con esta dirección: <code>{{address}}</code>. La aplicación abre "
@@ -2810,6 +2884,12 @@ export const es = {
       + "sesión en todos los dispositivos y aplicaciones conectadas. Esa persona vuelve a iniciar sesión solo "
       + "con su contraseña y luego puede volver a configurar la autenticación en dos pasos. Un propietario no puede "
       + "restablecer la suya propia.",
+    rolesRemovePasskeys:
+      "<strong>Quitar las llaves de acceso de un usuario</strong> (pantalla Usuarios, solo Admin/propietario) se "
+      + "ofrece para un usuario que tiene alguna. <strong>quitar llaves de acceso</strong> quita todas las llaves de "
+      + "acceso que añadió y cierra su sesión en todos los dispositivos y aplicaciones conectadas. Su aplicación de "
+      + "autenticación y sus códigos de recuperación se mantienen; restablecer la autenticación en dos pasos es una "
+      + "acción aparte. No puede quitar aquí las suyas; use Cuenta › Seguridad.",
     rolesChangeEmail:
       "Los propietarios pueden reemplazar de inmediato el <strong>correo de inicio de sesión</strong> de un "
       + "usuario desde la pantalla Usuarios. La nueva dirección se usa en el siguiente inicio de sesión, todas "
@@ -3399,6 +3479,16 @@ export const es = {
       + "teléfono nuevo y <strong>Desactivar</strong> la quita. Configurar pide antes su contraseña, y los otros tres su contraseña y un código. "
       + "Activarla, reemplazar la aplicación y desactivarla cierran la sesión en sus otros dispositivos y "
       + "aplicaciones conectadas.",
+    accountPasskeys:
+      "Las <strong>Llaves de acceso</strong>, en la misma sección, le permiten iniciar sesión con su huella, su cara "
+      + "o el PIN del dispositivo. <strong>Añadir llave de acceso</strong> pide su contraseña, y también un código si "
+      + "la autenticación en dos pasos está activada; después usted nombra la llave de acceso y su navegador la crea. "
+      + "Puede tener hasta cinco. <strong>Renombrar</strong> cambia un nombre, y <strong>Quitar</strong> vuelve a "
+      + "pedir su contraseña. Añadir su primera llave de acceso con la autenticación en dos pasos desactivada, y "
+      + "quitar una llave de acceso, cierran la sesión en sus otros dispositivos y aplicaciones conectadas; este "
+      + "dispositivo sigue con la sesión iniciada. Una llave de acceso solo funciona en la dirección web donde se "
+      + "creó, así que si la granja usa más de una dirección, cada llave de acceso muestra la suya. Mientras las "
+      + "llaves de acceso están desactivadas en esta dirección, la lista conserva solo <strong>Quitar</strong>.",
     // #1281 — every Owner must use two-factor authentication.
     accountOwnerTwoFactor:
       "Los <strong>propietarios</strong> deben usar la autenticación en dos pasos. Hasta su fecha límite, el <strong>Panel</strong> y la pantalla <strong>Cuenta</strong> muestran la fecha y la hora para configurarla, con <strong>Configurar</strong>. Después de la fecha límite, Cluckwork muestra solo la pantalla de configuración hasta que la autenticación en dos pasos esté activada, y luego abre la página que pidió. Configúrela antes de la fecha límite: cuando se abre la pantalla de configuración, se pierden los cambios aún no guardados en la pantalla donde estaba, y debe ingresarlos de nuevo después de la configuración. Mientras sea obligatoria, no se ofrece <strong>Desactivar</strong>.",
@@ -3632,13 +3722,14 @@ export const es = {
       "Una comprobación adicional además de haber iniciado sesión: antes de crear cualquier usuario, "
       + "restablecer la contraseña de cualquier usuario, cambiar el rol de cualquier usuario, cambiar un correo "
       + "de inicio de sesión, deshabilitar un usuario, volver a habilitarlo, restablecer su autenticación en dos "
-      + "pasos, asignar un trabajador a un lote, o "
+      + "pasos, quitar sus llaves de acceso, asignar un trabajador a un lote, o "
       + "quitarle a un trabajador la asignación de un lote, la pantalla Usuarios le pide volver "
       + "a ingresar su contraseña actual directamente en el diálogo. Esto confirma que realmente es usted antes "
       + "de otorgar — o retirar — acceso. Los cambios de nombre para mostrar no vuelven a pedirla. "
       + "Con la autenticación en dos pasos activada, el diálogo también pide un código de su aplicación de autenticación o un código de recuperación. "
       + "En Cuenta › Seguridad, Configurar pide su contraseña, y Reemplazar aplicación de autenticación, Regenerar y "
-      + "Desactivar piden su contraseña y un código.",
+      + "Desactivar piden su contraseña y un código. Añadir llave de acceso y Quitar en una llave de acceso piden "
+      + "su contraseña, y también un código si la autenticación en dos pasos está activada.",
     glossarySomethingWentWrongScreenTerm: "Pantalla \"Algo salió mal\"",
     glossarySomethingWentWrongScreenDef:
       "Lo que muestra una pantalla cuando encuentra un error, en lugar de quedar en blanco. Los datos "
@@ -4019,6 +4110,14 @@ export const es = {
       + "aplicaciones conectadas, e inicia sesión solo con su contraseña."
       + " Un propietario no puede desactivarla mientras la autenticación en dos pasos sea obligatoria.",
 
+    glossaryPasskeyTerm: "Llave de acceso",
+    glossaryPasskeyDef:
+      "Una forma de demostrar que es usted con su teléfono o computadora: comprueba su huella, su cara o su PIN, y "
+      + "luego demuestra que guarda una clave creada para su cuenta. Como la aplicación de autenticación, es un "
+      + "segundo factor. Añada hasta cinco en Cuenta › Seguridad. Una llave de acceso solo funciona en la dirección "
+      + "web donde se creó. Donde las llaves de acceso están desactivadas, Cuenta › Seguridad muestra las que tiene "
+      + "solo con Quitar. Quitar las llaves de acceso de otro usuario es una acción del propietario en la pantalla "
+      + "Usuarios, aparte de restablecer la autenticación en dos pasos.",
     glossaryResetTwoFactorTerm: "Restablecer la autenticación en dos pasos",
     glossaryResetTwoFactorDef:
       "Un propietario quita la autenticación en dos pasos de otro usuario para que pueda volver a "

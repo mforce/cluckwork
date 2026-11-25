@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Ban, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff } from "lucide-react";
+import { Ban, Fingerprint, KeyRound, Mail, Pencil, Plus, RotateCcw, ShieldCheck, ShieldOff } from "lucide-react";
 import { Stack, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 import { listUsers } from "../api/cluckwork";
 import type { Flock, User } from "../api/cluckwork";
@@ -22,16 +22,16 @@ import { ChangeRoleDialog } from "./users/ChangeRoleDialog";
 import { CreateUserDialog } from "./users/CreateUserDialog";
 import { DisableEnableDialog } from "./users/DisableEnableDialog";
 import { EditUserDialog } from "./users/EditUserDialog";
+import { FactorResetDialog } from "./users/FactorResetDialog";
 import { FlockAccessDialog } from "./users/FlockAccessDialog";
-import { ResetTwoFactorDialog } from "./users/ResetTwoFactorDialog";
 import { SetPasswordDialog } from "./users/SetPasswordDialog";
 import { useChangeEmail } from "./users/useChangeEmail";
 import { useChangeRole } from "./users/useChangeRole";
 import { useCreateUser } from "./users/useCreateUser";
 import { useDisableEnable } from "./users/useDisableEnable";
 import { useEditUser } from "./users/useEditUser";
+import { useFactorReset } from "./users/useFactorReset";
 import { useFlockAccess } from "./users/useFlockAccess";
-import { useResetTwoFactor } from "./users/useResetTwoFactor";
 import { useSetPassword } from "./users/useSetPassword";
 
 function errText(err: unknown): string {
@@ -45,7 +45,7 @@ function errText(err: unknown): string {
 // `{ dialog }` option for the message slot and the session; `create` is its
 // own dialog name. flock-access loads before it opens, so its open edge is
 // `startLoad` + `openDialog` rather than `openDialog` alone.
-const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable", "reset-two-factor"] as const;
+const DIALOG_SCOPES = ["flock-access", "create", "edit-user", "set-password", "change-role", "change-email", "disable-enable", "reset-two-factor", "remove-passkeys"] as const;
 
 // MUI's auto table layout shrinks any wrappable cell below its content width,
 // so short values (names, numbers, chips, actions) are pinned; free text wraps.
@@ -221,8 +221,10 @@ export function UsersPage() {
   const { openEmail } = email;
   const disable = useDisableEnable({ dialog, setUsers, keyFor, clearKey, setMessage, stepUpProof, setStepUpProof });
   const { openStepUp } = disable;
-  const resetTwoFactor = useResetTwoFactor({ dialog, setUsers, keyFor, clearKey, setMessage, resetStepUpProof, setResetStepUpProof });
+  const resets = { dialog, setUsers, keyFor, clearKey, setMessage, proof: resetStepUpProof, setProof: setResetStepUpProof };
+  const resetTwoFactor = useFactorReset({ kind: "reset-two-factor", ...resets });
   const { openReset } = resetTwoFactor;
+  const removePasskeys = useFactorReset({ kind: "remove-passkeys", ...resets });
   const flock = useFlockAccess({
     dialog, keyFor, clearKey,
     assignFlock, setAssignFlock, setAssignFlockGen, assignFlockSnapshot, setAssignPickerOpen,
@@ -242,6 +244,11 @@ export function UsersPage() {
     const reset = u.twoFactorEnabled && (
       <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => openReset(u)}>
         <ShieldOff size={14} aria-hidden /> {t("resetTwoFactorButton")}
+      </BusyButton>
+    );
+    const passkeys = u.passkeyCount > 0 && (
+      <BusyButton variant="text" sx={CONSOLE_DESTRUCTIVE_LINK_SX} disabled={busy} onClick={() => removePasskeys.openReset(u)}>
+        <Fingerprint size={14} aria-hidden /> {t("removePasskeysButton")}
       </BusyButton>
     );
     const disableAction = !u.disabledAt && (
@@ -275,7 +282,7 @@ export function UsersPage() {
           )}
         </>}
       </>,
-      destructive: location === "inspector" && myId !== u.id && (reset || disableAction) && <>{reset}{disableAction}</>,
+      destructive: location === "inspector" && myId !== u.id && (reset || passkeys || disableAction) && <>{reset}{passkeys}{disableAction}</>,
     };
   }
 
@@ -370,6 +377,14 @@ export function UsersPage() {
                   ? <StatusBadge status="Active" label={t("twoFactorOnBadge")} />
                   : <StatusBadge status="Inactive" label={t("twoFactorOffBadge")} />,
               },
+              // #1283 "Users A" — an Owner manages their own passkeys on Account.
+              {
+                label: t("passkeysField"),
+                value: <>
+                  {selectedUser.passkeyCount > 0 ? t("passkeysRegistered", { count: selectedUser.passkeyCount }) : t("passkeysNone")}
+                  {myId === selectedUser.id && <><br /><span className="muted">{t("ownPasskeysHint")}</span></>}
+                </>,
+              },
             ] : undefined}
             actions={selectedUser ? renderActions(selectedUser, "inspector") : undefined}
           />
@@ -390,7 +405,9 @@ export function UsersPage() {
 
       <DisableEnableDialog {...disable} {...{ busy, isPending, errors, stepUpProof, setStepUpProof }} />
 
-      <ResetTwoFactorDialog {...resetTwoFactor} {...{ busy, isPending, errors, resetStepUpProof, setResetStepUpProof }} />
+      <FactorResetDialog {...resetTwoFactor} {...{ busy, isPending, errors }} />
+
+      <FactorResetDialog {...removePasskeys} {...{ busy, isPending, errors }} />
     </section>
   );
 }

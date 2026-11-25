@@ -1,23 +1,20 @@
-import { useId } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, DialogActions, Stack, Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Stack, Typography,
 } from "@mui/material";
 import { useAuth } from "../../auth/useAuth";
-import { BusyButton } from "../../components/BusyButton";
-import { Dialog } from "../../components/Dialog";
-import { DialogError } from "../../components/DialogError";
-import { ConfirmItsYou } from "../../components/StepUpProofFields";
 import { StatusDot } from "../dashboard/StatusDot";
 import { SECURITY_SUMMARY_ID, useRecoveryCodesSlot } from "./recoveryCodes";
+import { StepUpDialog } from "./StepUpDialog";
 import { LOW_RECOVERY_CODES } from "./useTwoFactor";
 import type { ProofAction, TwoFactor } from "./useTwoFactor";
 
 // #1275 "Account": the status, the recovery codes left, Regenerate and Turn
 // off together in one accordion.
-export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
+// #1284 — children: the passkeys, under the app in the same accordion.
+export function SecurityPanel({ twoFactor, children }: { twoFactor: TwoFactor; children?: ReactNode }) {
   const { t } = useTranslation("account");
   const { status, message, openProof } = twoFactor;
   const state = status.data;
@@ -70,13 +67,14 @@ export function SecurityPanel({ twoFactor }: { twoFactor: TwoFactor }) {
               </Row>
             </>
           )}
+          {children}
         </Stack>
       </AccordionDetails>
     </Accordion>
   );
 }
 
-function Row({ children, action }: { children: ReactNode; action?: ReactNode }) {
+export function Row({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <Box sx={{
       display: "flex", flexWrap: { xs: "wrap", md: "nowrap" }, alignItems: { md: "center" }, gap: 2,
@@ -96,38 +94,13 @@ function copyFor(action: ProofAction, enrolled: boolean) {
     : { title: "setUpTitle", body: "setUpBody", submit: "continueButton" } as const;
 }
 
-// The action's step-up, with the lab's proof() block. Start again opens it
-// from the enrolment screen too, so the page renders it outside both.
+// The action's step-up. Start again opens it from the enrolment screen too,
+// so the page renders it outside both.
 export function ProofDialog({ twoFactor }: { twoFactor: TwoFactor }) {
-  const bodyId = useId();
-  const { t } = useTranslation("account");
-  const { t: tc } = useTranslation("common");
   const { twoFactor: enrolled } = useAuth();
-  const { action, proof, setProof, closeProof, onProof, dialog: { busy, isPending, errors } } = twoFactor;
-  const copy = action && copyFor(action, enrolled);
+  const { stepUp, onProof, dialog } = twoFactor;
   return (
-    <Dialog
-      open={action !== null}
-      title={copy ? t(copy.title) : ""}
-      onClose={closeProof}
-      closeDisabled={busy}
-      describedBy={bodyId}
-      actions={(
-        <DialogActions>
-          <button type="button" className="link" onClick={closeProof} disabled={busy}>{tc("cancel")}</button>
-          <BusyButton variant="contained" type="submit" color={action === "turn-off" ? "error" : "primary"} disabled={busy}
-            busy={action !== null && isPending(action)}>
-            {copy && t(copy.submit)}
-          </BusyButton>
-        </DialogActions>
-      )}
-      formProps={{ onSubmit: onProof }}
-    >
-      <Stack spacing={2}>
-        <Typography id={bodyId} sx={{ lineHeight: 1.55 }}>{copy && t(copy.body)}</Typography>
-        <ConfirmItsYou value={proof} onChange={setProof} disabled={busy} />
-        {action && <DialogError errors={errors} scope={action} />}
-      </Stack>
-    </Dialog>
+    <StepUpDialog stepUp={stepUp} dialog={dialog} danger={stepUp.action === "turn-off"} onSubmit={onProof}
+      copy={(action) => copyFor(action, enrolled)} />
   );
 }

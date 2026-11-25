@@ -44,6 +44,7 @@ function answer(key: string): Response {
   }
   if (key === "POST /auth/refresh") return json({ accessToken: makeToken(OWNER), accessTokenExpiry: "2099-01-01T00:00:00Z" });
   if (key === "GET /auth/two-factor") return json(status);
+  if (key === "GET /auth/passkeys") return json({ enabled: true, passkeys: [] });
   if (key.startsWith("GET /reports/production")) return json({ days: [], totalEggs: 0, totalSellable: 0, totalFromCounts: 0 });
   if (key === "POST /auth/step-up") return json({ token: crypto.randomUUID(), expiresAt: "2099-01-01T00:00:00Z" });
   if (key === "POST /auth/two-factor/start") {

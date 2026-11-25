@@ -9,7 +9,7 @@ import { AuthContext } from "../../auth/AuthContext";
 import { FarmContext } from "../../farm/FarmContext";
 import { MeContext } from "../../session/SessionContext";
 import { RecoveryCodesProvider, SECURITY_SUMMARY_ID } from "./recoveryCodes";
-import { getTwoFactorStatus, listMyConnectedApps, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
+import { getTwoFactorStatus, listMyConnectedApps, listPasskeys, regenerateRecoveryCodes, startTwoFactor } from "../../api/cluckwork";
 import type { TwoFactorStatus } from "../../api/cluckwork";
 import { ApiError, confirmTwoFactor, stepUp, turnOffTwoFactor } from "../../api/client";
 import { parseError } from "../../api/errors";
@@ -25,6 +25,7 @@ vi.mock("../../api/cluckwork", async (importOriginal) => ({
   startTwoFactor: vi.fn(),
   regenerateRecoveryCodes: vi.fn(),
   listMyConnectedApps: vi.fn(),
+  listPasskeys: vi.fn(),
 }));
 vi.mock("../../api/client", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../api/client")>(),
@@ -72,6 +73,7 @@ const prove = (enrolled: boolean) => {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(listMyConnectedApps).mockResolvedValue([]);
+  vi.mocked(listPasskeys).mockResolvedValue({ enabled: true, passkeys: [] });
   mockStepUp.mockImplementation(async () => grant());
 });
 
@@ -329,13 +331,14 @@ describe("an enrolled user's step-up actions", () => {
 
   it("reports a stale session's turn-off once, as nothing changed", async () => {
     await renderAccount(ON);
-    mockTurnOff.mockRejectedValueOnce(new ApiError(401, "Auth.CredentialsSuperseded", "Your credentials changed."));
+    mockTurnOff.mockRejectedValueOnce(await parseError(new Response(
+      JSON.stringify({ title: "Auth.CredentialsSuperseded", detail: "Your credentials changed." }), { status: 401 })));
 
     await press(t("turnOffButton"));
     prove(true);
     await press(t("turnOffButton"), dialog());
 
-    expect(await within(dialog()).findByRole("alert")).toHaveTextContent(t("sessionChanged"));
+    expect(await within(dialog()).findByRole("alert")).toHaveTextContent(i18n.t("errors:Auth.CredentialsSuperseded"));
     expect(mockTurnOff).toHaveBeenCalledTimes(1);
   });
 });
