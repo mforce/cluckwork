@@ -197,9 +197,11 @@ public abstract record SecondFactorCode
 }
 
 // IIdentityProvider and IAccessModule (#1285)
-Task<Result<TokenPair>> PasskeyLoginAsync(Guid ceremony, string credentialJson, Guid? farmAccountId, CancellationToken ct = default);
+// IIdentityProvider takes the resolved farm; IAccessModule takes the typed farm code and resolves it after the Passkeys.Off check.
+Task<Result<TokenPair>> PasskeyLoginAsync(Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default);
+Task<Result<TokenPair>> PasskeyLoginAsync(Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct);
 Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, SecondFactorInput input, CancellationToken ct = default);
-// SecondFactorInput: the raw code string, or a SecondFactorCode.Passkey. The code string is still parsed after the challenge.
+// SecondFactorInput: Code(string? Raw), still parsed after the challenge, or Passkey(SecondFactorCode.Passkey Proof, string RequestHost).
 
 // IStepUpGrantService (#1443): the password becomes optional; exactly one of password and passkey is set.
 Task<Result<StepUpGrant>> IssueAsync(Guid accountId, Guid userId, string? currentPassword, string? code,
@@ -217,13 +219,15 @@ Task<Result<StepUpGrant>> IssueAsync(Guid accountId, Guid userId, string? curren
 // Identity's handler a context built from the host, the one thing the handler and the origin hook read.
 public interface IPasskeyCredentials
 {
-	Task<CeremonyStart> StartAsync(CeremonyPurpose purpose, Guid? userId, string requestHost, CancellationToken ct);
+	Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);   // #1284
+	Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct);                                  // #1285; no user
+	Task<PasskeyCeremonyStart> StartSecondStepAsync(ApplicationUser user, string requestHost, CancellationToken ct);       // #1285; bound
 	Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);        // the one cross-farm lookup (decision 11)
 	Task<ConsumedCeremony?> ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct);
-		// DELETE … RETURNING; the first statement of the caller's owned transaction; null when missing, expired,
-		// of another purpose, or bound to another user
-	Task<AssertionOutcome> AssertAsync(ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson,
-		string requestHost, CancellationToken ct);                                         // the handler, then the signer check
+		// DELETE … RETURNING by Id alone; the first statement of the caller's owned transaction; null when missing,
+		// expired, of another purpose, or bound to another user, and the row is gone either way
+	Task<AssertionOutcome> AssertAsync(ConsumedCeremony ceremony, Guid userId, byte[]? credentialId, string credentialJson,
+		string requestHost, CancellationToken ct);   // the handler, then the signer check: userId, and at sign-in credentialId
 	Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct);   // after the tenant is resolved
 	Task<RegisterOutcome> RegisterAsync(ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson,
 		string name, string requestHost, CancellationToken ct);                            // inserts; never Identity's add-or-update
@@ -234,15 +238,13 @@ public interface IPasskeyCredentials
 }
 
 public enum CeremonyPurpose { SignIn = 1, SecondStep = 2, StepUp = 3, Registration = 4 }
-public sealed record CeremonyStart(Guid Ceremony, string OptionsJson);
+public sealed record PasskeyCeremonyStart(Guid Ceremony, string OptionsJson);
 public readonly record struct PasskeyOwner(Guid AccountId, Guid UserId, byte[] CredentialId);
-public sealed record ConsumedCeremony(Guid? UserId, string State, DateTimeOffset ExpiresAt) { public override string ToString() => "[redacted]"; }
-// Who must have signed: the user, and at sign-in the exact credential the server looked up.
-public readonly record struct ExpectedSigner(Guid UserId, byte[]? CredentialId);
+public sealed record ConsumedCeremony(Guid? UserId, CeremonyPurpose Purpose, string State, DateTimeOffset ExpiresAt) { public override string ToString() => "[redacted]"; }
 public abstract record AssertionOutcome
 {
 	public sealed record Accepted(Guid UserId, UserPasskeyInfo Passkey) : AssertionOutcome;
-	public sealed record Refused(string Reason) : AssertionOutcome;   // Reason: Identity's failure message, logged at debug only
+	public sealed record Refused : AssertionOutcome;   // Identity's failure message is logged at debug only
 }
 public abstract record RegisterOutcome
 {
@@ -254,7 +256,7 @@ public abstract record RegisterOutcome
 
 #1284 shipped the registration, list, rename and removal members above in this shape; #1443 adds the Owner's last-factor refusal to the removal path (409 `Auth.LastFactor`).
 
-`FactorOutcome.Accepted` gains `UserPasskeyInfo? Passkey`, set when a passkey matched, so the caller saves the new sign count and backup state with `RecordUseAsync` after it resolves the tenant (decision 7). `VerifyAsync` gains one optional argument, `ConsumedCeremony? passkeyCeremony`, required when the code is a `SecondFactorCode.Passkey`.
+`FactorOutcome.Accepted` gains `UserPasskeyInfo? Passkey`, set when a passkey matched, so the caller saves the new sign count and backup state with `RecordUseAsync` after it resolves the tenant (decision 7). `VerifyAsync` gains one argument, `PasskeyAssertion? passkey`: the ceremony `ConsumeAsync` returned (null when it refused it), the credential ID the server looked up at sign-in (null at the second step) and the request's host. It is required when the code is a `SecondFactorCode.Passkey`, and `VerifyAsync` logs `Auth.PasskeyFailed` for every passkey outcome it returns other than `Accepted`.
 
 ### The state it owns
 
@@ -268,13 +270,13 @@ Nothing else reads or writes these, apart from the `clear-passkeys` verb, which 
 
 ### Checking a passkey
 
-Every path that finishes a ceremony calls `ConsumeAsync` as the first statement of its owned transaction, before any other check, and every refusal after it commits. So a ceremony is good for one attempt, whatever refuses it. Six refusals come before that transaction. At passkey sign-in: an unknown farm code, which the route refuses when it resolves the code, before it calls `PasskeyLoginAsync`. At the second sign-in step, as today's code step reads them (`IdentityProvider.SecondFactor.cs:16-31`): a dead #1274 challenge and a suspended farm. At registration: a missing or spent step-up grant, because the grant is checked before the transaction (decision 15). At change-password, which keeps today's order: a wrong current password and a weak new password, both refused before the proof's transaction (`IdentityProvider.Passwords.cs:185-194`; `SecondFactorLoginTests.ChangePassword.cs:166,179` pin the order). Their ceremony stays unused until it expires and the sweep deletes it; it is still single-use.
+Every path that finishes a ceremony calls `ConsumeAsync` as the first statement of its owned transaction, before any other check, and every refusal after it commits. So a ceremony is good for one attempt, whatever refuses it. Six refusals come before that transaction. At passkey sign-in: an unknown farm code, which `AccessModule.PasskeyLoginAsync` refuses when it resolves the code, after the `Passkeys.Off` check and before it calls `IdentityProvider.PasskeyLoginAsync`. At the second sign-in step, as today's code step reads them (`IdentityProvider.SecondFactor.cs:16-31`): a dead #1274 challenge and a suspended farm. At registration: a missing or spent step-up grant, because the grant is checked before the transaction (decision 15). At change-password, which keeps today's order: a wrong current password and a weak new password, both refused before the proof's transaction (`IdentityProvider.Passwords.cs:185-194`; `SecondFactorLoginTests.ChangePassword.cs:166,179` pin the order). Their ceremony stays unused until it expires and the sweep deletes it; it is still single-use.
 
 A passkey enters `TwoFactorCredentials.VerifyAsync` as `SecondFactorCode.Passkey`, with the consumed ceremony. #1274's steps run in order, with these changes:
 
 1. Superseded checks, unchanged, except the factor test. A TOTP or recovery code needs `TwoFactorEnabled`. A passkey needs `PasskeyCount > 0`. Neither charges.
 2. A locked user returns `Rejected(Charged: false)`, unchanged.
-3. For a passkey only: a null consumed ceremony is `Refused`. Otherwise `IPasskeyCredentials.AssertAsync` calls `PasskeyHandler.PerformAssertionAsync` and then refuses unless the handler's `User.Id` equals the expected user and, when the expected signer names a credential, the handler's `Passkey.CredentialId` equals it byte for byte.
+3. For a passkey only: a null consumed ceremony is `Refused`. Otherwise `IPasskeyCredentials.AssertAsync` calls `PasskeyHandler.PerformAssertionAsync` and then refuses unless the handler's `User.Id` equals the expected user and, at sign-in, the handler's `Passkey.CredentialId` equals the looked-up credential ID byte for byte.
 4. `Refused` returns `Rejected(Charged: false)` and logs `Auth.PasskeyFailed`. Nothing calls `AccountLockout.RecordFailedAccessAsync` and the daily code budget does not move (decision 8).
 5. `Accepted`: as #1274 step 6. `AccessFailedCount` is set to 0, and `SecondFactorSignIns` is incremented for a login. The watermark and the daily count do not move.
 
@@ -309,7 +311,7 @@ What an attacker can do:
 
 #### 3. The ceremony state lives in Postgres and is consumed once (item 2)
 
-The record decides where the challenge lives, single-use and checked by the server. Each options route inserts one `passkey_ceremonies` row with Identity's state string, its purpose, and, for a bound ceremony, the user; it returns the row's random `Id` as `ceremony`. Each finishing call deletes the row by `Id` and purpose with `DELETE … RETURNING` as the first statement of its owned transaction, before any other check, and refuses a row that is missing, expired (`ExpiresAt` = issue time + `AuthenticatorTimeout`, 5 minutes) or bound to another user. Two concurrent finishes of one ceremony delete it once, so one proceeds. Every refusal after the delete commits it, a locked or superseded user included, so a ceremony is good for one attempt. The exceptions, refused before the transaction opens, are in "Checking a passkey".
+The record decides where the challenge lives, single-use and checked by the server. Each options route inserts one `passkey_ceremonies` row with Identity's state string, its purpose, and, for a bound ceremony, the user; it returns the row's random `Id` as `ceremony`. Each finishing call deletes the row by `Id` with `DELETE … RETURNING` as the first statement of its owned transaction, before any other check, and refuses a row that is missing, expired (`ExpiresAt` = issue time + `AuthenticatorTimeout`, 5 minutes), of another purpose or bound to another user. Two concurrent finishes of one ceremony delete it once, so one proceeds. Every refusal after the delete commits it, a locked or superseded user included, so a ceremony is good for one attempt. The exceptions, refused before the transaction opens, are in "Checking a passkey".
 
 For sign-in and autofill the ceremony is issued before any farm or user is known (`UserId` null, Identity state with no user, probe line 13). For the second sign-in step and step-up it is bound to the user: the state names the user, `allowCredentials` lists their passkeys, and the row carries their `UserId` (probe lines 18, 19). The second step's options route reads the #1274 challenge, without spending it, to learn the user. Registration's state names the caller.
 
@@ -385,7 +387,7 @@ Every user keeps a password; nothing removes it, and recovery uses it (decision 
 
 Sign-in with a passkey needs no farm code. `FindOwnerAsync` is the one cross-farm lookup: one indexed read of `AspNetUserPasskeys` by `CredentialId`, the table's key, returning `UserId` and the shadow `AccountId`. A credential ID is random, made by the authenticator, and at least 16 bytes in practice. The read has a row in `FilterFreeSetSites` with the reason "the one passkey lookup made before the farm is known; by credential ID, a routing hint that the signer check after the handler confirms" (#859). The read runs before `PasskeyHandler`, so the farm, the lock and the suspended-farm read are known before any signature is checked. It is a routing hint, not a proof. A credential ID is not a secret: the second step's `allowCredentials` and registration's `excludeCredentials` show a user's IDs, and the browser sends them in the clear. Identity takes the user from `userHandle` and the credential from the JSON's `id`, read without case with the last duplicate winning, and never reads `rawId` (`PasskeyHandler.cs:424-469`). A caller who sends one credential's ID for the lookup and has another credential sign, or a password holder who learns a victim's credential IDs from the second step's `allowCredentials`, would otherwise sign in as the user the handler found. So `AssertAsync` refuses unless the handler's `User.Id` equals the looked-up owner's user and its `Passkey.CredentialId` equals the looked-up credential ("Checking a passkey", step 3). Disagreement between the lookup and the signature is a refusal, whatever the JSON holds.
 
-If the field holds a farm code, typed or prefilled, the SPA sends it, the route resolves it with `ResolveFarmCodeAsync` (`IdentityProvider.cs:33-36`), and a passkey of another farm is refused with the one `Auth.PasskeyRefused` body. An unknown farm code is refused the same way. After a passkey sign-in, the SPA adds the farm to the device's remembered farms, as after a password sign-in.
+If the field holds a farm code, typed or prefilled, the SPA sends it, `AccessModule.PasskeyLoginAsync` resolves it with `ResolveFarmCodeAsync` (`IdentityProvider.cs:33-36`), which treats a code with a control character as unknown, and a passkey of another farm is refused with the one `Auth.PasskeyRefused` body. An unknown farm code is refused the same way. After a passkey sign-in, the SPA adds the farm to the device's remembered farms, as after a password sign-in.
 
 `AspNetUserPasskeys` has `CredentialId` as its key, so one credential belongs to one user in one farm, and Identity refuses a second registration of it (probe line 12). A person with users in two farms registers a passkey in each.
 
@@ -399,7 +401,7 @@ Every refused passkey sign-in answers 401 `Auth.PasskeyRefused` with one detail,
 
 #### 13. Rate limits
 
-A new policy, `auth-passkey-options`, a `DistributedFixedWindowPolicy` with 60 permits per 900 s, configurable under `RateLimiting:PasskeyOptions`, covers the two anonymous options routes. Autofill asks for options at every sign-in page load, and `auth-login` allows 10 per 900 s (`src/Cluckwork.Api/appsettings.json:35-38`). `POST /auth/login/passkey` spends an `auth-login` permit, as a password sign-in does. The second step's options route takes `auth-second-factor`. The authenticated options routes take `auth-login`, as step-up does (`AuthEndpoints.cs:127-129`). Rejections log `Auth.RateLimitRejected` with the policy, unchanged.
+A new policy, `auth-passkey-options`, a `DistributedFixedWindowPolicy` with 60 permits per 900 s, configurable under `RateLimiting:PasskeyOptions`, covers the sign-in options route, `POST /auth/login/passkey/options`, only. Autofill asks for options at every sign-in page load, and `auth-login` allows 10 per 900 s (`src/Cluckwork.Api/appsettings.json:35-38`). `POST /auth/login/passkey` spends an `auth-login` permit, as a password sign-in does. The second step's options route takes `auth-second-factor`. The authenticated options routes take `auth-login`, as step-up does (`AuthEndpoints.cs:127-129`). Rejections log `Auth.RateLimitRejected` with the policy, unchanged.
 
 #### 14. A passkey's address and name
 
@@ -523,7 +525,7 @@ Per AGENTS.md "Writing a guard". Each guard asserts the invariant, not a message
 - **G8.6** A suspended farm, a disabled user and an epoch below 1 are refused at passkey sign-in; it sets `SignedInAt`; it writes the sign count back, so a cloned counter authenticator, holding the same key and the count from before the sign-in, signs a fresh challenge with a new ceremony and is refused. Mutations: skip `RecordUseAsync`; skip the suspended-farm read. (No case signs a user with `MustChangePassword` in with a passkey: decision 19 shows the state cannot occur, and G7.12 pins why.)
 - **G8.7** The passkey routes under `/api/v1/auth/login` carry `IgnoresAmbientPrincipalAttribute`; another farm's valid bearer does not change who signs in. Every passkey route the slices add under `/api/v1/auth/` stores no idempotency record (G7.4's walk, extended by each slice); `DELETE /api/v1/users/{id}/passkeys` is the one passkey route inside `IdempotentUnit`. Mutation: drop the attribute.
 - **G8.8** Playwright with Chrome's virtual authenticator, over the e2e job's HTTPS proxy (decision 20): sign in through the button and through autofill, from a deep link and from `/connect`, and `twoFactorOwner` answers its password's second step with a passkey. Renewal: Playwright's page clock moves only the page, not the server, so the case records the options requests; after the page clock passes 4 minutes, a second options request is made, and the autofill sign-in posts the second ceremony's id. While the page is hidden, no options request is made, and on return, with the ceremony 4 minutes old or older, exactly one is. A 429 from `auth-passkey-options`, faked with `page.route` and a `Retry-After` header because the e2e stack lifts that limit (decision 20), stops autofill and leaves password sign-in working; G8.9 covers the limiter's real 429. Mutations: drop `location.state.from` on the passkey path; never renew the autofill ceremony; renew while hidden.
-- **G8.9** The `auth-passkey-options` policy, which #1285 adds: `RateLimitingOptionsTests` gains its default and a zero-limit refusal, `ServingGuardCoverageTests.EveryRateLimitingValidation_HasACoveringRow` gains its row, and the 61st anonymous options request from one address in 900 s gets 429 and logs `Auth.RateLimitRejected` with the policy, while a passkey sign-in still spends an `auth-login` permit. Mutations: drop the policy from the endpoint; put the options route on `auth-login`.
+- **G8.9** The `auth-passkey-options` policy, which #1285 adds: `RateLimitingOptionsTests` gains its default and a zero-limit refusal, `ServingGuardCoverageTests.EveryRateLimitingValidation_HasACoveringRow` covers it through the existing `ValidateWindow` row (the guard is keyed by validation method), and the 61st anonymous options request from one address in 900 s gets 429 and logs `Auth.RateLimitRejected` with the policy, while a passkey sign-in still spends an `auth-login` permit. Mutations: drop the policy from the endpoint; put the options route on `auth-login`.
 
 ### #1443: step-up, the Owner requirement and the session cap
 
