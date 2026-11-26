@@ -189,6 +189,28 @@ public sealed partial class SecondFactorLoginTests
         Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
     }
 
+    // The same refusals for a code log no Auth.PasskeyFailed: the event is a
+    // passkey's alone.
+    [Fact]
+    public async Task ACodeRefusedBeforeVerification_LogsNoPasskeyEvent()
+    {
+        var (email, factor) = await SeedEnrolledAsync();
+        var pending = await factory.PasswordStepAsync(email);
+        factory.Sink.Events.Clear();
+
+        var dead = await PostCodeAsync("not-a-challenge", CodeAt(factor, 1));
+        var malformed = await PostCodeAsync(pending.Challenge, "not-a-code");
+        using (var scope = factory.Services.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<Cluckwork.Infrastructure.Modules.Access.Identity.AccountSuspensionService>()
+                .SuspendAsync(factor.AccountId, "test")).IsSuccess);
+        var suspended = await PostCodeAsync(pending.Challenge, CodeAt(factor, 1));
+
+        Assert.Equal((HttpStatusCode.Unauthorized, SecondFactorErrorCodes.ChallengeExpired), await TitleOf(dead));
+        Assert.Equal((HttpStatusCode.BadRequest, SecondFactorErrorCodes.Incorrect), await TitleOf(malformed));
+        Assert.Equal((HttpStatusCode.Unauthorized, SecondFactorErrorCodes.FarmSuspended), await TitleOf(suspended));
+        Assert.Empty(factory.EventsFor(SecurityEvents.PasskeyFailed));
+    }
+
     // A body that sends both a code and a passkey is refused before anything is
     // read, rather than one silently winning.
     [Fact]
