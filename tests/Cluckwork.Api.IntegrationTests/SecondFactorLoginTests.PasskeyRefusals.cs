@@ -97,10 +97,12 @@ public sealed partial class SecondFactorLoginTests
         var used = await factory.PasswordStepAsync(user.Email);
         Assert.Equal(HttpStatusCode.OK, (await PostCodeAsync(used.Challenge, await factory.NextTotpCodeAsync(user.Email))).StatusCode);
         var pending = await factory.PasswordStepAsync(user.Email);
+
+        // The used challenge is asked while its user is still enabled, so only
+        // the challenge's binding can refuse it.
+        var afterUse = await Anonymous().PostAsJsonAsync(SecondStepOptionsPath, new { challenge = used.Challenge });
         var beforeDisable = await Anonymous().PostAsJsonAsync(SecondStepOptionsPath, new { challenge = pending.Challenge });
         await SetUserAsync(user.AccountId, user.UserId, u => u.DisabledAt = factory.Clock.GetUtcNow());
-
-        var afterUse = await Anonymous().PostAsJsonAsync(SecondStepOptionsPath, new { challenge = used.Challenge });
         var afterDisable = await Anonymous().PostAsJsonAsync(SecondStepOptionsPath, new { challenge = pending.Challenge });
 
         Assert.Equal(HttpStatusCode.OK, beforeDisable.StatusCode);
