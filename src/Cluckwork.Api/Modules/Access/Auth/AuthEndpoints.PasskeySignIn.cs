@@ -22,33 +22,42 @@ public static partial class AuthEndpoints
         PasskeyLoginRequest request, HttpRequest http, IAccessModule access, HttpResponse response,
         IWebHostEnvironment env, CancellationToken ct)
     {
-        if (request.Credential is not { ValueKind: JsonValueKind.Object } credential)
-            return MissingCredential();
+        if (CredentialJsonOf(request.Credential) is not { } credential) return MissingCredential();
 
-        var result = await access.PasskeyLoginAsync(request.Ceremony, credential.GetRawText(), request.FarmCode, http.Host.Host, ct);
-        return result.IsSuccess ? SignedIn(response, result.Value, access, env) : LoginPasskeyProblem(result.Error);
+        var result = await access.PasskeyLoginAsync(request.Ceremony, credential, request.FarmCode, http.Host.Host, ct);
+        return result.IsSuccess
+            ? SignedIn(response, result.Value, access, env)
+            : LoginStepProblem(result.Error, StatusCodes.Status401Unauthorized);
     }
 
     private static IResult PasskeyOptions(Result<PasskeyCeremonyStart> result) =>
         result.IsSuccess
-            ? Results.Ok(new PasskeyOptionsResponse(result.Value.Ceremony, JsonSerializer.Deserialize<JsonElement>(result.Value.OptionsJson)))
-            : LoginPasskeyProblem(result.Error);
+            ? Results.Ok(OptionsResponse(result.Value))
+            : LoginStepProblem(result.Error, StatusCodes.Status401Unauthorized);
 
-    private static IResult LoginPasskeyProblem(Error error) =>
+    private static PasskeyOptionsResponse OptionsResponse(PasskeyCeremonyStart start) =>
+        new(start.Ceremony, JsonSerializer.Deserialize<JsonElement>(start.OptionsJson));
+
+    // 401 when the user must sign in again, and for a refused passkey sign-in;
+    // a refusal at the code step is 400, so apiFetch does not refresh and
+    // resend (#1282 decision 12).
+    private static IResult LoginStepProblem(Error error, int refusedStatus) =>
         Results.Problem(error.Description, title: error.Code, statusCode: error.Code switch
         {
             PasskeyErrorCodes.Off => StatusCodes.Status404NotFound,
-            PasskeyErrorCodes.Refused or SecondFactorErrorCodes.FarmSuspended or SecondFactorErrorCodes.ChallengeExpired
-                => StatusCodes.Status401Unauthorized,
-            _ => throw new InvalidOperationException($"No answer is mapped for {error.Code}."),
+            SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended => StatusCodes.Status401Unauthorized,
+            _ => refusedStatus,
         });
+
+    // The browser's PublicKeyCredential JSON, passed to Identity unparsed.
+    private static string? CredentialJsonOf(JsonElement? credential) =>
+        credential is { ValueKind: JsonValueKind.Object } json ? json.GetRawText() : null;
 
     private static IResult MissingCredential() =>
         Results.ValidationProblem(new Dictionary<string, string[]> { ["credential"] = ["The passkey response is missing."] });
 }
 
-// The credential is the browser's PublicKeyCredential JSON, passed to Identity
-// unparsed. FarmCode is the typed or prefilled farm code, or null.
+// FarmCode is the typed or prefilled farm code, or null.
 public sealed record PasskeyLoginRequest(Guid Ceremony, JsonElement? Credential, string? FarmCode = null)
 {
     public override string ToString() => "[redacted]";

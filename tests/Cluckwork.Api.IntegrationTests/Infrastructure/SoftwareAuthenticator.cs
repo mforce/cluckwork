@@ -12,28 +12,33 @@ internal sealed class SoftwareAuthenticator
 {
     private const byte UserPresent = 0x01, UserVerified = 0x04, BackupEligible = 0x08, BackedUp = 0x10, AttestedData = 0x40;
 
-    private readonly ECDsa _key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+    private readonly ECDsa _key;
 
     // A new credential id, or one copied from another authenticator to race it.
     // counts: each assertion reports a sign count one above the last, as a
     // security key does; otherwise 0, as synced passkeys report (#1285).
     public SoftwareAuthenticator(byte[]? credentialId = null, bool counts = false)
+        : this(ECDsa.Create(ECCurve.NamedCurves.nistP256),
+            credentialId is null ? RandomNumberGenerator.GetBytes(16) : [.. credentialId], counts)
     {
-        Counts = counts;
-        CredentialId = credentialId is null ? RandomNumberGenerator.GetBytes(16) : [.. credentialId];
-        PublicKey = CoseKey(_key);
     }
 
-    // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
-    private static byte[] CoseKey(ECDsa key)
+    private SoftwareAuthenticator(ECDsa key, byte[] credentialId, bool counts)
     {
+        _key = key;
+        CredentialId = credentialId;
+        Counts = counts;
         var q = key.ExportParameters(includePrivateParameters: false).Q;
-        return new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
+        // COSE_Key, EC2 P-256 ES256, keys in CTAP2 canonical order.
+        PublicKey = new Cbor().Map(5).Int(1).Int(2).Int(3).Int(-7).Int(-1).Int(1).Int(-2).Bytes(q.X!).Int(-3).Bytes(q.Y!).ToArray();
     }
 
     public byte[] CredentialId { get; }
 
     public bool Counts { get; }
+
+    // The COSE key as Identity stores it, to compare a stored row with.
+    public byte[] PublicKey { get; }
 
     // The last sign count this authenticator reported.
     public uint Counter { get; private set; }
@@ -42,24 +47,12 @@ internal sealed class SoftwareAuthenticator
     public string? UserHandle { get; set; }
 
     // The same key, credential, user handle and count: a cloned authenticator.
-    public SoftwareAuthenticator Clone()
-    {
-        var clone = new SoftwareAuthenticator(CredentialId, Counts, _key.ExportParameters(includePrivateParameters: true))
+    public SoftwareAuthenticator Clone() =>
+        new(ECDsa.Create(_key.ExportParameters(includePrivateParameters: true)), CredentialId, Counts)
         {
             UserHandle = UserHandle,
+            Counter = Counter,
         };
-        clone.Counter = Counter;
-        return clone;
-    }
-
-    private SoftwareAuthenticator(byte[] credentialId, bool counts, ECParameters key) : this(credentialId, counts)
-    {
-        _key.ImportParameters(key);
-        PublicKey = CoseKey(_key);
-    }
-
-    // The COSE key as Identity stores it, to compare a stored row with.
-    public byte[] PublicKey { get; private set; }
 
     public string Id => WebEncoders.Base64UrlEncode(CredentialId);
 

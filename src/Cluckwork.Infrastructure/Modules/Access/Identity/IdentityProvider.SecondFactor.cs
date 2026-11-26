@@ -15,52 +15,46 @@ public sealed partial class IdentityProvider
     {
         // The challenge first, so a malformed code on a dead challenge gets the 401.
         if (ReadChallenge(challenge) is not { } claims)
-            return LogAndRefuseExpiredChallenge();
+            return Result.Failure<TokenPair>(LogExpiredChallenge());
         // Parsed before anything digests it: malformed input is refused, uncharged.
-        SecondFactorCode code;
-        switch (input)
-        {
-            case SecondFactorInput.Passkey passkey:
-                code = passkey.Proof;
-                break;
-            case SecondFactorInput.Code raw when SecondFactorCode.TryParse(raw.Raw, out var parsed):
-                code = parsed;
-                break;
-            default:
-                return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
-        }
+        var passkey = input as SecondFactorInput.Passkey;
+        SecondFactorCode? code = passkey?.Proof;
+        if (code is null && !SecondFactorCode.TryParse(((SecondFactorInput.Code)input).Raw, out code))
+            return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
         var accountIsActive = await AccountIsActiveAsync(claims.AccountId, ct);
-        if (accountIsActive is null) return LogAndRefuseExpiredChallenge();
-        if (accountIsActive == false) return Result.Failure<TokenPair>(FarmSuspended);
+        if (accountIsActive is null) return Result.Failure<TokenPair>(LogExpiredChallenge());
+        if (accountIsActive == false) return Result.Failure<TokenPair>(SecondFactorErrors.FarmSuspended);
 
         return await SignInOwnedAsync(async token =>
         {
             // Record 1282 decision 3: the ceremony is consumed by the owned
             // transaction's first statement, so every refusal after it spends it.
-            var passkey = input is SecondFactorInput.Passkey p
-                ? new PasskeyAssertion(
-                    await passkeys.ConsumeAsync(p.Proof.Ceremony, CeremonyPurpose.SecondStep, claims.UserId, token),
-                    CredentialId: null, p.RequestHost)
-                : null;
-            var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, code, claims.Binding, passkey, token);
+            var assertion = passkey is null
+                ? null
+                : new PasskeyAssertion(
+                    await passkeys.ConsumeAsync(passkey.Proof.Ceremony, CeremonyPurpose.SecondStep, claims.UserId, token),
+                    CredentialId: null, passkey.RequestHost);
+            var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, code, claims.Binding, assertion, token);
             return outcome is FactorOutcome.Accepted accepted
                 ? Result.Success(new AcceptedSignIn(claims.AccountId, claims.UserId, accepted))
                 : Result.Failure<AcceptedSignIn>(passkey is not null && outcome is FactorOutcome.Rejected
-                    ? PasskeyRefused
+                    ? SecondFactorErrors.PasskeyRefused
                     : Refusal(outcome));
         }, ct);
     }
 
-    // Decision 3: reads the challenge to learn the user, without spending it.
+    // Decision 3: reads the challenge to learn the user, without spending it,
+    // and refuses a challenge the code step would refuse a passkey for.
     public async Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(
         string? challenge, string requestHost, CancellationToken ct = default)
     {
         if (ReadChallenge(challenge) is { } claims
-            && await passkeys.StartSecondStepAsync(claims.AccountId, claims.UserId, requestHost, ct) is { } start)
-            return Result.Success(start);
+            && await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == claims.UserId && u.AccountId == claims.AccountId, ct) is { } user
+            && TwoFactorCredentials.Admits(user, claims.Binding, SecondFactorKinds.Passkey))
+            return Result.Success(await passkeys.StartSecondStepAsync(user, requestHost, ct));
         return Result.Failure<PasskeyCeremonyStart>(LogExpiredChallenge());
     }
 
@@ -138,17 +132,9 @@ public sealed partial class IdentityProvider
         _ => SecondFactorErrors.Incorrect,
     };
 
-    private static readonly Error ChallengeExpired =
-        Error.Validation(SecondFactorErrorCodes.ChallengeExpired, "Your sign-in expired. Sign in again.");
-
-    private static readonly Error FarmSuspended =
-        Error.Validation(SecondFactorErrorCodes.FarmSuspended, "This farm is suspended. Contact your administrator.");
-
     private Error LogExpiredChallenge()
     {
         securityEvents.SecondFactorChallengeExpired();
-        return ChallengeExpired;
+        return SecondFactorErrors.ChallengeExpired;
     }
-
-    private Result<TokenPair> LogAndRefuseExpiredChallenge() => Result.Failure<TokenPair>(LogExpiredChallenge());
 }

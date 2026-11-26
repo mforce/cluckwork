@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Cluckwork.Api.Validation;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Modules.Farm.Contracts;
@@ -169,13 +168,13 @@ public static partial class AuthEndpoints
         SecondFactorLoginRequest request, HttpRequest http, IAccessModule access, HttpResponse response,
         IWebHostEnvironment env, CancellationToken ct)
     {
+        if (request.Passkey is not null && request.Code is not null)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["passkey"] = ["Send a code or a passkey, not both."] });
         SecondFactorInput input;
         if (request.Passkey is { } passkey)
         {
-            if (passkey.Credential is not { ValueKind: JsonValueKind.Object } credential)
-                return MissingCredential();
-            input = new SecondFactorInput.Passkey(
-                new SecondFactorCode.Passkey(passkey.Ceremony, credential.GetRawText()), http.Host.Host);
+            if (CredentialJsonOf(passkey.Credential) is not { } credential) return MissingCredential();
+            input = new SecondFactorInput.Passkey(new SecondFactorCode.Passkey(passkey.Ceremony, credential), http.Host.Host);
         }
         else
         {
@@ -185,20 +184,9 @@ public static partial class AuthEndpoints
         var result = await access.CompleteSecondFactorLoginAsync(request.Challenge, input, ct);
         if (result.IsSuccess)
             return SignedIn(response, result.Value, access, env);
-
-        // 401 only when the user must sign in again; a wrong code or a refused
-        // passkey is 400, so apiFetch does not refresh and resend (#1282 decision 12).
-        switch (result.Error)
-        {
-            case RetryLaterError retry:
-                return RetryLater(response, retry);
-            case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:
-                return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
-            case { Code: PasskeyErrorCodes.Off }:
-                return Results.Problem(result.Error.Description, statusCode: 404, title: result.Error.Code);
-            default:
-                return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
-        }
+        return result.Error is RetryLaterError retry
+            ? RetryLater(response, retry)
+            : LoginStepProblem(result.Error, StatusCodes.Status400BadRequest);
     }
 
     // #532 — per-farm cookie: this login writes the cookie for the farm

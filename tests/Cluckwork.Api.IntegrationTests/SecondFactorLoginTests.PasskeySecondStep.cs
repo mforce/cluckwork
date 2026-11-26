@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
@@ -31,17 +30,12 @@ public sealed partial class SecondFactorLoginTests
         return (pending, factors);
     }
 
-    private async Task<Ceremony> StartSecondStepAsync(string challenge)
-    {
-        var response = await Anonymous().PostAsJsonAsync(SecondStepOptionsPath, new { challenge });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return new Ceremony(body.GetProperty("ceremony").GetGuid(), body.GetProperty("options").Clone());
-    }
+    private async Task<Ceremony> StartSecondStepAsync(string challenge) =>
+        await CeremonyOf(await Anonymous().PostAsJsonAsync(SecondStepOptionsPath, new { challenge }));
 
     private Task<HttpResponseMessage> PostPasskeyAnswerAsync(string challenge, Guid ceremony, string credentialJson) =>
         Anonymous().PostAsJsonAsync(TestHarness.SecondFactorPath,
-            new { challenge, passkey = new { ceremony, credential = JsonDocument.Parse(credentialJson).RootElement } });
+            new { challenge, passkey = new { ceremony, credential = Credential(credentialJson) } });
 
     // The second step answered with the user's passkey, uv as given.
     private async Task<HttpResponseMessage> AnswerWithPasskeyAsync(string challenge, SoftwareAuthenticator key, bool uv = true)
@@ -139,13 +133,13 @@ public sealed partial class SecondFactorLoginTests
         var user = await AppAndPasskeyUserAsync();
         await SetUserAsync(user.AccountId, user.UserId, u => u.AccessFailedCount = 2);
         var pending = await factory.PasswordStepAsync(user.Email);
-        var before = await CountersOfAsync(user.AccountId, user.UserId);
+        var before = await CountersAsync(user.AccountId, user.UserId);
         factory.Sink.Events.Clear();
 
         var refused = await AnswerWithPasskeyAsync(pending.Challenge, user.Key, uv: false);
 
         await AssertPasskeyRefusedAsync(refused, HttpStatusCode.BadRequest);
-        Assert.Equal(before, await CountersOfAsync(user.AccountId, user.UserId));
+        Assert.Equal(before, await CountersAsync(user.AccountId, user.UserId));
         Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
         Assert.Equal(HttpStatusCode.OK, (await PostCodeAsync(pending.Challenge, await factory.NextTotpCodeAsync(user.Email))).StatusCode);
     }

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Persistence;
@@ -7,140 +6,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
-
-// #1282 "Types": the one owner of passkey state. Public port, internal
-// implementation, as ITwoFactorCredentials. Every write runs in the caller's
-// transaction, locks the user row first, then loads the user; the caller
-// commits, a refused outcome included. requestHost is the request's host
-// without its port: the relying party ID and the origin check read it, and
-// nothing here reads the request itself.
-public interface IPasskeyCredentials
-{
-    // A registration ceremony bound to the user, under the resolved tenant.
-    Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
-
-    // #1285: a sign-in ceremony, issued before any farm or user is known
-    // (decision 3), so allowCredentials is empty.
-    Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct);
-
-    // #1285: the second sign-in step's ceremony, bound to the challenge's
-    // user; allowCredentials lists their passkeys. Null when the user is gone.
-    Task<PasskeyCeremonyStart?> StartSecondStepAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);
-
-    // #1285 (decision 11): the one lookup made before the farm is known, by
-    // credential id alone. A routing hint: AssertAsync's signer check decides.
-    Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);
-
-    // #1285: Identity's handler, then the signer check. Refused unless the
-    // user the handler verified is the expected one and, when the expected
-    // signer names a credential, the credential is that one byte for byte.
-    Task<AssertionOutcome> AssertAsync(
-        ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson, string requestHost, CancellationToken ct);
-
-    // #1285 (decision 7): the new sign count and backup state of the passkey
-    // that signed, saved after the caller resolved the user's tenant.
-    Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct);
-
-    // DELETE … RETURNING, the first statement of the caller's transaction.
-    // Null when the ceremony is missing, expired, of another purpose or bound
-    // to another user; the row is gone either way.
-    Task<ConsumedCeremony?> ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct);
-
-    // Inserts and never updates: a credential id stored for anyone is refused.
-    Task<RegisterOutcome> RegisterAsync(
-        ConsumedCeremony ceremony, Guid accountId, Guid userId, string credentialJson, string name, string requestHost,
-        CancellationToken ct);
-
-    Task<IReadOnlyList<PasskeySummary>> ListAsync(Guid accountId, Guid userId, CancellationToken ct);
-
-    Task<bool> RenameAsync(Guid accountId, Guid userId, byte[] credentialId, string name, CancellationToken ct);
-
-    // False when the user has no such passkey. A removal bumps the epoch and
-    // rotates the stamp; the caller revokes.
-    Task<bool> RemoveAsync(Guid accountId, Guid userId, byte[] credentialId, CancellationToken ct);
-
-    // Every passkey, without reading Data. Null when the user is not in the
-    // farm. A user who had any gets the epoch bump and stamp rotation; the
-    // caller revokes.
-    Task<int?> RemoveAllAsync(Guid accountId, Guid userId, CancellationToken ct);
-
-    // The users of one farm who have a passkey: clear-passkeys' input.
-    Task<IReadOnlyList<Guid>> UsersWithPasskeysAsync(Guid accountId, CancellationToken ct);
-
-    // How many passkeys are stored, in every farm: the startup warning's input.
-    Task<int> CountAllAsync(CancellationToken ct);
-}
-
-// The consumed passkey_ceremonies row, as DELETE … RETURNING reads it.
-// State holds the challenge (G7.7).
-[Credential]
-public sealed record ConsumedCeremony(Guid? UserId, string State, DateTimeOffset ExpiresAt)
-{
-    public override string ToString() => "[redacted]";
-}
-
-// The user and shadow AccountId of the row that holds a credential id. None
-// is a secret, but G7.7's walk reads every Passkey type as a credential.
-public readonly record struct PasskeyOwner(Guid AccountId, Guid UserId, byte[] CredentialId)
-{
-    public override string ToString() => "[redacted]";
-}
-
-// Who must have signed: the user, and at sign-in the exact credential the
-// server looked up.
-public readonly record struct ExpectedSigner(Guid UserId, byte[]? CredentialId)
-{
-    public override string ToString() => "[redacted]";
-}
-
-public abstract record AssertionOutcome
-{
-    private AssertionOutcome() { }
-
-    public sealed record Accepted(Guid UserId, UserPasskeyInfo Passkey) : AssertionOutcome
-    {
-        public override string ToString() => "[redacted]";
-    }
-
-    // Reason is Identity's failure message, logged at debug level only (decision 12).
-    public sealed record Refused(string Reason) : AssertionOutcome;
-}
-
-// What VerifyAsync needs beside a SecondFactorCode.Passkey: the ceremony
-// ConsumeAsync returned (null when it refused it), the credential the server
-// looked up at sign-in (null at the second step), and the request's host.
-[Credential]
-public sealed record PasskeyAssertion(ConsumedCeremony? Ceremony, byte[]? CredentialId, string RequestHost)
-{
-    public override string ToString() => "[redacted]";
-}
-
-public abstract record RegisterOutcome
-{
-    private RegisterOutcome() { }
-
-    // FirstFactor: the user had no app and no passkey, so every other session ends.
-    public sealed record Registered(PasskeySummary Passkey, bool FirstFactor) : RegisterOutcome;
-
-    public sealed record Refused : RegisterOutcome;
-
-    public sealed record LimitReached : RegisterOutcome;
-}
-
-public static class PasskeyCredentialsServiceCollectionExtensions
-{
-    public static IServiceCollection AddPasskeyCredentials(this IServiceCollection services)
-    {
-        services.AddScoped<IPasskeyCredentials, PasskeyCredentials>();
-        services.AddScoped<IPasskeyCeremonyPurge, PasskeyCeremonyPurge>();
-        return services;
-    }
-}
 
 // #1282 "The state it owns": AspNetUserPasskeys, AspNetUsers.PasskeyCount and
 // passkey_ceremonies. The only code that calls PasskeyHandler or touches these,
@@ -196,10 +65,8 @@ internal sealed class PasskeyCredentials(
     public async Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct) =>
         await StartAssertionAsync(CeremonyPurpose.SignIn, user: null, requestHost, ct);
 
-    public async Task<PasskeyCeremonyStart?> StartSecondStepAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct) =>
-        await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == userId && u.AccountId == accountId, ct) is { } user
-            ? await StartAssertionAsync(CeremonyPurpose.SecondStep, user, requestHost, ct)
-            : null;
+    public Task<PasskeyCeremonyStart> StartSecondStepAsync(ApplicationUser user, string requestHost, CancellationToken ct) =>
+        StartAssertionAsync(CeremonyPurpose.SecondStep, user, requestHost, ct);
 
     // A bound ceremony's state names the user, so Identity checks the
     // credential against them; the row carries their id for ConsumeAsync.
@@ -222,7 +89,8 @@ internal sealed class PasskeyCredentials(
             : null;
 
     public async Task<AssertionOutcome> AssertAsync(
-        ConsumedCeremony ceremony, ExpectedSigner expected, string credentialJson, string requestHost, CancellationToken ct)
+        ConsumedCeremony ceremony, Guid userId, byte[]? credentialId, string credentialJson, string requestHost,
+        CancellationToken ct)
     {
         var assertion = await handler.PerformAssertionAsync(new PasskeyAssertionContext
         {
@@ -235,8 +103,8 @@ internal sealed class PasskeyCredentials(
         // Decision 11: Identity takes the user from userHandle and the
         // credential from the JSON's id, and never reads rawId, so the lookup
         // and the signature can disagree; disagreement is a refusal.
-        if (assertion.User.Id != expected.UserId) return AssertionRefused("another user signed");
-        if (expected.CredentialId is { } credentialId && !assertion.Passkey.CredentialId.AsSpan().SequenceEqual(credentialId))
+        if (assertion.User.Id != userId) return AssertionRefused("another user signed");
+        if (credentialId is not null && !assertion.Passkey.CredentialId.AsSpan().SequenceEqual(credentialId))
             return AssertionRefused("another credential signed");
         return new AssertionOutcome.Accepted(assertion.User.Id, assertion.Passkey);
     }
@@ -244,7 +112,7 @@ internal sealed class PasskeyCredentials(
     private AssertionOutcome AssertionRefused(string reason)
     {
         logger.LogDebug("Passkey assertion refused: {Reason}", reason);
-        return new AssertionOutcome.Refused(reason);
+        return new AssertionOutcome.Refused();
     }
 
     public async Task RecordUseAsync(UserPasskeyInfo passkey, Guid accountId, Guid userId, CancellationToken ct)
@@ -272,13 +140,16 @@ internal sealed class PasskeyCredentials(
 
     // Decision 3: one statement deletes the row, so two finishes of one
     // ceremony consume it once, and every refusal after it commits the delete.
+    // It deletes by id alone, so a ceremony of another purpose is spent too.
     public async Task<ConsumedCeremony?> ConsumeAsync(
         Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct)
     {
         var rows = await db.Database.SqlQuery<ConsumedCeremony>(
-            $"""DELETE FROM passkey_ceremonies WHERE "Id" = {ceremony} AND "Purpose" = {(short)purpose} RETURNING "UserId", "State", "ExpiresAt" """)
+            $"""DELETE FROM passkey_ceremonies WHERE "Id" = {ceremony} RETURNING "UserId", "Purpose", "State", "ExpiresAt" """)
             .ToListAsync(ct);
-        return rows is [var row] && row.UserId == userId && row.ExpiresAt > timeProvider.GetUtcNow() ? row : null;
+        return rows is [var row] && row.Purpose == purpose && row.UserId == userId && row.ExpiresAt > timeProvider.GetUtcNow()
+            ? row
+            : null;
     }
 
     public async Task<RegisterOutcome> RegisterAsync(

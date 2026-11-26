@@ -81,21 +81,25 @@ internal sealed class TwoFactorCredentials(
                 .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
 
     // #1274 "Verifying a code", steps 1 to 6; #1282 "Checking a passkey".
+    // The one place a passkey's refusal is logged, whatever refused it.
     public async Task<FactorOutcome> VerifyAsync(
         Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
     {
+        var outcome = await VerifyCoreAsync(accountId, userId, code, binding, passkey, ct);
+        if (code is SecondFactorCode.Passkey && outcome is not FactorOutcome.Accepted) securityEvents.PasskeyFailed();
+        return outcome;
+    }
+
+    private async Task<FactorOutcome> VerifyCoreAsync(
+        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
+    {
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        // A code needs the app; a passkey needs a passkey (record 1282 step 1).
-        var hasFactor = code is SecondFactorCode.Passkey ? user?.PasskeyCount > 0 : user?.TwoFactorEnabled == true;
-        if (user is null || user.DisabledAt is not null || !hasFactor || user.CredentialEpoch < 1
-            || user.CredentialEpoch != binding.CredentialEpoch
-            || !string.Equals(ProofBinding.HashStamp(user.SecurityStamp), binding.SecurityStampHash, StringComparison.Ordinal)
-            || (binding.SignIns is { } signIns && signIns != user.SecondFactorSignIns))
-            return new FactorOutcome.Superseded();
+        var kind = code is SecondFactorCode.Passkey ? SecondFactorKinds.Passkey : SecondFactorKinds.Authenticator;
+        if (user is null || !Admits(user, binding, kind)) return new FactorOutcome.Superseded();
 
         // Charging a locked row would count the guess and re-lock the account.
         if (await userManager.IsLockedOutAsync(user))
-            return code is SecondFactorCode.Passkey ? PasskeyRefused() : new FactorOutcome.Rejected(Charged: false);
+            return new FactorOutcome.Rejected(Charged: false);
 
         return code switch
         {
@@ -106,23 +110,35 @@ internal sealed class TwoFactorCredentials(
         };
     }
 
+    // #1282 decision 7: the proofs a user can give at the second step, the
+    // app or a passkey; a recovery code counts as the app.
+    internal static List<string> SecondFactorsOf(ApplicationUser user)
+    {
+        List<string> factors = [];
+        if (user.TwoFactorEnabled) factors.Add(SecondFactorKinds.Authenticator);
+        if (user.PasskeyCount > 0) factors.Add(SecondFactorKinds.Passkey);
+        return factors;
+    }
+
+    // Step 1: the user may still answer the proof's challenge with a proof
+    // of this kind. The second step's options route asks the same (#1285).
+    internal static bool Admits(ApplicationUser user, ProofBinding binding, string kind) =>
+        user.DisabledAt is null && user.CredentialEpoch >= 1 && SecondFactorsOf(user).Contains(kind)
+        && user.CredentialEpoch == binding.CredentialEpoch
+        && string.Equals(ProofBinding.HashStamp(user.SecurityStamp), binding.SecurityStampHash, StringComparison.Ordinal)
+        && (binding.SignIns is not { } signIns || signIns == user.SecondFactorSignIns);
+
     // Record 1282 "Checking a passkey", steps 3 to 5. A refusal is never
     // charged and never touches the daily budget (decision 8).
     private async Task<FactorOutcome> VerifyPasskeyAsync(
         ApplicationUser user, SecondFactorCode.Passkey proof, PasskeyAssertion? passkey, ProofBinding binding, CancellationToken ct)
     {
-        if (passkey?.Ceremony is not { } ceremony) return PasskeyRefused();
+        if (passkey?.Ceremony is not { } ceremony) return new FactorOutcome.Rejected(Charged: false);
         var outcome = await passkeys.AssertAsync(
-            ceremony, new ExpectedSigner(user.Id, passkey.CredentialId), proof.CredentialJson, passkey.RequestHost, ct);
+            ceremony, user.Id, passkey.CredentialId, proof.CredentialJson, passkey.RequestHost, ct);
         return outcome is AssertionOutcome.Accepted accepted
             ? await AcceptAsync(user, binding, recoveryCodesLeft: null, accepted.Passkey)
-            : PasskeyRefused();
-    }
-
-    private FactorOutcome.Rejected PasskeyRefused()
-    {
-        securityEvents.PasskeyFailed();
-        return new FactorOutcome.Rejected(Charged: false);
+            : new FactorOutcome.Rejected(Charged: false);
     }
 
     // Steps 3 to 6 for an authenticator code.

@@ -70,7 +70,7 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.CompleteSecondFactorLoginAsync(string challenge, SecondFactorInput input, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/IdentityProvider.SecondFactor.cs",
-            Hash = "4f567b40",
+            Hash = "6d3a4010",
             Justification = "The login code step reads the challenge's account through AccountIsActiveAsync to refuse a suspended farm (#579); scoped to the challenge's account id (#1278, #1285).",
         },
         new()
@@ -98,8 +98,8 @@ internal static class BypassAllowList
         {
             Symbol = "Cluckwork.Infrastructure.Modules.Access.Identity.PasskeyCredentials.ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct)",
             File = "src/Cluckwork.Infrastructure/Modules/Access/Identity/PasskeyCredentials.cs",
-            Hash = "bf981dc5",
-            Justification = "The passkey ceremony's single use (#1282 decision 3): one raw DELETE ... RETURNING by the ceremony's random Id and purpose on passkey_ceremonies, which has no AccountId; a bound ceremony is refused unless its UserId is the caller's, which fixes the farm. This hash covers the whole method, so dropping that user check makes it stale.",
+            Hash = "cb29f7ba",
+            Justification = "The passkey ceremony's single use (#1282 decision 3): one raw DELETE ... RETURNING by the ceremony's random Id on passkey_ceremonies, which has no AccountId, so a ceremony of another purpose is spent too (#1285); a ceremony is refused unless its purpose is the caller's and its UserId is the caller's, which fixes the farm. This hash covers the whole method, so dropping either check makes it stale.",
         },
         new()
         {

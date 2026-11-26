@@ -21,10 +21,9 @@ public sealed class PasskeyOptionsRateLimitFactory : CluckworkWebApplicationFact
     {
         base.ConfigureWebHost(builder);
         var shipped = new RateLimitingOptions();
+        // The base factory lifts only the permit limits; the windows keep their defaults.
         builder.UseSetting("RateLimiting:PasskeyOptions:PermitLimit", shipped.PasskeyOptions.PermitLimit.ToString());
-        builder.UseSetting("RateLimiting:PasskeyOptions:WindowSeconds", shipped.PasskeyOptions.WindowSeconds.ToString());
         builder.UseSetting("RateLimiting:Login:PermitLimit", shipped.Login.PermitLimit.ToString());
-        builder.UseSetting("RateLimiting:Login:WindowSeconds", shipped.Login.WindowSeconds.ToString());
         builder.ConfigureTestServices(services => services.AddSingleton<ILogEventSink>(Sink));
     }
 

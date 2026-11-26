@@ -95,6 +95,7 @@ internal static partial class RealModuleLedger
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.StartSecondFactorPasskey", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.PasskeyLogin", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.PasskeyOptions", ["Access"]),
+        new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.OptionsResponse", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.ListPasskeys", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.RenamePasskey", ["Access"]),
         new("Cluckwork.Api.Modules.Access.Auth.AuthEndpoints.RemovePasskey", ["Access"]),

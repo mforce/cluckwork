@@ -34,10 +34,7 @@ public sealed partial class IdentityProvider
 
             // Step 3, the read the code step makes.
             if (await AccountIsActiveAsync(owner.AccountId, token) != true)
-            {
-                securityEvents.PasskeyFailed();
-                return Result.Failure<AcceptedSignIn>(FarmSuspended);
-            }
+                return RefusePasskeySignIn(SecondFactorErrors.FarmSuspended);
 
             // Step 4: the binding read without a lock, as the password step
             // reads it, then the code step's checks under the lock.
@@ -55,19 +52,19 @@ public sealed partial class IdentityProvider
                 signedIn = owner.UserId;
                 return Result.Success(new AcceptedSignIn(owner.AccountId, owner.UserId, accepted));
             }
-            // VerifyAsync logged a rejected passkey; a superseded one is logged here.
-            if (outcome is FactorOutcome.Superseded) securityEvents.PasskeyFailed();
-            return Result.Failure<AcceptedSignIn>(PasskeyRefused);
+            // VerifyAsync logged the refusal.
+            return Result.Failure<AcceptedSignIn>(SecondFactorErrors.PasskeyRefused);
         }, ct);
 
         if (result.IsSuccess && signedIn is { } userId) securityEvents.PasskeySignIn(userId);
         return result;
     }
 
-    private Result<AcceptedSignIn> RefusePasskeySignIn()
+    // A refusal made before VerifyAsync, which logs its own.
+    private Result<AcceptedSignIn> RefusePasskeySignIn(Error? error = null)
     {
         securityEvents.PasskeyFailed();
-        return Result.Failure<AcceptedSignIn>(PasskeyRefused);
+        return Result.Failure<AcceptedSignIn>(error ?? SecondFactorErrors.PasskeyRefused);
     }
 
     // Step 1: the JSON's id, read as Identity's reader reads it, names matched
@@ -87,7 +84,8 @@ public sealed partial class IdentityProvider
             var bytes = WebEncoders.Base64UrlDecode(value.GetString()!);
             return bytes.Length is > 0 and <= MaxCredentialIdBytes ? bytes : null;
         }
-        catch (Exception e) when (e is JsonException or FormatException)
+        // A lone UTF-16 surrogate in a name or the id throws InvalidOperationException.
+        catch (Exception e) when (e is JsonException or FormatException or InvalidOperationException)
         {
             return null;
         }

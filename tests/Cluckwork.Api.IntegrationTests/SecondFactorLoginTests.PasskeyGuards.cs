@@ -30,7 +30,7 @@ public sealed partial class SecondFactorLoginTests
             Content = JsonContent.Create(new
             {
                 ceremony = ceremony.Id,
-                credential = JsonDocument.Parse(new SoftwareAuthenticator().Attest(ceremony.Options)).RootElement,
+                credential = Credential(new SoftwareAuthenticator().Attest(ceremony.Options)),
                 name = "Phone",
             }),
         });

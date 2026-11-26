@@ -146,7 +146,7 @@ public sealed class AccessModule(
             if (await identity.ResolveFarmCodeAsync(farmCode, ct) is { } farm)
                 return await identity.PasskeyLoginAsync(ceremony, credentialJson, farm.AccountId, requestHost, ct);
             securityEvents.PasskeyFailed();
-            return Result.Failure<TokenPair>(IdentityProvider.PasskeyRefused);
+            return Result.Failure<TokenPair>(SecondFactorErrors.PasskeyRefused);
         });
 
     public Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct) => firstRun.IsProvisionedAsync(ct);

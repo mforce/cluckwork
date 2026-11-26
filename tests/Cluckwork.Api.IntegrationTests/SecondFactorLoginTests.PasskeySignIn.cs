@@ -1,7 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Api.Middleware;
@@ -35,18 +34,13 @@ public sealed partial class SecondFactorLoginTests
 
     private HttpClient Anonymous() => factory.CreateClient(TestHarness.Cookieless(factory));
 
-    private async Task<Ceremony> StartPasskeySignInAsync()
-    {
-        var response = await Anonymous().PostAsync(PasskeyLoginPath + "/options", null);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return new Ceremony(body.GetProperty("ceremony").GetGuid(), body.GetProperty("options").Clone());
-    }
+    private async Task<Ceremony> StartPasskeySignInAsync() =>
+        await CeremonyOf(await Anonymous().PostAsync(PasskeyLoginPath + "/options", null));
 
     private Task<HttpResponseMessage> PasskeySignInAsync(
         Guid ceremony, string credentialJson, string? farmCode = null, HttpClient? client = null) =>
         (client ?? Anonymous()).PostAsJsonAsync(PasskeyLoginPath,
-            new { ceremony, credential = JsonDocument.Parse(credentialJson).RootElement, farmCode });
+            new { ceremony, credential = Credential(credentialJson), farmCode });
 
     private async Task<HttpResponseMessage> SignInWithPasskeyAsync(SoftwareAuthenticator key, string? farmCode = null)
     {
@@ -68,13 +62,6 @@ public sealed partial class SecondFactorLoginTests
         Assert.False(response.Headers.Contains("Set-Cookie"), "a refused passkey set a cookie");
     }
 
-    private Task<UserCounters> CountersOfAsync(Guid accountId, Guid userId) =>
-        factory.WithTenantScopeAsync(accountId, db => db.Users.AsNoTracking()
-            .Where(u => u.Id == userId)
-            .Select(u => new UserCounters(u.AccessFailedCount, u.SecondFactorFailures, u.SecondFactorSignIns,
-                u.SecondFactorWatermark, u.LockoutEnd))
-            .SingleAsync());
-
     private Task SetUserAsync(Guid accountId, Guid userId, Action<ApplicationUser> change) =>
         factory.WithTenantScopeAsync(accountId, async db =>
         {
@@ -82,25 +69,29 @@ public sealed partial class SecondFactorLoginTests
             await db.SaveChangesAsync();
         });
 
-    // G8.1, G8.6: a blank farm code signs in to the passkey's farm, sets
-    // SignedInAt, clears AccessFailedCount and bumps the sign-in count.
-    [Fact]
-    public async Task APasskeyAlone_SignsInToThePasskeysFarm_WithABlankFarmCode()
+    // G8.1, G8.6: a blank farm code, sent as null, empty or spaces, signs in
+    // to the passkey's farm, sets SignedInAt, clears AccessFailedCount and
+    // bumps the sign-in count.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task APasskeyAlone_SignsInToThePasskeysFarm_WithABlankFarmCode(string? farmCode)
     {
         var user = await PasskeyUserAsync();
         await SetUserAsync(user.AccountId, user.UserId, u => u.AccessFailedCount = 2);
-        var before = await CountersOfAsync(user.AccountId, user.UserId);
+        var before = await CountersAsync(user.AccountId, user.UserId);
         factory.Clock.Advance(TimeSpan.FromHours(1));
         factory.Clock.Freeze();
         factory.Sink.Events.Clear();
 
-        var response = await SignInWithPasskeyAsync(user.Key);
+        var response = await SignInWithPasskeyAsync(user.Key, farmCode);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var tokens = await TestHarness.ReadTokensAsync(response);
         Assert.Equal((user.UserId, user.AccountId), SubjectOf(tokens.AccessToken));
         Assert.False(string.IsNullOrEmpty(tokens.RefreshToken), "a passkey sign-in set no refresh cookie");
-        var after = await CountersOfAsync(user.AccountId, user.UserId);
+        var after = await CountersAsync(user.AccountId, user.UserId);
         Assert.Equal((0, before.SignIns + 1), (after.AccessFailed, after.SignIns));
         var signedInAt = await factory.WithTenantScopeAsync(user.AccountId, db => db.RefreshTokens
             .Where(t => t.UserId == user.UserId).MaxAsync(t => t.SignedInAt));
@@ -126,15 +117,18 @@ public sealed partial class SecondFactorLoginTests
             return Task.CompletedTask;
         }, times: 100);
 
+        factory.Sink.Events.Clear();
         var atOtherFarm = await PasskeySignInAsync(other.Id, user.Key.Assert(other.Options), otherFarmCode);
-        var readsAtOtherFarm = reads;
+        var (readsAtOtherFarm, eventsAtOtherFarm) = (reads, factory.EventsFor(SecurityEvents.PasskeyFailed).Count);
+        factory.Sink.Events.Clear();
         var atUnknownFarm = await PasskeySignInAsync(unknown.Id, user.Key.Assert(unknown.Options), "no-such-farm-" + Guid.NewGuid().ToString("N")[..8]);
         factory.BeforeCommand.Disarm();
 
         await AssertPasskeyRefusedAsync(atOtherFarm);
         await AssertPasskeyRefusedAsync(atUnknownFarm);
-        Assert.Equal(1, readsAtOtherFarm);
+        Assert.Equal((1, 1), (readsAtOtherFarm, eventsAtOtherFarm));
         Assert.Equal(1, reads);
+        Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
         Assert.False(await CeremonyExistsAsync(other.Id));
         Assert.True(await CeremonyExistsAsync(unknown.Id), "an unknown farm code is refused before the ceremony is consumed");
     }
@@ -181,7 +175,7 @@ public sealed partial class SecondFactorLoginTests
         var alice = await PasskeyUserAsync();
         var bob = await PasskeyUserAsync();
 
-        async Task<AssertionOutcome> AssertAsync(ExpectedSigner expected)
+        async Task<AssertionOutcome> AssertAsync(Guid userId, byte[]? credentialId)
         {
             var ceremony = await StartPasskeySignInAsync();
             var json = bob.Key.Assert(ceremony.Options);
@@ -190,13 +184,13 @@ public sealed partial class SecondFactorLoginTests
             return await TestHarness.InTransactionAsync(scope.ServiceProvider.GetRequiredService<AppDbContext>(), async ct =>
                 await passkeys.AssertAsync(
                     (await passkeys.ConsumeAsync(ceremony.Id, CeremonyPurpose.SignIn, userId: null, ct))!,
-                    expected, json, "localhost", ct));
+                    userId, credentialId, json, "localhost", ct));
         }
 
-        Assert.IsType<AssertionOutcome.Refused>(await AssertAsync(new ExpectedSigner(alice.UserId, alice.Key.CredentialId)));
-        Assert.IsType<AssertionOutcome.Refused>(await AssertAsync(new ExpectedSigner(bob.UserId, alice.Key.CredentialId)));
-        Assert.IsType<AssertionOutcome.Refused>(await AssertAsync(new ExpectedSigner(alice.UserId, null)));
-        var accepted = Assert.IsType<AssertionOutcome.Accepted>(await AssertAsync(new ExpectedSigner(bob.UserId, bob.Key.CredentialId)));
+        Assert.IsType<AssertionOutcome.Refused>(await AssertAsync(alice.UserId, alice.Key.CredentialId));
+        Assert.IsType<AssertionOutcome.Refused>(await AssertAsync(bob.UserId, alice.Key.CredentialId));
+        Assert.IsType<AssertionOutcome.Refused>(await AssertAsync(alice.UserId, null));
+        var accepted = Assert.IsType<AssertionOutcome.Accepted>(await AssertAsync(bob.UserId, bob.Key.CredentialId));
         Assert.Equal(bob.UserId, accepted.UserId);
     }
 
@@ -247,14 +241,14 @@ public sealed partial class SecondFactorLoginTests
     {
         var user = await PasskeyUserAsync();
         await SetUserAsync(user.AccountId, user.UserId, u => (u.AccessFailedCount, u.SecondFactorFailures) = (2, 3));
-        var before = await CountersOfAsync(user.AccountId, user.UserId);
+        var before = await CountersAsync(user.AccountId, user.UserId);
         var ceremony = await StartPasskeySignInAsync();
         factory.Sink.Events.Clear();
 
         var response = await PasskeySignInAsync(ceremony.Id, user.Key.Assert(ceremony.Options, origin: "https://localhost:8443"));
 
         await AssertPasskeyRefusedAsync(response);
-        Assert.Equal(before, await CountersOfAsync(user.AccountId, user.UserId));
+        Assert.Equal(before, await CountersAsync(user.AccountId, user.UserId));
         Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
         Assert.False(await CeremonyExistsAsync(ceremony.Id));
     }
@@ -274,26 +268,19 @@ public sealed partial class SecondFactorLoginTests
         Assert.False(await CeremonyExistsAsync(ceremony.Id));
     }
 
-    // G8.6: a disabled user and an epoch below 1 get the one refusal.
-    [Theory]
-    [InlineData("disabled")]
-    [InlineData("epoch")]
-    public async Task ADisabledUserOrAnEpochBelowOne_IsRefused(string state)
+    // G8.6: a disabled user gets the one refusal, logged once. The epoch below
+    // 1 case is in CredentialEpochFloorTests.Passkey.cs, whose database it may
+    // change.
+    [Fact]
+    public async Task ADisabledUser_IsRefused()
     {
         var user = await PasskeyUserAsync();
-        if (state == "disabled")
-            await SetUserAsync(user.AccountId, user.UserId, u => u.DisabledAt = factory.Clock.GetUtcNow());
-        else
-            // The check constraint forbids the state, as CredentialEpochFloorTests drops it.
-            await factory.WithTenantScopeAsync(user.AccountId, async db =>
-            {
-                await db.Database.ExecuteSqlRawAsync(
-                    """ALTER TABLE "AspNetUsers" DROP CONSTRAINT IF EXISTS "CK_AspNetUsers_CredentialEpoch" """);
-                return await db.Database.ExecuteSqlInterpolatedAsync(
-                    $"""UPDATE "AspNetUsers" SET "CredentialEpoch" = 0 WHERE "Id" = {user.UserId}""");
-            });
+        await SetUserAsync(user.AccountId, user.UserId, u => u.DisabledAt = factory.Clock.GetUtcNow());
+        factory.Sink.Events.Clear();
 
         await AssertPasskeyRefusedAsync(await SignInWithPasskeyAsync(user.Key));
+
+        Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
     }
 
     // G8.6: the passkey's farm is read before any session is minted.
@@ -304,9 +291,12 @@ public sealed partial class SecondFactorLoginTests
         using (var scope = factory.Services.CreateScope())
             Assert.True((await scope.ServiceProvider.GetRequiredService<AccountSuspensionService>().SuspendAsync(user.AccountId, "test")).IsSuccess);
 
+        factory.Sink.Events.Clear();
+
         var response = await SignInWithPasskeyAsync(user.Key);
 
         Assert.Equal((HttpStatusCode.Unauthorized, SecondFactorErrorCodes.FarmSuspended), await TitleOf(response));
+        Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
     }
 
     // G8.6: the sign count is written back, so a cloned counter authenticator,

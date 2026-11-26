@@ -28,7 +28,7 @@ public static partial class AuthEndpoints
 
         var result = await access.StartPasskeyRegistrationAsync(tenant.AccountId, currentUser.UserId, http.Host.Host, ct);
         return result.IsSuccess
-            ? Results.Ok(new PasskeyOptionsResponse(result.Value.Ceremony, JsonSerializer.Deserialize<JsonElement>(result.Value.OptionsJson)))
+            ? Results.Ok(OptionsResponse(result.Value))
             : StepUpRouteProblem(result.Error);
     }
 
@@ -44,11 +44,10 @@ public static partial class AuthEndpoints
         if (!currentUser.IsResolved || !tenant.IsResolved || ActingEpoch(user) is not { } epoch)
             return Results.Unauthorized();
         if (PasskeyName(request.Name, out var name) is { } invalid) return invalid;
-        if (request.Credential is not { ValueKind: JsonValueKind.Object } credential)
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["credential"] = ["The passkey response is missing."] });
+        if (CredentialJsonOf(request.Credential) is not { } credential) return MissingCredential();
 
         var result = await access.RegisterPasskeyAsync(tenant.AccountId, currentUser.UserId, epoch, stepUpToken,
-            request.Ceremony, credential.GetRawText(), name, http.Host.Host, ct);
+            request.Ceremony, credential, name, http.Host.Host, ct);
         if (!result.IsSuccess) return StepUpRouteProblem(result.Error);
 
         if (result.Value.Tokens is not { } pair)

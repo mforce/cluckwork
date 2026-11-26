@@ -31,8 +31,10 @@ public sealed partial class IdentityProvider(
     CurrentUserContext currentUser,
     IOptions<EnrolledSessionOptions> enrolledSessions) : IIdentityProvider
 {
+    // A control character names no farm, and Postgres refuses a NUL in a
+    // query parameter, so it never reaches the lookup.
     public async Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) =>
-        await accounts.FindBySlugAsync(farmCode, ct) is { } account
+        !farmCode.Any(char.IsControl) && await accounts.FindBySlugAsync(farmCode, ct) is { } account
             ? new FarmSignIn(account.Id, account.IsActive)
             : null;
 
@@ -121,12 +123,8 @@ public sealed partial class IdentityProvider(
         // proof does, so wrong codes cannot alternate with fresh password
         // checks. #1282 decision 7: a passkey is a second factor too, also
         // while passkeys are off, so the password alone never signs its user in.
-        string[] secondFactors =
-        [
-            .. user.TwoFactorEnabled ? [SecondFactorKinds.Authenticator] : Array.Empty<string>(),
-            .. user.PasskeyCount > 0 ? [SecondFactorKinds.Passkey] : Array.Empty<string>(),
-        ];
-        if (secondFactors.Length > 0)
+        var secondFactors = TwoFactorCredentials.SecondFactorsOf(user);
+        if (secondFactors.Count > 0)
             return Result.Success<LoginStep>(
                 SecondFactorChallenge.Issue(user, secondFactors, jwtOptions.Value, timeProvider.GetUtcNow()));
 

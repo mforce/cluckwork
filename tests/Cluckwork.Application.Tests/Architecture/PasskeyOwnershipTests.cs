@@ -44,10 +44,8 @@ public sealed class PasskeyOwnershipTests
             Ceremonies, "the ceremony sweep deletes expired rows in its own class, as RefreshTokenPurge does (decision 3)"),
         new(InInfrastructure + Identity + "IdentityProvider.ListUsersAsync(System.Guid, System.Threading.CancellationToken)",
             Count, "the Users page shows the count and offers Remove passkeys when it is above 0 (decision 18)"),
-        new(InInfrastructure + Identity + "IdentityProvider.LoginAsync(System.Guid, string, string, System.Threading.CancellationToken)",
-            Count, "a correct password asks a user with a passkey for the second step, also while passkeys are off (decision 7, #1285)"),
-        new(InInfrastructure + Identity + "TwoFactorCredentials.VerifyAsync(System.Guid, System.Guid, Cluckwork.Application.Modules.Access.Contracts.SecondFactorCode, " + Identity + "ProofBinding, " + Identity + "PasskeyAssertion?, System.Threading.CancellationToken)",
-            Count, "a passkey answers only for a user who has one, as a code needs the app (Checking a passkey, step 1, #1285)"),
+        new(InInfrastructure + Identity + "TwoFactorCredentials.SecondFactorsOf(" + Identity + "ApplicationUser)",
+            Count, "the proofs a user can give at the second step: login's pending state and the code step read it, also while passkeys are off (decision 7, #1285)"),
     ];
 
     // PasskeyCredentials held 15 owned references on 2026-11-23, and three
