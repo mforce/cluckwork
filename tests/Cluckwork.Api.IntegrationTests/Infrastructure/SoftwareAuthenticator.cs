@@ -143,10 +143,13 @@ internal sealed class SoftwareAuthenticator
         public Cbor Map(int entries) => Head(5, (ulong)entries);
         public Cbor Int(long value) => value >= 0 ? Head(0, (ulong)value) : Head(1, (ulong)(-1 - value));
         public Cbor Bytes(byte[] value) => Head(2, (ulong)value.Length).Raw(value);
-        public Cbor Text(string value) => Bytes3(Encoding.UTF8.GetBytes(value));
+        public Cbor Text(string value)
+        {
+            var utf8 = Encoding.UTF8.GetBytes(value);
+            return Head(3, (ulong)utf8.Length).Raw(utf8);
+        }
         public byte[] ToArray() => _out.ToArray();
 
-        private Cbor Bytes3(byte[] utf8) => Head(3, (ulong)utf8.Length).Raw(utf8);
 
         private Cbor Head(int major, ulong value)
         {

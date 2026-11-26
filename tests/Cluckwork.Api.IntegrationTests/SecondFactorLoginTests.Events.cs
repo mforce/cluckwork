@@ -17,11 +17,14 @@ public sealed partial class SecondFactorLoginTests
         var pending = await factory.PasswordStepAsync(email);
         var code = WrongCode(factor);
         var before = factory.Sink.Events.Count;
+        var passkeyEvents = factory.EventsFor(SecurityEvents.PasskeyFailed).Count;
 
         var response = await PostCodeAsync(pending.Challenge, code);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         AssertIdentityFree(SecurityEvents.SecondFactorFailed, before, email, factor, pending.Challenge, code);
+        // #1285: a code is not a passkey, so it logs no Auth.PasskeyFailed.
+        Assert.Equal(passkeyEvents, factory.EventsFor(SecurityEvents.PasskeyFailed).Count);
     }
 
     [Fact]

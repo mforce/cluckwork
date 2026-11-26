@@ -3,7 +3,6 @@ using System.Text.Json;
 using Cluckwork.Api.IntegrationTests.Infrastructure;
 using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
-using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests;
 
@@ -14,18 +13,9 @@ public sealed partial class CredentialEpochFloorTests
     [Fact]
     public async Task PasskeySignIn_RefusesAnEpochBelowOne_AndLogsOnce()
     {
-        var email = $"epoch-floor-pk-{Guid.NewGuid():N}@test.local";
-        var accountId = await factory.SeedAccountWithUserAsync(email);
-        var userId = await factory.WithTenantScopeAsync(accountId, db => db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync());
+        var (accountId, userId, _) = await SeedWithStoredEpochAsync(0);
         var key = new SoftwareAuthenticator();
         await factory.SeedPasskeyAsync(accountId, userId, key);
-        await factory.WithTenantScopeAsync(accountId, async db =>
-        {
-            await db.Database.ExecuteSqlRawAsync(
-                """ALTER TABLE "AspNetUsers" DROP CONSTRAINT IF EXISTS "CK_AspNetUsers_CredentialEpoch" """);
-            return await db.Database.ExecuteSqlInterpolatedAsync(
-                $"""UPDATE "AspNetUsers" SET "CredentialEpoch" = 0 WHERE "Id" = {userId}""");
-        });
         var client = factory.CreateClient(TestHarness.Cookieless(factory));
         var options = await client.PostAsync("/api/v1/auth/login/passkey/options", null);
         Assert.Equal(HttpStatusCode.OK, options.StatusCode);

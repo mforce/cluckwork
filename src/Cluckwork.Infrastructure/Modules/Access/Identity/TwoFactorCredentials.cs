@@ -29,7 +29,7 @@ internal sealed class ProtectedTwoFactorValue
 // never written. AspNetUsers is written only through the reloaded, locked user
 // and a UserManager save, which checks and rotates ConcurrencyStamp, so a stale
 // full-entity write cannot lower a watermark or a sign-in count (G3.19).
-internal sealed class TwoFactorCredentials(
+internal sealed partial class TwoFactorCredentials(
     AppDbContext db,
     IDataProtectionProvider dataProtection,
     TenantContext tenant,
@@ -81,7 +81,8 @@ internal sealed class TwoFactorCredentials(
                 .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
 
     // #1274 "Verifying a code", steps 1 to 6; #1282 "Checking a passkey".
-    // The one place a passkey's refusal is logged, whatever refused it.
+    // It logs every passkey outcome it returns other than Accepted; a caller
+    // logs only the passkey refusals it makes before calling it.
     public async Task<FactorOutcome> VerifyAsync(
         Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
     {
@@ -109,24 +110,6 @@ internal sealed class TwoFactorCredentials(
             _ => throw new UnreachableException(),
         };
     }
-
-    // #1282 decision 7: the proofs a user can give at the second step, the
-    // app or a passkey; a recovery code counts as the app.
-    internal static List<string> SecondFactorsOf(ApplicationUser user)
-    {
-        List<string> factors = [];
-        if (user.TwoFactorEnabled) factors.Add(SecondFactorKinds.Authenticator);
-        if (user.PasskeyCount > 0) factors.Add(SecondFactorKinds.Passkey);
-        return factors;
-    }
-
-    // Step 1: the user may still answer the proof's challenge with a proof
-    // of this kind. The second step's options route asks the same (#1285).
-    internal static bool Admits(ApplicationUser user, ProofBinding binding, string kind) =>
-        user.DisabledAt is null && user.CredentialEpoch >= 1 && SecondFactorsOf(user).Contains(kind)
-        && user.CredentialEpoch == binding.CredentialEpoch
-        && string.Equals(ProofBinding.HashStamp(user.SecurityStamp), binding.SecurityStampHash, StringComparison.Ordinal)
-        && (binding.SignIns is not { } signIns || signIns == user.SecondFactorSignIns);
 
     // Record 1282 "Checking a passkey", steps 3 to 5. A refusal is never
     // charged and never touches the daily budget (decision 8).

@@ -31,10 +31,11 @@ public sealed partial class IdentityProvider(
     CurrentUserContext currentUser,
     IOptions<EnrolledSessionOptions> enrolledSessions) : IIdentityProvider
 {
-    // A control character names no farm, and Postgres refuses a NUL in a
-    // query parameter, so it never reaches the lookup.
+    // A control character inside the code names no farm, and Postgres refuses
+    // a NUL in a query parameter, so it never reaches the lookup. The lookup
+    // trims, so padding such as a trailing tab or newline still signs in.
     public async Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) =>
-        !farmCode.Any(char.IsControl) && await accounts.FindBySlugAsync(farmCode, ct) is { } account
+        !farmCode.Trim().Any(char.IsControl) && await accounts.FindBySlugAsync(farmCode, ct) is { } account
             ? new FarmSignIn(account.Id, account.IsActive)
             : null;
 

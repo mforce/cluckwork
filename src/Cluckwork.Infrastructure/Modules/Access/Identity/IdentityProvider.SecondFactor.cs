@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
 using Cluckwork.Infrastructure.Persistence;
@@ -13,20 +14,32 @@ public sealed partial class IdentityProvider
     public async Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
         string challenge, SecondFactorInput input, CancellationToken ct = default)
     {
+        // Parsed before anything digests it: a malformed code is null, and is
+        // refused uncharged, after the challenge.
+        (SecondFactorCode? code, SecondFactorInput.Passkey? passkey) = input switch
+        {
+            SecondFactorInput.Passkey answer => (answer.Proof, answer),
+            SecondFactorInput.Code raw => (SecondFactorCode.TryParse(raw.Raw, out var parsed) ? parsed : null, (SecondFactorInput.Passkey?)null),
+            _ => throw new UnreachableException(),
+        };
+
+        // A passkey refused here, before VerifyAsync, logs its event here
+        // (decision 19); VerifyAsync logs the rest.
+        Result<TokenPair> Refuse(Error error)
+        {
+            if (passkey is not null) securityEvents.PasskeyFailed();
+            return Result.Failure<TokenPair>(error);
+        }
+
         // The challenge first, so a malformed code on a dead challenge gets the 401.
-        if (ReadChallenge(challenge) is not { } claims)
-            return Result.Failure<TokenPair>(LogExpiredChallenge());
-        // Parsed before anything digests it: malformed input is refused, uncharged.
-        var passkey = input as SecondFactorInput.Passkey;
-        SecondFactorCode? code = passkey?.Proof;
-        if (code is null && !SecondFactorCode.TryParse(((SecondFactorInput.Code)input).Raw, out code))
-            return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
+        if (ReadChallenge(challenge) is not { } claims) return Refuse(LogExpiredChallenge());
+        if (code is null) return Refuse(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
         var accountIsActive = await AccountIsActiveAsync(claims.AccountId, ct);
-        if (accountIsActive is null) return Result.Failure<TokenPair>(LogExpiredChallenge());
-        if (accountIsActive == false) return Result.Failure<TokenPair>(SecondFactorErrors.FarmSuspended);
+        if (accountIsActive is null) return Refuse(LogExpiredChallenge());
+        if (accountIsActive == false) return Refuse(SecondFactorErrors.FarmSuspended);
 
         return await SignInOwnedAsync(async token =>
         {
@@ -40,9 +53,7 @@ public sealed partial class IdentityProvider
             var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, code, claims.Binding, assertion, token);
             return outcome is FactorOutcome.Accepted accepted
                 ? Result.Success(new AcceptedSignIn(claims.AccountId, claims.UserId, accepted))
-                : Result.Failure<AcceptedSignIn>(passkey is not null && outcome is FactorOutcome.Rejected
-                    ? SecondFactorErrors.PasskeyRefused
-                    : Refusal(outcome));
+                : Result.Failure<AcceptedSignIn>(Refusal(outcome, passkey: assertion is not null));
         }, ct);
     }
 
@@ -124,9 +135,11 @@ public sealed partial class IdentityProvider
         }
     }
 
-    private Error Refusal(FactorOutcome outcome) => outcome switch
+    // A refused passkey is 400 Auth.PasskeyRefused, never a code's answer.
+    private Error Refusal(FactorOutcome outcome, bool passkey) => outcome switch
     {
         FactorOutcome.Superseded => LogExpiredChallenge(),
+        FactorOutcome.Rejected when passkey => SecondFactorErrors.PasskeyRefused,
         FactorOutcome.Unavailable => SecondFactorErrors.KeyUnavailable,
         FactorOutcome.Throttled throttled => new RetryLaterError(throttled.RetryAfter),
         _ => SecondFactorErrors.Incorrect,

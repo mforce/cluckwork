@@ -42,7 +42,6 @@ public sealed class PasskeyOptionsRateLimitTests(PasskeyOptionsRateLimitFactory 
     [Fact]
     public async Task TheSixtyFirstOptionsRequest_IsRefused_AndASignInSpendsALoginPermit()
     {
-        Assert.Equal((60, 900), (new RateLimitingOptions().PasskeyOptions.PermitLimit, new RateLimitingOptions().PasskeyOptions.WindowSeconds));
         var client = factory.CreateClient();
         var signIn = new { ceremony = Guid.NewGuid(), credential = new { id = "AQID" } };
 

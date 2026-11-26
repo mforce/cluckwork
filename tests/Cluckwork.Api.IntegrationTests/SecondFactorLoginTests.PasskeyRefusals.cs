@@ -63,6 +63,15 @@ public sealed partial class SecondFactorLoginTests
         Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
     }
 
+    // A registration ceremony's challenge and relying party ID, in the shape
+    // of request options, so an authenticator can sign an assertion over it.
+    private static System.Text.Json.JsonElement RequestOptionsFor(System.Text.Json.JsonElement creationOptions) =>
+        Credential(System.Text.Json.JsonSerializer.Serialize(new
+        {
+            challenge = creationOptions.GetProperty("challenge").GetString(),
+            rpId = creationOptions.GetProperty("rp").GetProperty("id").GetString(),
+        }));
+
     // Decision 3: a ceremony is good for one attempt, whatever refuses it, so
     // one finished at a route of another purpose is refused and spent.
     [Fact]
@@ -76,16 +85,23 @@ public sealed partial class SecondFactorLoginTests
         var secondStepAtSignIn = await StartSecondStepAsync((await factory.PasswordStepAsync(user.Email)).Challenge);
         var signInAtRegistration = await StartPasskeySignInAsync();
         var registration = await StartPasskeyAsync(client);
+        var registrationAtSecondStep = await StartPasskeyAsync(client);
+        var pendingForRegistration = await factory.PasswordStepAsync(user.Email);
 
         await AssertPasskeyRefusedAsync(await PostPasskeyAnswerAsync(
             pending.Challenge, signInAtSecondStep.Id, user.Key.Assert(signInAtSecondStep.Options)), HttpStatusCode.BadRequest);
         await AssertPasskeyRefusedAsync(await PasskeySignInAsync(secondStepAtSignIn.Id, user.Key.Assert(secondStepAtSignIn.Options)));
         await AssertPasskeyRefusedAsync(await FinishPasskeyAsync(
             client, grant, signInAtRegistration.Id, new SoftwareAuthenticator().Attest(registration.Options)), HttpStatusCode.BadRequest);
+        // The user's own key signs the registration ceremony's challenge, so
+        // only the purpose tells it from a second-step ceremony.
+        await AssertPasskeyRefusedAsync(await PostPasskeyAnswerAsync(pendingForRegistration.Challenge, registrationAtSecondStep.Id,
+            user.Key.Assert(RequestOptionsFor(registrationAtSecondStep.Options))), HttpStatusCode.BadRequest);
 
         Assert.False(await CeremonyExistsAsync(signInAtSecondStep.Id), "a sign-in ceremony refused at the second step stayed live");
         Assert.False(await CeremonyExistsAsync(secondStepAtSignIn.Id), "a second-step ceremony refused at sign-in stayed live");
         Assert.False(await CeremonyExistsAsync(signInAtRegistration.Id), "a sign-in ceremony refused at registration stayed live");
+        Assert.False(await CeremonyExistsAsync(registrationAtSecondStep.Id), "a registration ceremony refused at the second step stayed live");
     }
 
     // The options route refuses a challenge the code step would refuse: one
@@ -125,6 +141,52 @@ public sealed partial class SecondFactorLoginTests
 
         Assert.Equal((HttpStatusCode.Unauthorized, AuthEndpoints.UnknownFarmCodeCode), await TitleOf(password));
         await AssertPasskeyRefusedAsync(passkey);
+    }
+
+    // The control-character rule reads the code as the lookup does, trimmed,
+    // so padding a code with a tab, a newline or U+0085 still signs in.
+    [Theory]
+    [InlineData("{0}\t")]
+    [InlineData("\t{0}")]
+    [InlineData("{0}\n")]
+    [InlineData("{0}\r\n")]
+    [InlineData("{0}\u0085")]
+    public async Task APaddedFarmCode_SignsIn_OnBothSignInRoutes(string padded)
+    {
+        var user = await PasskeyUserAsync();
+        var farmCode = string.Format(System.Globalization.CultureInfo.InvariantCulture, padded, await factory.FarmCodeForAsync(user.Email));
+        var password = await Anonymous().PostAsJsonAsync("/api/v1/auth/login",
+            new { farmCode, email = user.Email, password = TestHarness.Password });
+
+        var passkey = await SignInWithPasskeyAsync(user.Key, farmCode);
+
+        Assert.Equal(SecondFactorErrorCodes.Required, (await TitleOf(password)).Title);
+        Assert.Equal(HttpStatusCode.OK, passkey.StatusCode);
+    }
+
+    // Decision 19: a passkey answer refused before VerifyAsync, for a dead
+    // challenge or a suspended farm, logs one Auth.PasskeyFailed, as at sign-in.
+    [Fact]
+    public async Task APasskeyAnswerForADeadChallengeOrASuspendedFarm_LogsOneEvent()
+    {
+        var user = await AppAndPasskeyUserAsync();
+        var pending = await factory.PasswordStepAsync(user.Email);
+        var ceremony = await StartSecondStepAsync(pending.Challenge);
+        var json = user.Key.Assert(ceremony.Options);
+        factory.Sink.Events.Clear();
+        var dead = await PostPasskeyAnswerAsync("not-a-challenge", ceremony.Id, json);
+        var deadEvents = factory.EventsFor(SecurityEvents.PasskeyFailed).Count;
+        using (var scope = factory.Services.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<Cluckwork.Infrastructure.Modules.Access.Identity.AccountSuspensionService>()
+                .SuspendAsync(user.AccountId, "test")).IsSuccess);
+        factory.Sink.Events.Clear();
+
+        var suspended = await PostPasskeyAnswerAsync(pending.Challenge, ceremony.Id, json);
+
+        Assert.Equal((HttpStatusCode.Unauthorized, SecondFactorErrorCodes.ChallengeExpired), await TitleOf(dead));
+        Assert.Equal(1, deadEvents);
+        Assert.Equal((HttpStatusCode.Unauthorized, SecondFactorErrorCodes.FarmSuspended), await TitleOf(suspended));
+        Assert.Single(factory.EventsFor(SecurityEvents.PasskeyFailed));
     }
 
     // A body that sends both a code and a passkey is refused before anything is
@@ -167,7 +229,9 @@ public sealed partial class SecondFactorLoginTests
         };
         var routes = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
             .Where(e => e.RoutePattern.RawText?.StartsWith("/api/v1/auth/", StringComparison.Ordinal) == true
-                && e.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+                // The group has no authorization and the app no fallback policy,
+                // so a route with no IAuthorizeData is anonymous too.
+                && (e.Metadata.GetMetadata<IAllowAnonymous>() is not null || e.Metadata.GetOrderedMetadata<IAuthorizeData>().Count == 0))
             .SelectMany(e => e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Select(method => new KeyValuePair<string, string?>(
                 $"{method} {e.RoutePattern.RawText}", e.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)))
             .ToList();
