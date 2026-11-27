@@ -411,7 +411,7 @@ describe("after sign-out starts", () => {
 // #1277 — only a sign-in whose answer commits its tokens ends a sign-out; a
 // refused, challenged or superseded one leaves the tab refused.
 describe("the sign-out intent at each sign-in outcome", () => {
-  const challenge = () => json({ title: "Auth.SecondFactorRequired", challenge: crypto.randomUUID(), challengeExpiresAt: "2099-01-01T00:00:00Z" }, 401);
+  const challenge = () => json({ title: "Auth.SecondFactorRequired", challenge: crypto.randomUUID(), challengeExpiresAt: "2099-01-01T00:00:00Z", secondFactors: ["authenticator"] }, 401);
   // Every other route, the code step's commit included, gets a fresh pair.
   const answering = (signInAnswer: () => Response | Promise<Response>, path = "/auth/login") =>
     fetchMock.mockImplementation(async (url: string) => (url.endsWith(path) ? signInAnswer()
