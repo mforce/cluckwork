@@ -2687,6 +2687,16 @@ export const es = {
       + "de la aplicación de su teléfono. Sin su teléfono, ingrese uno de sus <strong>códigos de recuperación</strong>; "
       + "cada uno funciona una vez. Ingrese el código en unos 5 minutos: después, al enviarlo, vuelve al inicio de sesión. Los "
       + "códigos incorrectos cuentan para el mismo bloqueo breve de la cuenta que las contraseñas incorrectas.",
+    // #1285 — inicio de sesión con llave de acceso, autocompletado y la llave en el segundo paso.
+    signingInPasskey:
+      "<strong>Llaves de acceso.</strong> Elija <strong>Iniciar sesión con una llave de acceso</strong>, o elija una "
+      + "llave de acceso que su navegador ofrezca en el campo Correo. Puede dejar el código de granja en blanco: la "
+      + "llave de acceso dice a qué granja pertenece, y este dispositivo recuerda esa granja. Si hay un código de "
+      + "granja en el campo, la llave de acceso debe ser de esa granja. Si tiene una llave de acceso, una contraseña "
+      + "correcta es solo el primer paso: termine con <strong>Usar una llave de acceso</strong>, o con un código de "
+      + "autenticación si también tiene la aplicación. Si llegan muchas solicitudes de llave de acceso desde su red "
+      + "en poco tiempo, el botón de llave de acceso se desactiva unos minutos; su contraseña sigue funcionando. "
+      + "Donde las llaves de acceso están desactivadas en esta dirección web, la página de inicio de sesión no ofrece ninguna.",
     signingInPersistence:
       "Su inicio de sesión se guarda de forma segura en su navegador y permanece activo mientras trabaja, "
       + "incluso al recargar y con la aplicación abierta en <strong>varias pestañas</strong> a la vez. "
@@ -4131,7 +4141,8 @@ export const es = {
     glossaryPasskeyDef:
       "Una forma de demostrar que es usted con su teléfono o computadora: comprueba su huella, su cara o su PIN, y "
       + "luego demuestra que guarda una clave creada para su cuenta. Como la aplicación de autenticación, es un "
-      + "segundo factor. Añada hasta cinco en Cuenta › Seguridad. Una llave de acceso solo funciona en la dirección "
+      + "segundo factor. Una llave de acceso sola inicia su sesión, con el código de granja en blanco, y después de "
+      + "su contraseña completa el segundo paso. Añada hasta cinco en Cuenta › Seguridad. Una llave de acceso solo funciona en la dirección "
       + "web donde se creó. Donde las llaves de acceso están desactivadas, Cuenta › Seguridad muestra las que tiene "
       + "solo con Quitar. Quitar las llaves de acceso de otro usuario es una acción del propietario en la pantalla "
       + "Usuarios, aparte de restablecer la autenticación en dos pasos.",

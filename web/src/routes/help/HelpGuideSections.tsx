@@ -74,6 +74,9 @@ export function HelpGuideSections({ openLink }: { openLink: (sectionId: string) 
           <Trans ns="help" i18nKey="signingInSecondFactor" components={{ strong: <strong /> }} />
         </li>
         <li>
+          <Trans ns="help" i18nKey="signingInPasskey" components={{ strong: <strong /> }} />
+        </li>
+        <li>
           <Trans ns="help" i18nKey="signingInPersistence" components={{ strong: <strong /> }} />
         </li>
         <li>

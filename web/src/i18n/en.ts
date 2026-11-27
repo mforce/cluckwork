@@ -3433,6 +3433,15 @@ export const en = {
       + "your phone. Without your phone, enter one of your <strong>recovery codes</strong> instead; each one works "
       + "once. Enter the code within about 5 minutes: after that, submitting it sends you back to sign in again. Wrong codes count toward "
       + "the same brief account lock as wrong passwords.",
+    // #1285 — passkey sign-in, autofill and the passkey at the second step.
+    signingInPasskey:
+      "<strong>Passkeys.</strong> Choose <strong>Sign in with a passkey</strong>, or pick a passkey your browser "
+      + "offers in the Email field. You can leave the farm code blank: the passkey says which farm it belongs to, "
+      + "and this device then remembers that farm. If a farm code is in the field, the passkey must belong to that "
+      + "farm. When you have a passkey, a correct password is only the first step: finish with <strong>Use a "
+      + "passkey</strong>, or with an authenticator code if you also have the app. If many passkey requests come "
+      + "from your network in a short time, the passkey button is off for a few minutes; your password still works. "
+      + "Where passkeys are off at this web address, the sign-in page offers none.",
     signingInPersistence:
       "Your sign-in is kept in your browser securely and stays active as you work, across reloads and "
       + "with the app open in <strong>several tabs</strong> at once. After the app is "
@@ -4764,7 +4773,8 @@ export const en = {
     glossaryPasskeyTerm: "Passkey",
     glossaryPasskeyDef:
       "A way to prove it's you with your phone or computer: it checks your fingerprint, face or PIN, then proves "
-      + "it holds a key made for your account. Like the authenticator app, it is a second factor. Add up to five in "
+      + "it holds a key made for your account. Like the authenticator app, it is a second factor. A passkey alone "
+      + "signs you in, with the farm code blank, and after your password it finishes the second step. Add up to five in "
       + "Account › Security. A passkey works only at the web address where it was made. Where passkeys are off, "
       + "Account › Security lists the ones you have with Remove only. Removing another user's "
       + "passkeys is an Owner's action on the Users screen, separate from resetting two-factor authentication.",

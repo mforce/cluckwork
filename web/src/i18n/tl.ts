@@ -2779,6 +2779,16 @@ export const tl = {
       + "sa iyong phone. Kung wala ang iyong phone, ilagay ang isa sa iyong mga <strong>recovery code</strong>; "
       + "isang beses lang gumagana ang bawat isa. Ilagay ang code sa loob ng mga 5 minuto: pagkatapos noon, ibabalik ka sa "
       + "pag-sign in kapag isinumite mo ito. Ang maling code ay binibilang sa parehong panandaliang pag-block ng account gaya ng maling password.",
+    // #1285 — pag-sign in gamit ang passkey, autofill at ang passkey sa ikalawang hakbang.
+    signingInPasskey:
+      "<strong>Mga passkey.</strong> Piliin ang <strong>Mag-sign in gamit ang passkey</strong>, o pumili ng passkey "
+      + "na iniaalok ng iyong browser sa field na Email. Puwedeng iwanang blangko ang farm code: sinasabi ng passkey "
+      + "kung saang farm ito kabilang, at tatandaan ng device na ito ang farm na iyon. Kung may farm code sa field, "
+      + "dapat kabilang ang passkey sa farm na iyon. Kapag may passkey ka, unang hakbang lang ang tamang password: "
+      + "tapusin gamit ang <strong>Gumamit ng passkey</strong>, o gamit ang authenticator code kung mayroon ka ring "
+      + "app. Kung maraming hiling ng passkey mula sa iyong network sa maikling oras, naka-off ang passkey button nang "
+      + "ilang minuto; gumagana pa rin ang iyong password. Kung naka-off ang mga passkey sa web address na ito, walang "
+      + "iniaalok na passkey ang sign-in page.",
     signingInPersistence:
       "Ligtas na naka-save sa browser mo ang sign in mo at nananatiling aktibo habang nagtatrabaho ka, "
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
@@ -4256,7 +4266,8 @@ export const tl = {
     glossaryPasskeyDef:
       "Isang paraan para patunayang ikaw ito gamit ang iyong phone o computer: sinusuri nito ang iyong fingerprint, "
       + "mukha o PIN, tapos pinapatunayan na hawak nito ang key na ginawa para sa iyong account. Tulad ng "
-      + "authenticator app, isa itong second factor. Magdagdag ng hanggang lima sa Account › Seguridad. Gumagana "
+      + "authenticator app, isa itong second factor. Ang passkey lang ay sapat para mag-sign in, kahit blangko ang "
+      + "farm code, at pagkatapos ng password ay tinatapos nito ang ikalawang hakbang. Magdagdag ng hanggang lima sa Account › Seguridad. Gumagana "
       + "lang ang passkey sa web address kung saan ito ginawa. Kung saan naka-off ang mga passkey, ipinapakita ng "
       + "Account › Seguridad ang mga passkey mo na may Alisin lang. Aksyon ng Owner sa Users screen ang pag-alis ng mga "
       + "passkey ng ibang user, hiwalay sa pag-reset ng two-factor authentication.",
