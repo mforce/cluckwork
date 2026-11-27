@@ -786,6 +786,9 @@ describe("Login passkey timing (#1285)", () => {
 
     await act(async () => first.reject(limit()));
     await settle(91_000);
+    // While the request is out, the button stays, disabled, and says why.
+    expect(passkeyButton()).toBeDisabled();
+    expect(passkeyButton()).toHaveAccessibleDescription(i18n.t("auth:passkeyRenewing"));
     await act(async () => second.reject(limit()));
     observer.disconnect();
 
