@@ -542,6 +542,20 @@ describe("Login second step with a passkey (#1285)", () => {
     expect(codeField()).not.toBeInTheDocument();
   });
 
+  it("keeps the step's 404 for the page's life when the page was limited by a 429", async () => {
+    mockStart.mockRejectedValueOnce(new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 90 }));
+    mockStartSecond.mockRejectedValue(new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")));
+    await reachSecondStep(["authenticator", "passkey"]);
+    await act(async () => fireEvent.click(usePasskey()));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:secondFactorBack") })));
+
+    expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySignIn") })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "pw" } });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:signIn") })));
+
+    expectCodeViewOnly();
+  });
+
   it("still offers the passkey at the step after a 429 at the page", async () => {
     mockStart.mockRejectedValueOnce(new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 90 }));
     await reachSecondStep(["passkey"]);
@@ -753,6 +767,29 @@ describe("Login passkey timing (#1285)", () => {
 
     expect(mockStart).toHaveBeenCalledTimes(2);
     expect(passkeyButton()).toBeEnabled();
+  });
+
+  it("announces a second 429 with the same wait, clearing the note while the request is out", async () => {
+    const first = deferred<PasskeyCeremony>();
+    const second = deferred<PasskeyCeremony>();
+    mockStart.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
+    await bootWithFakeTimers();
+    const regions = screen.getAllByRole("status");
+    const said: string[] = [];
+    const observer = new MutationObserver(() => {
+      const text = regions.map((r) => r.textContent).join("");
+      if (said.at(-1) !== text) said.push(text);
+    });
+    regions.forEach((r) => observer.observe(r, { childList: true, characterData: true, subtree: true }));
+    const limit = () => new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 90 });
+    const note = i18n.t("auth:passkeyLimited", { count: 2 });
+
+    await act(async () => first.reject(limit()));
+    await settle(91_000);
+    await act(async () => second.reject(limit()));
+    observer.disconnect();
+
+    expect(said).toEqual([note, "", note]);
   });
 
   it("waits out at most the policy's window, whatever Retry-After says", async () => {

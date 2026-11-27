@@ -72,6 +72,9 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const renew = useCallback(async () => {
     if (renewing.current) return;
     renewing.current = true;
+    // A 429 note clears while the next request is out, so a second 429 with
+    // the same wait changes the live region again and is announced.
+    setState((s) => (s.kind === "limited" ? { kind: "waiting", dueAt: s.dueAt } : s));
     try {
       const current = await startPasskeySignIn();
       // Off stays off, even when the step learned it during this request.
