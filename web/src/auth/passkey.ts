@@ -8,6 +8,10 @@ export const passkeysSupported = () =>
   typeof window.PublicKeyCredential?.parseRequestOptionsFromJSON === "function"
   && typeof window.PublicKeyCredential.parseCreationOptionsFromJSON === "function";
 
+// WebAuthn refuses an IP address as the relying party, and the server runs
+// no ceremony for one (record 1282 decision 5), so such a host offers none.
+export const webAuthnHost = (host: string) => !/^\d{1,3}(\.\d{1,3}){3}$/.test(host) && !host.startsWith("[");
+
 // The browser or the authenticator failed, as opposed to the user cancelling.
 // Its message is the one text every passkey surface shows for it.
 export class PasskeyBrowserError extends Error {

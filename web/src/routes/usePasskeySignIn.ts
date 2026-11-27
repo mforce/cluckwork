@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { ApiError, startPasskeySignIn } from "../api/client";
 import type { PasskeyAnswer, PasskeyCeremony } from "../api/client";
-import { getPasskey, passkeysSupported } from "../auth/passkey";
+import { getPasskey, passkeysSupported, webAuthnHost } from "../auth/passkey";
 import { useAuth } from "../auth/useAuth";
 import i18n from "../i18n";
 import { messageFor, PASSKEYS_OFF } from "./signInMessage";
@@ -15,10 +15,6 @@ export const RENEW_MS = 4 * 60_000;
 export const RETRY_MS = 30_000;
 // The auth-passkey-options window: no Retry-After is waited out past it.
 const MAX_WAIT_SECONDS = 900;
-
-// WebAuthn refuses an IP address as the relying party, so such a host never
-// runs a ceremony and asks for none.
-export const webAuthnHost = (host: string) => !/^\d{1,3}(\.\d{1,3}){3}$/.test(host) && !host.startsWith("[");
 
 // unsupported: this browser or host cannot; off: the options route answered
 // 404 Passkeys.Off. Neither shows any passkey UI. loading: no ceremony yet,

@@ -6,7 +6,7 @@ import { useAuth } from "../auth/useAuth";
 import { ApiError, startSecondFactorPasskey } from "../api/client";
 import type { SecondFactor } from "../api/client";
 import { FARM_SUSPENDED } from "../api/session";
-import { getPasskey, passkeysSupported } from "../auth/passkey";
+import { getPasskey, passkeysSupported, webAuthnHost } from "../auth/passkey";
 import { BusyButton } from "../components/BusyButton";
 import { SecondFactorCodeField } from "../components/SecondFactorCodeField";
 import { usePendingAction } from "../components/usePendingAction";
@@ -43,14 +43,16 @@ export function SecondFactorStep({ farmCode, email, challenge, factors, onRestar
   const { completeSecondFactor } = useAuth();
   const { busy, run } = usePendingAction();
   const codeOffered = factors.includes("authenticator");
-  // #1283 "Sign-in A": the passkey first when it is offered.
-  const [usePasskey, setUsePasskey] = useState(factors.includes("passkey"));
-  // Learned from this step's own options route (record 1282 decision 5).
-  const [passkeysOff, setPasskeysOff] = useState(false);
+  // Learned from this step's own options route (record 1282 decision 5), or
+  // from an IP host, where that route can only answer 404 Passkeys.Off.
+  const [passkeysOff, setPasskeysOff] = useState(() => !webAuthnHost(window.location.hostname));
+  const passkeyUsable = passkeysSupported() && !passkeysOff;
+  // #1283 "Sign-in A": the passkey first when it can be used, or when it is
+  // the user's only second factor.
+  const [usePasskey, setUsePasskey] = useState(factors.includes("passkey") && (passkeyUsable || !codeOffered));
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const passkeyUsable = passkeysSupported() && !passkeysOff;
   // unavailable: the user would answer with a passkey, but this browser
   // cannot, or the address has passkeys off.
   const view = !usePasskey ? "code" : passkeyUsable ? "passkey" : "unavailable";

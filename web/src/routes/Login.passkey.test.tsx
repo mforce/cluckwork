@@ -3,7 +3,8 @@ import { screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { Routes, Route, useLocation } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
-import { RENEW_MS, RETRY_MS, webAuthnHost } from "./usePasskeySignIn";
+import { RENEW_MS, RETRY_MS } from "./usePasskeySignIn";
+import { webAuthnHost } from "../auth/passkey";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
   ApiError, login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, passkeyLogin as apiPasskeyLogin,
