@@ -81,6 +81,13 @@ set -euo pipefail
 SIM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SIM_DIR/.env.sim"
 COMPOSE_FILE="$SIM_DIR/docker-compose.sim.yml"
+# #1285 (record 1282 decision 20) — an optional second compose file, checked as
+# the app really gets it; e2e-smoke.yml passes the passkey overlay.
+COMPOSE_FILES=(-f "$COMPOSE_FILE")
+if [[ -n "${SIM_COMPOSE_OVERLAY:-}" ]]; then
+  [[ -f "$SIM_COMPOSE_OVERLAY" ]] || { echo "FAIL: SIM_COMPOSE_OVERLAY=$SIM_COMPOSE_OVERLAY does not exist" >&2; exit 1; }
+  COMPOSE_FILES+=(-f "$SIM_COMPOSE_OVERLAY")
+fi
 BOOTSTRAP="$SIM_DIR/bootstrap.sh"
 
 echo "== #243 harness self-check =="
@@ -156,7 +163,7 @@ PY
 resolved_json="$(mktemp)"
 compose_err="$(mktemp)"
 trap 'rm -f "$resolved_json" "$compose_err"' EXIT
-if ! docker compose -p cluckwork-sim --env-file "$ENV_FILE" -f "$COMPOSE_FILE" \
+if ! docker compose -p cluckwork-sim --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" \
      config --format json >"$resolved_json" 2>"$compose_err"; then
   echo "FAIL: 'docker compose config' failed — the harness config does not parse" >&2
   cat "$compose_err" >&2
@@ -261,6 +268,16 @@ elif parsed.scheme != "https" or not parsed.netloc or "?" in issuer or "#" in is
                 "#798 fails the Production boot")
 else:
     ok.append(f"OAuth__Issuer OK ({issuer})")
+
+# --- #1285 passkey origin -------------------------------------------------
+# Unset keeps passkeys off. A blank value binds as [""], which fails the
+# app's passkey boot check, so it is refused here instead.
+origin = env.get("Passkeys__Origins__0")
+if origin is not None and not str(origin).strip():
+    fail.append("Passkeys__Origins__0 resolves to an empty string — the passkey boot check fails; "
+                "leave it unset, or set it through the passkeys-e2e overlay")
+elif origin is not None:
+    ok.append(f"Passkeys__Origins__0 OK ({origin})")
 
 # --- #261/#262 TLS opt-out ----------------------------------------------
 # The EFFECTIVE value on the app service, not a grep of the file: a matching

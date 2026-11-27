@@ -86,6 +86,8 @@ on:
       - "Cluckwork.slnx"
       - ".dockerignore"
       - "deploy/**"
+      # #1285 — the passkey spec's TLS proxy.
+      - "tools/verify/mcp/**"
       - ".github/workflows/e2e-smoke.yml"
   workflow_dispatch:
     inputs:
@@ -128,6 +130,12 @@ jobs:
     env:
       # Its version must equal @playwright/test in tools/simulation/ui/package-lock.json (checked below).
       PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.62.1-resolute@sha256:aebd85bce8056dcdc2269853fd94ea432b6a201da4f0ef125b509489ecd52ddb
+      # #1285 (record 1282 decision 20) — WebAuthn needs a secure context and a
+      # host name, so the passkey specs reach the stack through a TLS proxy at
+      # PASSKEY_BASE_URL, and this overlay turns passkeys on for that address.
+      # verify-harness.sh and reset.sh read it; every other spec keeps BASE_URL.
+      SIM_COMPOSE_OVERLAY: tools/simulation/docker-compose.passkeys-e2e.yml
+      PASSKEY_BASE_URL: https://localhost:8495
 
     steps:
       - uses: actions/checkout@v7
@@ -216,6 +224,37 @@ jobs:
           # local reset.sh stay at Production's 15.
           Jwt__AccessTokenMinutes: "2"
         run: bash tools/simulation/reset.sh
+
+      # #1285 — the overlay trusts X-Forwarded-Proto from 172.16.0.0/12, which
+      # rests on Docker's default address pools; fail here if the runner's
+      # bridge gateway is elsewhere, rather than in the passkey spec.
+      - name: Check the stack's bridge gateway is in the trusted range
+        run: |
+          set -euo pipefail
+          gateway="$(docker network inspect cluckwork-sim_default --format '{{range .IPAM.Config}}{{.Gateway}} {{end}}')"
+          echo "bridge gateway: $gateway"
+          read -ra gateways <<<"$gateway"
+          python3 -c 'import ipaddress, sys; sys.exit(0 if sys.argv[1:] and all(ipaddress.ip_address(g) in ipaddress.ip_network("172.16.0.0/12") for g in sys.argv[1:]) else 1)' "${gateways[@]}" \
+            || { echo "::error::the sim network's gateway ($gateway) is outside 172.16.0.0/12, the range docker-compose.passkeys-e2e.yml trusts"; exit 1; }
+
+      # #1285 — a throwaway self-signed certificate for localhost, and the TLS
+      # proxy tools/verify/features/mcp.md uses. Playwright accepts the
+      # certificate through ignoreHTTPSErrors.
+      - name: Start the TLS proxy for the passkey specs
+        run: |
+          set -euo pipefail
+          tls="$RUNNER_TEMP/tls"
+          mkdir -p "$tls"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
+            -addext subjectAltName=DNS:localhost -keyout "$tls/key.pem" -out "$tls/cert.pem" 2>/dev/null
+          nohup node tools/verify/mcp/tls-proxy.mjs 8495 8081 "$tls/cert.pem" "$tls/key.pem" >"$tls/proxy.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -fsk -o /dev/null "$PASSKEY_BASE_URL/login"; then echo "proxy up at $PASSKEY_BASE_URL"; exit 0; fi
+            sleep 1
+          done
+          echo "::error::the TLS proxy did not answer at $PASSKEY_BASE_URL"
+          cat "$tls/proxy.log"
+          exit 1
 
       - name: Install suite dependencies
         working-directory: tools/simulation/ui
