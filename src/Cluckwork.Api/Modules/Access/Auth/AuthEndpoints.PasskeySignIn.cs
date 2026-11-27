@@ -31,23 +31,27 @@ public static partial class AuthEndpoints
         return SignedIn(response, tokens, access, env, new PasskeySignInResponse(tokens.AccessToken, tokens.AccessTokenExpiry, farmCode));
     }
 
+    // An options route refuses only with Passkeys.Off or a dead challenge.
     private static IResult PasskeyOptions(Result<PasskeyCeremonyStart> result) =>
         result.IsSuccess
             ? Results.Ok(OptionsResponse(result.Value))
-            : LoginStepProblem(result.Error, StatusCodes.Status401Unauthorized);
+            : LoginStepProblem(result.Error, refusedStatus: null);
 
     private static PasskeyOptionsResponse OptionsResponse(PasskeyCeremonyStart start) =>
         new(start.Ceremony, JsonSerializer.Deserialize<JsonElement>(start.OptionsJson));
 
     // 401 when the user must sign in again, and for a refused passkey sign-in;
     // a refusal at the code step is 400, so apiFetch does not refresh and
-    // resend (#1282 decision 12).
-    private static IResult LoginStepProblem(Error error, int refusedStatus) =>
+    // resend (#1282 decision 12). refusedStatus is null where no proof is
+    // checked. An unmapped code throws, as StepUpRouteProblem does.
+    private static IResult LoginStepProblem(Error error, int? refusedStatus) =>
         Results.Problem(error.Description, title: error.Code, statusCode: error.Code switch
         {
             PasskeyErrorCodes.Off => StatusCodes.Status404NotFound,
             SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended => StatusCodes.Status401Unauthorized,
-            _ => refusedStatus,
+            PasskeyErrorCodes.Refused or SecondFactorErrorCodes.Incorrect or SecondFactorErrorCodes.KeyUnavailable
+                when refusedStatus is { } status => status,
+            _ => throw new InvalidOperationException($"No answer is mapped for {error.Code}."),
         });
 
     // The browser's PublicKeyCredential JSON, passed to Identity unparsed.

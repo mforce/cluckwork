@@ -43,7 +43,7 @@ public sealed partial class IdentityProvider
         if (account is null) return Result.Failure<TokenPair>(LogExpiredChallenge());
         if (!account.Value.IsActive) return Result.Failure<TokenPair>(SecondFactorErrors.FarmSuspended);
 
-        return await SignInOwnedAsync(async token =>
+        var result = await SignInOwnedAsync(async token =>
         {
             // Record 1282 decision 3: the ceremony is consumed by the owned
             // transaction's first statement, so every refusal after it spends it.
@@ -54,9 +54,10 @@ public sealed partial class IdentityProvider
                     passkey.CredentialJson, ExpectedCredentialId: null, passkey.RequestHost);
             var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, proof, claims.Binding, token);
             return outcome is FactorOutcome.Accepted accepted
-                ? Result.Success(new AcceptedSignIn(claims.AccountId, claims.UserId, accepted))
-                : Result.Failure<AcceptedSignIn>(Refusal(outcome, passkey: passkey is not null));
+                ? Result.Success(new AcceptedSignIn<NoPayload>(claims.AccountId, claims.UserId, accepted, default))
+                : Result.Failure<AcceptedSignIn<NoPayload>>(Refusal(outcome, proof));
         }, ct);
+        return result.IsSuccess ? Result.Success(result.Value.Tokens) : Result.Failure<TokenPair>(result.Error);
     }
 
     // Decision 3: reads the challenge to learn the user, without spending it,
@@ -84,22 +85,32 @@ public sealed partial class IdentityProvider
             ? (row.IsActive, row.Slug)
             : null;
 
-    // A proof the owned transaction accepted, for the user it names.
-    private sealed record AcceptedSignIn(Guid AccountId, Guid UserId, FactorOutcome.Accepted Proof)
+    // A proof the owned transaction accepted, for the user it names, and what
+    // the finish hands back beside the tokens.
+    private sealed record AcceptedSignIn<T>(Guid AccountId, Guid UserId, FactorOutcome.Accepted Proof, T Payload)
     {
         public override string ToString() => "[redacted]";
     }
+
+    // A committed sign-in: the tokens, the user and the finish's payload.
+    private sealed record SignedIn<T>(TokenPair Tokens, Guid UserId, T Payload)
+    {
+        public override string ToString() => "[redacted]";
+    }
+
+    // The code step hands back nothing beside the tokens.
+    private readonly record struct NoPayload;
 
     // The owned transaction a sign-in finish runs in. Outside IdempotentUnit,
     // so a refused outcome's charge and a consumed ceremony commit, and never in
     // a caller's transaction, which could roll them back (C1). It runs once: a
     // replay after a lost commit would find the challenge or ceremony spent
     // (G3.14).
-    private async Task<Result<TokenPair>> SignInOwnedAsync(
-        Func<CancellationToken, Task<Result<AcceptedSignIn>>> prove, CancellationToken ct)
+    private async Task<Result<SignedIn<T>>> SignInOwnedAsync<T>(
+        Func<CancellationToken, Task<Result<AcceptedSignIn<T>>>> prove, CancellationToken ct)
     {
         var (rawToken, tokenHash) = GenerateRefreshToken();
-        TokenPair? delivered = null;
+        SignedIn<T>? delivered = null;
         try
         {
             return await AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
@@ -110,12 +121,12 @@ public sealed partial class IdentityProvider
                     // A refused outcome's charge stands even if the client has
                     // gone: a cancelled commit would roll it back.
                     await transaction.CommitAsync(CancellationToken.None);
-                    return Result.Failure<TokenPair>(proof.Error);
+                    return Result.Failure<SignedIn<T>>(proof.Error);
                 }
 
                 // Decision 19: a superseded or refused attempt leaves the tenant
                 // and the actor unresolved, so it can write no audit row.
-                var (accountId, userId, accepted) = proof.Value;
+                var (accountId, userId, accepted, payload) = proof.Value;
                 var user = await db.Users.SingleAsync(u => u.Id == userId && u.AccountId == accountId, token);
                 var roles = await userManager.GetRolesAsync(user);
                 tenant.Resolve(user.AccountId);
@@ -126,7 +137,7 @@ public sealed partial class IdentityProvider
 
                 db.RefreshTokens.Add(NewToken(user, tokenHash, signedInAt: timeProvider.GetUtcNow()));
                 await db.SaveChangesAsync(token);
-                delivered = jwtTokenService.CreateTokenPair(user, [.. roles], rawToken);
+                delivered = new SignedIn<T>(jwtTokenService.CreateTokenPair(user, [.. roles], rawToken), userId, payload);
                 await transaction.CommitAsync(token);
                 return Result.Success(delivered);
             }, ct);
@@ -141,14 +152,16 @@ public sealed partial class IdentityProvider
         }
     }
 
-    // A refused passkey is 400 Auth.PasskeyRefused, never a code's answer.
-    private Error Refusal(FactorOutcome outcome, bool passkey) => outcome switch
+    // The code step's answer for each refusal; a refused passkey is
+    // Auth.PasskeyRefused, never a code's answer.
+    private Error Refusal(FactorOutcome outcome, FactorProof proof) => (outcome, proof) switch
     {
-        FactorOutcome.Superseded => LogExpiredChallenge(),
-        FactorOutcome.Rejected when passkey => SecondFactorErrors.PasskeyRefused,
-        FactorOutcome.Unavailable => SecondFactorErrors.KeyUnavailable,
-        FactorOutcome.Throttled throttled => new RetryLaterError(throttled.RetryAfter),
-        _ => SecondFactorErrors.Incorrect,
+        (FactorOutcome.Superseded, _) => LogExpiredChallenge(),
+        (FactorOutcome.Rejected, FactorProof.Passkey) => SecondFactorErrors.PasskeyRefused,
+        (FactorOutcome.Rejected, FactorProof.Code) => SecondFactorErrors.Incorrect,
+        (FactorOutcome.Unavailable, _) => SecondFactorErrors.KeyUnavailable,
+        (FactorOutcome.Throttled throttled, _) => new RetryLaterError(throttled.RetryAfter),
+        _ => throw new UnreachableException($"{outcome.GetType().Name} is not a refusal."),
     };
 
     private Error LogExpiredChallenge()

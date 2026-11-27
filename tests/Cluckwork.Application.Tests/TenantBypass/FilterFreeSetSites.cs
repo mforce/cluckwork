@@ -115,7 +115,7 @@ internal static class FilterFreeSetSites
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.LoginAsync(Guid accountId, string email, string password, CancellationToken ct)",
             "db.RefreshTokens", "9d5e17f7",
             "by-hash: login rotates the user's refresh tokens by user id (account-unique); the token hash embeds the account."),
-        new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.SignInOwnedAsync(Func<CancellationToken, Task<Result<AcceptedSignIn>>> prove, CancellationToken ct)",
+        new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.SignInOwnedAsync(Func<CancellationToken, Task<Result<AcceptedSignIn<T>>>> prove, CancellationToken ct)",
             "db.RefreshTokens", "e2769185",
             "insert-only: adds the refresh row the login code step or passkey sign-in mints for the user VerifyAsync accepted, after the tenant resolves to that user's account; the interceptor checks its AccountId (#1278, #1285)."),
         new("Cluckwork.Infrastructure.Modules.Access.Identity.IdentityProvider.MintedTokenIsDurableAsync(string mintedHash)",

@@ -23,10 +23,11 @@ public sealed partial class IdentityProvider
             return Result.Failure<PasskeySignIn>(result.Error);
         }
         securityEvents.PasskeySignIn(result.Value.UserId);
-        return Result.Success(result.Value.SignIn);
+        return Result.Success(new PasskeySignIn(result.Value.Tokens, result.Value.Payload));
     }
 
-    private async Task<Result<(PasskeySignIn SignIn, Guid UserId)>> PasskeyLoginCoreAsync(
+    // The payload is the signed-in farm's code, as stored.
+    private async Task<Result<SignedIn<string>>> PasskeyLoginCoreAsync(
         Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct)
     {
         // Decision 11: a typed farm code is resolved first, so an unknown one is
@@ -36,12 +37,11 @@ public sealed partial class IdentityProvider
         if (!string.IsNullOrWhiteSpace(farmCode))
         {
             if (await ResolveFarmCodeAsync(farmCode, ct) is not { } farm)
-                return Result.Failure<(PasskeySignIn, Guid)>(SecondFactorErrors.PasskeyRefused);
+                return Result.Failure<SignedIn<string>>(SecondFactorErrors.PasskeyRefused);
             farmAccountId = farm.AccountId;
         }
 
-        (Guid UserId, string FarmCode)? signedIn = null;
-        var result = await SignInOwnedAsync(async token =>
+        return await SignInOwnedAsync(async token =>
         {
             // Step 0, before any other check, so a ceremony is good for one attempt.
             var consumed = await passkeys.ConsumeAsync(ceremony, CeremonyPurpose.SignIn, userId: null, token);
@@ -50,12 +50,14 @@ public sealed partial class IdentityProvider
             if (consumed is null
                 || await passkeys.FindOwnerAsync(credentialJson, token) is not { } owner
                 || (farmAccountId is { } farm && farm != owner.AccountId))
-                return Result.Failure<AcceptedSignIn>(SecondFactorErrors.PasskeyRefused);
+                return Result.Failure<AcceptedSignIn<string>>(SecondFactorErrors.PasskeyRefused);
 
             // Step 3, the read the code step makes. It also reads the farm's
             // code, which the SPA remembers after a sign-in with a blank one.
-            if (await AccountStateAsync(owner.AccountId, token) is not (true, var slug))
-                return Result.Failure<AcceptedSignIn>(SecondFactorErrors.FarmSuspended);
+            if (await AccountStateAsync(owner.AccountId, token) is not { } account)
+                return Result.Failure<AcceptedSignIn<string>>(SecondFactorErrors.PasskeyRefused);
+            if (!account.IsActive)
+                return Result.Failure<AcceptedSignIn<string>>(SecondFactorErrors.FarmSuspended);
 
             // Step 4: the binding read without a lock, as the password step
             // reads it, then the code step's checks under the lock.
@@ -63,19 +65,13 @@ public sealed partial class IdentityProvider
                 .Where(u => u.Id == owner.UserId && u.AccountId == owner.AccountId)
                 .Select(u => new { u.CredentialEpoch, u.SecurityStamp, u.SecondFactorSignIns })
                 .SingleOrDefaultAsync(token);
-            if (row is null) return Result.Failure<AcceptedSignIn>(SecondFactorErrors.PasskeyRefused);
+            if (row is null) return Result.Failure<AcceptedSignIn<string>>(SecondFactorErrors.PasskeyRefused);
             var outcome = await twoFactor.VerifyAsync(owner.AccountId, owner.UserId,
                 new FactorProof.Passkey(consumed, credentialJson, owner.CredentialId, requestHost),
                 new ProofBinding(row.CredentialEpoch, ProofBinding.HashStamp(row.SecurityStamp), row.SecondFactorSignIns), token);
-            if (outcome is FactorOutcome.Accepted accepted)
-            {
-                signedIn = (owner.UserId, slug);
-                return Result.Success(new AcceptedSignIn(owner.AccountId, owner.UserId, accepted));
-            }
-            return Result.Failure<AcceptedSignIn>(SecondFactorErrors.PasskeyRefused);
+            return outcome is FactorOutcome.Accepted accepted
+                ? Result.Success(new AcceptedSignIn<string>(owner.AccountId, owner.UserId, accepted, account.Slug))
+                : Result.Failure<AcceptedSignIn<string>>(SecondFactorErrors.PasskeyRefused);
         }, ct);
-
-        if (!result.IsSuccess || signedIn is not { } done) return Result.Failure<(PasskeySignIn, Guid)>(result.Error);
-        return Result.Success((new PasskeySignIn(result.Value, done.FarmCode), done.UserId));
     }
 }
