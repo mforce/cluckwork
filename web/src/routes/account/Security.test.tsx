@@ -402,7 +402,7 @@ describe("the step-up proof", () => {
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
           mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
-          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), passkeyLogin: vi.fn(), logout: vi.fn(),
         }}>
           <RecoveryCodesProvider>
             <MeContext.Provider value={{ id: "u1", email: EMAIL, name: null, role: "Worker", language: null, preferredStepperUnit: null }}>

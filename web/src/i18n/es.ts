@@ -79,6 +79,23 @@ export const es = {
     secondFactorSubmit: "Verificar",
     secondFactorVerifying: "Verificando…",
     secondFactorBack: "Volver al inicio de sesión",
+    // #1285 — inicio de sesión con llave de acceso y la llave en el segundo paso.
+    farmCodeHint: "Obligatorio con su contraseña.",
+    passkeySignIn: "Iniciar sesión con una llave de acceso",
+    passkeyFarmCodeOptional: "Puede dejar el código de granja en blanco si usa una llave de acceso.",
+    passkeySignInCancelled: "Se canceló el inicio de sesión con la llave de acceso. Inténtelo de nuevo o use su contraseña.",
+    passkeyLimited_one:
+      "Demasiadas solicitudes de llave de acceso desde esta red. Inténtelo de nuevo en {{count}} minuto o use su contraseña.",
+    passkeyLimited_other:
+      "Demasiadas solicitudes de llave de acceso desde esta red. Inténtelo de nuevo en {{count}} minutos o use su contraseña.",
+    passkeySecondTitle: "Verifique su inicio de sesión",
+    passkeySecondIntro: "Use una llave de acceso para terminar de iniciar sesión.",
+    passkeySecondSubmit: "Usar una llave de acceso",
+    passkeySecondUseCode: "Usar un código de autenticación",
+    passkeySecondOnly: "No tiene una aplicación de autenticación configurada. Su contraseña sola no basta para iniciar sesión.",
+    passkeySecondOff:
+      "Las llaves de acceso están desactivadas en esta dirección web y su cuenta no tiene aplicación de autenticación. Pida a un Propietario de su granja que quite sus llaves de acceso y luego inicie sesión con su contraseña.",
+    passkeySecondCancelled: "Se canceló la comprobación con la llave de acceso. Inténtelo de nuevo.",
     secondFactorIncorrect:
       "Ese código no funcionó. Si acaba de usarlo, espere al siguiente.",
     secondFactorClockHint:

@@ -74,9 +74,13 @@ export const SECOND_FACTOR_REQUIRED = "Auth.SecondFactorRequired";
 // when a session is torn down.
 export const FARM_SUSPENDED = "Auth.FarmSuspended";
 
+// #1285 — the proofs the pending 401's `secondFactors` names (record 1282).
+export type SecondFactor = "authenticator" | "passkey";
+const SECOND_FACTORS: readonly SecondFactor[] = ["authenticator", "passkey"];
+
 export type LoginOutcome =
   | { kind: "signedIn" }
-  | { kind: "secondFactor"; challenge: string; expiresAt: string };
+  | { kind: "secondFactor"; challenge: string; expiresAt: string; factors: SecondFactor[] };
 
 export async function login(body: LoginRequest): Promise<LoginOutcome> {
   try {
@@ -86,18 +90,47 @@ export async function login(body: LoginRequest): Promise<LoginOutcome> {
     if (!(err instanceof ApiError) || err.status !== 401 || err.title !== SECOND_FACTOR_REQUIRED) throw err;
     // The challenge is a credential until it is used: taken off the error at
     // once, so no generic catch can print or report it.
-    const { challenge, challengeExpiresAt } = err.extensions;
+    const { challenge, challengeExpiresAt, secondFactors } = err.extensions;
     delete err.extensions.challenge;
     if (typeof challenge !== "string" || typeof challengeExpiresAt !== "string") throw err;
-    return { kind: "secondFactor", challenge, expiresAt: challengeExpiresAt };
+    const factors = SECOND_FACTORS.filter((f) => Array.isArray(secondFactors) && secondFactors.includes(f));
+    if (factors.length === 0) throw err;
+    return { kind: "secondFactor", challenge, expiresAt: challengeExpiresAt, factors };
   }
+}
+
+// #1285 — a WebAuthn ceremony: its id and the browser's request options JSON.
+export interface PasskeyCeremony {
+  ceremony: string;
+  options: PublicKeyCredentialRequestOptionsJSON;
+}
+
+// The ceremony and the browser's credential JSON, sent back unparsed.
+export interface PasskeyAnswer {
+  ceremony: string;
+  credential: AuthenticationResponseJSON;
+}
+
+// #1285 — anonymous and sent with raw, so a 401 is never refreshed and resent.
+export const startPasskeySignIn = () =>
+  raw<PasskeyCeremony>("/auth/login/passkey/options", { method: "POST", body: "{}" });
+
+export const startSecondFactorPasskey = (challenge: string) =>
+  raw<PasskeyCeremony>("/auth/login/second-factor/passkey-options", { method: "POST", body: JSON.stringify({ challenge }) });
+
+// #1285 — a passkey sign-in mints the session as login does. A blank farm
+// code goes as null: the passkey names the farm (record 1282 decision 11).
+export function passkeyLogin(answer: PasskeyAnswer, farmCode: string): Promise<void> {
+  return signIn("/auth/login/passkey", { ...answer, farmCode: farmCode.trim() || null });
 }
 
 // #1274 — the code step mints the session exactly as login does, so it is the
 // same flight: the same cross-tab lock, deadline, generation check and stale
-// cookie revoke.
-export function completeSecondFactor(challenge: string, code: string): Promise<void> {
-  return noteCode(signIn("/auth/login/second-factor", { challenge, code }), code);
+// cookie revoke. #1285 — it also takes a passkey.
+export function completeSecondFactor(challenge: string, answer: string | PasskeyAnswer): Promise<void> {
+  return typeof answer === "string"
+    ? noteCode(signIn("/auth/login/second-factor", { challenge, code: answer }), answer)
+    : signIn("/auth/login/second-factor", { challenge, passkey: answer });
 }
 
 // #1279 — marks a refusal with the kind of code it answered, so every

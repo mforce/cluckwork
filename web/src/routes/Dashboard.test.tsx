@@ -31,7 +31,7 @@ function AuthOverride({ role, children }: { role: Role; children: ReactNode }) {
       isAuthenticated: true, isLoading: false,
       isAdmin: role === "Admin" || role === "Manager",
       role, userId: "u1", mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
-      login: async () => ({ kind: "signedIn" as const }), completeSecondFactor: async () => {}, logout: async () => {},
+      login: async () => ({ kind: "signedIn" as const }), completeSecondFactor: async () => {}, passkeyLogin: async () => {}, logout: async () => {},
     }}>
       {/* As in App: the slot sits above every route, and the Dashboard's status read follows it (#1281). */}
       <RecoveryCodesProvider>{children}</RecoveryCodesProvider>

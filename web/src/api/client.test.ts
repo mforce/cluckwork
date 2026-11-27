@@ -10,6 +10,7 @@ import {
   apiGetBlob,
   login,
   completeSecondFactor,
+  passkeyLogin,
   logout,
   restoreSession,
   changePassword,
@@ -1087,14 +1088,65 @@ describe("auth endpoints", () => {
     clearBoundAccount();
     fetchMock.mockResolvedValueOnce(jsonResponse({
       title: "Auth.SecondFactorRequired", status: 401, detail: "Enter the code from your authenticator app.",
-      challenge: "challenge-jwt", challengeExpiresAt: FUTURE,
+      challenge: "challenge-jwt", challengeExpiresAt: FUTURE, secondFactors: ["authenticator"],
     }, 401));
 
     await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
-      .resolves.toEqual({ kind: "secondFactor", challenge: "challenge-jwt", expiresAt: FUTURE });
+      .resolves.toEqual({ kind: "secondFactor", challenge: "challenge-jwt", expiresAt: FUTURE, factors: ["authenticator"] });
     expect(getAccessToken()).toBeNull();
     expect(getBoundAccountId()).toBeNull();
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
+  });
+
+  // #1285 — the pending 401's secondFactors names the proofs; unknown names are
+  // dropped, and a list naming none is not a usable second step.
+  it.each([
+    [["passkey"], ["passkey"]],
+    [["passkey", "authenticator", "sms"], ["authenticator", "passkey"]],
+  ])("login reads secondFactors %j as %j", async (sent, factors) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.SecondFactorRequired", status: 401, challenge: "challenge-jwt", challengeExpiresAt: FUTURE, secondFactors: sent,
+    }, 401));
+
+    await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
+      .resolves.toMatchObject({ kind: "secondFactor", factors });
+  });
+
+  it.each([[undefined], [[]], [["sms"]], ["passkey"]])("login rethrows a pending 401 whose secondFactors is %j", async (sent) => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      title: "Auth.SecondFactorRequired", status: 401, challenge: "challenge-jwt", challengeExpiresAt: FUTURE, secondFactors: sent,
+    }, 401));
+
+    await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" })).rejects.toBeInstanceOf(ApiError);
+  });
+
+  // #1285 — a passkey sign-in is one anonymous request: a blank farm code goes
+  // as null, a refusal is never refreshed and resent, and success signs in.
+  it("passkeyLogin sends the ceremony, the credential and the farm code, and signs in like login", async () => {
+    clearAccessToken();
+    clearBoundAccount();
+    const answer = { ceremony: "c-1", credential: { id: "cred" } as unknown as AuthenticationResponseJSON };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Auth.PasskeyRefused", status: 401 }, 401));
+
+    await expect(passkeyLogin(answer, "  ")).rejects.toMatchObject({ status: 401, title: "Auth.PasskeyRefused" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/passkey")[0][1].body)))
+      .toEqual({ ceremony: "c-1", credential: { id: "cred" }, farmCode: null });
+
+    fetchMock.mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "passkey")));
+    await passkeyLogin(answer, "Farm-A");
+    expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/passkey")[1][1].body)).farmCode).toBe("Farm-A");
+    expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "passkey"));
+    expect(getBoundAccountId()).toBe("acct-A");
+  });
+
+  it("completeSecondFactor sends a passkey answer as {challenge, passkey}", async () => {
+    const answer = { ceremony: "c-2", credential: { id: "cred" } as unknown as AuthenticationResponseJSON };
+    fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Auth.PasskeyRefused", status: 400 }, 400));
+
+    await expect(completeSecondFactor("challenge-jwt", answer)).rejects.toMatchObject({ status: 400 });
+    expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/second-factor")[0][1].body)))
+      .toEqual({ challenge: "challenge-jwt", passkey: { ceremony: "c-2", credential: { id: "cred" } } });
   });
 
   it("login takes the challenge off an error it rethrows", async () => {

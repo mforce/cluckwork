@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-import { Alert, Box, IconButton, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, IconButton, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
 import { AuthShell } from "../components/AuthShell";
@@ -19,6 +19,8 @@ import { useCachedBannerUrl } from "../lib/bannerCache";
 import { FARM_SUSPENDED } from "../api/session";
 import { messageFor } from "./signInMessage";
 import { SecondFactorStep } from "./SecondFactorStep";
+import { usePasskeySignIn } from "./usePasskeySignIn";
+import type { SecondFactor } from "../api/client";
 
 interface LocationState {
   from?: { pathname: string; search?: string };
@@ -169,7 +171,14 @@ export function Login() {
   // trying to sign in is told anything.
   const [needsSetup, setNeedsSetup] = useState(false);
   // #1274 — the challenge lives in this state only, never in storage or a URL.
-  const [challenge, setChallenge] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState<{ challenge: string; factors: SecondFactor[] } | null>(null);
+  const passkey = usePasskeySignIn({
+    active: challenge === null,
+    farmCode,
+    onSignedIn: () => navigate(from, { replace: true }),
+    onError: setError,
+  });
+  const passkeyOn = passkey.state.kind === "ready" || passkey.state.kind === "limited";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -181,7 +190,7 @@ export function Login() {
         const outcome = await login(farmCode, email, password);
         if (outcome.kind === "secondFactor") {
           setPassword("");
-          setChallenge(outcome.challenge);
+          setChallenge(outcome);
           return;
         }
         navigate(from, { replace: true });
@@ -233,7 +242,9 @@ export function Login() {
       {challenge !== null ? (
         <SecondFactorStep
           farmCode={farmCode}
-          challenge={challenge}
+          challenge={challenge.challenge}
+          factors={challenge.factors}
+          passkeysOff={passkey.state.kind === "off"}
           onRestart={(message) => {
             setChallenge(null);
             setError(message);
@@ -319,6 +330,7 @@ export function Login() {
             setFarmCode(e.target.value);
           }}
           required
+          helperText={passkeyOn ? t("farmCodeHint") : undefined}
           slotProps={{
             htmlInput: {
               autoCapitalize: "none", autoCorrect: "off", spellCheck: false, maxLength: 32,
@@ -332,7 +344,8 @@ export function Login() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          autoComplete="username"
+          // #1285 — the webauthn token lets the browser offer passkeys here.
+          autoComplete={passkey.state.kind === "ready" ? "username webauthn" : "username"}
           required
           slotProps={{ htmlInput: { maxLength: 256 } }}
         />
@@ -351,6 +364,24 @@ export function Login() {
         <BusyButton variant="contained" type="submit" busy={busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
+        {passkeyOn && (
+          // #1283 "Sign-in A": one outlined passkey action below the form.
+          <Stack spacing={1}>
+            <Button
+              variant="outlined"
+              type="button"
+              disabled={passkey.state.kind !== "ready" || passkey.busy || busy}
+              onClick={() => void passkey.signInWithButton()}
+            >
+              {t("passkeySignIn")}
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              {passkey.state.kind === "limited"
+                ? t("passkeyLimited", { count: passkey.state.minutes })
+                : t("passkeyFarmCodeOptional")}
+            </Typography>
+          </Stack>
+        )}
       </Stack>
       )}
       {confirmDialog}

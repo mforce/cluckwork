@@ -85,6 +85,23 @@ export const tl = {
     secondFactorSubmit: "I-verify",
     secondFactorVerifying: "Vine-verify…",
     secondFactorBack: "Bumalik sa pag-sign in",
+    // #1285 — pag-sign in gamit ang passkey at ang passkey sa ikalawang hakbang.
+    farmCodeHint: "Kailangan kasama ng iyong password.",
+    passkeySignIn: "Mag-sign in gamit ang passkey",
+    passkeyFarmCodeOptional: "Puwedeng iwanang blangko ang farm code kapag passkey ang gamit.",
+    passkeySignInCancelled: "Kinansela ang pag-sign in gamit ang passkey. Subukan ulit o gamitin ang iyong password.",
+    passkeyLimited_one:
+      "Masyadong maraming hiling ng passkey mula sa network na ito. Subukan ulit pagkalipas ng {{count}} minuto, o gamitin ang iyong password.",
+    passkeyLimited_other:
+      "Masyadong maraming hiling ng passkey mula sa network na ito. Subukan ulit pagkalipas ng {{count}} minuto, o gamitin ang iyong password.",
+    passkeySecondTitle: "I-verify ang iyong pag-sign in",
+    passkeySecondIntro: "Gumamit ng passkey para matapos ang pag-sign in.",
+    passkeySecondSubmit: "Gumamit ng passkey",
+    passkeySecondUseCode: "Gumamit ng authenticator code",
+    passkeySecondOnly: "Walang naka-set up na authenticator app. Hindi sapat ang password lang para matapos ang pag-sign in.",
+    passkeySecondOff:
+      "Naka-off ang mga passkey sa web address na ito, at walang authenticator app ang iyong account. Hilingin sa isang Owner ng iyong farm na alisin ang iyong mga passkey, saka mag-sign in gamit ang iyong password.",
+    passkeySecondCancelled: "Kinansela ang pagsuri gamit ang passkey. Subukan ulit.",
     secondFactorIncorrect:
       "Hindi gumana ang code na iyon. Kung kagagamit mo lang nito, hintayin ang susunod.",
     secondFactorClockHint:

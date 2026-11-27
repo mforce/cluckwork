@@ -118,6 +118,23 @@ export const en = {
     secondFactorSubmit: "Verify",
     secondFactorVerifying: "Verifying…",
     secondFactorBack: "Back to sign in",
+    // #1285 — passkey sign-in (#1283 "Sign-in A") and the passkey at the second step.
+    farmCodeHint: "Required with your password.",
+    passkeySignIn: "Sign in with a passkey",
+    passkeyFarmCodeOptional: "You can leave the farm code blank when using a passkey.",
+    passkeySignInCancelled: "Passkey sign-in was cancelled. Try again or use your password.",
+    passkeyLimited_one:
+      "Too many passkey requests from this network. Try again in {{count}} minute, or use your password.",
+    passkeyLimited_other:
+      "Too many passkey requests from this network. Try again in {{count}} minutes, or use your password.",
+    passkeySecondTitle: "Verify your sign-in",
+    passkeySecondIntro: "Use a passkey to finish signing in.",
+    passkeySecondSubmit: "Use a passkey",
+    passkeySecondUseCode: "Use an authenticator code",
+    passkeySecondOnly: "No authenticator app is set up. Your password alone cannot finish signing in.",
+    passkeySecondOff:
+      "Passkeys are off at this web address, and your account has no authenticator app. Ask an Owner of your farm to remove your passkeys, then sign in with your password.",
+    passkeySecondCancelled: "The passkey check was cancelled. Try again.",
     secondFactorIncorrect:
       "That code did not work. If you just used it, wait for the next one.",
     secondFactorClockHint:
