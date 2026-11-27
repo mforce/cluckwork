@@ -46,6 +46,8 @@ public sealed class PasskeyOwnershipTests
             Count, "the Users page shows the count and offers Remove passkeys when it is above 0 (decision 18)"),
         new(InInfrastructure + Identity + "TwoFactorCredentials.SecondFactorsOf(" + Identity + "ApplicationUser)",
             Count, "the proofs a user can give at the second step: login's pending state and the code step read it, also while passkeys are off (decision 7, #1285)"),
+        new(InInfrastructure + Identity + "TwoFactorCredentials.Admits(" + Identity + "ApplicationUser, " + Identity + "ProofBinding, " + Identity + "FactorKind)",
+            Count, "a passkey answers only for a user who has one, as a code needs the app (Checking a passkey, step 1, #1285)"),
     ];
 
     // PasskeyCredentials held 15 owned references on 2026-11-23, and three

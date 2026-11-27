@@ -67,7 +67,7 @@ public sealed partial class IdentityProvider
     {
         if (ReadChallenge(challenge) is { } claims
             && await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == claims.UserId && u.AccountId == claims.AccountId, ct) is { } user
-            && TwoFactorCredentials.Admits(user, claims.Binding, SecondFactorKinds.Passkey))
+            && TwoFactorCredentials.Admits(user, claims.Binding, FactorKind.Passkey))
             return Result.Success(await passkeys.StartSecondStepAsync(user, requestHost, ct));
         return Result.Failure<PasskeyCeremonyStart>(LogExpiredChallenge());
     }

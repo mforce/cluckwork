@@ -62,8 +62,8 @@ internal sealed class PasskeyCredentials(
             options.CreationOptionsJson);
     }
 
-    public async Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct) =>
-        await StartAssertionAsync(CeremonyPurpose.SignIn, user: null, requestHost, ct);
+    public Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct) =>
+        StartAssertionAsync(CeremonyPurpose.SignIn, user: null, requestHost, ct);
 
     public Task<PasskeyCeremonyStart> StartSecondStepAsync(ApplicationUser user, string requestHost, CancellationToken ct) =>
         StartAssertionAsync(CeremonyPurpose.SecondStep, user, requestHost, ct);
