@@ -73,7 +73,7 @@ beforeEach(() => {
   vi.mocked(listMyConnectedApps).mockResolvedValue([]);
   mockStepUp.mockImplementation(async () => grant());
   parse.mockImplementation((options: unknown) => ({ parsed: options }));
-  vi.stubGlobal("PublicKeyCredential", { parseCreationOptionsFromJSON: parse });
+  vi.stubGlobal("PublicKeyCredential", { parseCreationOptionsFromJSON: parse, parseRequestOptionsFromJSON: parse });
   Object.defineProperty(navigator, "credentials", { value: { create }, configurable: true });
 });
 afterEach(() => {

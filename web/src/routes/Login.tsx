@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -172,8 +172,8 @@ export function Login() {
   const [needsSetup, setNeedsSetup] = useState(false);
   // #1274 — the challenge lives in this state only, never in storage or a URL.
   const [challenge, setChallenge] = useState<{ challenge: string; factors: SecondFactor[] } | null>(null);
-  const passkey = usePasskeySignIn({ active: challenge === null, farmCode, onError: setError });
-  const passkeyOn = passkey.state.kind === "ready" || passkey.state.kind === "limited";
+  const passkey = usePasskeySignIn({ active: challenge === null && !busy, farmCode, onError: setError });
+  const passkeyNoteId = useId();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -240,7 +240,6 @@ export function Login() {
           email={email}
           challenge={challenge.challenge}
           factors={challenge.factors}
-          passkeysOff={passkey.state.kind === "off"}
           onRestart={(message) => {
             setChallenge(null);
             setError(message);
@@ -326,7 +325,7 @@ export function Login() {
             setFarmCode(e.target.value);
           }}
           required
-          helperText={passkeyOn ? t("farmCodeHint") : undefined}
+          helperText={passkey.offered ? t("farmCodeHint") : undefined}
           slotProps={{
             htmlInput: {
               autoCapitalize: "none", autoCorrect: "off", spellCheck: false, maxLength: 32,
@@ -339,9 +338,13 @@ export function Login() {
           name="email"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            passkey.resumeAutofill();
+          }}
+          onFocus={passkey.resumeAutofill}
           // #1285 — the webauthn token lets the browser offer passkeys here.
-          autoComplete={passkey.state.kind === "ready" ? "username webauthn" : "username"}
+          autoComplete={passkey.autofill ? "username webauthn" : "username"}
           required
           slotProps={{ htmlInput: { maxLength: 256 } }}
         />
@@ -357,23 +360,25 @@ export function Login() {
           slotProps={{ htmlInput: { maxLength: 256 } }}
         />
         {error && <Alert severity="error">{error}</Alert>}
-        <BusyButton variant="contained" type="submit" busy={busy}>
+        {/* One sign-in at a time: disabled, it also stops Enter from submitting. */}
+        <BusyButton variant="contained" type="submit" busy={busy} disabled={passkey.busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
-        {passkeyOn && (
+        {passkey.offered && (
           // #1283 "Sign-in A": one outlined passkey action below the form.
           <Stack spacing={1}>
             <Button
               variant="outlined"
               type="button"
-              disabled={passkey.state.kind !== "ready" || passkey.busy || busy}
+              disabled={!passkey.enabled}
+              aria-describedby={passkeyNoteId}
               onClick={() => void passkey.signInWithButton()}
             >
               {t("passkeySignIn")}
             </Button>
-            <Typography variant="body2" color="text.secondary">
-              {passkey.state.kind === "limited"
-                ? t("passkeyLimited", { count: passkey.state.minutes })
+            <Typography id={passkeyNoteId} role="status" variant="body2" color="text.secondary">
+              {passkey.limitedMinutes !== null
+                ? t("passkeyLimited", { count: passkey.limitedMinutes })
                 : t("passkeyFarmCodeOptional")}
             </Typography>
           </Stack>

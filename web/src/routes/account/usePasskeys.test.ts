@@ -35,7 +35,7 @@ beforeEach(() => {
   auth.isAuthenticated = true;
   vi.clearAllMocks();
   setAccessToken(crypto.randomUUID());
-  vi.stubGlobal("PublicKeyCredential", { parseCreationOptionsFromJSON: (v: unknown) => v });
+  vi.stubGlobal("PublicKeyCredential", { parseCreationOptionsFromJSON: (v: unknown) => v, parseRequestOptionsFromJSON: (v: unknown) => v });
   vi.stubGlobal("fetch", fetchMock);
   Object.defineProperty(navigator, "credentials", { configurable: true, value: { create } });
   fetchMock.mockImplementation(async () => new Response(JSON.stringify({ passkey: { id: "id", name: "Passkey" } }),

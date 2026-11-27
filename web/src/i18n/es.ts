@@ -97,6 +97,8 @@ export const es = {
     passkeySecondOff:
       "Las llaves de acceso están desactivadas en esta dirección web y su cuenta no tiene aplicación de autenticación. Pida a un Propietario de su granja que quite sus llaves de acceso y luego inicie sesión con su contraseña.",
     passkeySecondCancelled: "Se canceló la comprobación con la llave de acceso. Inténtelo de nuevo.",
+    passkeySecondUnsupported: "Este navegador no puede usar llaves de acceso. Use otro navegador o dispositivo.",
+    passkeyBrowserFailed: "Este navegador o dispositivo no pudo usar la llave de acceso. Inténtelo de nuevo o use otra forma de iniciar sesión.",
     secondFactorIncorrect:
       "Ese código no funcionó. Si acaba de usarlo, espere al siguiente.",
     secondFactorClockHint:

@@ -189,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signedIn]);
 
   const passkeyLogin = useCallback(async (farmCode: string, answer: PasskeyAnswer) => {
-    await signedIn(await apiPasskeyLogin(answer, farmCode));
+    await signedIn(await apiPasskeyLogin(farmCode, answer));
   }, [signedIn]);
 
   const logout = useCallback(async () => {

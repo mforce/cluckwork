@@ -121,10 +121,10 @@ export const startSecondFactorPasskey = (challenge: string) =>
 // #1285 — a passkey sign-in mints the session as login does. A blank farm
 // code goes as null: the passkey names the farm (record 1282 decision 11),
 // and the answer's farmCode is the farm it signed in to.
-export async function passkeyLogin(answer: PasskeyAnswer, farmCode: string): Promise<string> {
-  const res = await signIn<AccessTokenResponse & { farmCode?: unknown }>(
+export async function passkeyLogin(farmCode: string, answer: PasskeyAnswer): Promise<string> {
+  const res = await signIn<AccessTokenResponse & { farmCode: string }>(
     "/auth/login/passkey", { ...answer, farmCode: farmCode.trim() || null });
-  return typeof res.farmCode === "string" ? res.farmCode : "";
+  return res.farmCode;
 }
 
 // #1274 — the code step mints the session exactly as login does, so it is the

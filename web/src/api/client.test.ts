@@ -11,6 +11,8 @@ import {
   login,
   completeSecondFactor,
   passkeyLogin,
+  startPasskeySignIn,
+  startSecondFactorPasskey,
   logout,
   restoreSession,
   changePassword,
@@ -1128,7 +1130,7 @@ describe("auth endpoints", () => {
     const answer = { ceremony: "c-1", credential: { id: "cred" } as unknown as AuthenticationResponseJSON };
     fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Auth.PasskeyRefused", status: 401 }, 401));
 
-    await expect(passkeyLogin(answer, "  ")).rejects.toMatchObject({ status: 401, title: "Auth.PasskeyRefused" });
+    await expect(passkeyLogin("  ", answer)).rejects.toMatchObject({ status: 401, title: "Auth.PasskeyRefused" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/passkey")[0][1].body)))
       .toEqual({ ceremony: "c-1", credential: { id: "cred" }, farmCode: null });
@@ -1136,10 +1138,26 @@ describe("auth endpoints", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({
       accessToken: jwtWithAccountId("acct-A", "passkey"), accessTokenExpiry: FUTURE, farmCode: "farm-a",
     }));
-    await expect(passkeyLogin(answer, "Farm-A")).resolves.toBe("farm-a");
+    await expect(passkeyLogin("Farm-A", answer)).resolves.toBe("farm-a");
     expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/passkey")[1][1].body)).farmCode).toBe("Farm-A");
     expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "passkey"));
     expect(getBoundAccountId()).toBe("acct-A");
+  });
+
+  // #1285 — both passkey options routes are anonymous: a 401 is their answer,
+  // never a reason to refresh and send again.
+  it.each([
+    ["the sign-in options", () => startPasskeySignIn(), "/auth/login/passkey/options"],
+    ["the second step's options", () => startSecondFactorPasskey("challenge-jwt"), "/auth/login/second-factor/passkey-options"],
+  ])("%s answer a 401 with one request and no refresh", async (_, call, path) => {
+    setAccessToken(claimfulToken("at1"));
+    fetchMock.mockResolvedValue(jsonResponse({ title: "Auth.SecondFactorChallengeExpired", status: 401 }, 401));
+
+    await expect(call()).rejects.toMatchObject({ status: 401 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsTo(fetchMock, path)).toHaveLength(1);
+    expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
   });
 
   it("completeSecondFactor sends a passkey answer as {challenge, passkey}", async () => {
