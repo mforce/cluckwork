@@ -51,7 +51,6 @@ interface AuthState {
   // #1274 — an enrolled user's correct password returns the code step; the
   // tab binds its farm only once a session exists.
   login: (farmCode: string, email: string, password: string) => Promise<LoginOutcome>;
-  // #1285 — the second step's answer is a code or a passkey.
   completeSecondFactor: (farmCode: string, challenge: string, answer: string | PasskeyAnswer) => Promise<void>;
   // #1285 — the farm comes from the passkey, so the tab binds and remembers
   // the farm the server names, whatever the field held.

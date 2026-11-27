@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { Alert, Box, Button, IconButton, Stack, TextField, Typography } from "@mui/material";
 import { useAuth } from "../auth/useAuth";
 import { ApiError } from "../api/client";
+import type { SecondFactor } from "../api/client";
 import { AuthShell } from "../components/AuthShell";
 import { BusyButton } from "../components/BusyButton";
 import { useConfirm } from "../components/useConfirm";
@@ -20,7 +21,6 @@ import { FARM_SUSPENDED } from "../api/session";
 import { messageFor } from "./signInMessage";
 import { SecondFactorStep } from "./SecondFactorStep";
 import { usePasskeySignIn } from "./usePasskeySignIn";
-import type { SecondFactor } from "../api/client";
 
 interface LocationState {
   from?: { pathname: string; search?: string };
@@ -172,11 +172,7 @@ export function Login() {
   const [needsSetup, setNeedsSetup] = useState(false);
   // #1274 — the challenge lives in this state only, never in storage or a URL.
   const [challenge, setChallenge] = useState<{ challenge: string; factors: SecondFactor[] } | null>(null);
-  const passkey = usePasskeySignIn({
-    active: challenge === null,
-    farmCode,
-    onError: setError,
-  });
+  const passkey = usePasskeySignIn({ active: challenge === null, farmCode, onError: setError });
   const passkeyOn = passkey.state.kind === "ready" || passkey.state.kind === "limited";
 
   async function onSubmit(e: FormEvent) {
