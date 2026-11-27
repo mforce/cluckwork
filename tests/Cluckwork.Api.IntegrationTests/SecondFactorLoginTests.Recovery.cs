@@ -37,7 +37,7 @@ public sealed partial class SecondFactorLoginTests
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var credentials = scope.ServiceProvider.GetRequiredService<ITwoFactorCredentials>();
-        return await TestHarness.InTransactionAsync(db, ct => credentials.VerifyAsync(factor.AccountId, factor.UserId, code, binding, passkey: null, ct));
+        return await TestHarness.InTransactionAsync(db, ct => credentials.VerifyAsync(factor.AccountId, factor.UserId, new FactorProof.Code(code), binding, ct));
     }
 
     private static SecondFactorCode Parsed(string raw) =>

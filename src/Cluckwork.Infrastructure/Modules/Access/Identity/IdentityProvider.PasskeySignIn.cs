@@ -45,9 +45,8 @@ public sealed partial class IdentityProvider
                 .SingleOrDefaultAsync(token);
             if (row is null) return RefusePasskeySignIn();
             var outcome = await twoFactor.VerifyAsync(owner.AccountId, owner.UserId,
-                new SecondFactorCode.Passkey(ceremony, credentialJson),
-                new ProofBinding(row.CredentialEpoch, ProofBinding.HashStamp(row.SecurityStamp), row.SecondFactorSignIns),
-                new PasskeyAssertion(consumed, owner.CredentialId, requestHost), token);
+                new FactorProof.Passkey(consumed, credentialJson, owner.CredentialId, requestHost),
+                new ProofBinding(row.CredentialEpoch, ProofBinding.HashStamp(row.SecurityStamp), row.SecondFactorSignIns), token);
             if (outcome is FactorOutcome.Accepted accepted)
             {
                 signedIn = (owner.UserId, slug);

@@ -84,29 +84,29 @@ internal sealed partial class TwoFactorCredentials(
     // It logs every passkey outcome it returns other than Accepted; a caller
     // logs only the passkey refusals it makes before calling it.
     public async Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
+        Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct)
     {
-        var outcome = await VerifyCoreAsync(accountId, userId, code, binding, passkey, ct);
-        if (code is SecondFactorCode.Passkey && outcome is not FactorOutcome.Accepted) securityEvents.PasskeyFailed();
+        var outcome = await VerifyCoreAsync(accountId, userId, proof, binding, ct);
+        if (proof is FactorProof.Passkey && outcome is not FactorOutcome.Accepted) securityEvents.PasskeyFailed();
         return outcome;
     }
 
     private async Task<FactorOutcome> VerifyCoreAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct)
+        Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct)
     {
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        var kind = code is SecondFactorCode.Passkey ? SecondFactorKinds.Passkey : SecondFactorKinds.Authenticator;
+        var kind = proof is FactorProof.Passkey ? SecondFactorKinds.Passkey : SecondFactorKinds.Authenticator;
         if (user is null || !Admits(user, binding, kind)) return new FactorOutcome.Superseded();
 
         // Charging a locked row would count the guess and re-lock the account.
         if (await userManager.IsLockedOutAsync(user))
             return new FactorOutcome.Rejected(Charged: false);
 
-        return code switch
+        return proof switch
         {
-            SecondFactorCode.Totp totp => await VerifyTotpAsync(accountId, user, totp, binding, ct),
-            SecondFactorCode.Recovery recovery => await VerifyRecoveryAsync(accountId, user, recovery, binding, ct),
-            SecondFactorCode.Passkey proof => await VerifyPasskeyAsync(user, proof, passkey, binding, ct),
+            FactorProof.Code { Value: SecondFactorCode.Totp totp } => await VerifyTotpAsync(accountId, user, totp, binding, ct),
+            FactorProof.Code { Value: SecondFactorCode.Recovery recovery } => await VerifyRecoveryAsync(accountId, user, recovery, binding, ct),
+            FactorProof.Passkey passkey => await VerifyPasskeyAsync(user, passkey, binding, ct),
             _ => throw new UnreachableException(),
         };
     }
@@ -114,11 +114,11 @@ internal sealed partial class TwoFactorCredentials(
     // Record 1282 "Checking a passkey", steps 3 to 5. A refusal is never
     // charged and never touches the daily budget (decision 8).
     private async Task<FactorOutcome> VerifyPasskeyAsync(
-        ApplicationUser user, SecondFactorCode.Passkey proof, PasskeyAssertion? passkey, ProofBinding binding, CancellationToken ct)
+        ApplicationUser user, FactorProof.Passkey passkey, ProofBinding binding, CancellationToken ct)
     {
-        if (passkey?.Ceremony is not { } ceremony) return new FactorOutcome.Rejected(Charged: false);
+        if (passkey.Ceremony is not { } ceremony) return new FactorOutcome.Rejected(Charged: false);
         var outcome = await passkeys.AssertAsync(
-            ceremony, user.Id, passkey.CredentialId, proof.CredentialJson, passkey.RequestHost, ct);
+            ceremony, user.Id, passkey.ExpectedCredentialId, passkey.CredentialJson, passkey.RequestHost, ct);
         return outcome is AssertionOutcome.Accepted accepted
             ? await AcceptAsync(user, binding, recoveryCodesLeft: null, accepted.Passkey)
             : new FactorOutcome.Rejected(Charged: false);

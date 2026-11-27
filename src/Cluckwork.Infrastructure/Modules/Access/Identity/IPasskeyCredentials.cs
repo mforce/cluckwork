@@ -97,15 +97,6 @@ public abstract record AssertionOutcome
     public sealed record Refused : AssertionOutcome;
 }
 
-// What VerifyAsync needs beside a SecondFactorCode.Passkey: the ceremony
-// ConsumeAsync returned (null when it refused it), the credential the server
-// looked up at sign-in (null at the second step), and the request's host.
-[Credential]
-public sealed record PasskeyAssertion(ConsumedCeremony? Ceremony, byte[]? CredentialId, string RequestHost)
-{
-    public override string ToString() => "[redacted]";
-}
-
 public abstract record RegisterOutcome
 {
     private RegisterOutcome() { }

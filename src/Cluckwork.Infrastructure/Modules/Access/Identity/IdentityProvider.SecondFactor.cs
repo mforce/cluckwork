@@ -18,7 +18,7 @@ public sealed partial class IdentityProvider
         // refused uncharged, after the challenge.
         (SecondFactorCode? code, SecondFactorInput.Passkey? passkey) = input switch
         {
-            SecondFactorInput.Passkey answer => (answer.Proof, answer),
+            SecondFactorInput.Passkey answer => (null, answer),
             SecondFactorInput.Code raw => (SecondFactorCode.TryParse(raw.Raw, out var parsed) ? parsed : null, (SecondFactorInput.Passkey?)null),
             _ => throw new UnreachableException(),
         };
@@ -33,7 +33,7 @@ public sealed partial class IdentityProvider
 
         // The challenge first, so a malformed code on a dead challenge gets the 401.
         if (ReadChallenge(challenge) is not { } claims) return Refuse(LogExpiredChallenge());
-        if (code is null) return Refuse(SecondFactorErrors.Incorrect);
+        if (passkey is null && code is null) return Refuse(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
@@ -45,15 +45,15 @@ public sealed partial class IdentityProvider
         {
             // Record 1282 decision 3: the ceremony is consumed by the owned
             // transaction's first statement, so every refusal after it spends it.
-            var assertion = passkey is null
-                ? null
-                : new PasskeyAssertion(
-                    await passkeys.ConsumeAsync(passkey.Proof.Ceremony, CeremonyPurpose.SecondStep, claims.UserId, token),
-                    CredentialId: null, passkey.RequestHost);
-            var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, code, claims.Binding, assertion, token);
+            FactorProof proof = passkey is null
+                ? new FactorProof.Code(code!)
+                : new FactorProof.Passkey(
+                    await passkeys.ConsumeAsync(passkey.Ceremony, CeremonyPurpose.SecondStep, claims.UserId, token),
+                    passkey.CredentialJson, ExpectedCredentialId: null, passkey.RequestHost);
+            var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, proof, claims.Binding, token);
             return outcome is FactorOutcome.Accepted accepted
                 ? Result.Success(new AcceptedSignIn(claims.AccountId, claims.UserId, accepted))
-                : Result.Failure<AcceptedSignIn>(Refusal(outcome, passkey: assertion is not null));
+                : Result.Failure<AcceptedSignIn>(Refusal(outcome, passkey: passkey is not null));
         }, ct);
     }
 

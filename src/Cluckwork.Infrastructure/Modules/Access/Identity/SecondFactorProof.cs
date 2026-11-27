@@ -31,7 +31,7 @@ internal static class SecondFactorProof
         var binding = await BindAsync(db, user, ct);
         return await AmbientTransaction.RunOwnedAsync(db.Database, async (transaction, token) =>
         {
-            var outcome = await twoFactor.VerifyAsync(accountId, user.Id, parsed, binding, passkey: null, token);
+            var outcome = await twoFactor.VerifyAsync(accountId, user.Id, new FactorProof.Code(parsed), binding, token);
             Result<T> result;
             if (outcome is FactorOutcome.Accepted accepted)
             {

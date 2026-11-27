@@ -174,7 +174,7 @@ public static partial class AuthEndpoints
         if (request.Passkey is { } passkey)
         {
             if (CredentialJsonOf(passkey.Credential) is not { } credential) return MissingCredential();
-            input = new SecondFactorInput.Passkey(new SecondFactorCode.Passkey(passkey.Ceremony, credential), http.Host.Host);
+            input = new SecondFactorInput.Passkey(passkey.Ceremony, credential, http.Host.Host);
         }
         else
         {

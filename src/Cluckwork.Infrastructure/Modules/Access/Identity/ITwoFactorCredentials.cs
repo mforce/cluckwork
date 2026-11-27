@@ -14,9 +14,7 @@ public interface ITwoFactorCredentials
     // The one read: untracked, unlocked, by Id and AccountId.
     Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct);
 
-    // passkey is required for a SecondFactorCode.Passkey and ignored otherwise.
-    Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, PasskeyAssertion? passkey, CancellationToken ct);
+    Task<FactorOutcome> VerifyAsync(Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct);
 
     // Runs under the resolved tenant of accountId, like ConfirmEnrolmentAsync.
     Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct);
@@ -32,6 +30,24 @@ public interface ITwoFactorCredentials
 }
 
 public enum ClearOutcome { NotFound, NotEnrolled, PendingDeleted, Cleared }
+
+// #1285 (record 1282 "Checking a passkey"): the one proof VerifyAsync checks,
+// a parsed code or a passkey assertion.
+[Cluckwork.Application.Common.Credential]
+public abstract record FactorProof
+{
+    private FactorProof() { }
+
+    public sealed record Code(SecondFactorCode Value) : FactorProof;
+
+    // Ceremony is what ConsumeAsync returned, null when it refused it.
+    // ExpectedCredentialId is the credential the server looked up at sign-in,
+    // and null for a ceremony bound to the user (the second step).
+    public sealed record Passkey(ConsumedCeremony? Ceremony, string CredentialJson, byte[]? ExpectedCredentialId, string RequestHost)
+        : FactorProof;
+
+    public sealed override string ToString() => "[redacted]";
+}
 
 // The credential state the proof was issued against. Login reads it from the
 // challenge, with its sf_signins; step-up reads it from its password check,
