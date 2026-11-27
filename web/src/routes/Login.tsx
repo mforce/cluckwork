@@ -349,7 +349,10 @@ export function Login() {
           // A press or a key in a field that already has focus fires no
           // focus event.
           onPointerDown={passkey.resumeAutofill}
-          onKeyDown={passkey.resumeAutofill}
+          // Once per key press: a held key repeats keydown.
+          onKeyDown={(e) => {
+            if (!e.repeat) passkey.resumeAutofill();
+          }}
           // #1285 — the webauthn token lets the browser offer passkeys here.
           autoComplete={passkey.autofill ? "username webauthn" : "username"}
           required

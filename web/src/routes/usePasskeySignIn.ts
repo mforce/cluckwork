@@ -31,6 +31,8 @@ type State =
   | { kind: "limited"; dueAt: number; minutes: number };
 
 function afterFailure(state: State, err: unknown): State {
+  // Off stays off for the page's life, whatever a request still in flight says.
+  if (state.kind === "off") return state;
   if (err instanceof ApiError && err.title === PASSKEYS_OFF) return { kind: "off" };
   if (err instanceof ApiError && err.status === 429) {
     const seconds = Math.min(err.retryAfterSeconds ?? 60, MAX_WAIT_SECONDS);

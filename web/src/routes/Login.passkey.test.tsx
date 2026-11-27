@@ -514,6 +514,34 @@ describe("Login second step with a passkey (#1285)", () => {
     expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySignIn") })).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["a 429", () => new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 90 })],
+    ["a 503", () => new ApiError(503, "Service Unavailable", "Try again.")],
+    ["a network error", () => new TypeError("Failed to fetch")],
+  ])("keeps passkeys off when the page's own request fails with %s after the step's 404", async (_, failure) => {
+    const first = deferred<PasskeyCeremony>();
+    mockStart.mockImplementationOnce(() => first.promise);
+    mockStartSecond.mockRejectedValue(new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")));
+    await reachSecondStep(["authenticator", "passkey"]);
+    await act(async () => fireEvent.click(usePasskey()));
+
+    await act(async () => first.reject(failure()));
+    expectCodeViewOnly();
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:secondFactorBack") })));
+
+    expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySignIn") })).not.toBeInTheDocument();
+  });
+
+  it("takes only a 404 Passkeys.Off at the step as off, not any 404", async () => {
+    mockStartSecond.mockRejectedValue(new ApiError(404, "Not Found", "Not found."));
+    await reachSecondStep(["authenticator", "passkey"]);
+
+    await act(async () => fireEvent.click(usePasskey()));
+
+    expect(usePasskey()).toBeInTheDocument();
+    expect(codeField()).not.toBeInTheDocument();
+  });
+
   it("still offers the passkey at the step after a 429 at the page", async () => {
     mockStart.mockRejectedValueOnce(new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 90 }));
     await reachSecondStep(["passkey"]);
@@ -706,6 +734,8 @@ describe("Login passkey requests (#1285)", () => {
     await waitFor(() => expect(passkeyButton()).toHaveAccessibleDescription(note));
 
     expect(announced(note)).toHaveLength(1);
+    // A sighted user sees it too.
+    expect(screen.getByText(note, { selector: "p" })).toBeVisible();
   });
 });
 
@@ -850,6 +880,19 @@ describe("Login passkey announcements and keys (#1285)", () => {
 
     expect(said).not.toContain(i18n.t("auth:passkeyFarmCodeOptional"));
     expect(said).not.toContain(i18n.t("auth:passkeyRenewing"));
+  });
+
+  it("lets a held key lift the autofill pause once, not on every repeat", async () => {
+    mockPasskeyLogin.mockRejectedValue(new ApiError(401, "Auth.PasskeyRefused", i18n.t("errors:Auth.PasskeyRefused")));
+    await ready();
+    await waitFor(() => expect(live()).toHaveLength(1));
+    await act(async () => live()[0].answer("autofill-cred"));
+    await waitFor(() => expect(passkeyButton()).toBeEnabled());
+
+    fireEvent.keyDown(emailField(), { key: "Shift", repeat: true });
+    await act(async () => {});
+
+    expect(live()).toHaveLength(0);
   });
 
   it("lets autofill run again when a keyboard user presses a key in the focused email field", async () => {

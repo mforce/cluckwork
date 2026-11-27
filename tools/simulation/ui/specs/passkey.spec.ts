@@ -210,7 +210,10 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await page.goto("/reports");
 
     await expect(passkeyButton(page)).toBeDisabled();
-    await expect(passkeyButton(page)).toHaveAccessibleDescription(tEn("auth:passkeyLimited_other", { count: 2 }));
+    const note = tEn("auth:passkeyLimited_other", { count: 2 });
+    await expect(passkeyButton(page)).toHaveAccessibleDescription(note);
+    // The description is read even from a hidden element; a sighted user needs the visible note.
+    await expect(page.locator("p", { hasText: note })).toBeVisible();
     await expect(page.getByLabel(tEn("auth:email"))).toHaveAttribute("autocomplete", "username");
 
     await auth.presence(true);
