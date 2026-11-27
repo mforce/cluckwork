@@ -36,6 +36,20 @@ interface Authenticator {
   presence: (on: boolean) => Promise<void>;
 }
 
+// The server refuses a sign count at or below the one it stored, as a cloned
+// authenticator (G8.6), and each test makes a new virtual authenticator. So
+// the count starts from the clock, above any earlier run's, and each test
+// carries its last count to the next.
+let signCount = Math.floor(Date.now() / 1000);
+let current: Authenticator | null = null;
+
+test.afterEach(async () => {
+  if (!current) return;
+  const { credentials } = await current.cdp.send("WebAuthn.getCredentials", { authenticatorId: current.id });
+  signCount = Math.max(signCount, ...credentials.map((c) => c.signCount));
+  current = null;
+});
+
 // The virtual authenticator, holding twoFactorOwner()'s passkey, with presence off.
 async function authenticator(page: Page): Promise<Authenticator> {
   const passkey = twoFactorOwner().passkey;
@@ -52,15 +66,16 @@ async function authenticator(page: Page): Promise<Authenticator> {
     authenticatorId: id,
     credential: {
       credentialId: toBase64(passkey.credentialId), isResidentCredential: true, rpId: passkey.rpId,
-      privateKey: passkey.privateKey, userHandle: toBase64(passkey.userHandle), signCount: 0,
+      privateKey: passkey.privateKey, userHandle: toBase64(passkey.userHandle), signCount,
     },
   });
-  return {
+  current = {
     cdp, id,
     presence: async (enabled) => {
       await cdp.send("WebAuthn.setAutomaticPresenceSimulation", { authenticatorId: id, enabled });
     },
   };
+  return current;
 }
 
 // Every options request the page makes, in order.
@@ -112,7 +127,8 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await auth.presence(true);
     await page.goto("/reports");
 
-    await expect(page).toHaveURL(/\/reports$/);
+    // /reports opens its first report once signed in.
+    await expect(page).toHaveURL(/\/reports\/production$/);
     await signedIn(page);
   });
 
@@ -124,7 +140,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await page.getByLabel(tEn("auth:farmCode")).fill("default-farm");
     await page.getByLabel(tEn("auth:email")).fill(member.email);
     await page.getByLabel(tEn("auth:password")).fill(member.password);
-    await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+    await page.getByRole("button", { name: tEn("auth:signIn"), exact: true }).click();
 
     await expect(page.getByRole("heading", { name: tEn("auth:passkeySecondTitle") })).toBeVisible();
     await auth.presence(true);
@@ -183,7 +199,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await page.goto("/reports");
 
     await expect(passkeyButton(page)).toBeDisabled();
-    await expect(page.getByText(tEn("auth:passkeyLimited", { count: 2 }))).toBeVisible();
+    await expect(page.getByText(tEn("auth:passkeyLimited_other", { count: 2 }))).toBeVisible();
     await expect(page.getByLabel(tEn("auth:email"))).toHaveAttribute("autocomplete", "username");
 
     await auth.presence(true);

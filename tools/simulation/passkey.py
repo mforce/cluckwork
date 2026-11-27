@@ -39,9 +39,12 @@ def _cbor(value):
 
 def attest(options, origin):
     """The registration JSON for these creation options, and the cast entry."""
-    pkcs8 = subprocess.run(
-        ["openssl", "genpkey", "-algorithm", "EC", "-pkeyopt", "ec_paramgen_curve:P-256", "-outform", "DER"],
-        check=True, capture_output=True).stdout
+    # Through SEC1, so the PKCS#8 holds the public key too, which Chrome's
+    # WebAuthn.addCredential requires; genpkey's PKCS#8 leaves it out.
+    sec1 = subprocess.run(["openssl", "ecparam", "-name", "prime256v1", "-genkey", "-noout"],
+                          check=True, capture_output=True).stdout
+    pkcs8 = subprocess.run(["openssl", "pkcs8", "-topk8", "-nocrypt", "-outform", "DER"],
+                           input=sec1, check=True, capture_output=True).stdout
     spki = subprocess.run(["openssl", "pkey", "-inform", "DER", "-pubout", "-outform", "DER"],
                           input=pkcs8, check=True, capture_output=True).stdout
     x, y = spki[-64:-32], spki[-32:]
@@ -51,8 +54,9 @@ def attest(options, origin):
                               "origin": origin, "crossOrigin": False}).encode()
     # COSE_Key, EC2 P-256 ES256, in CTAP2 canonical order.
     cose = _cbor([(1, 2), (3, -7), (-1, 1), (-2, x), (-3, y)])
-    # User present, user verified, backup eligible, backed up, attested data.
-    flags = 0x01 | 0x04 | 0x08 | 0x10 | 0x40
+    # User present, user verified, attested data. Not backup eligible: Chrome's
+    # virtual authenticator reports it so, and the flag may not change.
+    flags = 0x01 | 0x04 | 0x40
     auth_data = (hashlib.sha256(rp_id.encode()).digest() + bytes([flags]) + bytes(4) + bytes(16)
                  + len(credential_id).to_bytes(2, "big") + credential_id + cose)
     attestation = _cbor([("fmt", "none"), ("attStmt", []), ("authData", auth_data)])

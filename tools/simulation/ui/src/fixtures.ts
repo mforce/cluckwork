@@ -111,7 +111,7 @@ export async function submitSignIn(page: Page, member: CastMember): Promise<void
   await page.getByLabel(tEn("auth:farmCode")).fill(member.farmCode ?? "default-farm");
   await page.getByLabel(tEn("auth:email")).fill(member.email);
   await page.getByLabel(tEn("auth:password")).fill(member.password);
-  await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+  await page.getByRole("button", { name: tEn("auth:signIn"), exact: true }).click();
   if (member.totpKey) await enterCode(page, member.totpKey);
 }
 
