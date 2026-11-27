@@ -336,6 +336,9 @@ describe("Login second step with a passkey (#1285)", () => {
     await reachSecondStep(["passkey"], "/dashboard");
 
     expect(screen.getByRole("heading", { name: i18n.t("auth:passkeySecondTitle") })).toBeInTheDocument();
+    // Who is signing in, and where, from what the user typed.
+    expect(screen.getByText("owner@farm.co")).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("auth:passkeySecondConfirmed", { farm: "default-farm" }))).toBeInTheDocument();
     expect(screen.getByText(i18n.t("auth:passkeySecondOnly"))).toBeInTheDocument();
     expect(codeField()).not.toBeInTheDocument();
     // Autofill stopped, so the browser can run the second step's request.

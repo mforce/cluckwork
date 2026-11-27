@@ -129,6 +129,7 @@ export const en = {
       "Too many passkey requests from this network. Try again in {{count}} minutes, or use your password.",
     passkeySecondTitle: "Verify your sign-in",
     passkeySecondIntro: "Use a passkey to finish signing in.",
+    passkeySecondConfirmed: "{{farm}} · Password confirmed",
     passkeySecondSubmit: "Use a passkey",
     passkeySecondUseCode: "Use an authenticator code",
     passkeySecondOnly: "No authenticator app is set up. Your password alone cannot finish signing in.",

@@ -90,6 +90,7 @@ export const es = {
       "Demasiadas solicitudes de llave de acceso desde esta red. Inténtelo de nuevo en {{count}} minutos o use su contraseña.",
     passkeySecondTitle: "Verifique su inicio de sesión",
     passkeySecondIntro: "Use una llave de acceso para terminar de iniciar sesión.",
+    passkeySecondConfirmed: "{{farm}} · Contraseña confirmada",
     passkeySecondSubmit: "Usar una llave de acceso",
     passkeySecondUseCode: "Usar un código de autenticación",
     passkeySecondOnly: "No tiene una aplicación de autenticación configurada. Su contraseña sola no basta para iniciar sesión.",

@@ -29,6 +29,8 @@ function codeStepMessage(err: unknown): { message: string; restart: boolean } | 
 
 interface Props {
   farmCode: string;
+  // The email typed at the password step, shown above the passkey prompt.
+  email: string;
   // #1274 — held in the parent's state only, never in storage or a URL.
   challenge: string;
   // #1285 — what the pending 401's secondFactors offers this user.
@@ -41,7 +43,7 @@ interface Props {
 
 // A completed sign-in flips isAuthenticated, and the Login page's effect then
 // takes the user to where they were going.
-export function SecondFactorStep({ farmCode, challenge, factors, passkeysOff, onRestart }: Props) {
+export function SecondFactorStep({ farmCode, email, challenge, factors, passkeysOff, onRestart }: Props) {
   const { t } = useTranslation("auth");
   const { completeSecondFactor } = useAuth();
   const { busy, run } = usePendingAction();
@@ -83,6 +85,16 @@ export function SecondFactorStep({ farmCode, challenge, factors, passkeysOff, on
   return (
     <Stack component="form" spacing={2} onSubmit={onSubmit}>
       <Typography variant="h2">{usePasskey ? t("passkeySecondTitle") : t("secondFactorTitle")}</Typography>
+      {usePasskey && (
+        // #1283 "Sign-in A": who is signing in, and where. The page holds the
+        // farm code, not the farm's name.
+        <Stack spacing={0.5}>
+          <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{email}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {t("passkeySecondConfirmed", { farm: farmCode.trim() })}
+          </Typography>
+        </Stack>
+      )}
       <Typography variant="body2" color="text.secondary">
         {usePasskey ? t("passkeySecondIntro") : t("secondFactorIntro")}
       </Typography>

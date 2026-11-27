@@ -96,6 +96,7 @@ export const tl = {
       "Masyadong maraming hiling ng passkey mula sa network na ito. Subukan ulit pagkalipas ng {{count}} minuto, o gamitin ang iyong password.",
     passkeySecondTitle: "I-verify ang iyong pag-sign in",
     passkeySecondIntro: "Gumamit ng passkey para matapos ang pag-sign in.",
+    passkeySecondConfirmed: "{{farm}} · Nakumpirma ang password",
     passkeySecondSubmit: "Gumamit ng passkey",
     passkeySecondUseCode: "Gumamit ng authenticator code",
     passkeySecondOnly: "Walang naka-set up na authenticator app. Hindi sapat ang password lang para matapos ang pag-sign in.",

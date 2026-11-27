@@ -237,6 +237,7 @@ export function Login() {
       {challenge !== null ? (
         <SecondFactorStep
           farmCode={farmCode}
+          email={email}
           challenge={challenge.challenge}
           factors={challenge.factors}
           passkeysOff={passkey.state.kind === "off"}
