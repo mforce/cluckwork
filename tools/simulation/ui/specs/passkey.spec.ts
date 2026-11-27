@@ -100,6 +100,8 @@ async function setVisibility(page: Page, state: "visible" | "hidden") {
   }, state);
 }
 
+// /reports opens its first report once signed in; either URL is the deep link.
+const REPORTS = /\/reports(\/production)?$/;
 const passkeyButton = (page: Page) => page.getByRole("button", { name: tEn("auth:passkeySignIn") });
 const signedIn = (page: Page) => expect(page.locator("main#main-content")).toBeVisible();
 
@@ -113,7 +115,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await auth.presence(true);
     await passkeyButton(page).click();
 
-    await expect(page).toHaveURL(/\/reports$/);
+    await expect(page).toHaveURL(REPORTS);
     await signedIn(page);
     expect(await page.evaluate(() => localStorage.getItem("cluckwork.farmCodes"))).toContain("default-farm");
   });
@@ -135,8 +137,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await auth.presence(true);
     await page.goto("/reports");
 
-    // /reports opens its first report once signed in.
-    await expect(page).toHaveURL(/\/reports\/production$/);
+    await expect(page).toHaveURL(REPORTS);
     await signedIn(page);
   });
 
@@ -156,7 +157,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await page.getByRole("button", { name: tEn("auth:passkeySecondSubmit") }).click();
 
     expect((await answered).status()).toBe(200);
-    await expect(page).toHaveURL(/\/reports$/);
+    await expect(page).toHaveURL(REPORTS);
     await signedIn(page);
   });
 
@@ -214,7 +215,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
 
     await auth.presence(true);
     await submitSignIn(page, owner());
-    await expect(page).toHaveURL(/\/reports$/);
+    await expect(page).toHaveURL(REPORTS);
     await signedIn(page);
     expect(passkeySignIns).toHaveLength(0);
   });
