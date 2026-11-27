@@ -28,8 +28,7 @@ public static partial class AuthEndpoints
         if (!result.IsSuccess) return LoginStepProblem(result.Error, StatusCodes.Status401Unauthorized);
 
         var (tokens, farmCode) = result.Value;
-        AuthCookies.SetRefreshCookie(response, tokens.AccountId, tokens.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
-        return Results.Ok(new PasskeySignInResponse(tokens.AccessToken, tokens.AccessTokenExpiry, farmCode));
+        return SignedIn(response, tokens, access, env, new PasskeySignInResponse(tokens.AccessToken, tokens.AccessTokenExpiry, farmCode));
     }
 
     private static IResult PasskeyOptions(Result<PasskeyCeremonyStart> result) =>

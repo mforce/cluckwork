@@ -193,9 +193,15 @@ public static partial class AuthEndpoints
     // that was just authenticated and can no longer disturb any other
     // farm's cookie. The old last-login-wins-over-every-tab behaviour is
     // gone by construction, not by a guard.
-    private static IResult SignedIn(HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env)
+    private static IResult SignedIn(HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env) =>
+        SignedIn(response, tokens, access, env, new AccessTokenResponse(tokens.AccessToken, tokens.AccessTokenExpiry));
+
+    // The one writer of a sign-in's refresh cookie; passkey sign-in (#1285)
+    // answers its own body through it.
+    private static IResult SignedIn<TBody>(
+        HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env, TBody body)
     {
         AuthCookies.SetRefreshCookie(response, tokens.AccountId, tokens.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
-        return Results.Ok(new AccessTokenResponse(tokens.AccessToken, tokens.AccessTokenExpiry));
+        return Results.Ok(body);
     }
 }
