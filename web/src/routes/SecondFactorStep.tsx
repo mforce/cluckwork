@@ -85,16 +85,14 @@ export function SecondFactorStep({ farmCode, email, challenge, factors, passkeys
   return (
     <Stack component="form" spacing={2} onSubmit={onSubmit}>
       <Typography variant="h2">{usePasskey ? t("passkeySecondTitle") : t("secondFactorTitle")}</Typography>
-      {usePasskey && (
-        // #1283 "Sign-in A": who is signing in, and where. The page holds the
-        // farm code, not the farm's name.
-        <Stack spacing={0.5}>
-          <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{email}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            {t("passkeySecondConfirmed", { farm: farmCode.trim() })}
-          </Typography>
-        </Stack>
-      )}
+      {/* #1283 "Sign-in A": who is signing in, and where, in both views. The
+          page holds the farm code, not the farm's name. */}
+      <Stack spacing={0.5}>
+        <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{email}</Typography>
+        <Typography variant="caption" color="text.secondary">
+          {t("passkeySecondConfirmed", { farm: farmCode.trim() })}
+        </Typography>
+      </Stack>
       <Typography variant="body2" color="text.secondary">
         {usePasskey ? t("passkeySecondIntro") : t("secondFactorIntro")}
       </Typography>

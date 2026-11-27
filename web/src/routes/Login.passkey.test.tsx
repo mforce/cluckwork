@@ -363,6 +363,9 @@ describe("Login second step with a passkey (#1285)", () => {
 
     expect(codeField()).toBeInTheDocument();
     expect(usePasskey()).toBeInTheDocument();
+    // The code view names the account and farm as the passkey view does.
+    expect(screen.getByText("owner@farm.co")).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("auth:passkeySecondConfirmed", { farm: "default-farm" }))).toBeInTheDocument();
     fireEvent.change(codeField()!, { target: { value: "123456" } });
     await act(async () => fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:secondFactorSubmit") })));
     expect(mockComplete).toHaveBeenCalledWith("challenge-jwt", "123456");
@@ -373,6 +376,8 @@ describe("Login second step with a passkey (#1285)", () => {
 
     expect(codeField()).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: i18n.t("auth:secondFactorTitle") })).toBeInTheDocument();
+    expect(screen.getByText("owner@farm.co")).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("auth:passkeySecondConfirmed", { farm: "default-farm" }))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })).not.toBeInTheDocument();
   });
 
