@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -33,7 +34,7 @@ public enum ClearOutcome { NotFound, NotEnrolled, PendingDeleted, Cleared }
 
 // #1285 (record 1282 "Checking a passkey"): the one proof VerifyAsync checks,
 // a parsed code or a passkey assertion.
-[Cluckwork.Application.Common.Credential]
+[Credential]
 public abstract record FactorProof
 {
     private FactorProof() { }

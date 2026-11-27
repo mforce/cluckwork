@@ -24,18 +24,13 @@ public sealed partial class IdentityProvider
     private async Task<Result<TokenPair>> CompleteSecondFactorCoreAsync(
         string challenge, SecondFactorInput input, CancellationToken ct)
     {
-        // Parsed before anything digests it: a malformed code is null, and is
-        // refused uncharged, after the challenge.
-        (SecondFactorCode? code, SecondFactorInput.Passkey? passkey) = input switch
-        {
-            SecondFactorInput.Passkey answer => (null, answer),
-            SecondFactorInput.Code raw => (SecondFactorCode.TryParse(raw.Raw, out var parsed) ? parsed : null, (SecondFactorInput.Passkey?)null),
-            _ => throw new UnreachableException(),
-        };
-
-        // The challenge first, so a malformed code on a dead challenge gets the 401.
+        // Parsed before anything digests it; a malformed code is refused,
+        // uncharged, after the challenge, so on a dead challenge it gets the 401.
+        var code = input is SecondFactorInput.Code raw && SecondFactorCode.TryParse(raw.Raw, out var parsed)
+            ? new FactorProof.Code(parsed)
+            : null;
         if (ReadChallenge(challenge) is not { } claims) return Result.Failure<TokenPair>(LogExpiredChallenge());
-        if (passkey is null && code is null) return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
+        if (input is SecondFactorInput.Code && code is null) return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
@@ -47,11 +42,14 @@ public sealed partial class IdentityProvider
         {
             // Record 1282 decision 3: the ceremony is consumed by the owned
             // transaction's first statement, so every refusal after it spends it.
-            FactorProof proof = passkey is null
-                ? new FactorProof.Code(code!)
-                : new FactorProof.Passkey(
+            FactorProof proof = (input, code) switch
+            {
+                (SecondFactorInput.Passkey passkey, _) => new FactorProof.Passkey(
                     await passkeys.ConsumeAsync(passkey.Ceremony, CeremonyPurpose.SecondStep, claims.UserId, token),
-                    passkey.CredentialJson, ExpectedCredentialId: null, passkey.RequestHost);
+                    passkey.CredentialJson, ExpectedCredentialId: null, passkey.RequestHost),
+                (_, { } parsedCode) => parsedCode,
+                _ => throw new UnreachableException(),
+            };
             var outcome = await twoFactor.VerifyAsync(claims.AccountId, claims.UserId, proof, claims.Binding, token);
             return outcome is FactorOutcome.Accepted accepted
                 ? Result.Success(new AcceptedSignIn<NoPayload>(claims.AccountId, claims.UserId, accepted, default))
