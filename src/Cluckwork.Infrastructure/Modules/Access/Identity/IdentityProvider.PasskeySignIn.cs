@@ -17,10 +17,10 @@ public sealed partial class IdentityProvider
     public Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default) =>
         passkeys.StartSignInAsync(requestHost, ct);
 
-    public async Task<Result<TokenPair>> PasskeyLoginAsync(
+    public async Task<Result<PasskeySignIn>> PasskeyLoginAsync(
         Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default)
     {
-        Guid? signedIn = null;
+        (Guid UserId, string FarmCode)? signedIn = null;
         var result = await SignInOwnedAsync(async token =>
         {
             // Step 0, before any other check, so a ceremony is good for one attempt.
@@ -32,8 +32,9 @@ public sealed partial class IdentityProvider
                 || (farmAccountId is { } farm && farm != owner.AccountId))
                 return RefusePasskeySignIn();
 
-            // Step 3, the read the code step makes.
-            if (await AccountIsActiveAsync(owner.AccountId, token) != true)
+            // Step 3, the read the code step makes. It also reads the farm's
+            // code, which the SPA remembers after a sign-in with a blank one.
+            if (await AccountStateAsync(owner.AccountId, token) is not (true, var slug))
                 return RefusePasskeySignIn(SecondFactorErrors.FarmSuspended);
 
             // Step 4: the binding read without a lock, as the password step
@@ -49,15 +50,16 @@ public sealed partial class IdentityProvider
                 new PasskeyAssertion(consumed, owner.CredentialId, requestHost), token);
             if (outcome is FactorOutcome.Accepted accepted)
             {
-                signedIn = owner.UserId;
+                signedIn = (owner.UserId, slug);
                 return Result.Success(new AcceptedSignIn(owner.AccountId, owner.UserId, accepted));
             }
             // VerifyAsync logged the refusal.
             return Result.Failure<AcceptedSignIn>(SecondFactorErrors.PasskeyRefused);
         }, ct);
 
-        if (result.IsSuccess && signedIn is { } userId) securityEvents.PasskeySignIn(userId);
-        return result;
+        if (!result.IsSuccess || signedIn is not { } done) return Result.Failure<PasskeySignIn>(result.Error);
+        securityEvents.PasskeySignIn(done.UserId);
+        return Result.Success(new PasskeySignIn(result.Value, done.FarmCode));
     }
 
     // A refusal made before VerifyAsync, which logs its own.

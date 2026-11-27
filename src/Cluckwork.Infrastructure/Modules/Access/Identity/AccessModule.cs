@@ -137,7 +137,7 @@ public sealed class AccessModule(
 
     // Record 1282 decision 11: a typed farm code is resolved first; the
     // passkey's own farm must match it.
-    public Task<Result<TokenPair>> PasskeyLoginAsync(
+    public Task<Result<PasskeySignIn>> PasskeyLoginAsync(
         Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct) =>
         WhenPasskeysOnAsync(requestHost, async () =>
         {
@@ -146,7 +146,7 @@ public sealed class AccessModule(
             if (await identity.ResolveFarmCodeAsync(farmCode, ct) is { } farm)
                 return await identity.PasskeyLoginAsync(ceremony, credentialJson, farm.AccountId, requestHost, ct);
             securityEvents.PasskeyFailed();
-            return Result.Failure<TokenPair>(SecondFactorErrors.PasskeyRefused);
+            return Result.Failure<PasskeySignIn>(SecondFactorErrors.PasskeyRefused);
         });
 
     public Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct) => firstRun.IsProvisionedAsync(ct);

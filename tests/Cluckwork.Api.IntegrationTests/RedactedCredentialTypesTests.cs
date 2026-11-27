@@ -307,6 +307,10 @@ public sealed class RedactedCredentialTypesTests
         Assert.Equal(token, stepUp.RootElement.GetProperty("token").GetString());
         Assert.Equal(expiresAt, stepUp.RootElement.GetProperty("expiresAt").GetDateTimeOffset());
         Assert.Equal(["accessToken", "accessTokenExpiry"], access.RootElement.EnumerateObject().Select(property => property.Name));
+        // #1285: a passkey sign-in's 200 adds the farm code (record 1282 decision 11).
+        using var passkey = JsonDocument.Parse(JsonSerializer.Serialize(new PasskeySignInResponse(token, expiresAt, "farm-a"), JsonSerializerOptions.Web));
+        Assert.Equal(["accessToken", "accessTokenExpiry", "farmCode"], passkey.RootElement.EnumerateObject().Select(property => property.Name));
+        Assert.Equal("farm-a", passkey.RootElement.GetProperty("farmCode").GetString());
         Assert.Equal(token, access.RootElement.GetProperty("accessToken").GetString());
         Assert.Equal(expiresAt, access.RootElement.GetProperty("accessTokenExpiry").GetDateTimeOffset());
     }

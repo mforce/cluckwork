@@ -25,9 +25,11 @@ public static partial class AuthEndpoints
         if (CredentialJsonOf(request.Credential) is not { } credential) return MissingCredential();
 
         var result = await access.PasskeyLoginAsync(request.Ceremony, credential, request.FarmCode, http.Host.Host, ct);
-        return result.IsSuccess
-            ? SignedIn(response, result.Value, access, env)
-            : LoginStepProblem(result.Error, StatusCodes.Status401Unauthorized);
+        if (!result.IsSuccess) return LoginStepProblem(result.Error, StatusCodes.Status401Unauthorized);
+
+        var (tokens, farmCode) = result.Value;
+        AuthCookies.SetRefreshCookie(response, tokens.AccountId, tokens.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
+        return Results.Ok(new PasskeySignInResponse(tokens.AccessToken, tokens.AccessTokenExpiry, farmCode));
     }
 
     private static IResult PasskeyOptions(Result<PasskeyCeremonyStart> result) =>
@@ -59,6 +61,14 @@ public static partial class AuthEndpoints
 
 // FarmCode is the typed or prefilled farm code, or null.
 public sealed record PasskeyLoginRequest(Guid Ceremony, JsonElement? Credential, string? FarmCode = null)
+{
+    public override string ToString() => "[redacted]";
+}
+
+// As the password login's AccessTokenResponse, plus the signed-in farm's code,
+// as stored, which the SPA remembers (record 1282 decision 11). The access
+// token is a credential, so the record never prints it.
+public sealed record PasskeySignInResponse(string AccessToken, DateTimeOffset AccessTokenExpiry, string FarmCode)
 {
     public override string ToString() => "[redacted]";
 }

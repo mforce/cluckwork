@@ -37,9 +37,9 @@ public sealed partial class IdentityProvider
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
-        var accountIsActive = await AccountIsActiveAsync(claims.AccountId, ct);
-        if (accountIsActive is null) return Refuse(LogExpiredChallenge());
-        if (accountIsActive == false) return Refuse(SecondFactorErrors.FarmSuspended);
+        var account = await AccountStateAsync(claims.AccountId, ct);
+        if (account is null) return Refuse(LogExpiredChallenge());
+        if (!account.Value.IsActive) return Refuse(SecondFactorErrors.FarmSuspended);
 
         return await SignInOwnedAsync(async token =>
         {
@@ -72,11 +72,15 @@ public sealed partial class IdentityProvider
     private ChallengeClaims? ReadChallenge(string? challenge) =>
         SecondFactorChallenge.Read(challenge, jwtOptions.Value, timeProvider.GetUtcNow());
 
-    private Task<bool?> AccountIsActiveAsync(Guid accountId, CancellationToken ct) =>
-        db.Accounts.IgnoreQueryFilters()
+    // Whether the farm is active, and its code, which a passkey sign-in hands
+    // back. Null when the farm is gone.
+    private async Task<(bool IsActive, string Slug)?> AccountStateAsync(Guid accountId, CancellationToken ct) =>
+        await db.Accounts.IgnoreQueryFilters()
             .Where(account => account.Id == accountId)
-            .Select(account => (bool?)account.IsActive)
-            .FirstOrDefaultAsync(ct);
+            .Select(account => new { account.IsActive, account.Slug })
+            .FirstOrDefaultAsync(ct) is { } row
+            ? (row.IsActive, row.Slug)
+            : null;
 
     // A proof the owned transaction accepted, for the user it names.
     private sealed record AcceptedSignIn(Guid AccountId, Guid UserId, FactorOutcome.Accepted Proof)

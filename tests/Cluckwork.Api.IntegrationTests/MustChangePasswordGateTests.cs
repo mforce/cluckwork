@@ -228,7 +228,7 @@ internal sealed class ChangePasswordThrowingIdentityProvider(IIdentityProvider i
     public Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default) =>
         inner.StartPasskeySignInAsync(requestHost, ct);
 
-    public Task<Result<TokenPair>> PasskeyLoginAsync(
+    public Task<Result<PasskeySignIn>> PasskeyLoginAsync(
         Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default) =>
         inner.PasskeyLoginAsync(ceremony, credentialJson, farmAccountId, requestHost, ct);
 

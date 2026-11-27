@@ -20,6 +20,14 @@ public sealed record PasskeyRegistration(PasskeySummary Passkey, TokenPair? Toke
     public override string ToString() => "[redacted]";
 }
 
+// #1285: a passkey sign-in's tokens and the signed-in farm's code, as
+// stored, so the SPA remembers the farm after a sign-in with a blank farm
+// code (record 1282 decision 11).
+public sealed record PasskeySignIn(TokenPair Tokens, string FarmCode)
+{
+    public override string ToString() => "[redacted]";
+}
+
 // The grant is a credential, so the record never prints it.
 public sealed record RemoveUserPasskeysCommand(Guid UserId, string? StepUpToken)
 {

@@ -66,7 +66,7 @@ public interface IAccessModule
 
     // farmCode: the typed or prefilled code, or null; an unknown one is refused
     // with the one Auth.PasskeyRefused body before the ceremony is consumed.
-    Task<Result<TokenPair>> PasskeyLoginAsync(
+    Task<Result<PasskeySignIn>> PasskeyLoginAsync(
         Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct);
 
     // Whether the DEFAULT account has an Owner (#283, #361).

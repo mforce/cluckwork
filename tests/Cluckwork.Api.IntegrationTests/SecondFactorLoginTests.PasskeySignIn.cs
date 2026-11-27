@@ -48,6 +48,15 @@ public sealed partial class SecondFactorLoginTests
         return await PasskeySignInAsync(ceremony.Id, key.Assert(ceremony.Options), farmCode);
     }
 
+    // The farm code a passkey sign-in's 200 hands back (decision 11). The body
+    // is buffered, so the tokens can be read from it after.
+    private static async Task<string?> FarmCodeOf(HttpResponseMessage response)
+    {
+        await response.Content.LoadIntoBufferAsync();
+        return System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement
+            .TryGetProperty("farmCode", out var code) ? code.GetString() : null;
+    }
+
     private static (Guid UserId, Guid AccountId) SubjectOf(string accessToken)
     {
         var claims = new JwtSecurityTokenHandler().ReadJwtToken(accessToken).Claims.ToList();
@@ -88,6 +97,7 @@ public sealed partial class SecondFactorLoginTests
         var response = await SignInWithPasskeyAsync(user.Key, farmCode);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(await factory.FarmCodeForAsync(user.Email), await FarmCodeOf(response));
         var tokens = await TestHarness.ReadTokensAsync(response);
         Assert.Equal((user.UserId, user.AccountId), SubjectOf(tokens.AccessToken));
         Assert.False(string.IsNullOrEmpty(tokens.RefreshToken), "a passkey sign-in set no refresh cookie");
@@ -98,6 +108,20 @@ public sealed partial class SecondFactorLoginTests
         Assert.Equal(factory.Clock.GetUtcNow(), signedInAt);
         Assert.Single(factory.EventsFor(SecurityEvents.PasskeySignIn));
         Assert.Empty(factory.EventsFor(SecurityEvents.PasskeyFailed));
+    }
+
+    // Decision 11: a typed code in another case, with spaces, signs in and
+    // hands back the farm's code as stored, which the SPA remembers.
+    [Fact]
+    public async Task ATypedFarmCode_SignsIn_AndReturnsTheStoredFarmCode()
+    {
+        var user = await PasskeyUserAsync();
+        var stored = await factory.FarmCodeForAsync(user.Email);
+
+        var response = await SignInWithPasskeyAsync(user.Key, "  " + stored.ToUpperInvariant() + " ");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(stored, await FarmCodeOf(response));
     }
 
     // G8.1: another farm's code, or an unknown one, is the one refusal, and

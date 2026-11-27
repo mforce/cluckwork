@@ -37,7 +37,7 @@ public interface IIdentityProvider
 
     // #1285: a passkey alone signs in; the passkey names the farm. farmAccountId
     // is the typed farm code's farm, refused when it is not the passkey's.
-    Task<Result<TokenPair>> PasskeyLoginAsync(
+    Task<Result<PasskeySignIn>> PasskeyLoginAsync(
         Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default);
 
     // #547 — expectedAccountId is the farm the tab told the endpoint it is
