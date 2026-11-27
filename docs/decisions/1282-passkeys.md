@@ -186,27 +186,24 @@ stateDiagram-v2
 ### Types
 
 ```csharp
-// Application/Modules/Access/Contracts. One more proof the code step, step-up and change-password accept.
-// Built by the endpoint from the request's passkey object, never parsed from the code string.
-public abstract record SecondFactorCode
+// Application/Modules/Access/Contracts. SecondFactorCode keeps the parsed codes, Totp and Recovery, unchanged.
+// What the code step accepts, built by the endpoint; a passkey is never parsed from the code string.
+public abstract record SecondFactorInput
 {
-	public sealed record Totp(int Value) : SecondFactorCode;                         // unchanged
-	public sealed record Recovery(string Normalized) : SecondFactorCode;             // unchanged
-	public sealed record Passkey(Guid Ceremony, string CredentialJson) : SecondFactorCode;   // #1285
-	public sealed override string ToString() => "[redacted]";                       // unchanged; covers Passkey
+	public sealed record Code(string? Raw) : SecondFactorInput;                     // parsed after the challenge
+	public sealed record Passkey(Guid Ceremony, string CredentialJson, string RequestHost) : SecondFactorInput;
+	public sealed override string ToString() => "[redacted]";
 }
 
-// IIdentityProvider and IAccessModule (#1285)
-// IIdentityProvider takes the resolved farm; IAccessModule takes the typed farm code and resolves it after the Passkeys.Off check.
-Task<Result<PasskeySignIn>> PasskeyLoginAsync(Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default);
-Task<Result<PasskeySignIn>> PasskeyLoginAsync(Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct);
+// IIdentityProvider and IAccessModule (#1285). IdentityProvider resolves the typed farm code itself;
+// AccessModule answers Passkeys.Off first and delegates.
+Task<Result<PasskeySignIn>> PasskeyLoginAsync(Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct = default);
 // PasskeySignIn(TokenPair Tokens, string FarmCode): the tokens and the signed-in farm's code as stored (decision 11).
 Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, SecondFactorInput input, CancellationToken ct = default);
-// SecondFactorInput: Code(string? Raw), still parsed after the challenge, or Passkey(SecondFactorCode.Passkey Proof, string RequestHost).
 
 // IStepUpGrantService (#1443): the password becomes optional; exactly one of password and passkey is set.
 Task<Result<StepUpGrant>> IssueAsync(Guid accountId, Guid userId, string? currentPassword, string? code,
-	SecondFactorCode.Passkey? passkey, CancellationToken ct = default);
+	SecondFactorInput.Passkey? passkey, CancellationToken ct = default);
 ```
 
 ```csharp
@@ -223,7 +220,7 @@ public interface IPasskeyCredentials
 	Task<PasskeyCeremonyStart> StartRegistrationAsync(Guid accountId, Guid userId, string requestHost, CancellationToken ct);   // #1284
 	Task<PasskeyCeremonyStart> StartSignInAsync(string requestHost, CancellationToken ct);                                  // #1285; no user
 	Task<PasskeyCeremonyStart> StartSecondStepAsync(ApplicationUser user, string requestHost, CancellationToken ct);       // #1285; bound
-	Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);        // the one cross-farm lookup (decision 11)
+	Task<PasskeyOwner?> FindOwnerAsync(string credentialJson, CancellationToken ct);      // reads the JSON's id; the one cross-farm lookup (decision 11)
 	Task<ConsumedCeremony?> ConsumeAsync(Guid ceremony, CeremonyPurpose purpose, Guid? userId, CancellationToken ct);
 		// DELETE … RETURNING by Id alone; the first statement of the caller's owned transaction; null when missing,
 		// expired, of another purpose, or bound to another user, and the row is gone either way
@@ -257,7 +254,7 @@ public abstract record RegisterOutcome
 
 #1284 shipped the registration, list, rename and removal members above in this shape; #1443 adds the Owner's last-factor refusal to the removal path (409 `Auth.LastFactor`).
 
-`FactorOutcome.Accepted` gains `UserPasskeyInfo? Passkey`, set when a passkey matched, so the caller saves the new sign count and backup state with `RecordUseAsync` after it resolves the tenant (decision 7). `VerifyAsync` gains one argument, `PasskeyAssertion? passkey`: the ceremony `ConsumeAsync` returned (null when it refused it), the credential ID the server looked up at sign-in (null at the second step) and the request's host. It is required when the code is a `SecondFactorCode.Passkey`, and `VerifyAsync` logs `Auth.PasskeyFailed` for every passkey outcome it returns other than `Accepted`.
+`FactorOutcome.Accepted` gains `UserPasskeyInfo? Passkey`, set when a passkey matched, so the caller saves the new sign count and backup state with `RecordUseAsync` after it resolves the tenant (decision 7). `VerifyAsync` takes one proof, `FactorProof`: `Code(SecondFactorCode Value)`, or `Passkey(ConsumedCeremony? Ceremony, string CredentialJson, byte[]? ExpectedCredentialId, string RequestHost)`, with the ceremony `ConsumeAsync` returned (null when it refused it) and the credential ID the server looked up at sign-in (null at the second step). `VerifyAsync` logs no event; each sign-in finish logs `Auth.PasskeyFailed` once at its exit when it refuses a passkey.
 
 ### The state it owns
 
@@ -271,22 +268,22 @@ Nothing else reads or writes these, apart from the `clear-passkeys` verb, which 
 
 ### Checking a passkey
 
-Every path that finishes a ceremony calls `ConsumeAsync` as the first statement of its owned transaction, before any other check, and every refusal after it commits. So a ceremony is good for one attempt, whatever refuses it. Six refusals come before that transaction. At passkey sign-in: an unknown farm code, which `AccessModule.PasskeyLoginAsync` refuses when it resolves the code, after the `Passkeys.Off` check and before it calls `IdentityProvider.PasskeyLoginAsync`. At the second sign-in step, as today's code step reads them: a dead #1274 challenge and a suspended farm. A passkey answer refused for either logs `Auth.PasskeyFailed` once, as `VerifyAsync` logs the refusals after it; a code refused there logs none. At registration: a missing or spent step-up grant, because the grant is checked before the transaction (decision 15). At change-password, which keeps today's order: a wrong current password and a weak new password, both refused before the proof's transaction (`IdentityProvider.Passwords.cs:185-194`; `SecondFactorLoginTests.ChangePassword.cs:166,179` pin the order). Their ceremony stays unused until it expires and the sweep deletes it; it is still single-use. Two more kinds of refusal keep the ceremony and log no event: the malformed-body 400s, which the route refuses before the module runs (a second-step body that sends both a code and a passkey, a missing or non-object `credential` at sign-in, at the second step and at registration, and a bad passkey name at registration), and the 404 `Passkeys.Off`, which the module answers first on the three finish routes.
+Every path that finishes a ceremony calls `ConsumeAsync` as the first statement of its owned transaction, before any other check, and every refusal after it commits. So a ceremony is good for one attempt, whatever refuses it. Six refusals come before that transaction. At passkey sign-in: an unknown farm code, which `IdentityProvider.PasskeyLoginAsync` refuses when it resolves the code, after `AccessModule`'s `Passkeys.Off` check and before the owned transaction. At the second sign-in step, as today's code step reads them: a dead #1274 challenge and a suspended farm. Each finish logs `Auth.PasskeyFailed` once, at its exit, for every passkey it refuses, these included; a code refused there logs none. At registration: a missing or spent step-up grant, because the grant is checked before the transaction (decision 15). At change-password, which keeps today's order: a wrong current password and a weak new password, both refused before the proof's transaction (`IdentityProvider.Passwords.cs:185-194`; `SecondFactorLoginTests.ChangePassword.cs:166,179` pin the order). Their ceremony stays unused until it expires and the sweep deletes it; it is still single-use. Two more kinds of refusal keep the ceremony and log no event: the malformed-body 400s, which the route refuses before the module runs (a second-step body that sends both a code and a passkey, a missing or non-object `credential` at sign-in, at the second step and at registration, and a bad passkey name at registration), and the 404 `Passkeys.Off`, which the module answers first on the three finish routes.
 
-A passkey enters `TwoFactorCredentials.VerifyAsync` as `SecondFactorCode.Passkey`, with the consumed ceremony. #1274's steps run in order, with these changes:
+A passkey enters `TwoFactorCredentials.VerifyAsync` as `FactorProof.Passkey`, with the consumed ceremony. #1274's steps run in order, with these changes:
 
 1. Superseded checks, unchanged, except the factor test. A TOTP or recovery code needs `TwoFactorEnabled`. A passkey needs `PasskeyCount > 0`. Neither charges.
 2. A locked user returns `Rejected(Charged: false)`, unchanged.
 3. For a passkey only: a null consumed ceremony is `Refused`. Otherwise `IPasskeyCredentials.AssertAsync` calls `PasskeyHandler.PerformAssertionAsync` and then refuses unless the handler's `User.Id` equals the expected user and, at sign-in, the handler's `Passkey.CredentialId` equals the looked-up credential ID byte for byte.
-4. `Refused` returns `Rejected(Charged: false)` and logs `Auth.PasskeyFailed`. Nothing calls `AccountLockout.RecordFailedAccessAsync` and the daily code budget does not move (decision 8).
+4. `Refused` returns `Rejected(Charged: false)`; the finish that asked logs `Auth.PasskeyFailed`. Nothing calls `AccountLockout.RecordFailedAccessAsync` and the daily code budget does not move (decision 8).
 5. `Accepted`: as #1274 step 6. `AccessFailedCount` is set to 0, and `SecondFactorSignIns` is incremented for a login. The watermark and the daily count do not move.
 
 `PasskeyLoginAsync`, the passkey-alone sign-in, runs in an owned transaction, as the code step does:
 
 0. `ConsumeAsync` with purpose `SignIn`.
-1. Read the credential ID from the JSON's `id` (base64url, at most 1,023 bytes) the way Identity's reader does: property names matched without case, and the last of duplicate properties wins. Find its owner with `FindOwnerAsync`. No owner: refuse. This read only routes the request: step 4's signer check, not this parse, decides which credential signed (decision 11).
-2. If `farmAccountId` is set and differs from the owner's `AccountId`: refuse. No signature is checked.
-3. Read `Account.IsActive` as the code step does (`IdentityProvider.SecondFactor.cs:24-31`); an inactive farm answers 401 `Auth.FarmSuspended`.
+1. `FindOwnerAsync` reads the credential ID from the JSON's `id` (base64url, at most 1,023 bytes) the way Identity's reader does: property names matched without case, and the last of duplicate properties wins. It finds the ID's owner. No owner: refuse. This read only routes the request: step 4's signer check, not this parse, decides which credential signed (decision 11).
+2. If a typed farm code resolved to a farm and the owner's `AccountId` differs: refuse. No signature is checked.
+3. Read the account as the code step does; a farm that is gone is refused, and an inactive one answers 401 `Auth.FarmSuspended`.
 4. Read the user's binding without a lock, as the password step reads it, and call `VerifyAsync` with it and the expected signer (the owner's user and the looked-up credential ID). Then, on `Accepted`, resolve the tenant and the actor, call `RecordUseAsync`, insert the refresh row with `SignedInAt` = now, mint, and commit. Every refusal commits too, so the consumed ceremony stays consumed.
 
 ## Decisions
@@ -353,7 +350,7 @@ A passkey works only at the host it was made on, because the authenticator binds
 
 #### 7. A passkey answers at the code step, and is a second way into `SignedIn` (items 1 and 7)
 
-At the second sign-in step, `CompleteSecondFactorLoginAsync` accepts a code string, as today, or a `SecondFactorCode.Passkey`. Both go through `VerifyAsync` with the challenge's binding, so one accepted proof of either kind ends the challenge and every challenge issued before it (#1274 decision 2). The pending 401's `secondFactors` extension tells the SPA which proofs to offer. It tells a password holder which factors the user has. Decided by the maintainer on 2026-11-17: "Send the list (Recommended)".
+At the second sign-in step, `CompleteSecondFactorLoginAsync` accepts a code string, as today, or a passkey (`SecondFactorInput.Passkey`). Both go through `VerifyAsync` with the challenge's binding, so one accepted proof of either kind ends the challenge and every challenge issued before it (#1274 decision 2). The pending 401's `secondFactors` extension tells the SPA which proofs to offer. It tells a password holder which factors the user has. Decided by the maintainer on 2026-11-17: "Send the list (Recommended)".
 
 `PasskeyLoginAsync` is the second way into `LoginStep.SignedIn`'s tokens. Its accepted proof increments `SecondFactorSignIns` too, so a passkey sign-in also ends any pending password challenge for that user.
 
@@ -388,7 +385,7 @@ Every user keeps a password; nothing removes it, and recovery uses it (decision 
 
 Sign-in with a passkey needs no farm code. `FindOwnerAsync` is the one cross-farm lookup: one indexed read of `AspNetUserPasskeys` by `CredentialId`, the table's key, returning `UserId` and the shadow `AccountId`. A credential ID is random, made by the authenticator, and at least 16 bytes in practice. The read has a row in `FilterFreeSetSites` with the reason "the one passkey lookup made before the farm is known; by credential ID, a routing hint that the signer check after the handler confirms" (#859). The read runs before `PasskeyHandler`, so the farm, the lock and the suspended-farm read are known before any signature is checked. It is a routing hint, not a proof. A credential ID is not a secret: the second step's `allowCredentials` and registration's `excludeCredentials` show a user's IDs, and the browser sends them in the clear. Identity takes the user from `userHandle` and the credential from the JSON's `id`, read without case with the last duplicate winning, and never reads `rawId` (`PasskeyHandler.cs:424-469`). A caller who sends one credential's ID for the lookup and has another credential sign, or a password holder who learns a victim's credential IDs from the second step's `allowCredentials`, would otherwise sign in as the user the handler found. So `AssertAsync` refuses unless the handler's `User.Id` equals the looked-up owner's user and its `Passkey.CredentialId` equals the looked-up credential ("Checking a passkey", step 3). Disagreement between the lookup and the signature is a refusal, whatever the JSON holds.
 
-If the field holds a farm code, typed or prefilled, the SPA sends it, `AccessModule.PasskeyLoginAsync` resolves it with `ResolveFarmCodeAsync` (`IdentityProvider.cs:34-40`), which treats a code with a control character as unknown, and a passkey of another farm is refused with the one `Auth.PasskeyRefused` body. An unknown farm code is refused the same way. After a passkey sign-in, the SPA adds the farm to the device's remembered farms, as after a password sign-in: the 200 carries `farmCode`, the signed-in farm's code as stored, read by the same account query that checks the farm is active, so a sign-in with a blank farm code still names the farm to remember.
+If the field holds a farm code, typed or prefilled, the SPA sends it, `IdentityProvider.PasskeyLoginAsync` resolves it with `ResolveFarmCodeAsync` (`IdentityProvider.cs:34-40`), which treats a code with a control character as unknown, and a passkey of another farm is refused with the one `Auth.PasskeyRefused` body. An unknown farm code is refused the same way. After a passkey sign-in, the SPA adds the farm to the device's remembered farms, as after a password sign-in: the 200 carries `farmCode`, the signed-in farm's code as stored, read by the same account query that checks the farm is active, so a sign-in with a blank farm code still names the farm to remember.
 
 `AspNetUserPasskeys` has `CredentialId` as its key, so one credential belongs to one user in one farm, and Identity refuses a second registration of it (probe line 12). A person with users in two farms registers a passkey in each.
 
@@ -487,7 +484,7 @@ Found by `grep` over `tests/`, `web/src/**/*.test.ts(x)`, `tools/simulation/ui/`
 | The #1281 Owner gate (G6.x) | `IT/OwnerTwoFactorGateTests.cs`, `IT/OwnerTwoFactorGateUnitTests.cs` (`TheGatesInputs_AreTheDaysTheSwitchAndTheClock` `:212`), `IT/OwnerEnrolmentChainTests.cs`, `IT/CredentialEpochMiddlewareVerdictTests.cs`, `IT/CredentialEpochMiddlewareOrderTests.cs`, `IT/SecondFactorLoginTests.TurnOff.cs` (`AnOwner_CannotTurnTheirOwnTwoFactorOff` `:143`), `AT/Architecture/OwnerGraceWriterTests.cs`; `web/src/routes/TwoFactorEnrolmentPage.test.tsx`, `TwoFactorDeadlineBanner.test.tsx`, `web/src/api/enrolmentRequired.test.ts` | Changed in #1443: `CredentialCheck` carries `HasSecondFactor`; `TheStatusRoute_ReturnsRequiredByToAnOwner_AndOmitsItForAManager` (`:509`) is kept and gains a passkey Owner who still gets `requiredBy`; `AnOwner_CannotTurnTheirOwnTwoFactorOff` (`:143`) and its 403 at `:151` are kept for an Owner with no passkey, and a passkey case is added. |
 | Session cap (G3.31) | `IT/EnrolledSessionCapTests.cs`, `IT/SecondFactorLoginTests.Enrolment.cs:147`, `.ChangePassword.cs:289` | Kept. #1443 adds a passkey-only user (G9.6). |
 | `recover-admin` (G5.3) | `IT/RecoverAdminCommandTests.cs` (`RecoverAdmin_UnderALeastPrivilegeDmlOnlyRole_StillRecovers` `:193`), `IT/AdminRecoveryServiceTests.cs:55`, `IT/SecondFactorLoginTests.Reset.cs:189`, `IT/OperatorVerbContractTests.cs:77`, the `BreakGlassResetAsync` fakes (`IT/MustChangePasswordGateTests.cs:264`, `IT/StepUpAuthTests.cs:723`) | Changed in #1284: `BreakGlassResetAsync` gains `passkeysRemoved`; G5.3's test gains a user with a passkey (G7.9). `CliDispatcherTests` and `OneShotVerbMinimalConfigTests` gain `clear-passkeys`; G7.11 is its own test. |
-| Credential walk (G3.29) | `IT/RedactedCredentialTypesTests.cs`, `IT/RedactedToStringTests.cs`, `IT/BodyReadingEndpointTests.cs`, the word list `IT/Infrastructure/CredentialTypes.cs:29-34` | Changed in #1284: the word `Passkey` joins the list with its exclusion rows (G7.7). `SecondFactorCode.Passkey` is covered by the base's sealed `ToString`. |
+| Credential walk (G3.29) | `IT/RedactedCredentialTypesTests.cs`, `IT/RedactedToStringTests.cs`, `IT/BodyReadingEndpointTests.cs`, the word list `IT/Infrastructure/CredentialTypes.cs:29-34` | Changed in #1284: the word `Passkey` joins the list with its exclusion rows (G7.7). #1285's `FactorProof.Passkey` and `SecondFactorInput.Passkey` are covered by their bases' sealed `ToString`. |
 | #859 tenant-bypass allow-list | `AT/TenantBypass/BypassAllowList.cs`, `FilterFreeSetSites.cs`, `TenantBypassRealTreeTests.cs`, `TenantBypassDiscoveryTests.cs`, `FilterFreeSetIdentityTests.cs`; `IT/GlobalUserLookupGuardTests.cs` | Changed in #1284: each `db.UserPasskeys` site, the ceremony insert and the sweep's delete get a `FilterFreeSetSites` row, `FindOwnerAsync`'s with the cross-farm reason; the ceremony consume gets a `BypassAllowList` row (decision 3); `DiscoveredSurface_Floor` is re-pinned for three new mapped types (decision 6); `GlobalUserLookupGuardTests` gains `FindByPasskeyIdAsync` with `PasskeyCredentials.cs` as its only allowed file. |
 | Table owners (#845) | `AT/Architecture/TableOwnerRealModelTests.cs`, `RealModuleLedger.Tables.cs:74` | Changed in #1284: two rows. |
 | Chronology (#819) | `IT/BusinessRecordModelTests.cs` (`:58`, `:91`, `:117`), `IT/BusinessRecordChronologyMigrationTests.cs`, `IT/BusinessRecordTimestampTests.cs` | Kept: the new entities are mapped exclusions. |
