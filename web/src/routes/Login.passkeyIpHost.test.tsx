@@ -77,4 +77,19 @@ describe("Login with passkeys on an IP address (#1285)", () => {
     expect(screen.getByText(i18n.t("auth:passkeySecondIpHost"))).toBeInTheDocument();
     expect(screen.queryByText(i18n.t("auth:passkeySecondOff"))).not.toBeInTheDocument();
   });
+
+  it("sends a passkey-only user to the farm's web address even without WebAuthn, as over plain http", async () => {
+    vi.stubGlobal("PublicKeyCredential", undefined);
+    await render();
+    await passwordStep(["passkey"]);
+
+    expect(screen.getByText(i18n.t("auth:passkeySecondIpHost"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:passkeySecondUnsupported"))).not.toBeInTheDocument();
+  });
+
+  it("holds no passkey wording on the sign-in page, visible or not", async () => {
+    await render();
+
+    expect(document.body.textContent).not.toMatch(/passkey/i);
+  });
 });

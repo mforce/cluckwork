@@ -61,21 +61,29 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const renewing = useRef(false);
   const autofill = useRef<AbortController | null>(null);
 
+  // A ceremony the server has already expired is not offered while its
+  // replacement is on the way: after a hidden page, a long second step, or a
+  // renewal that hangs.
+  const expire = useCallback(() => setState((s) =>
+    (s.kind === "ready" && Date.now() >= s.dueAt - RENEW_MS + CEREMONY_MS ? { kind: "waiting", dueAt: s.dueAt } : s)), []);
+
   const renew = useCallback(async () => {
     if (renewing.current) return;
     renewing.current = true;
-    // A ceremony the server has already expired is not offered while its
-    // replacement is on the way (after a hidden page or a long second step).
-    setState((s) => (s.kind === "ready" && Date.now() >= s.dueAt - RENEW_MS + CEREMONY_MS ? { kind: "waiting", dueAt: s.dueAt } : s));
     try {
       const current = await startPasskeySignIn();
-      setState({ kind: "ready", current, dueAt: Date.now() + RENEW_MS });
+      // Off stays off, even when the step learned it during this request.
+      setState((s) => (s.kind === "off" ? s : { kind: "ready", current, dueAt: Date.now() + RENEW_MS }));
     } catch (err) {
       setState((s) => afterFailure(s, err));
     } finally {
       renewing.current = false;
     }
   }, []);
+
+  // The second step's options route answered 404 Passkeys.Off: the page
+  // offers no passkey for the rest of its life.
+  const markOff = useCallback(() => setState({ kind: "off" }), []);
 
   // A success leaves busy set: the page is leaving.
   async function finish(answer: PasskeyAnswer, fromAutofill: boolean) {
@@ -96,17 +104,23 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   useEffect(() => {
     if (dueAt === null) return;
     let timer: number | undefined;
+    let expiry: number | undefined;
     const schedule = () => {
       clearTimeout(timer);
-      if (document.visibilityState !== "hidden") timer = window.setTimeout(() => void renew(), Math.max(0, dueAt - Date.now()));
+      clearTimeout(expiry);
+      if (document.visibilityState === "hidden") return;
+      timer = window.setTimeout(() => void renew(), Math.max(0, dueAt - Date.now()));
+      // For a ceremony; a no-op in the other states.
+      expiry = window.setTimeout(expire, Math.max(0, dueAt - RENEW_MS + CEREMONY_MS - Date.now()));
     };
     schedule();
     document.addEventListener("visibilitychange", schedule);
     return () => {
       clearTimeout(timer);
+      clearTimeout(expiry);
       document.removeEventListener("visibilitychange", schedule);
     };
-  }, [dueAt, renew]);
+  }, [dueAt, renew, expire]);
 
   const listen = useEffectEvent(async (current: PasskeyCeremony, signal: AbortSignal) => {
     if (!(await window.PublicKeyCredential?.isConditionalMediationAvailable?.()) || signal.aborted) return;
@@ -143,8 +157,9 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   }
 
   return {
-    // The options route answered 404 Passkeys.Off.
+    // An options route answered 404 Passkeys.Off.
     off: state.kind === "off",
+    markOff,
     // The button and its caption show; the button works only when ready.
     offered: state.kind === "ready" || state.kind === "waiting" || state.kind === "limited",
     waiting: state.kind === "waiting",

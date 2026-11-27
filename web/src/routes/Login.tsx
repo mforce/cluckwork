@@ -174,6 +174,7 @@ export function Login() {
   const [challenge, setChallenge] = useState<{ challenge: string; factors: SecondFactor[] } | null>(null);
   const passkey = usePasskeySignIn({ active: challenge === null && !busy, farmCode, onError: setError });
   const passkeyNoteId = useId();
+  const limitedNote = passkey.limitedMinutes !== null ? t("passkeyLimited", { count: passkey.limitedMinutes }) : null;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -241,6 +242,7 @@ export function Login() {
           challenge={challenge.challenge}
           factors={challenge.factors}
           passkeysOff={passkey.off}
+          onPasskeysOff={passkey.markOff}
           onRestart={(message) => {
             setChallenge(null);
             setError(message);
@@ -344,8 +346,10 @@ export function Login() {
             passkey.resumeAutofill();
           }}
           onFocus={passkey.resumeAutofill}
-          // A press in a field that already has focus fires no focus event.
+          // A press or a key in a field that already has focus fires no
+          // focus event.
           onPointerDown={passkey.resumeAutofill}
+          onKeyDown={passkey.resumeAutofill}
           // #1285 — the webauthn token lets the browser offer passkeys here.
           autoComplete={passkey.autofill ? "username webauthn" : "username"}
           required
@@ -367,11 +371,9 @@ export function Login() {
         <BusyButton variant="contained" type="submit" busy={busy} disabled={passkey.busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
-        {/* #1283 "Sign-in A": one outlined passkey action below the form. The
-            note's live region stays in the page, hidden while no passkey is
-            offered, so its first text is announced too. */}
-        <Stack spacing={1} className={passkey.offered ? undefined : "sr-only"}>
-          {passkey.offered && (
+        {passkey.offered && (
+          // #1283 "Sign-in A": one outlined passkey action below the form.
+          <Stack spacing={1}>
             <Button
               variant="outlined"
               type="button"
@@ -381,14 +383,14 @@ export function Login() {
             >
               {t("passkeySignIn")}
             </Button>
-          )}
-          <Typography id={passkeyNoteId} role="status" variant="body2" color="text.secondary">
-            {!passkey.offered ? ""
-              : passkey.limitedMinutes !== null ? t("passkeyLimited", { count: passkey.limitedMinutes })
-                : passkey.waiting ? t("passkeyRenewing")
-                  : t("passkeyFarmCodeOptional")}
-          </Typography>
-        </Stack>
+            <Typography id={passkeyNoteId} variant="body2" color="text.secondary">
+              {limitedNote ?? (passkey.waiting ? t("passkeyRenewing") : t("passkeyFarmCodeOptional"))}
+            </Typography>
+          </Stack>
+        )}
+        {/* Only the 429 is announced, from a region that is always in the
+            page, so its first text is announced too. */}
+        <span role="status" className="sr-only">{limitedNote ?? ""}</span>
       </Stack>
       )}
       {confirmDialog}

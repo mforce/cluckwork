@@ -32,36 +32,40 @@ interface Props {
   challenge: string;
   // #1285 — what the pending 401's secondFactors offers this user.
   factors: SecondFactor[];
-  // The sign-in page's options route answered 404 Passkeys.Off.
+  // An options route, the sign-in page's or this step's, answered 404
+  // Passkeys.Off; the page keeps the answer for its life.
   passkeysOff: boolean;
+  onPasskeysOff: () => void;
   // Back to the password step, with the message to show there, if any.
   onRestart: (message: string | null) => void;
 }
 
 // A completed sign-in flips isAuthenticated, and the Login page's effect then
 // takes the user to where they were going.
-export function SecondFactorStep({ farmCode, email, challenge, factors, passkeysOff, onRestart }: Props) {
+export function SecondFactorStep({ farmCode, email, challenge, factors, passkeysOff, onPasskeysOff, onRestart }: Props) {
   const { t } = useTranslation("auth");
   const { completeSecondFactor } = useAuth();
   const { busy, run } = usePendingAction();
   const codeOffered = factors.includes("authenticator");
-  // This step's own options route answered 404 Passkeys.Off.
-  const [offHere, setOffHere] = useState(false);
-  // Why no passkey can answer here, if none can (record 1282 decision 5).
-  const blocked = !passkeysSupported() ? "browser"
-    : !webAuthnHost(window.location.hostname) ? "ipHost"
-      : passkeysOff || offHere ? "off" : null;
-  // #1283 "Sign-in A": the passkey first when it can answer. When it cannot,
-  // a user with the app sees only the code view, with no passkey wording
-  // (maintainer, 2026-11-27); a passkey-only user is told why.
-  const [usePasskey, setUsePasskey] = useState(factors.includes("passkey") && (blocked === null || !codeOffered));
+  // Why no passkey can answer here, if none can (record 1282 decision 5). The
+  // address comes first: no other browser helps at an IP address, and a plain
+  // http one is not a secure context, so it has no WebAuthn at all.
+  const blocked = !webAuthnHost(window.location.hostname) ? "ipHost"
+    : !passkeysSupported() ? "browser"
+      : passkeysOff ? "off" : null;
+  // #1283 "Sign-in A": the passkey first. The user's choice between the two
+  // views; it gives way while no passkey can answer.
+  const [usePasskey, setUsePasskey] = useState(factors.includes("passkey"));
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const view = !usePasskey ? "code" : blocked === null ? "passkey" : "unavailable";
-  const other = view === "code"
-    ? (factors.includes("passkey") && blocked === null ? "passkey" : null)
-    : (codeOffered ? "code" : null);
+  // Derived on every render, so a 404 that arrives while the step shows also
+  // applies. When no passkey can answer, a user with the app sees only the
+  // code view, with no passkey wording (maintainer, 2026-11-27); a
+  // passkey-only user is told why.
+  const view = blocked !== null ? (codeOffered ? "code" : "unavailable") : usePasskey ? "passkey" : "code";
+  const other = view === "passkey" ? (codeOffered ? "code" : null)
+    : view === "code" && blocked === null && factors.includes("passkey") ? "passkey" : null;
   const unavailable = {
     browser: t("passkeySecondUnsupported"),
     ipHost: t("passkeySecondIpHost"),
@@ -81,8 +85,7 @@ export function SecondFactorStep({ farmCode, email, challenge, factors, passkeys
         await completeSecondFactor(farmCode, challenge, given);
       } catch (err) {
         if (err instanceof ApiError && err.title === PASSKEYS_OFF) {
-          setOffHere(true);
-          if (codeOffered) setUsePasskey(false);
+          onPasskeysOff();
           return;
         }
         const message = codeStepMessage(err);
