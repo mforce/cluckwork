@@ -35,10 +35,11 @@ public interface IIdentityProvider
     // #1285: a sign-in ceremony with no farm and no user (decision 11).
     Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default);
 
-    // #1285: a passkey alone signs in; the passkey names the farm. farmAccountId
-    // is the typed farm code's farm, refused when it is not the passkey's.
+    // #1285: a passkey alone signs in; the passkey names the farm. farmCode is
+    // the typed or prefilled code, or null; an unknown one, or another farm's,
+    // is refused, the unknown one before the ceremony is consumed.
     Task<Result<PasskeySignIn>> PasskeyLoginAsync(
-        Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default);
+        Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct = default);
 
     // #547 — expectedAccountId is the farm the tab told the endpoint it is
     // refreshing, sent as the X-Cluckwork-Account header. The server compares

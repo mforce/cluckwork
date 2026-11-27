@@ -1,7 +1,5 @@
-using System.Text.Json;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Domain.Common;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Infrastructure.Modules.Access.Identity;
@@ -11,15 +9,26 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // one Auth.PasskeyRefused body, apart from a suspended farm.
 public sealed partial class IdentityProvider
 {
-    // Identity refuses a longer credential id (record 1282 "Checking a passkey").
-    private const int MaxCredentialIdBytes = 1023;
-
     public Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default) =>
         passkeys.StartSignInAsync(requestHost, ct);
 
     public async Task<Result<PasskeySignIn>> PasskeyLoginAsync(
-        Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default)
+        Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct = default)
     {
+        // Decision 11: a typed farm code is resolved first, so an unknown one is
+        // refused before the ceremony is consumed; the passkey's own farm must
+        // match a known one.
+        Guid? farmAccountId = null;
+        if (!string.IsNullOrWhiteSpace(farmCode))
+        {
+            if (await ResolveFarmCodeAsync(farmCode, ct) is not { } farm)
+            {
+                securityEvents.PasskeyFailed();
+                return Result.Failure<PasskeySignIn>(SecondFactorErrors.PasskeyRefused);
+            }
+            farmAccountId = farm.AccountId;
+        }
+
         (Guid UserId, string FarmCode)? signedIn = null;
         var result = await SignInOwnedAsync(async token =>
         {
@@ -27,8 +36,8 @@ public sealed partial class IdentityProvider
             var consumed = await passkeys.ConsumeAsync(ceremony, CeremonyPurpose.SignIn, userId: null, token);
             // Steps 1 and 2: no signature is checked for an unknown credential
             // or another farm's passkey.
-            if (consumed is null || CredentialIdOf(credentialJson) is not { } credentialId
-                || await passkeys.FindOwnerAsync(credentialId, token) is not { } owner
+            if (consumed is null
+                || await passkeys.FindOwnerAsync(credentialJson, token) is not { } owner
                 || (farmAccountId is { } farm && farm != owner.AccountId))
                 return RefusePasskeySignIn();
 
@@ -66,29 +75,5 @@ public sealed partial class IdentityProvider
     {
         securityEvents.PasskeyFailed();
         return Result.Failure<AcceptedSignIn>(error ?? SecondFactorErrors.PasskeyRefused);
-    }
-
-    // Step 1: the JSON's id, read as Identity's reader reads it, names matched
-    // without case and the last duplicate winning. It only routes the request:
-    // AssertAsync's signer check decides which credential signed.
-    internal static byte[]? CredentialIdOf(string credentialJson)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(credentialJson);
-            if (document.RootElement.ValueKind != JsonValueKind.Object) return null;
-            JsonElement? id = null;
-            foreach (var property in document.RootElement.EnumerateObject())
-                if (string.Equals(property.Name, "id", StringComparison.OrdinalIgnoreCase))
-                    id = property.Value;
-            if (id is not { ValueKind: JsonValueKind.String } value) return null;
-            var bytes = WebEncoders.Base64UrlDecode(value.GetString()!);
-            return bytes.Length is > 0 and <= MaxCredentialIdBytes ? bytes : null;
-        }
-        // A lone UTF-16 surrogate in a name or the id throws InvalidOperationException.
-        catch (Exception e) when (e is JsonException or FormatException or InvalidOperationException)
-        {
-            return null;
-        }
     }
 }

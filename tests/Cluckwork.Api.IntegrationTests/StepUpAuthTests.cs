@@ -686,8 +686,8 @@ public sealed class StepUpAuthTests(CluckworkWebApplicationFactory factory)
             inner.StartPasskeySignInAsync(requestHost, ct);
 
         public Task<Result<PasskeySignIn>> PasskeyLoginAsync(
-            Guid ceremony, string credentialJson, Guid? farmAccountId, string requestHost, CancellationToken ct = default) =>
-            inner.PasskeyLoginAsync(ceremony, credentialJson, farmAccountId, requestHost, ct);
+            Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct = default) =>
+            inner.PasskeyLoginAsync(ceremony, credentialJson, farmCode, requestHost, ct);
 
         public Task<Result<TokenPair>> RefreshAsync(string refreshToken, CancellationToken ct = default, Guid? expectedAccountId = null) =>
             inner.RefreshAsync(refreshToken, ct, expectedAccountId);

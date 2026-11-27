@@ -41,7 +41,7 @@ public sealed class TwoFactorOwnershipTests
     private static readonly OutsideReader[] OutsideReaders =
     [
         new(PasswordStepRead, "SecondFactorSignIns", "the challenge carries the count the code step compares (decision 2)"),
-        new(InInfrastructure + Identity + "IdentityProvider.PasskeyLoginAsync(System.Guid, string, System.Guid?, string, System.Threading.CancellationToken)",
+        new(InInfrastructure + Identity + "IdentityProvider.PasskeyLoginAsync(System.Guid, string, string?, string, System.Threading.CancellationToken)",
             "SecondFactorSignIns", "a passkey sign-in binds its proof to the count, as the password step does (#1282 decision 7, #1285)"),
         new(InInfrastructure + Identity + "IdentityProvider.RefreshAsync(string, System.Threading.CancellationToken, System.Guid?)",
             "TwoFactorEnabled", "an enrolled lineage ends a fixed time after its last sign-in (decision 8)"),

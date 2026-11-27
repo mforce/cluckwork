@@ -24,9 +24,10 @@ public interface IPasskeyCredentials
     // user, whom the caller checked; allowCredentials lists their passkeys.
     Task<PasskeyCeremonyStart> StartSecondStepAsync(ApplicationUser user, string requestHost, CancellationToken ct);
 
-    // #1285 (decision 11): the one lookup made before the farm is known, by
-    // credential id alone. A routing hint: AssertAsync's signer check decides.
-    Task<PasskeyOwner?> FindOwnerAsync(byte[] credentialId, CancellationToken ct);
+    // #1285 (decision 11): the one lookup made before the farm is known, by the
+    // credential JSON's id alone. A routing hint: AssertAsync's signer check
+    // decides. Null for an unreadable id or an unknown credential.
+    Task<PasskeyOwner?> FindOwnerAsync(string credentialJson, CancellationToken ct);
 
     // #1285: Identity's handler, then the signer check. Refused unless the
     // handler verified userId and, when credentialId is set (at sign-in, the
