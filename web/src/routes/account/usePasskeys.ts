@@ -143,12 +143,9 @@ export function usePasskeys() {
       const { ceremony, options } = await startPasskeyRegistration();
       // A page the user has left opens no browser prompt and spends no grant.
       if (!current()) return;
-      let credential: RegistrationResponseJSON | null;
-      try {
-        credential = await createPasskey(options);
-      } catch (err) {
+      const credential = await createPasskey(options).catch((err: unknown) => {
         throw browserError(err);
-      }
+      });
       if (!current()) return;
       if (credential === null) {
         toPhase({ phase: "cancelled", grant });

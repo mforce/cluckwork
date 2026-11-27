@@ -136,6 +136,8 @@ export const en = {
     passkeySecondOff:
       "Passkeys are off at this web address, and your account has no authenticator app. Ask an Owner of your farm to remove your passkeys, then sign in with your password.",
     passkeySecondCancelled: "The passkey check was cancelled. Try again.",
+    passkeySecondIpHost: "Passkeys don't work at an IP address. Open Cluckwork at your farm's web address to use your passkey.",
+    passkeyRenewing: "Getting a new passkey request…",
     passkeySecondUnsupported: "This browser cannot use passkeys. Use another browser or device.",
     passkeyBrowserFailed: "This browser or device could not use the passkey. Try again, or use another way to sign in.",
     secondFactorIncorrect:

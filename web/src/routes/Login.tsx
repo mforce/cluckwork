@@ -240,6 +240,7 @@ export function Login() {
           email={email}
           challenge={challenge.challenge}
           factors={challenge.factors}
+          passkeysOff={passkey.off}
           onRestart={(message) => {
             setChallenge(null);
             setError(message);
@@ -343,6 +344,8 @@ export function Login() {
             passkey.resumeAutofill();
           }}
           onFocus={passkey.resumeAutofill}
+          // A press in a field that already has focus fires no focus event.
+          onPointerDown={passkey.resumeAutofill}
           // #1285 — the webauthn token lets the browser offer passkeys here.
           autoComplete={passkey.autofill ? "username webauthn" : "username"}
           required
@@ -364,9 +367,11 @@ export function Login() {
         <BusyButton variant="contained" type="submit" busy={busy} disabled={passkey.busy}>
           {busy ? t("signingIn") : t("signIn")}
         </BusyButton>
-        {passkey.offered && (
-          // #1283 "Sign-in A": one outlined passkey action below the form.
-          <Stack spacing={1}>
+        {/* #1283 "Sign-in A": one outlined passkey action below the form. The
+            note's live region stays in the page, hidden while no passkey is
+            offered, so its first text is announced too. */}
+        <Stack spacing={1} className={passkey.offered ? undefined : "sr-only"}>
+          {passkey.offered && (
             <Button
               variant="outlined"
               type="button"
@@ -376,13 +381,14 @@ export function Login() {
             >
               {t("passkeySignIn")}
             </Button>
-            <Typography id={passkeyNoteId} role="status" variant="body2" color="text.secondary">
-              {passkey.limitedMinutes !== null
-                ? t("passkeyLimited", { count: passkey.limitedMinutes })
-                : t("passkeyFarmCodeOptional")}
-            </Typography>
-          </Stack>
-        )}
+          )}
+          <Typography id={passkeyNoteId} role="status" variant="body2" color="text.secondary">
+            {!passkey.offered ? ""
+              : passkey.limitedMinutes !== null ? t("passkeyLimited", { count: passkey.limitedMinutes })
+                : passkey.waiting ? t("passkeyRenewing")
+                  : t("passkeyFarmCodeOptional")}
+          </Typography>
+        </Stack>
       </Stack>
       )}
       {confirmDialog}

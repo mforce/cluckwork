@@ -10,10 +10,12 @@ import { messageFor, PASSKEYS_OFF } from "./signInMessage";
 // decision 12). A ceremony lives 5 minutes by the server's clock, so the page
 // renews it at 4 while visible, never while hidden, and once on return.
 export const RENEW_MS = 4 * 60_000;
+const CEREMONY_MS = 5 * 60_000;
 // ponytail: a failed options request (not a 404 Passkeys.Off or a 429) is
 // tried again on this fixed delay while visible; back off if it ever matters.
 export const RETRY_MS = 30_000;
-// The auth-passkey-options window: no Retry-After is waited out past it.
+// The auth-passkey-options policy's default window: no Retry-After is waited
+// out past it.
 const MAX_WAIT_SECONDS = 900;
 
 // unsupported: this browser or host cannot; off: the options route answered
@@ -62,6 +64,9 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const renew = useCallback(async () => {
     if (renewing.current) return;
     renewing.current = true;
+    // A ceremony the server has already expired is not offered while its
+    // replacement is on the way (after a hidden page or a long second step).
+    setState((s) => (s.kind === "ready" && Date.now() >= s.dueAt - RENEW_MS + CEREMONY_MS ? { kind: "waiting", dueAt: s.dueAt } : s));
     try {
       const current = await startPasskeySignIn();
       setState({ kind: "ready", current, dueAt: Date.now() + RENEW_MS });
@@ -138,8 +143,11 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   }
 
   return {
+    // The options route answered 404 Passkeys.Off.
+    off: state.kind === "off",
     // The button and its caption show; the button works only when ready.
     offered: state.kind === "ready" || state.kind === "waiting" || state.kind === "limited",
+    waiting: state.kind === "waiting",
     enabled: state.kind === "ready" && active && !busy,
     // The email field's webauthn token.
     autofill: state.kind === "ready",

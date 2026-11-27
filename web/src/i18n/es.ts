@@ -97,6 +97,8 @@ export const es = {
     passkeySecondOff:
       "Las llaves de acceso están desactivadas en esta dirección web y su cuenta no tiene aplicación de autenticación. Pida a un Propietario de su granja que quite sus llaves de acceso y luego inicie sesión con su contraseña.",
     passkeySecondCancelled: "Se canceló la comprobación con la llave de acceso. Inténtelo de nuevo.",
+    passkeySecondIpHost: "Las llaves de acceso no funcionan en una dirección IP. Abra Cluckwork en la dirección web de su granja para usar su llave de acceso.",
+    passkeyRenewing: "Obteniendo una nueva solicitud de llave de acceso…",
     passkeySecondUnsupported: "Este navegador no puede usar llaves de acceso. Use otro navegador o dispositivo.",
     passkeyBrowserFailed: "Este navegador o dispositivo no pudo usar la llave de acceso. Inténtelo de nuevo o use otra forma de iniciar sesión.",
     secondFactorIncorrect:

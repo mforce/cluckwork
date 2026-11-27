@@ -68,10 +68,13 @@ describe("Login with passkeys on an IP address (#1285)", () => {
     expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })).not.toBeInTheDocument();
   });
 
-  it("tells a passkey-only user that passkeys are off here", async () => {
+  // Maintainer, 2026-11-27: point a passkey-only user to the farm's web
+  // address, with no advice to remove their passkeys.
+  it("sends a passkey-only user to the farm's web address", async () => {
     await render();
     await passwordStep(["passkey"]);
 
-    expect(screen.getByText(i18n.t("auth:passkeySecondOff"))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("auth:passkeySecondIpHost"))).toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:passkeySecondOff"))).not.toBeInTheDocument();
   });
 });

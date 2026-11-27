@@ -4,7 +4,6 @@ import { Routes, Route, useLocation } from "react-router";
 import { Login } from "./Login";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { RENEW_MS, RETRY_MS } from "./usePasskeySignIn";
-import { webAuthnHost } from "../auth/passkey";
 import { renderWithProviders } from "../test/renderWithProviders";
 import {
   ApiError, login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, passkeyLogin as apiPasskeyLogin,
@@ -429,16 +428,47 @@ describe("Login second step with a passkey (#1285)", () => {
     expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })).not.toBeInTheDocument();
   });
 
-  it("offers only the code to a user with the app once its options route says passkeys are off", async () => {
+  // Maintainer, 2026-11-27: when passkeys are off, a user with the app sees
+  // only the code view, with no passkey wording at all.
+  const expectCodeViewOnly = () => {
+    expect(codeField()).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:passkeySecondIntro"))).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("auth:passkeySecondOff"))).not.toBeInTheDocument();
+    expect(screen.queryByText(i18n.t("errors:Passkeys.Off"))).not.toBeInTheDocument();
+  };
+
+  it("moves a user with the app to the code view, with no passkey wording, once its options route says passkeys are off", async () => {
     mockStartSecond.mockRejectedValue(new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")));
     await reachSecondStep(["authenticator", "passkey"]);
 
     await act(async () => fireEvent.click(usePasskey()));
-    expect(screen.getByText(i18n.t("errors:Passkeys.Off"))).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:passkeySecondUseCode") }));
 
-    expect(codeField()).toBeInTheDocument();
+    expectCodeViewOnly();
+  });
+
+  it("starts a user with the app on the code view after the page's own 404 Passkeys.Off", async () => {
+    mockStart.mockRejectedValue(new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")));
+    await reachSecondStep(["authenticator", "passkey"]);
+
+    expectCodeViewOnly();
+    expect(mockStartSecond).not.toHaveBeenCalled();
+  });
+
+  it("tells a passkey-only user at once, with no passkey offered, after the page's own 404 Passkeys.Off", async () => {
+    mockStart.mockRejectedValue(new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")));
+    await reachSecondStep(["passkey"]);
+
+    expect(screen.getByText(i18n.t("auth:passkeySecondOff"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })).not.toBeInTheDocument();
+  });
+
+  it("starts a user with the app on the code view in a browser without passkeys", async () => {
+    vi.stubGlobal("PublicKeyCredential", undefined);
+    await reachSecondStep(["authenticator", "passkey"]);
+
+    expectCodeViewOnly();
+    expect(screen.queryByText(i18n.t("auth:passkeySecondUnsupported"))).not.toBeInTheDocument();
   });
 });
 
@@ -505,11 +535,6 @@ describe("Login passkey when a request or the browser fails (#1285)", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })));
     expect(screen.getByRole("alert")).toHaveTextContent(i18n.t("auth:passkeyBrowserFailed"));
     expect(mockComplete).not.toHaveBeenCalled();
-  });
-
-  it("offers no passkey and asks nothing on an IP address, which WebAuthn refuses", () => {
-    expect([webAuthnHost("127.0.0.1"), webAuthnHost("[::1]")]).toEqual([false, false]);
-    expect([webAuthnHost("localhost"), webAuthnHost("farm.example.test")]).toEqual([true, true]);
   });
 });
 
@@ -651,5 +676,98 @@ describe("Login passkey timing (#1285)", () => {
     expect(mockStart).toHaveBeenCalledTimes(1);
     await settle(1000);
     expect(mockStart).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Login passkey autofill after a refused answer (#1285)", () => {
+  async function refusedAutofill() {
+    mockPasskeyLogin.mockRejectedValue(new ApiError(401, "Auth.PasskeyRefused", i18n.t("errors:Auth.PasskeyRefused")));
+    await ready();
+    await waitFor(() => expect(live()).toHaveLength(1));
+    await act(async () => live()[0].answer("autofill-cred"));
+    await screen.findByText(i18n.t("errors:Auth.PasskeyRefused"));
+    await waitFor(() => expect(passkeyButton()).toBeEnabled());
+    expect(live()).toHaveLength(0);
+  }
+
+  it("comes back on a press in the email field, which may still have focus", async () => {
+    await refusedAutofill();
+    fireEvent.pointerDown(emailField());
+    await waitFor(() => expect(live()).toHaveLength(1));
+  });
+
+  it("comes back when the user types in the email field", async () => {
+    await refusedAutofill();
+    fireEvent.change(emailField(), { target: { value: "o" } });
+    await waitFor(() => expect(live()).toHaveLength(1));
+  });
+
+  it("comes back after the user presses the passkey button", async () => {
+    await refusedAutofill();
+    modal = () => Promise.reject(new DOMException("Cancelled", "NotAllowedError"));
+    await act(async () => fireEvent.click(passkeyButton()));
+    await screen.findByText(i18n.t("auth:passkeySignInCancelled"));
+    await waitFor(() => expect(live()).toHaveLength(1));
+  });
+});
+
+describe("Login passkey note (#1285)", () => {
+  it("says why the button is disabled while a new ceremony is on its way", async () => {
+    mockPasskeyLogin.mockRejectedValue(new ApiError(401, "Auth.PasskeyRefused", i18n.t("errors:Auth.PasskeyRefused")));
+    await ready();
+    const next = deferred<PasskeyCeremony>();
+    mockStart.mockImplementationOnce(() => next.promise);
+
+    await act(async () => fireEvent.click(passkeyButton()));
+
+    expect(passkeyButton()).toBeDisabled();
+    expect(passkeyButton()).toHaveAccessibleDescription(i18n.t("auth:passkeyRenewing"));
+    await act(async () => next.resolve(ceremony(2)));
+    expect(passkeyButton()).toHaveAccessibleDescription(i18n.t("auth:passkeyFarmCodeOptional"));
+  });
+
+  it("keeps its live region in the page before the first answer, so a 429 at load is announced", async () => {
+    const first = deferred<PasskeyCeremony>();
+    mockStart.mockImplementationOnce(() => first.promise);
+    renderWithProviders(tree(), { route: "/login", token: null });
+    await screen.findByRole("button", { name: i18n.t("auth:signIn") });
+    const regions = screen.getAllByRole("status");
+
+    await act(async () => first.reject(new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 90 })));
+
+    expect(regions).toContain(screen.getByText(i18n.t("auth:passkeyLimited", { count: 2 })));
+  });
+});
+
+describe("Login passkey ceremony age (#1285)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  });
+
+  it("offers no expired ceremony on return while the new one is on its way", async () => {
+    await readyWithFakeTimers();
+    setVisibility("hidden");
+    await settle(6 * 60_000);
+    const next = deferred<PasskeyCeremony>();
+    mockStart.mockImplementationOnce(() => next.promise);
+
+    act(() => setVisibility("visible"));
+    await settle();
+
+    expect(passkeyButton()).toBeDisabled();
+    expect(live()).toHaveLength(0);
+    await act(async () => next.resolve(ceremony(2)));
+    expect(passkeyButton()).toBeEnabled();
+    expect(live().map((c) => c.publicKey)).toEqual([{ parsed: ceremony(2).options }]);
+  });
+
+  it("disables the button and stops autofill when a renewal fails", async () => {
+    await readyWithFakeTimers();
+    mockStart.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await settle(RENEW_MS);
+
+    expect(passkeyButton()).toBeDisabled();
+    expect(live()).toHaveLength(0);
   });
 });

@@ -9,7 +9,7 @@ import i18n from "../i18n";
 // decision to use a distinct code exists to avoid.
 const UNKNOWN_FARM_CODE = "Auth.UnknownFarmCode";
 // #1285 — parseError puts each one's catalog text in the message.
-export const PASSKEY_REFUSED = "Auth.PasskeyRefused";
+const PASSKEY_REFUSED = "Auth.PasskeyRefused";
 export const PASSKEYS_OFF = "Passkeys.Off";
 
 // MODULE-LEVEL — called from the sign-in pages' catch handlers, not from render, so the

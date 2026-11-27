@@ -103,6 +103,8 @@ export const tl = {
     passkeySecondOff:
       "Naka-off ang mga passkey sa web address na ito, at walang authenticator app ang iyong account. Hilingin sa isang Owner ng iyong farm na alisin ang iyong mga passkey, saka mag-sign in gamit ang iyong password.",
     passkeySecondCancelled: "Kinansela ang pagsuri gamit ang passkey. Subukan ulit.",
+    passkeySecondIpHost: "Hindi gumagana ang mga passkey sa IP address. Buksan ang Cluckwork sa web address ng iyong farm para magamit ang iyong passkey.",
+    passkeyRenewing: "Kumukuha ng bagong hiling ng passkey…",
     passkeySecondUnsupported: "Hindi makagamit ng passkey ang browser na ito. Gumamit ng ibang browser o device.",
     passkeyBrowserFailed: "Hindi nagamit ng browser o device na ito ang passkey. Subukan ulit, o gumamit ng ibang paraan para mag-sign in.",
     secondFactorIncorrect:
