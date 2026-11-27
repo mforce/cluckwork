@@ -13,6 +13,7 @@ import type { PasskeyCeremony, SecondFactor } from "../api/client";
 import { previewConsent } from "../api/oauth";
 import { setStoredToken } from "../test/jwt";
 import { readFarmCodes } from "../auth/farmCodeCache";
+import { bindAccount, clearBoundAccount, getBoundFarmCode } from "../auth/tokenStore";
 import i18n from "../i18n";
 
 // #1285 — passkey sign-in on the sign-in page (record 1282 decisions 11 and
@@ -65,8 +66,10 @@ const credential = (id: string) => ({ toJSON: () => ({ id }) });
 interface Pending { publicKey: unknown; signal: AbortSignal; answer: (id: string) => void }
 let conditional: Pending[];
 let modal: (publicKey: unknown) => Promise<unknown>;
+// Like a strict browser, a modal request while autofill is pending is refused.
 const get = vi.fn((init: CredentialRequestOptions) => {
-  if (init.mediation !== "conditional") return modal(init.publicKey);
+  if (init.mediation !== "conditional")
+    return live().length > 0 ? Promise.reject(new DOMException("Pending", "NotAllowedError")) : modal(init.publicKey);
   return new Promise((resolve, reject) => {
     const signal = init.signal!;
     conditional.push({ publicKey: init.publicKey, signal, answer: (id) => resolve(credential(id)) });
@@ -83,11 +86,18 @@ function setVisibility(state: "visible" | "hidden") {
 const signedIn = async () => {
   setStoredToken({ sub: "u1", role: "Sales" });
 };
+// The passkey sign-in's 200 names the farm it signed in to.
+const passkeySignedIn = (farm: string) => async () => {
+  await signedIn();
+  bindAccount("acct-A");
+  return farm;
+};
 
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(previewConsent).mockResolvedValue(null);
   localStorage.clear();
+  clearBoundAccount();
   conditional = [];
   modal = async () => credential("modal-cred");
   get.mockClear();
@@ -115,20 +125,21 @@ async function ready(route = "/login") {
 }
 
 describe("Login with a passkey (#1285)", () => {
-  it("signs in from the button with a blank farm code and returns to the page asked for", async () => {
-    mockPasskeyLogin.mockImplementation(signedIn);
+  it("signs in from the button with a blank farm code, remembers the passkey's farm, and returns to the page asked for", async () => {
+    mockPasskeyLogin.mockImplementation(passkeySignedIn("sunrise-farm"));
     await ready("/dashboard");
 
     await act(async () => fireEvent.click(passkeyButton()));
 
     expect(mockPasskeyLogin).toHaveBeenCalledWith({ ceremony: "ceremony-1", credential: { id: "modal-cred" } }, "");
     expect(await screen.findByText("dashboard (protected)")).toBeInTheDocument();
-    // A blank farm code names no farm, so none is remembered.
-    expect(readFarmCodes()).toEqual([]);
+    // The farm comes from the passkey: the server names it.
+    expect(readFarmCodes()).toEqual(["sunrise-farm"]);
+    expect(getBoundFarmCode()).toBe("sunrise-farm");
   });
 
   it("returns to a connected app's request after a passkey sign-in", async () => {
-    mockPasskeyLogin.mockImplementation(signedIn);
+    mockPasskeyLogin.mockImplementation(passkeySignedIn("sunrise-farm"));
     await ready("/connect?client_id=abc&scope=farm%3Aread");
 
     await act(async () => fireEvent.click(passkeyButton()));
@@ -136,8 +147,8 @@ describe("Login with a passkey (#1285)", () => {
     expect(await screen.findByText("connect ?client_id=abc&scope=farm%3Aread")).toBeInTheDocument();
   });
 
-  it("sends a typed farm code and remembers the farm after the sign-in", async () => {
-    mockPasskeyLogin.mockImplementation(signedIn);
+  it("sends a typed farm code and remembers the farm the server names", async () => {
+    mockPasskeyLogin.mockImplementation(passkeySignedIn("farm-a"));
     await ready("/dashboard");
     fireEvent.change(screen.getByLabelText(/Farm code/), { target: { value: "Farm-A" } });
 
@@ -149,7 +160,7 @@ describe("Login with a passkey (#1285)", () => {
   });
 
   it("offers autofill in the email field and signs in from the browser's suggestion", async () => {
-    mockPasskeyLogin.mockImplementation(signedIn);
+    mockPasskeyLogin.mockImplementation(passkeySignedIn("sunrise-farm"));
     await ready("/dashboard");
 
     expect(emailField()).toHaveAttribute("autocomplete", "username webauthn");
@@ -239,7 +250,7 @@ describe("Login passkey renewal (#1285)", () => {
   }
 
   it("renews at 4 minutes while visible, restarts autofill, and signs in with the new ceremony", async () => {
-    mockPasskeyLogin.mockImplementation(signedIn);
+    mockPasskeyLogin.mockImplementation(passkeySignedIn("sunrise-farm"));
     await readyWithFakeTimers();
     expect(live()).toHaveLength(1);
     const first = live()[0];
@@ -397,6 +408,7 @@ describe("Login second step with a passkey (#1285)", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: i18n.t("auth:signIn") })));
 
     expect(screen.getByText(i18n.t("auth:passkeySecondOff"))).toBeInTheDocument();
+    expect(codeField()).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySecondSubmit") })).not.toBeInTheDocument();
   });
 });

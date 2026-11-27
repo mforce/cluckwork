@@ -175,7 +175,6 @@ export function Login() {
   const passkey = usePasskeySignIn({
     active: challenge === null,
     farmCode,
-    onSignedIn: () => navigate(from, { replace: true }),
     onError: setError,
   });
   const passkeyOn = passkey.state.kind === "ready" || passkey.state.kind === "limited";

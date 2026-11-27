@@ -26,11 +26,12 @@ interface Options {
   // False while the second step shows: no autofill request, no renewal.
   active: boolean;
   farmCode: string;
-  onSignedIn: () => void;
   onError: (message: string | null) => void;
 }
 
-export function usePasskeySignIn({ active, farmCode, onSignedIn, onError }: Options) {
+// A completed sign-in flips isAuthenticated, and the Login page's effect then
+// takes the user to where they were going.
+export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const { passkeyLogin } = useAuth();
   const [state, setState] = useState<PasskeySignIn>(() => (passkeysSupported() ? { kind: "loading" } : { kind: "off" }));
   const [busy, setBusy] = useState(false);
@@ -62,7 +63,6 @@ export function usePasskeySignIn({ active, farmCode, onSignedIn, onError }: Opti
     onError(null);
     try {
       await passkeyLogin(farmCode, answer);
-      onSignedIn();
     } catch (err) {
       onError(err instanceof ApiError && err.title === PASSKEY_REFUSED ? i18n.t("errors:Auth.PasskeyRefused") : messageFor(err));
       // The server may have spent the ceremony.

@@ -1133,8 +1133,10 @@ describe("auth endpoints", () => {
     expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/passkey")[0][1].body)))
       .toEqual({ ceremony: "c-1", credential: { id: "cred" }, farmCode: null });
 
-    fetchMock.mockResolvedValueOnce(accessResponse(jwtWithAccountId("acct-A", "passkey")));
-    await passkeyLogin(answer, "Farm-A");
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      accessToken: jwtWithAccountId("acct-A", "passkey"), accessTokenExpiry: FUTURE, farmCode: "farm-a",
+    }));
+    await expect(passkeyLogin(answer, "Farm-A")).resolves.toBe("farm-a");
     expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/passkey")[1][1].body)).farmCode).toBe("Farm-A");
     expect(getAccessToken()).toBe(jwtWithAccountId("acct-A", "passkey"));
     expect(getBoundAccountId()).toBe("acct-A");

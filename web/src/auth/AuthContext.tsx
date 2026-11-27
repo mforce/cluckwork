@@ -53,8 +53,8 @@ interface AuthState {
   login: (farmCode: string, email: string, password: string) => Promise<LoginOutcome>;
   // #1285 — the second step's answer is a code or a passkey.
   completeSecondFactor: (farmCode: string, challenge: string, answer: string | PasskeyAnswer) => Promise<void>;
-  // #1285 — a blank farm code signs in to the passkey's farm, which this tab
-  // cannot name, so it binds and remembers no farm.
+  // #1285 — the farm comes from the passkey, so the tab binds and remembers
+  // the farm the server names, whatever the field held.
   passkeyLogin: (farmCode: string, answer: PasskeyAnswer) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -190,8 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signedIn]);
 
   const passkeyLogin = useCallback(async (farmCode: string, answer: PasskeyAnswer) => {
-    await apiPasskeyLogin(answer, farmCode);
-    await signedIn(farmCode);
+    await signedIn(await apiPasskeyLogin(answer, farmCode));
   }, [signedIn]);
 
   const logout = useCallback(async () => {
