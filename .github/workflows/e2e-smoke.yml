@@ -247,7 +247,9 @@ jobs:
           mkdir -p "$tls"
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=localhost \
             -addext subjectAltName=DNS:localhost -keyout "$tls/key.pem" -out "$tls/cert.pem" 2>/dev/null
-          nohup node tools/verify/mcp/tls-proxy.mjs 8495 8081 "$tls/cert.pem" "$tls/key.pem" >"$tls/proxy.log" 2>&1 &
+          # The port comes from PASSKEY_BASE_URL; verify-harness.sh checks that
+          # the overlay lists the same origin.
+          nohup node tools/verify/mcp/tls-proxy.mjs "${PASSKEY_BASE_URL##*:}" 8081 "$tls/cert.pem" "$tls/key.pem" >"$tls/proxy.log" 2>&1 &
           for _ in $(seq 1 30); do
             if curl -fsk -o /dev/null "$PASSKEY_BASE_URL/login"; then echo "proxy up at $PASSKEY_BASE_URL"; exit 0; fi
             sleep 1

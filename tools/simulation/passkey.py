@@ -19,11 +19,9 @@ def _b64url(data):
 
 
 def _head(major, n):
-    if n < 24:
-        return bytes([major << 5 | n])
-    if n < 256:
-        return bytes([major << 5 | 24, n])
-    return bytes([major << 5 | 25]) + n.to_bytes(2, "big")
+    # Every length here is under 256 (authData is 148 bytes).
+    assert n < 256
+    return bytes([major << 5 | n]) if n < 24 else bytes([major << 5 | 24, n])
 
 
 def _cbor(value):

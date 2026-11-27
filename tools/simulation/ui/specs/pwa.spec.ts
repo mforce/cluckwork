@@ -205,7 +205,7 @@ test.describe("PWA shell", () => {
         // pending.
         await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" }).catch(() => {});
         await page
-          .getByRole("button", { name: tEn("auth:signIn") })
+          .getByRole("button", { name: tEn("auth:signIn"), exact: true })
           .waitFor({ state: "visible", timeout: 15_000 })
           .catch(() => {});
         continue;

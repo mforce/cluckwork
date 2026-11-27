@@ -186,7 +186,7 @@ if grep -qi 'variable is not set' "$compose_err"; then
 fi
 
 python3 - "$resolved_json" <<'PY' || exit 1
-import json, re, sys
+import json, os, re, sys
 from urllib.parse import urlsplit
 
 cfg = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -278,6 +278,10 @@ if origin is not None and not str(origin).strip():
                 "leave it unset, or set it through the passkeys-e2e overlay")
 elif origin is not None:
     ok.append(f"Passkeys__Origins__0 OK ({origin})")
+# The passkey specs browse PASSKEY_BASE_URL; the app must list that origin.
+base = os.environ.get("PASSKEY_BASE_URL", "").rstrip("/")
+if base and base != str(origin or "").rstrip("/"):
+    fail.append(f"PASSKEY_BASE_URL={base!r} is not the app's Passkeys__Origins__0 ({origin!r})")
 
 # --- #261/#262 TLS opt-out ----------------------------------------------
 # The EFFECTIVE value on the app service, not a grep of the file: a matching

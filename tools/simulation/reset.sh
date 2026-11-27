@@ -73,12 +73,10 @@ fi
 echo "Compose project: ${COMPOSE_PROJECT_NAME} (safety gate passed)."
 
 # #1285 (record 1282 decision 20) — an optional second compose file, passed to
-# every compose call; e2e-smoke.yml passes the passkey overlay.
+# every compose call; e2e-smoke.yml passes the passkey overlay. verify-harness.sh,
+# which runs before the first compose call, checks that it exists.
 COMPOSE_FILES=(-f "$COMPOSE_FILE")
-if [[ -n "${SIM_COMPOSE_OVERLAY:-}" ]]; then
-  [[ -f "$SIM_COMPOSE_OVERLAY" ]] || { echo "SIM_COMPOSE_OVERLAY=$SIM_COMPOSE_OVERLAY does not exist." >&2; exit 1; }
-  COMPOSE_FILES+=(-f "$SIM_COMPOSE_OVERLAY")
-fi
+[[ -z "${SIM_COMPOSE_OVERLAY:-}" ]] || COMPOSE_FILES+=(-f "$SIM_COMPOSE_OVERLAY")
 
 compose() {
   docker compose -p "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "$@"
@@ -165,8 +163,12 @@ PY
 # a passkey made by passkey.py, which goes into the cast file as
 # `twoFactorOwner.passkey` for the Playwright passkey spec.
 add_enrolled_owner() {
+  # Its own line, so a failed lookup stops the reset (set -e ignores a failure
+  # inside an environment prefix).
+  local origin
+  origin="$(passkey_origin)"
   FARM_CODE="$1" OWNER_EMAIL="$2" OWNER_PASSWORD="$3" CAST_FILE="$4" \
-    APP_PORT="$APP_PORT" SIM_DIR="$SCRIPT_DIR" PASSKEY_ORIGIN="$(passkey_origin)" python3 - <<'PY'
+    APP_PORT="$APP_PORT" SIM_DIR="$SCRIPT_DIR" PASSKEY_ORIGIN="$origin" python3 - <<'PY'
 import json
 import os
 import secrets

@@ -85,6 +85,14 @@ function optionsRequests(page: Page): Request[] {
   return seen;
 }
 
+// Playwright reports a page's requests in the order the page makes them, so
+// once it has seen this one it has seen every request made before it.
+async function seenEveryRequest(page: Page) {
+  const marker = page.waitForRequest((r) => new URL(r.url()).pathname === "/health/ready");
+  await page.evaluate(() => fetch("/health/ready"));
+  await marker;
+}
+
 async function setVisibility(page: Page, state: "visible" | "hidden") {
   await page.evaluate((s) => {
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => s });
@@ -179,11 +187,13 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
 
     await setVisibility(page, "hidden");
     await page.clock.runFor("04:30");
+    await seenEveryRequest(page);
     expect(requests).toHaveLength(1);
 
     await setVisibility(page, "visible");
     await expect.poll(() => requests.length).toBe(2);
     await page.clock.runFor("00:30");
+    await seenEveryRequest(page);
     expect(requests).toHaveLength(2);
   });
 

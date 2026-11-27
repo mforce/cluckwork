@@ -355,7 +355,7 @@ test.describe("#310 session races", () => {
       (r) => r.url().includes("/api/v1/auth/logout"),
     );
     try {
-      await page.getByRole("button", { name: tEn("auth:signIn") }).click();
+      await page.getByRole("button", { name: tEn("auth:signIn"), exact: true }).click();
       // #648 review — SYNCHRONISE ON THE PENDING LOCK, NOT ON THE CLICK.
       // `Locator.click()` resolves when the click is dispatched; it does not
       // wait for the page's own fetch, still less for a request deliberately
