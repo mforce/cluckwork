@@ -210,7 +210,7 @@ test.describe("Passkey sign-in (#1285 G8.8)", () => {
     await page.goto("/reports");
 
     await expect(passkeyButton(page)).toBeDisabled();
-    await expect(page.getByText(tEn("auth:passkeyLimited_other", { count: 2 }))).toBeVisible();
+    await expect(passkeyButton(page)).toHaveAccessibleDescription(tEn("auth:passkeyLimited_other", { count: 2 }));
     await expect(page.getByLabel(tEn("auth:email"))).toHaveAttribute("autocomplete", "username");
 
     await auth.presence(true);
