@@ -14,6 +14,16 @@ public sealed partial class IdentityProvider
     public async Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
         string challenge, SecondFactorInput input, CancellationToken ct = default)
     {
+        var result = await CompleteSecondFactorCoreAsync(challenge, input, ct);
+        // Decision 19: a refused passkey answer logs Auth.PasskeyFailed once,
+        // here, whatever refused it.
+        if (result.IsFailure && input is SecondFactorInput.Passkey) securityEvents.PasskeyFailed();
+        return result;
+    }
+
+    private async Task<Result<TokenPair>> CompleteSecondFactorCoreAsync(
+        string challenge, SecondFactorInput input, CancellationToken ct)
+    {
         // Parsed before anything digests it: a malformed code is null, and is
         // refused uncharged, after the challenge.
         (SecondFactorCode? code, SecondFactorInput.Passkey? passkey) = input switch
@@ -23,23 +33,15 @@ public sealed partial class IdentityProvider
             _ => throw new UnreachableException(),
         };
 
-        // A passkey refused here, before VerifyAsync, logs its event here
-        // (decision 19); VerifyAsync logs the rest.
-        Result<TokenPair> Refuse(Error error)
-        {
-            if (passkey is not null) securityEvents.PasskeyFailed();
-            return Result.Failure<TokenPair>(error);
-        }
-
         // The challenge first, so a malformed code on a dead challenge gets the 401.
-        if (ReadChallenge(challenge) is not { } claims) return Refuse(LogExpiredChallenge());
-        if (passkey is null && code is null) return Refuse(SecondFactorErrors.Incorrect);
+        if (ReadChallenge(challenge) is not { } claims) return Result.Failure<TokenPair>(LogExpiredChallenge());
+        if (passkey is null && code is null) return Result.Failure<TokenPair>(SecondFactorErrors.Incorrect);
 
         // #579: the read refresh uses. Suspension also bumps the epoch, so one
         // that lands after this read leaves the minted token inert.
         var account = await AccountStateAsync(claims.AccountId, ct);
-        if (account is null) return Refuse(LogExpiredChallenge());
-        if (!account.Value.IsActive) return Refuse(SecondFactorErrors.FarmSuspended);
+        if (account is null) return Result.Failure<TokenPair>(LogExpiredChallenge());
+        if (!account.Value.IsActive) return Result.Failure<TokenPair>(SecondFactorErrors.FarmSuspended);
 
         return await SignInOwnedAsync(async token =>
         {

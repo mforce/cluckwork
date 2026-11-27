@@ -80,18 +80,9 @@ internal sealed partial class TwoFactorCredentials(
                 .SetProperty(u => u.SecondFactorRequiredSince, now)
                 .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
 
-    // #1274 "Verifying a code", steps 1 to 6; #1282 "Checking a passkey".
-    // It logs every passkey outcome it returns other than Accepted; a caller
-    // logs only the passkey refusals it makes before calling it.
+    // #1274 "Verifying a code", steps 1 to 6; #1282 "Checking a passkey". A
+    // refused passkey is logged by the sign-in finish that asked, at its exit.
     public async Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct)
-    {
-        var outcome = await VerifyCoreAsync(accountId, userId, proof, binding, ct);
-        if (proof is FactorProof.Passkey && outcome is not FactorOutcome.Accepted) securityEvents.PasskeyFailed();
-        return outcome;
-    }
-
-    private async Task<FactorOutcome> VerifyCoreAsync(
         Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct)
     {
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
