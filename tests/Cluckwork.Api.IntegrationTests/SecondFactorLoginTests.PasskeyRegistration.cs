@@ -18,13 +18,18 @@ public sealed partial class SecondFactorLoginTests
 
     private sealed record Ceremony(Guid Id, JsonElement Options);
 
-    private static async Task<Ceremony> StartPasskeyAsync(HttpClient client)
+    // An options route's answer: the ceremony row's id and the browser's options.
+    private static async Task<Ceremony> CeremonyOf(HttpResponseMessage response)
     {
-        var response = await client.PostAsync(PasskeysPath + "/options", null);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         return new Ceremony(body.GetProperty("ceremony").GetGuid(), body.GetProperty("options").Clone());
     }
+
+    private static JsonElement Credential(string json) => JsonDocument.Parse(json).RootElement;
+
+    private static async Task<Ceremony> StartPasskeyAsync(HttpClient client) =>
+        await CeremonyOf(await client.PostAsync(PasskeysPath + "/options", null));
 
     // No Idempotency-Key: the prefix is on ResponseNotCacheable.
     private static Task<HttpResponseMessage> FinishPasskeyAsync(
@@ -32,7 +37,7 @@ public sealed partial class SecondFactorLoginTests
     {
         var request = new HttpRequestMessage(HttpMethod.Post, PasskeysPath)
         {
-            Content = JsonContent.Create(new { ceremony, credential = JsonDocument.Parse(credentialJson).RootElement, name }),
+            Content = JsonContent.Create(new { ceremony, credential = Credential(credentialJson), name }),
         };
         if (grant is not null) request.Headers.Add(AuthEndpoints.StepUpHeaderName, grant);
         return client.SendAsync(request);
@@ -329,7 +334,7 @@ public sealed partial class SecondFactorLoginTests
         Assert.True(await CeremonyExistsAsync(live.Id));
     }
 
-    // G7.4: every route under /api/v1/auth/passkeys answers without an
+    // G7.4, G8.7: every passkey route under /api/v1/auth/ answers without an
     // Idempotency-Key and stores no idempotency record.
     [Fact]
     public async Task EveryPasskeyRoute_NeedsNoIdempotencyKey_AndStoresNoRecord()
@@ -337,11 +342,12 @@ public sealed partial class SecondFactorLoginTests
         var (_, accountId, _, client, _) = await SignedInPlainAsync(asOwner: false);
         var routes = factory.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints
             .OfType<Microsoft.AspNetCore.Routing.RouteEndpoint>()
-            .Where(e => e.RoutePattern.RawText?.StartsWith("/api/v1/auth/passkeys", StringComparison.Ordinal) == true)
+            .Where(e => e.RoutePattern.RawText is { } raw && raw.StartsWith("/api/v1/auth/", StringComparison.Ordinal)
+                && raw.Contains("passkey", StringComparison.Ordinal))
             .SelectMany(e => e.Metadata.GetMetadata<Microsoft.AspNetCore.Routing.HttpMethodMetadata>()!.HttpMethods
                 .Select(method => (Method: method, Path: e.RoutePattern.RawText!.Replace("{id}", "AQID", StringComparison.Ordinal))))
             .ToList();
-        Assert.True(routes.Count >= 5, $"the walk found {routes.Count} passkey routes");
+        Assert.True(routes.Count >= 8, $"the walk found {routes.Count} passkey routes, below its floor of 8");
         var records = await IdempotencyRecordsAsync(accountId);
 
         foreach (var (method, path) in routes)

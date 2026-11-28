@@ -23,8 +23,23 @@ public interface IIdentityProvider
         Guid accountId, string email, string password, CancellationToken ct = default);
 
     // #1274 — the login code step: reads the challenge, then parses the code.
+    // #1285 — or checks a passkey, under the same lock and binding.
     Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(
-        string challenge, string code, CancellationToken ct = default);
+        string challenge, SecondFactorInput input, CancellationToken ct = default);
+
+    // #1285 (record 1282 decision 3): a ceremony bound to the challenge's
+    // user, read without spending the challenge.
+    Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(
+        string? challenge, string requestHost, CancellationToken ct = default);
+
+    // #1285: a sign-in ceremony with no farm and no user (decision 11).
+    Task<PasskeyCeremonyStart> StartPasskeySignInAsync(string requestHost, CancellationToken ct = default);
+
+    // #1285: a passkey alone signs in; the passkey names the farm. farmCode is
+    // the typed or prefilled code, or null; an unknown one, or another farm's,
+    // is refused, the unknown one before the ceremony is consumed.
+    Task<Result<PasskeySignIn>> PasskeyLoginAsync(
+        Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct = default);
 
     // #547 — expectedAccountId is the farm the tab told the endpoint it is
     // refreshing, sent as the X-Cluckwork-Account header. The server compares

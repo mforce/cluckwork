@@ -44,9 +44,11 @@ public sealed partial class SecondFactorLoginTests(SecondFactorFactory factory) 
         return (email, await factory.EnrolTwoFactorAsync(email));
     }
 
-    private Task<UserCounters> CountersAsync(EnrolledFactor factor) =>
-        factory.WithTenantScopeAsync(factor.AccountId, db => db.Users.AsNoTracking()
-            .Where(u => u.Id == factor.UserId)
+    private Task<UserCounters> CountersAsync(EnrolledFactor factor) => CountersAsync(factor.AccountId, factor.UserId);
+
+    private Task<UserCounters> CountersAsync(Guid accountId, Guid userId) =>
+        factory.WithTenantScopeAsync(accountId, db => db.Users.AsNoTracking()
+            .Where(u => u.Id == userId)
             .Select(u => new UserCounters(u.AccessFailedCount, u.SecondFactorFailures, u.SecondFactorSignIns,
                 u.SecondFactorWatermark, u.LockoutEnd))
             .SingleAsync());

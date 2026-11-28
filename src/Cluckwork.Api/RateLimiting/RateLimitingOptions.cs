@@ -16,6 +16,10 @@ public sealed class RateLimitingOptions
     // #1274 decision 6: the login code step, per address. Defence in depth: the
     // durable per-user budget on the user row is what bounds code guessing.
     public const string SecondFactorPolicyName = "auth-second-factor";
+    // #1282 decision 13: the anonymous passkey sign-in options route, per
+    // address. Autofill asks for a ceremony at every sign-in page load, which
+    // auth-login's budget could not carry.
+    public const string PasskeyOptionsPolicyName = "auth-passkey-options";
     // #217: the anonymous browser error-report endpoint. The budget guards the
     // LOG, not a credential — enough for a genuinely crashing screen to get its
     // story out, too little to flood the log from one address.
@@ -32,6 +36,7 @@ public sealed class RateLimitingOptions
     public FixedWindow Login { get; init; } = new() { PermitLimit = 10, WindowSeconds = 900 };
     public FixedWindow Refresh { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
     public FixedWindow SecondFactor { get; init; } = new() { PermitLimit = 20, WindowSeconds = 900 };
+    public FixedWindow PasskeyOptions { get; init; } = new() { PermitLimit = 60, WindowSeconds = 900 };
     public FixedWindow ClientErrors { get; init; } = new() { PermitLimit = 10, WindowSeconds = 300 };
     // A connection redeems one code, so the token budget only has to absorb retries and
     // several users connecting through one assistant provider's egress address.
@@ -124,6 +129,7 @@ public sealed class RateLimitingOptions
         ValidateWindow(nameof(Login), Login);
         ValidateWindow(nameof(Refresh), Refresh);
         ValidateWindow(nameof(SecondFactor), SecondFactor);
+        ValidateWindow(nameof(PasskeyOptions), PasskeyOptions);
         ValidateWindow(nameof(ClientErrors), ClientErrors);
         ValidateWindow(nameof(OAuthToken), OAuthToken);
         ValidateWindow(nameof(OAuthAuthorize), OAuthAuthorize);

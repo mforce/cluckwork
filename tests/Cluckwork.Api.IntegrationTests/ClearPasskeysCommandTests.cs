@@ -48,8 +48,10 @@ public sealed class ClearPasskeysCommandTests(CluckworkWebApplicationFactory fac
         async Task<Member> MemberAsync(string email, int passkeys)
         {
             var userId = await factory.WithTenantScopeAsync(accountId, db => db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync());
+            // Signed in first: a user with a passkey gets the second step for a password (#1285).
+            var session = await factory.LoginAsync(email);
             if (passkeys > 0) await factory.SeedPasskeysAsync(accountId, userId, passkeys);
-            return new Member(accountId, userId, await factory.LoginAsync(email));
+            return new Member(accountId, userId, session);
         }
         var slug = "farm-" + accountId.ToString("N")[..12];
         return (slug, [await MemberAsync(ownerEmail, 2), await MemberAsync(otherEmail, 1)], await MemberAsync(plainEmail, 0));

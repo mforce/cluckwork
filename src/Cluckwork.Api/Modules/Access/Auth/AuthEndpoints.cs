@@ -50,7 +50,38 @@ public static partial class AuthEndpoints
             .RequireRateLimiting(RateLimitingOptions.SecondFactorPolicyName)
             .WithMaxRequestBodyBytes(8192)
             .WithName("LoginSecondFactor")
-            .WithSummary("Exchange a sign-in challenge and an authenticator or recovery code for an access token.");
+            .WithSummary("Exchange a sign-in challenge and an authenticator code, a recovery code or a passkey for an access token.");
+
+        // #1285 (record 1282 "What a caller sees"): passkey sign-in and the
+        // passkey answer at the code step. Anonymous, blanking an ambient
+        // bearer for login's reason (#532), and under /auth/login, so
+        // ResponseNotCacheable keeps them out of IdempotentUnit, whose rollback
+        // would undo a refusal's consumed ceremony (decision 3). The sign-in
+        // options route has its own per-address budget, because autofill asks
+        // for a ceremony at every sign-in page load (decision 13).
+        group.MapPost("/login/passkey/options", StartPasskeySignIn)
+            .AllowAnonymous()
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
+            .RequireRateLimiting(RateLimitingOptions.PasskeyOptionsPolicyName)
+            .WithMaxRequestBodyBytes(1024)
+            .WithName("StartPasskeySignIn")
+            .WithSummary("Start a passkey sign-in ceremony; no farm or user is named.");
+
+        group.MapPost("/login/passkey", PasskeyLogin)
+            .AllowAnonymous()
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
+            .RequireRateLimiting(RateLimitingOptions.LoginPolicyName)
+            .WithMaxRequestBodyBytes(8192)
+            .WithName("PasskeyLogin")
+            .WithSummary("Exchange a passkey assertion for an access token; sets the refresh-token cookie.");
+
+        group.MapPost("/login/second-factor/passkey-options", StartSecondFactorPasskey)
+            .AllowAnonymous()
+            .WithMetadata(new IgnoresAmbientPrincipalAttribute())
+            .RequireRateLimiting(RateLimitingOptions.SecondFactorPolicyName)
+            .WithMaxRequestBodyBytes(8192)
+            .WithName("StartSecondFactorPasskey")
+            .WithSummary("Start a passkey ceremony for a sign-in challenge's user, without spending the challenge.");
 
         // Looser limit — refresh guards a high-entropy token AND carries
         // legitimate automatic session traffic, so it must not share login's
@@ -233,8 +264,9 @@ public sealed record LoginRequest(string FarmCode, string Email, string Password
     public override string ToString() => "[redacted]";
 }
 
-// Both members are credentials, so the record never prints them.
-public sealed record SecondFactorLoginRequest(string Challenge, string Code)
+// Every member is a credential, so the record never prints them. A passkey
+// answer is sent instead of a code (#1285).
+public sealed record SecondFactorLoginRequest(string Challenge, string? Code, PasskeyAnswer? Passkey = null)
 {
     public override string ToString() => "[redacted]";
 }

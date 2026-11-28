@@ -9,7 +9,9 @@ public abstract record LoginStep
 
     // The challenge is a credential until it is used: never logged, never in a
     // URL, an event or an audit row (#1274 decision 2).
-    public sealed record SecondFactorRequired(string Challenge, DateTimeOffset ExpiresAt) : LoginStep;
+    // SecondFactors: the proofs the user can answer with, SecondFactorKinds
+    // values (#1282 decision 7).
+    public sealed record SecondFactorRequired(string Challenge, DateTimeOffset ExpiresAt, IReadOnlyList<string> SecondFactors) : LoginStep;
 
     public sealed override string ToString() => "[redacted]";
 }

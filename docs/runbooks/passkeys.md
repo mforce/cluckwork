@@ -57,9 +57,23 @@ host of a configured origin gets 404 `Passkeys.Off` from every route that runs a
 passkey ceremony. The passkey list, renaming and removing still work while
 passkeys are off.
 
-A passkey still counts as its user's factor while passkeys are off. So, while
-passkeys are off and passkeys are stored, every serving start logs one warning,
+A passkey still counts as its user's factor while passkeys are off: the
+password alone does not sign that user in, and the second sign-in step offers
+only the passkey, which answers 404 `Passkeys.Off`. So, while passkeys are off
+and passkeys are stored, every serving start logs one warning,
 `Passkeys.OffWithPasskeys`, with the count, naming `clear-passkeys`.
+
+## Sign-in and its rate limit
+
+A passkey signs in alone, with the farm code field blank: the passkey names its
+farm. `POST /api/v1/auth/login/passkey/options` makes a ceremony at every
+sign-in page load, so it has its own per-address budget, `auth-passkey-options`,
+set by `RateLimiting:PasskeyOptions` (60 requests per 900 seconds by default).
+The sign-in itself spends an `auth-login` permit, as a password sign-in does.
+Behind a reverse proxy, list the proxy in `RateLimiting:TrustedProxies`, or
+every user shares the proxy's budget. When the budget is spent, the options
+route answers 429 and password sign-in still works. An accepted passkey sign-in
+logs `Auth.PasskeySignIn`; a refused passkey logs `Auth.PasskeyFailed`.
 
 ## Procedure
 

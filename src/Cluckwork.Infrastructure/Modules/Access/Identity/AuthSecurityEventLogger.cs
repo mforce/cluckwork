@@ -70,6 +70,10 @@ public sealed class AuthSecurityEventLogger(
     public void PasskeyFailed() =>
         logger.LogWarning("{SecurityEvent} client={ClientIp}", SecurityEvents.PasskeyFailed, ClientIp);
 
+    public void PasskeySignIn(Guid userId) =>
+        logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
+            SecurityEvents.PasskeySignIn, userId, ClientIp);
+
     public void PasskeyRegistered(Guid userId) =>
         logger.LogWarning("{SecurityEvent} user={UserId} client={ClientIp}",
             SecurityEvents.PasskeyRegistered, userId, ClientIp);

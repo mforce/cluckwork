@@ -28,6 +28,9 @@ public sealed class CredentialEpochFloorFactory : CluckworkWebApplicationFactory
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
+        // #1285: passkeys on, for the passkey sign-in case.
+        builder.UseSetting("Passkeys:Origins:0", SecondFactorFactory.PasskeyOrigin);
+        builder.UseSetting("AllowedHosts", "localhost");
         builder.ConfigureTestServices(services =>
         {
             services.AddSingleton<IPasswordHasher<ApplicationUser>>(Hasher);

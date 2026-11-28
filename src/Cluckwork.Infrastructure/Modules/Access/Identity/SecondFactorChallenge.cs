@@ -27,7 +27,8 @@ internal static class SecondFactorChallenge
     // StepUpGrantService.ValidateAsync caps the grant.
     private const int MaxLength = 4096;
 
-    internal static LoginStep.SecondFactorRequired Issue(ApplicationUser user, JwtOptions options, DateTimeOffset now)
+    internal static LoginStep.SecondFactorRequired Issue(
+        ApplicationUser user, IReadOnlyList<string> secondFactors, JwtOptions options, DateTimeOffset now)
     {
         var expires = now + Lifetime;
         using var rsa = RSA.Create();
@@ -45,7 +46,7 @@ internal static class SecondFactorChallenge
             new(StampClaim, ProofBinding.HashStamp(user.SecurityStamp)),
         ];
         var token = new JwtSecurityToken(options.Issuer, Audience, claims, now.UtcDateTime, expires.UtcDateTime, credentials);
-        return new LoginStep.SecondFactorRequired(new JwtSecurityTokenHandler().WriteToken(token), expires);
+        return new LoginStep.SecondFactorRequired(new JwtSecurityTokenHandler().WriteToken(token), expires, secondFactors);
     }
 
     // Null for an expired, forged or malformed challenge: all are one answer.

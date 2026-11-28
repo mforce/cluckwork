@@ -588,6 +588,8 @@ public sealed partial class SecondFactorLoginTests
         ["StartPasskeyRegistration"] = "no body; the route reads only the session",
         ["ListPasskeys"] = "a GET with no body",
         ["RemovePasskey"] = "no body; the credential id rides in the route and the grant in the step-up header",
+        // #1285
+        ["StartPasskeySignIn"] = "no body; the route reads only the request's host",
     };
 
     // The only route under the prefixes marked as reading its body by hand.

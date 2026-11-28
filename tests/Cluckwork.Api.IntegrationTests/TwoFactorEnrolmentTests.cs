@@ -218,6 +218,7 @@ public sealed class TwoFactorEnrolmentTests(SecondFactorFactory factory) : IDisp
                     var name => throw new NotSupportedException($"no argument for the Guid {name} on {method}; extend this walk"),
                 },
                 var type when typeof(SecondFactorCode).IsAssignableFrom(type) => new SecondFactorCode.Totp(0),
+                var type when type == typeof(FactorProof) => new FactorProof.Code(new SecondFactorCode.Totp(0)),
                 var type when type == typeof(ProofBinding) => new ProofBinding(1, "", null),
                 var type when type == typeof(CancellationToken) => ct,
                 var type => throw new NotSupportedException($"no argument for {type} on {method}; extend this walk"),

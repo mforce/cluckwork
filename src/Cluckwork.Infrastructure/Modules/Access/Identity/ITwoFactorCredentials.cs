@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Cluckwork.Application.Common;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,8 +15,7 @@ public interface ITwoFactorCredentials
     // The one read: untracked, unlocked, by Id and AccountId.
     Task<TwoFactorStatus> GetStatusAsync(Guid accountId, Guid userId, CancellationToken ct);
 
-    Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct);
+    Task<FactorOutcome> VerifyAsync(Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct);
 
     // Runs under the resolved tenant of accountId, like ConfirmEnrolmentAsync.
     Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct);
@@ -31,6 +31,24 @@ public interface ITwoFactorCredentials
 }
 
 public enum ClearOutcome { NotFound, NotEnrolled, PendingDeleted, Cleared }
+
+// #1285 (record 1282 "Checking a passkey"): the one proof VerifyAsync checks,
+// a parsed code or a passkey assertion.
+[Credential]
+public abstract record FactorProof
+{
+    private FactorProof() { }
+
+    public sealed record Code(SecondFactorCode Value) : FactorProof;
+
+    // Ceremony is what ConsumeAsync returned, null when it refused it.
+    // ExpectedCredentialId is the credential the server looked up at sign-in,
+    // and null for a ceremony bound to the user (the second step).
+    public sealed record Passkey(ConsumedCeremony? Ceremony, string CredentialJson, byte[]? ExpectedCredentialId, string RequestHost)
+        : FactorProof;
+
+    public sealed override string ToString() => "[redacted]";
+}
 
 // The credential state the proof was issued against. Login reads it from the
 // challenge, with its sf_signins; step-up reads it from its password check,
@@ -49,10 +67,14 @@ public abstract record FactorOutcome
 {
     private FactorOutcome() { }
 
-    // RecoveryCodesLeft is set when a recovery code was spent.
-    public sealed record Accepted(int? RecoveryCodesLeft) : FactorOutcome;
+    // RecoveryCodesLeft is set when a recovery code was spent; Passkey when a
+    // passkey signed, so the caller saves its sign count (record 1282 decision 7).
+    public sealed record Accepted(int? RecoveryCodesLeft, Microsoft.AspNetCore.Identity.UserPasskeyInfo? Passkey = null) : FactorOutcome
+    {
+        public override string ToString() => "[redacted]";
+    }
 
-    // Wrong (charged); reused or locked (not charged).
+    // Wrong (charged); reused, locked or a refused passkey (not charged).
     public sealed record Rejected(bool Charged) : FactorOutcome;
 
     // Disabled, epoch, stamp or sign-in count moved, or two-factor off.

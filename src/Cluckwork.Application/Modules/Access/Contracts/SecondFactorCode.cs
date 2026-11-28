@@ -52,3 +52,26 @@ public abstract record SecondFactorCode
             : null;
     }
 }
+
+// #1285 (record 1282 decision 7): what the pending 401's secondFactors lists.
+public static class SecondFactorKinds
+{
+    public const string Authenticator = "authenticator";
+    public const string Passkey = "passkey";
+}
+
+// #1285: what the login code step accepts, a code string, parsed after the
+// challenge is read, or a passkey assertion made at RequestHost.
+[Credential]
+public abstract record SecondFactorInput
+{
+    private SecondFactorInput() { }
+
+    public sealed record Code(string? Raw) : SecondFactorInput;
+
+    // CredentialJson is the browser's PublicKeyCredential JSON, passed to
+    // Identity unparsed.
+    public sealed record Passkey(Guid Ceremony, string CredentialJson, string RequestHost) : SecondFactorInput;
+
+    public sealed override string ToString() => "[redacted]";
+}

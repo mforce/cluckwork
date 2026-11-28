@@ -31,8 +31,11 @@ public sealed partial class IdentityProvider(
     CurrentUserContext currentUser,
     IOptions<EnrolledSessionOptions> enrolledSessions) : IIdentityProvider
 {
+    // A control character inside the code names no farm, and Postgres refuses
+    // a NUL in a query parameter, so it never reaches the lookup. The lookup
+    // trims, so padding such as a trailing tab or newline still signs in.
     public async Task<FarmSignIn?> ResolveFarmCodeAsync(string farmCode, CancellationToken ct = default) =>
-        await accounts.FindBySlugAsync(farmCode, ct) is { } account
+        !farmCode.Trim().Any(char.IsControl) && await accounts.FindBySlugAsync(farmCode, ct) is { } account
             ? new FarmSignIn(account.Id, account.IsActive)
             : null;
 
@@ -116,12 +119,15 @@ public sealed partial class IdentityProvider(
             return Result.Failure<LoginStep>(Error.Validation("Identity.InvalidCredentials", "Invalid email or password."));
         }
 
-        // #1274 decision 5: a correct password mints nothing for an enrolled
-        // user and does not reset the lockout counter; only an accepted code
-        // does, so wrong codes cannot alternate with fresh password checks.
-        if (user.TwoFactorEnabled)
+        // #1274 decision 5: a correct password mints nothing for a user with
+        // the app and does not reset the lockout counter; only an accepted
+        // proof does, so wrong codes cannot alternate with fresh password
+        // checks. #1282 decision 7: a passkey is a second factor too, also
+        // while passkeys are off, so the password alone never signs its user in.
+        var secondFactors = TwoFactorCredentials.SecondFactorsOf(user);
+        if (secondFactors.Count > 0)
             return Result.Success<LoginStep>(
-                SecondFactorChallenge.Issue(user, jwtOptions.Value, timeProvider.GetUtcNow()));
+                SecondFactorChallenge.Issue(user, secondFactors, jwtOptions.Value, timeProvider.GetUtcNow()));
 
         // Bind the successful proof to the credential values that were actually
         // verified. ResetFailedAccessCountAsync may lose optimistic concurrency

@@ -11,9 +11,6 @@ namespace Cluckwork.Infrastructure.Modules.Access.Identity;
 // removal, which runs inside it as the two-factor reset does.
 public sealed partial class IdentityProvider
 {
-    private static readonly Error PasskeyRefused =
-        new(PasskeyErrorCodes.Refused, "That passkey did not work. Try again.");
-
     private static readonly Error PasskeyLimitReached =
         new(PasskeyErrorCodes.LimitReached, $"You already have {PasskeyCredentials.MaxPasskeys} passkeys. Remove one to add another.");
 
@@ -46,7 +43,7 @@ public sealed partial class IdentityProvider
             if (consumed is null)
             {
                 securityEvents.PasskeyFailed();
-                return await RefuseAsync(PasskeyRefused);
+                return await RefuseAsync(SecondFactorErrors.PasskeyRefused);
             }
 
             switch (await passkeys.RegisterAsync(consumed, accountId, userId, credentialJson, name, requestHost, token))
@@ -62,7 +59,7 @@ public sealed partial class IdentityProvider
                     securityEvents.PasskeyRegistered(userId);
                     return Result.Success(new PasskeyRegistration(registered.Passkey, tokens));
                 default:
-                    return await RefuseAsync(PasskeyRefused);
+                    return await RefuseAsync(SecondFactorErrors.PasskeyRefused);
             }
         }, ct);
 

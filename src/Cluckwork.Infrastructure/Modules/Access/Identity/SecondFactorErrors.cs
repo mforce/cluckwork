@@ -18,6 +18,15 @@ internal static class SecondFactorErrors
     internal static readonly Error KeyUnavailable = Error.Validation(
         SecondFactorErrorCodes.KeyUnavailable, "Your authenticator key cannot be read. Use a recovery code.");
 
+    internal static readonly Error ChallengeExpired = Error.Validation(
+        SecondFactorErrorCodes.ChallengeExpired, "Your sign-in expired. Sign in again.");
+
+    internal static readonly Error FarmSuspended = Error.Validation(
+        SecondFactorErrorCodes.FarmSuspended, "This farm is suspended. Contact your administrator.");
+
+    // #1282 decision 12: one body for every refused passkey.
+    internal static readonly Error PasskeyRefused = new(PasskeyErrorCodes.Refused, "That passkey did not work. Try again.");
+
     // Step-up and change-password (decision 12): every refusal is 400 or 429,
     // never 401, and a superseded proof reads as a wrong current password.
     internal static Error ForPrivilegedAction(FactorOutcome refused) => refused switch

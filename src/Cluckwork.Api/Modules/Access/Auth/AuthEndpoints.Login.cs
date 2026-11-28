@@ -157,38 +157,51 @@ public static partial class AuthEndpoints
                 {
                     ["challenge"] = pending.Challenge,
                     ["challengeExpiresAt"] = pending.ExpiresAt,
+                    // #1282 decision 7: which proofs the code step accepts.
+                    ["secondFactors"] = pending.SecondFactors,
                 });
 
         return SignedIn(response, ((LoginStep.SignedIn)result.Value).Tokens, access, env);
     }
 
     private static async Task<IResult> LoginSecondFactor(
-        SecondFactorLoginRequest request, IAccessModule access, HttpResponse response,
+        SecondFactorLoginRequest request, HttpRequest http, IAccessModule access, HttpResponse response,
         IWebHostEnvironment env, CancellationToken ct)
     {
-        var result = await access.CompleteSecondFactorLoginAsync(request.Challenge, request.Code, ct);
+        if (request.Passkey is not null && request.Code is not null)
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["passkey"] = ["Send a code or a passkey, not both."] });
+        SecondFactorInput input;
+        if (request.Passkey is { } passkey)
+        {
+            if (CredentialJsonOf(passkey.Credential) is not { } credential) return MissingCredential();
+            input = new SecondFactorInput.Passkey(passkey.Ceremony, credential, http.Host.Host);
+        }
+        else
+        {
+            input = new SecondFactorInput.Code(request.Code);
+        }
+
+        var result = await access.CompleteSecondFactorLoginAsync(request.Challenge, input, ct);
         if (result.IsSuccess)
             return SignedIn(response, result.Value, access, env);
-
-        // 401 only when the user must sign in again; a wrong code is 400.
-        switch (result.Error)
-        {
-            case RetryLaterError retry:
-                return RetryLater(response, retry);
-            case { Code: SecondFactorErrorCodes.ChallengeExpired or SecondFactorErrorCodes.FarmSuspended }:
-                return Results.Problem(result.Error.Description, statusCode: 401, title: result.Error.Code);
-            default:
-                return Results.Problem(result.Error.Description, statusCode: 400, title: result.Error.Code);
-        }
+        return result.Error is RetryLaterError retry
+            ? RetryLater(response, retry)
+            : LoginStepProblem(result.Error, StatusCodes.Status400BadRequest);
     }
 
     // #532 — per-farm cookie: this login writes the cookie for the farm
     // that was just authenticated and can no longer disturb any other
     // farm's cookie. The old last-login-wins-over-every-tab behaviour is
     // gone by construction, not by a guard.
-    private static IResult SignedIn(HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env)
+    private static IResult SignedIn(HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env) =>
+        SignedIn(response, tokens, access, env, new AccessTokenResponse(tokens.AccessToken, tokens.AccessTokenExpiry));
+
+    // The one writer of a sign-in's refresh cookie; passkey sign-in (#1285)
+    // answers its own body through it.
+    private static IResult SignedIn<TBody>(
+        HttpResponse response, TokenPair tokens, IAccessModule access, IWebHostEnvironment env, TBody body)
     {
         AuthCookies.SetRefreshCookie(response, tokens.AccountId, tokens.RefreshToken, access.RefreshTokenLifetimeDays, CookieSecure(env));
-        return Results.Ok(new AccessTokenResponse(tokens.AccessToken, tokens.AccessTokenExpiry));
+        return Results.Ok(body);
     }
 }

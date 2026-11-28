@@ -56,7 +56,18 @@ public interface IAccessModule
 
     Task<Result<LoginStep>> LoginAsync(Guid accountId, string email, string password, CancellationToken ct);
 
-    Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, string code, CancellationToken ct);
+    Task<Result<TokenPair>> CompleteSecondFactorLoginAsync(string challenge, SecondFactorInput input, CancellationToken ct);
+
+    // #1285: the passkey routes under /auth/login. Each answers Passkeys.Off
+    // while Passkeys:Origins does not name requestHost (record 1282 decision 5).
+    Task<Result<PasskeyCeremonyStart>> StartSecondFactorPasskeyAsync(string? challenge, string requestHost, CancellationToken ct);
+
+    Task<Result<PasskeyCeremonyStart>> StartPasskeySignInAsync(string requestHost, CancellationToken ct);
+
+    // farmCode: the typed or prefilled code, or null; an unknown one is refused
+    // with the one Auth.PasskeyRefused body before the ceremony is consumed.
+    Task<Result<PasskeySignIn>> PasskeyLoginAsync(
+        Guid ceremony, string credentialJson, string? farmCode, string requestHost, CancellationToken ct);
 
     // Whether the DEFAULT account has an Owner (#283, #361).
     Task<bool> IsFirstRunProvisionedAsync(CancellationToken ct);

@@ -1,4 +1,6 @@
+using System.Text;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cluckwork.Api.IntegrationTests.Infrastructure;
@@ -25,6 +27,29 @@ internal static partial class TestHarness
             user.PasskeyCount += count;
             await db.SaveChangesAsync();
         });
+
+    // #1285: a passkey the authenticator can sign with, written straight to
+    // the table for a factory with no registration helpers.
+    public static Task SeedPasskeyAsync(this CluckworkWebApplicationFactory factory, Guid accountId, Guid userId, SoftwareAuthenticator key)
+    {
+        key.UserHandle = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(userId.ToString()));
+        return factory.WithTenantScopeAsync(accountId, async db =>
+        {
+            db.UserPasskeys.Add(new IdentityUserPasskey<Guid>
+            {
+                CredentialId = key.CredentialId,
+                UserId = userId,
+                Data = new IdentityPasskeyData
+                {
+                    PublicKey = key.PublicKey, Name = "Seeded", CreatedAt = DateTimeOffset.UtcNow,
+                    IsUserVerified = true, IsBackupEligible = true, IsBackedUp = true,
+                    AttestationObject = [1], ClientDataJson = "{}"u8.ToArray(),
+                },
+            });
+            (await db.Users.SingleAsync(u => u.Id == userId)).PasskeyCount++;
+            await db.SaveChangesAsync();
+        });
+    }
 
     // The user's PasskeyCount and the rows that back it.
     public static Task<(int Count, int Rows)> PasskeyStateAsync(this CluckworkWebApplicationFactory factory, Guid accountId, Guid userId) =>

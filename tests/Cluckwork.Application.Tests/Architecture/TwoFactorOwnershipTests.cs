@@ -41,8 +41,8 @@ public sealed class TwoFactorOwnershipTests
     private static readonly OutsideReader[] OutsideReaders =
     [
         new(PasswordStepRead, "SecondFactorSignIns", "the challenge carries the count the code step compares (decision 2)"),
-        new(InInfrastructure + Identity + "IdentityProvider.LoginAsync(System.Guid, string, string, System.Threading.CancellationToken)",
-            "TwoFactorEnabled", "a correct password asks an enrolled user for a code (decision 5)"),
+        new(InInfrastructure + Identity + "IdentityProvider.PasskeyLoginCoreAsync(System.Guid, string, string?, string, System.Threading.CancellationToken)",
+            "SecondFactorSignIns", "a passkey sign-in binds its proof to the count, as the password step does (#1282 decision 7, #1285)"),
         new(InInfrastructure + Identity + "IdentityProvider.RefreshAsync(string, System.Threading.CancellationToken, System.Guid?)",
             "TwoFactorEnabled", "an enrolled lineage ends a fixed time after its last sign-in (decision 8)"),
         new(InInfrastructure + Identity + "JwtTokenService.CreateTokenPair(" + Identity + "ApplicationUser, System.Collections.Generic.IReadOnlyCollection<string>, string)",
@@ -64,7 +64,7 @@ public sealed class TwoFactorOwnershipTests
 
     // The password step's read of the sign-in count, which the challenge
     // carries (decision 2): the record requires the walk to find it.
-    private const string PasswordStepRead = InInfrastructure + Identity + "SecondFactorChallenge.Issue(" + Identity + "ApplicationUser, " + Identity + "JwtOptions, System.DateTimeOffset)";
+    private const string PasswordStepRead = InInfrastructure + Identity + "SecondFactorChallenge.Issue(" + Identity + "ApplicationUser, System.Collections.Generic.IReadOnlyList<string>, " + Identity + "JwtOptions, System.DateTimeOffset)";
 
     private static readonly HashSet<string> BannedStores =
     [

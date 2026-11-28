@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
 using Cluckwork.Application.Modules.Access.Contracts;
 using Cluckwork.Application.Modules.Farm.Accounts;
 using Cluckwork.Infrastructure.Persistence;
@@ -29,14 +27,15 @@ internal sealed class ProtectedTwoFactorValue
 // never written. AspNetUsers is written only through the reloaded, locked user
 // and a UserManager save, which checks and rotates ConcurrencyStamp, so a stale
 // full-entity write cannot lower a watermark or a sign-in count (G3.19).
-internal sealed class TwoFactorCredentials(
+internal sealed partial class TwoFactorCredentials(
     AppDbContext db,
     IDataProtectionProvider dataProtection,
     TenantContext tenant,
     UserManager<ApplicationUser> userManager,
     TimeProvider timeProvider,
     AuthSecurityEventLogger securityEvents,
-    IAccountRepository accounts) : ITwoFactorCredentials, IOwnerGraceStart
+    IAccountRepository accounts,
+    IPasskeyCredentials passkeys) : ITwoFactorCredentials, IOwnerGraceStart
 {
     // Stored with every row or value: changing one makes every stored key
     // unreadable or orphaned.
@@ -79,27 +78,39 @@ internal sealed class TwoFactorCredentials(
                 .SetProperty(u => u.SecondFactorRequiredSince, now)
                 .SetProperty(u => u.ConcurrencyStamp, Guid.NewGuid().ToString()), ct);
 
-    // #1274 "Verifying a code", steps 1 to 6.
+    // #1274 "Verifying a code", steps 1 to 6; #1282 "Checking a passkey". A
+    // refused passkey is logged by the sign-in finish that asked, at its exit.
     public async Task<FactorOutcome> VerifyAsync(
-        Guid accountId, Guid userId, SecondFactorCode code, ProofBinding binding, CancellationToken ct)
+        Guid accountId, Guid userId, FactorProof proof, ProofBinding binding, CancellationToken ct)
     {
         var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        if (user is null || user.DisabledAt is not null || !user.TwoFactorEnabled || user.CredentialEpoch < 1
-            || user.CredentialEpoch != binding.CredentialEpoch
-            || !string.Equals(ProofBinding.HashStamp(user.SecurityStamp), binding.SecurityStampHash, StringComparison.Ordinal)
-            || (binding.SignIns is { } signIns && signIns != user.SecondFactorSignIns))
-            return new FactorOutcome.Superseded();
+        var kind = proof is FactorProof.Passkey ? FactorKind.Passkey : FactorKind.Authenticator;
+        if (user is null || !Admits(user, binding, kind)) return new FactorOutcome.Superseded();
 
         // Charging a locked row would count the guess and re-lock the account.
         if (await userManager.IsLockedOutAsync(user))
             return new FactorOutcome.Rejected(Charged: false);
 
-        return code switch
+        return proof switch
         {
-            SecondFactorCode.Totp totp => await VerifyTotpAsync(accountId, user, totp, binding, ct),
-            SecondFactorCode.Recovery recovery => await VerifyRecoveryAsync(accountId, user, recovery, binding, ct),
+            FactorProof.Code { Value: SecondFactorCode.Totp totp } => await VerifyTotpAsync(accountId, user, totp, binding, ct),
+            FactorProof.Code { Value: SecondFactorCode.Recovery recovery } => await VerifyRecoveryAsync(accountId, user, recovery, binding, ct),
+            FactorProof.Passkey passkey => await VerifyPasskeyAsync(user, passkey, binding, ct),
             _ => throw new UnreachableException(),
         };
+    }
+
+    // Record 1282 "Checking a passkey", steps 3 to 5. A refusal is never
+    // charged and never touches the daily budget (decision 8).
+    private async Task<FactorOutcome> VerifyPasskeyAsync(
+        ApplicationUser user, FactorProof.Passkey passkey, ProofBinding binding, CancellationToken ct)
+    {
+        if (passkey.Ceremony is not { } ceremony) return new FactorOutcome.Rejected(Charged: false);
+        var outcome = await passkeys.AssertAsync(
+            ceremony, user.Id, passkey.ExpectedCredentialId, passkey.CredentialJson, passkey.RequestHost, ct);
+        return outcome is AssertionOutcome.Accepted accepted
+            ? await AcceptAsync(user, binding, recoveryCodesLeft: null, accepted.Passkey)
+            : new FactorOutcome.Rejected(Charged: false);
     }
 
     // Steps 3 to 6 for an authenticator code.
@@ -188,251 +199,14 @@ internal sealed class TwoFactorCredentials(
     }
 
     // Step 6.
-    private async Task<FactorOutcome> AcceptAsync(ApplicationUser user, ProofBinding binding, int? recoveryCodesLeft)
+    private async Task<FactorOutcome> AcceptAsync(
+        ApplicationUser user, ProofBinding binding, int? recoveryCodesLeft, UserPasskeyInfo? passkey = null)
     {
         user.AccessFailedCount = 0;
         // Decision 2: every accepted login, by either factor, ends the challenge it used.
         if (binding.SignIns is not null)
             user.SecondFactorSignIns++;
         await SaveAsync(user);
-        return new FactorOutcome.Accepted(recoveryCodesLeft);
-    }
-
-    public async Task<EnrolmentStart> StartEnrolmentAsync(Guid accountId, Guid userId, CancellationToken ct)
-    {
-        RequireTenant(accountId);
-        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct)
-            ?? throw new InvalidOperationException("Enrolment starts only for a user of the resolved farm.");
-        var account = await accounts.GetCurrentAsync(ct)
-            ?? throw new InvalidOperationException("Enrolment starts only under a resolved farm.");
-
-        // A second start replaces the payload; the live key is never touched.
-        var key = userManager.GenerateNewAuthenticatorKey();
-        var payload = new PendingPayload(
-            key, user.CredentialEpoch, ProofBinding.HashStamp(user.SecurityStamp), timeProvider.GetUtcNow(), WrongConfirms: 0);
-        await StageProtectedAsync(userId, ProtectedTwoFactorValue.PendingAuthenticator, JsonSerializer.Serialize(payload), ct);
-        await db.SaveChangesAsync(ct);
-
-        return new EnrolmentStart(key, OtpauthUri.Build(account.Name, account.Slug, user.Email ?? string.Empty, userId, key));
-    }
-
-    public async Task<ConfirmOutcome> ConfirmEnrolmentAsync(
-        Guid accountId, Guid userId, SecondFactorCode.Totp code, CancellationToken ct)
-    {
-        RequireTenant(accountId);
-        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        if (user is null) return new ConfirmOutcome.Superseded();
-
-        var pendingRow = await Rows(accountId, userId)
-            .SingleOrDefaultAsync(t => t.Name == ProtectedTwoFactorValue.PendingAuthenticator.RowName, ct);
-        if (pendingRow is null) return new ConfirmOutcome.Superseded();
-
-        PendingPayload? payload;
-        try
-        {
-            payload = JsonSerializer.Deserialize<PendingPayload>(Protector(accountId, userId).Unprotect(pendingRow.Value!));
-        }
-        catch (Exception ex) when (ex is CryptographicException or JsonException)
-        {
-            payload = null;
-        }
-        // An undecryptable, undecodable or field-less payload ends the enrolment.
-        if (payload is null || !TotpMatcher.IsKey(payload.Key) || payload.SecurityStampHash is null)
-        {
-            RemoveRow(pendingRow);
-            await db.SaveChangesAsync(ct);
-            securityEvents.SecondFactorKeyUnreadable();
-            return new ConfirmOutcome.Superseded();
-        }
-
-        var now = timeProvider.GetUtcNow();
-        if (now - payload.IssuedAt > PendingLifetime
-            || payload.CredentialEpoch != user.CredentialEpoch
-            || !string.Equals(payload.SecurityStampHash, ProofBinding.HashStamp(user.SecurityStamp), StringComparison.Ordinal))
-            return new ConfirmOutcome.Superseded();
-
-        // The payload is single-use, so the match ignores the watermark.
-        if (TotpMatcher.MatchStep(payload.Key, code.Value, long.MinValue, now).Step is not { } step)
-        {
-            // Not charged to the lockout; the fifth wrong confirm ends the
-            // enrolment, so a stolen session cannot search the code space.
-            var wrong = payload.WrongConfirms + 1;
-            if (wrong >= MaxWrongConfirms)
-                RemoveRow(pendingRow);
-            else
-                pendingRow.Value = Protector(accountId, userId).Protect(JsonSerializer.Serialize(payload with { WrongConfirms = wrong }));
-            await db.SaveChangesAsync(ct);
-            return new ConfirmOutcome.Rejected(MaxWrongConfirms - wrong);
-        }
-
-        await StageProtectedAsync(userId, ProtectedTwoFactorValue.AuthenticatorKey, payload.Key, ct);
-        RemoveRow(pendingRow);
-        var recoveryCodes = user.TwoFactorEnabled ? null : NewRecoveryCodes();
-        if (recoveryCodes is not null)
-            StageRecoveryCodes(userId, recoveryCodes);
-
-        // Decision 8: a factor change ends every session and connected app
-        // minted before it. The caller revokes and mints the fresh pair.
-        user.TwoFactorEnabled = true;
-        user.SecondFactorWatermark = Math.Max(user.SecondFactorWatermark, step);
-        user.CredentialEpoch++;
-        var saved = await userManager.UpdateSecurityStampAsync(user);
-        if (!saved.Succeeded)
-            throw new InvalidOperationException("The locked user's save failed: " + string.Join(" ", saved.Errors.Select(e => e.Code)));
-
-        return recoveryCodes is not null ? new ConfirmOutcome.Enrolled(recoveryCodes) : new ConfirmOutcome.Replaced();
-    }
-
-    // Decision 9: regenerating deletes the rows and inserts ten new ones. The
-    // key, the flag and the epoch stay, so no session ends.
-    public async Task<IReadOnlyList<string>?> RegenerateRecoveryCodesAsync(Guid accountId, Guid userId, CancellationToken ct)
-    {
-        RequireTenant(accountId);
-        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        if (user is null || !user.TwoFactorEnabled) return null;
-
-        await Rows(accountId, userId).Where(t => t.Name.StartsWith(RecoveryCodePrefix)).ExecuteDeleteAsync(ct);
-        var codes = NewRecoveryCodes();
-        StageRecoveryCodes(userId, codes);
-        await db.SaveChangesAsync(ct);
-        return codes;
-    }
-
-    // #1274 "Enrolling and replacing a key": deletes every row without reading
-    // a value. Only an enrolled user's clear is a factor change (decision 8);
-    // ending sessions for an unenrolled user would cost them for nothing.
-    public async Task<ClearOutcome> ClearAsync(Guid accountId, Guid userId, CancellationToken ct)
-    {
-        var user = await UserRowLock.LoadLockedAsync(db, accountId, userId, ct);
-        if (user is null) return ClearOutcome.NotFound;
-
-        var pendingDeleted = await Rows(accountId, userId)
-            .Where(t => t.Name == ProtectedTwoFactorValue.PendingAuthenticator.RowName).ExecuteDeleteAsync(ct) > 0;
-        await Rows(accountId, userId).ExecuteDeleteAsync(ct);
-        if (!user.TwoFactorEnabled)
-            return pendingDeleted ? ClearOutcome.PendingDeleted : ClearOutcome.NotEnrolled;
-
-        user.TwoFactorEnabled = false;
-        user.SecondFactorFailures = 0;
-        user.SecondFactorFailuresSince = null;
-        user.CredentialEpoch++;
-        var saved = await userManager.UpdateSecurityStampAsync(user);
-        if (!saved.Succeeded)
-            throw new InvalidOperationException("The locked user's save failed: " + string.Join(" ", saved.Errors.Select(e => e.Code)));
-        return ClearOutcome.Cleared;
-    }
-
-    // Every add runs on a signed-in route (#1274 decision 15), so the stage
-    // methods take the account from the resolved tenant: a value protected
-    // under one account and stamped with another could never be read.
-    internal async Task StageProtectedAsync(
-        Guid userId, ProtectedTwoFactorValue slot, string plaintext, CancellationToken ct)
-    {
-        var accountId = ResolvedAccountId();
-        var value = Protector(accountId, userId).Protect(plaintext);
-        var row = await Rows(accountId, userId).SingleOrDefaultAsync(t => t.Name == slot.RowName, ct);
-        if (row is null) AddRow(userId, slot.RowName, value);
-        else row.Value = value;
-    }
-
-    // Takes the account, because login reads before the tenant resolves.
-    // Null when no row exists. Throws CryptographicException when the key ring
-    // cannot read the value (a certificate change that did not keep the old
-    // certificate listed, or a value copied from another user's row).
-    internal async Task<string?> ReadProtectedAsync(
-        Guid accountId, Guid userId, ProtectedTwoFactorValue slot, CancellationToken ct)
-    {
-        var value = await Rows(accountId, userId).AsNoTracking()
-            .Where(t => t.Name == slot.RowName).Select(t => t.Value).SingleOrDefaultAsync(ct);
-        return value is null ? null : Protector(accountId, userId).Unprotect(value);
-    }
-
-    // #1274 decision 9: one row per code, named by its digest, with no value.
-    // No tenant, a malformed code or a duplicate throws before any row is tracked.
-    internal void StageRecoveryCodes(Guid userId, IEnumerable<string> codes)
-    {
-        _ = ResolvedAccountId();
-        var names = codes.Select(code => RecoveryCodeName(userId, code)).ToList();
-        if (names.Distinct(StringComparer.Ordinal).Count() != names.Count)
-            throw new ArgumentException("Recovery codes must be distinct after normalization.", nameof(codes));
-        foreach (var name in names)
-            AddRow(userId, name, value: null);
-    }
-
-    // The one digest function, so the stage and verify sites cannot disagree on
-    // the normal form: spaces and hyphens removed, upper case, then
-    // XXXX-XXXX-XXXX-XXXX. The verify site parses first (SecondFactorCode), so
-    // malformed input never reaches here; the normal-form check fails closed if
-    // a caller skips it.
-    internal static string RecoveryCodeName(Guid userId, string code)
-    {
-        var normalized = SecondFactorCode.NormalizeRecovery(code)
-            ?? throw new ArgumentException("A recovery code has 16 characters of the recovery alphabet.", nameof(code));
-        return RecoveryCodePrefix + Convert.ToHexStringLower(
-            SHA256.HashData(Encoding.UTF8.GetBytes($"{userId:D}:{normalized}")));
-    }
-
-    // Distinct by construction: every code is already in its normal form.
-    private static List<string> NewRecoveryCodes()
-    {
-        var codes = new List<string>(RecoveryCodeCount);
-        while (codes.Count < RecoveryCodeCount)
-        {
-            var code = SecondFactorCode.NormalizeRecovery(
-                RandomNumberGenerator.GetString(SecondFactorCode.RecoveryAlphabet, SecondFactorCode.RecoveryLength))!;
-            if (!codes.Contains(code)) codes.Add(code);
-        }
-        return codes;
-    }
-
-    private Task<int> RecoveryCodesLeftAsync(Guid accountId, Guid userId, CancellationToken ct) =>
-        Rows(accountId, userId).CountAsync(t => t.Name.StartsWith(RecoveryCodePrefix), ct);
-
-    // A refused outcome writes nothing beyond a window rollover, or a spent
-    // budget's missing window start.
-    private async Task SaveIfChangedAsync(ApplicationUser user)
-    {
-        if (db.Entry(user).State == EntityState.Modified) await SaveAsync(user);
-    }
-
-    private async Task SaveAsync(ApplicationUser user)
-    {
-        var saved = await userManager.UpdateAsync(user);
-        if (!saved.Succeeded)
-            throw new InvalidOperationException("The locked user's save failed: " + string.Join(" ", saved.Errors.Select(e => e.Code)));
-    }
-
-    private void RequireTenant(Guid accountId)
-    {
-        if (ResolvedAccountId() != accountId)
-            throw new InvalidOperationException("Enrolment runs under the resolved tenant of the user's farm.");
-    }
-
-    private Guid ResolvedAccountId() => tenant.IsResolved
-        ? tenant.AccountId
-        : throw new InvalidOperationException("Two-factor rows are staged only under a resolved tenant.");
-
-    private IQueryable<IdentityUserToken<Guid>> Rows(Guid accountId, Guid userId) =>
-        db.UserTokens.Where(t =>
-            t.UserId == userId
-            && EF.Property<Guid>(t, AccountIdProperty) == accountId
-            && t.LoginProvider == LoginProvider);
-
-    // The interceptor stamps AccountId from the resolved tenant, and the
-    // composite foreign key refuses a user of another farm.
-    private void AddRow(Guid userId, string name, string? value) =>
-        db.UserTokens.Add(new IdentityUserToken<Guid> { UserId = userId, LoginProvider = LoginProvider, Name = name, Value = value });
-
-    private void RemoveRow(IdentityUserToken<Guid> row) => db.UserTokens.Remove(row);
-
-    private IDataProtector Protector(Guid accountId, Guid userId) =>
-        dataProtection.CreateProtector(ProtectorPurpose, accountId.ToString("D"), userId.ToString("D"));
-
-    // The pending enrolment, protected as one value: the new key, the epoch
-    // and stamp it was started under, its issue time and its wrong confirms.
-    private sealed record PendingPayload(
-        string Key, int CredentialEpoch, string SecurityStampHash, DateTimeOffset IssuedAt, int WrongConfirms)
-    {
-        public override string ToString() => "[redacted]";
+        return new FactorOutcome.Accepted(recoveryCodesLeft, passkey);
     }
 }

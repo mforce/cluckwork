@@ -1866,6 +1866,8 @@ namespace Cluckwork.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ExpiresAt");
+
                     b.ToTable("passkey_ceremonies", (string)null);
                 });
 
