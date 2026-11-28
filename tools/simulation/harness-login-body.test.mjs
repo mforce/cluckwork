@@ -281,6 +281,7 @@ const UNDRIVABLE = {
   "tools/simulation/ui/src/mutants.ts": "rewrites a successful login response's role inside a live Playwright browser; it prints no body",
   "tools/simulation/ui/specs/session-refresh.spec.ts": "reads only a successful (r.ok()) login response's token, against the live stack",
   "tools/simulation/ui/specs/session-races.spec.ts": "records that a login request was sent, against the live stack; it reads no body",
+  "tools/simulation/ui/specs/passkey.spec.ts": "signs in with a passkey in a live browser over the TLS proxy; it reads only the second step's status, the passkey options answer's ceremony id (a ceremony, never a sign-in challenge) and the passkey sign-in's request body, and prints no body",
 };
 
 test("every harness that signs in has a driver or a stated reason it cannot run", () => {
