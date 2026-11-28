@@ -2695,7 +2695,7 @@ export const es = {
     // #1285 — inicio de sesión con llave de acceso, autocompletado y la llave en el segundo paso.
     signingInPasskey:
       "<strong>Llaves de acceso.</strong> Elija <strong>Iniciar sesión con una llave de acceso</strong>, o elija una "
-      + "llave de acceso que su navegador ofrezca en el campo Correo. Puede dejar el código de granja en blanco: la "
+      + "llave de acceso que su navegador ofrezca en el campo Correo electrónico. Puede dejar el código de granja en blanco: la "
       + "llave de acceso dice a qué granja pertenece, y este dispositivo recuerda esa granja. Si hay un código de "
       + "granja en el campo, la llave de acceso debe ser de esa granja. Si tiene una llave de acceso, una contraseña "
       + "correcta es solo el primer paso: termine con <strong>Usar una llave de acceso</strong>, o con un código de "
