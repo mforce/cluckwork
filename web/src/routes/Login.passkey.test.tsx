@@ -188,6 +188,11 @@ describe("Login with a passkey (#1285)", () => {
     expect(await screen.findByText(i18n.t("auth:passkeySignInCancelled"))).toBeInTheDocument();
     await waitFor(() => expect(live()).toHaveLength(1));
     expect(mockPasskeyLogin).not.toHaveBeenCalled();
+
+    // The button works again: a second press opens a second prompt.
+    const prompts = get.mock.calls.filter(([init]) => init.mediation !== "conditional").length;
+    await act(async () => fireEvent.click(passkeyButton()));
+    expect(get.mock.calls.filter(([init]) => init.mediation !== "conditional")).toHaveLength(prompts + 1);
   });
 
   it("shows the one refusal message and gets a new ceremony after a refused passkey", async () => {
@@ -978,7 +983,7 @@ describe("Login passkey renewal that hangs (#1285)", () => {
 // Record 1282 decision 11: the farm code is the one in the field when the
 // answer is sent, however long the browser took to give it.
 describe("Login passkey farm code at the time of the answer (#1285)", () => {
-  const answerAutofill = async () => {
+  const pendingAutofill = async () => {
     await waitFor(() => expect(live()).toHaveLength(1));
     return live()[0];
   };
@@ -986,7 +991,7 @@ describe("Login passkey farm code at the time of the answer (#1285)", () => {
   it("sends a farm code typed after autofill started", async () => {
     mockPasskeyLogin.mockImplementation(passkeySignedIn("farm-b"));
     await ready("/dashboard");
-    const pending = await answerAutofill();
+    const pending = await pendingAutofill();
 
     fireEvent.change(screen.getByLabelText(/Farm code/), { target: { value: "farm-b" } });
     await act(async () => pending.answer("autofill-cred"));
@@ -998,7 +1003,7 @@ describe("Login passkey farm code at the time of the answer (#1285)", () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a", "farm-b"]));
     mockPasskeyLogin.mockImplementation(passkeySignedIn("farm-b"));
     await ready("/dashboard");
-    const pending = await answerAutofill();
+    const pending = await pendingAutofill();
 
     fireEvent.click(screen.getByRole("button", { name: "farm-b" }));
     await act(async () => pending.answer("autofill-cred"));
@@ -1010,7 +1015,7 @@ describe("Login passkey farm code at the time of the answer (#1285)", () => {
     localStorage.setItem("cluckwork.farmCodes", JSON.stringify(["farm-a"]));
     mockPasskeyLogin.mockImplementation(passkeySignedIn("farm-b"));
     await ready("/dashboard");
-    const pending = await answerAutofill();
+    const pending = await pendingAutofill();
     expect(screen.getByLabelText(/Farm code/)).toHaveValue("farm-a");
 
     fireEvent.change(screen.getByLabelText(/Farm code/), { target: { value: "" } });
@@ -1091,12 +1096,14 @@ describe("Login passkey renewal around a sign-in (#1285)", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   });
 
-  it("asks for no ceremony while a passkey sign-in is in flight", async () => {
+  it.each(["the button", "autofill"])("asks for no ceremony while a passkey sign-in from %s is in flight", async (path) => {
     mockPasskeyLogin.mockImplementationOnce(() => new Promise(() => {}));
     await readyWithFakeTimers();
     await settle(RENEW_MS - 1000);
 
-    await act(async () => fireEvent.click(passkeyButton()));
+    if (path === "autofill") await act(async () => live()[0].answer("autofill-cred"));
+    else await act(async () => fireEvent.click(passkeyButton()));
+    expect(mockPasskeyLogin).toHaveBeenCalledTimes(1);
     await settle(2000);
 
     expect(mockStart).toHaveBeenCalledTimes(1);
@@ -1125,6 +1132,54 @@ describe("Login passkey renewal around a sign-in (#1285)", () => {
     expect(mockStart).toHaveBeenCalledTimes(2);
     expect(screen.queryAllByRole("button", { name: i18n.t("auth:passkeySignIn") }).length > 0).toBe(offered);
     if (offered) expect(passkeyButton()).toHaveAccessibleDescription(i18n.t("auth:passkeyLimited", { count: 5 }));
+  });
+
+  // A 429 and the sign-in's own 404 Passkeys.Off: off wins.
+  it("turns passkeys off when the sign-in answers 404 Passkeys.Off after a renewal's 429", async () => {
+    const prompt = Promise.withResolvers<unknown>();
+    modal = () => prompt.promise;
+    mockPasskeyLogin.mockRejectedValueOnce(new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")));
+    await readyWithFakeTimers();
+    const renewal = Promise.withResolvers<PasskeyCeremony>();
+    mockStart.mockImplementationOnce(() => renewal.promise);
+    await settle(RENEW_MS);
+
+    await act(async () => fireEvent.click(passkeyButton()));
+    await act(async () => renewal.reject(new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 300 })));
+    await act(async () => prompt.resolve(credential("modal-cred")));
+    await settle(301_000);
+
+    expect(screen.queryByRole("button", { name: i18n.t("auth:passkeySignIn") })).not.toBeInTheDocument();
+    expect(mockStart).toHaveBeenCalledTimes(2);
+  });
+
+  // The clock moved past the ceremony with no timer run, as after a sleep.
+  it("opens no prompt for a ceremony the clock has expired before the expiry timer ran", async () => {
+    await readyWithFakeTimers();
+    mockStart.mockImplementationOnce(() => new Promise(() => {}));
+    vi.setSystemTime(Date.now() + 6 * 60_000);
+
+    await act(async () => fireEvent.click(passkeyButton()));
+
+    expect(get.mock.calls.filter(([init]) => init.mediation !== "conditional")).toHaveLength(0);
+    expect(passkeyButton()).toBeDisabled();
+  });
+
+  // An autofill answer and a press before React renders again.
+  it("lets the button start nothing while an autofill sign-in is out", async () => {
+    mockPasskeyLogin.mockImplementation(() => new Promise(() => {}));
+    await readyWithFakeTimers();
+    const button = passkeyButton();
+
+    await act(async () => {
+      live()[0].answer("autofill-cred");
+      for (let i = 0; i < 10 && mockPasskeyLogin.mock.calls.length === 0; i++) await Promise.resolve();
+      expect(mockPasskeyLogin).toHaveBeenCalledTimes(1);
+      button.click();
+    });
+
+    expect(mockPasskeyLogin).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([init]) => init.mediation !== "conditional")).toHaveLength(0);
   });
 
   it("offers no expired ceremony, even for a moment, on return from a long second step", async () => {

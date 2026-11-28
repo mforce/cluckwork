@@ -109,9 +109,8 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
       if (fromAutofill) setAutofillPaused(true);
       // The server may have spent the ceremony: nothing uses it again. Off
       // and a 429's wait, learned meanwhile, stand.
-      setState((s) => (s.kind === "off" || s.kind === "limited" ? s
-        : err instanceof ApiError && err.title === PASSKEYS_OFF ? { kind: "off" }
-          : { kind: "waiting", dueAt: 0 }));
+      setState((s) => (s.kind === "off" || (err instanceof ApiError && err.title === PASSKEYS_OFF) ? { kind: "off" }
+        : s.kind === "limited" ? s : { kind: "waiting", dueAt: 0 }));
       setBusy(false);
     }
   }
@@ -142,8 +141,15 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const listen = useEffectEvent(async (current: PasskeyCeremony, signal: AbortSignal) => {
     if (!(await window.PublicKeyCredential?.isConditionalMediationAvailable?.()) || signal.aborted) return;
     const answer = await getPasskey(current, { signal, conditional: true }).catch(() => null);
-    // Aborted meanwhile, as by the password submit: that sign-in wins.
-    if (answer && !signal.aborted) await finish(answer, true);
+    // Aborted meanwhile, as by the password submit, or the button's sign-in is
+    // out: that sign-in wins. The ref holds the button off until this one ends.
+    if (!answer || signal.aborted || pressing.current) return;
+    pressing.current = true;
+    try {
+      await finish(answer, true);
+    } finally {
+      pressing.current = false;
+    }
   });
 
   // A ceremony past its life is not offered even before the expiry timer
@@ -162,8 +168,14 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   }, [listening]);
 
   async function signInWithButton() {
-    // A ref, not busy: two clicks in one tick land before any re-render.
+    // A ref, not busy: two clicks, or an autofill answer and a click, in one
+    // tick land before any re-render.
     if (fresh === null || pressing.current || busy || !active) return;
+    // The render can be older than the clock, after a hidden tab or a sleep.
+    if (state.kind === "ready" && Date.now() >= state.expiresAt) {
+      expire();
+      return;
+    }
     pressing.current = true;
     // The browser runs one request at a time, so autofill stops first.
     autofill.current?.abort();

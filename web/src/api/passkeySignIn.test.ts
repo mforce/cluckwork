@@ -69,8 +69,6 @@ describe("passkey sign-in API (#1285)", () => {
   // #1285 — a passkey sign-in is one anonymous request: a blank farm code goes
   // as null, a refusal is never refreshed and resent, and success signs in.
   it("passkeyLogin sends the ceremony, the credential and the farm code, and signs in like login", async () => {
-    clearAccessToken();
-    clearBoundAccount();
     const answer = { ceremony: "c-1", credential: { id: "cred" } as unknown as AuthenticationResponseJSON };
     fetchMock.mockResolvedValueOnce(jsonResponse({ title: "Auth.PasskeyRefused", status: 401 }, 401));
 
@@ -112,5 +110,4 @@ describe("passkey sign-in API (#1285)", () => {
     expect(JSON.parse(String(callsTo(fetchMock, "/auth/login/second-factor")[0][1].body)))
       .toEqual({ challenge: "challenge-jwt", passkey: { ceremony: "c-2", credential: { id: "cred" } } });
   });
-
 });
