@@ -20,7 +20,7 @@ REPO_ROOT="$(cd "$UI_DIR/../../.." && pwd)"
 exec docker run --rm --init --ipc=host --network host \
   --user "$(id -u):$(id -g)" \
   -v "$REPO_ROOT:$REPO_ROOT" -w "$UI_DIR" \
-  -e CI -e BASE_URL -e CANARY_BROWSERS \
+  -e CI -e BASE_URL -e PASSKEY_BASE_URL -e CANARY_BROWSERS \
   -e CLUCKWORK_E2E_BUNDLED_BROWSER -e CLUCKWORK_E2E_CHROMIUM \
   -e CLUCKWORK_E2E_SLOW -e CLUCKWORK_E2E_UNDER_LOAD -e CLUCKWORK_E2E_MUTANT \
   "$PLAYWRIGHT_IMAGE" "$@"

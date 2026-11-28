@@ -108,6 +108,18 @@ codes from `totp.py`, `ui/src/totp.ts` and `k6/totp.js`. The server takes each
 30-second step once, so a client that signs this Owner in again soon waits for a
 fresh step.
 
+### Passkeys (#1285)
+
+Passkeys stay off on this stack unless `SIM_COMPOSE_OVERLAY` names a second
+compose file, which `reset.sh` and `verify-harness.sh` pass as a second `-f`.
+`e2e-smoke.yml` passes `docker-compose.passkeys-e2e.yml`, which turns passkeys on
+for `https://localhost:8495` behind the TLS proxy in `tools/verify/mcp/`. With
+passkeys on, `reset.sh` also registers a passkey for the two-factor Owner,
+made by `passkey.py`, and writes it as `twoFactorOwner.passkey` (`credentialId`,
+`rpId`, `userHandle`, `privateKey`). The Playwright passkey spec loads it into
+Chrome's virtual authenticator and browses `PASSKEY_BASE_URL`; every other spec
+keeps `BASE_URL`.
+
 ## KEEPING THIS HARNESS ALIVE (read before changing a boot guard) — #370
 
 **Nothing automated runs this harness.** It is deliberately not in CI — it is

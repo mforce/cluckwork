@@ -85,6 +85,28 @@ export const tl = {
     secondFactorSubmit: "I-verify",
     secondFactorVerifying: "Vine-verify…",
     secondFactorBack: "Bumalik sa pag-sign in",
+    // #1285 — pag-sign in gamit ang passkey at ang passkey sa ikalawang hakbang.
+    farmCodeHint: "Kailangan kasama ng iyong password.",
+    passkeySignIn: "Mag-sign in gamit ang passkey",
+    passkeyFarmCodeOptional: "Puwedeng iwanang blangko ang code ng bukid kapag passkey ang gamit.",
+    passkeySignInCancelled: "Kinansela ang pag-sign in gamit ang passkey. Subukan ulit o gamitin ang iyong password.",
+    passkeyLimited_one:
+      "Masyadong maraming hiling ng passkey mula sa network na ito. Subukan ulit pagkalipas ng {{count}} minuto, o gamitin ang iyong password.",
+    passkeyLimited_other:
+      "Masyadong maraming hiling ng passkey mula sa network na ito. Subukan ulit pagkalipas ng {{count}} minuto, o gamitin ang iyong password.",
+    passkeySecondTitle: "I-verify ang iyong pag-sign in",
+    passkeySecondIntro: "Gumamit ng passkey para matapos ang pag-sign in.",
+    passkeySecondConfirmed: "{{farm}} · Nakumpirma ang password",
+    passkeySecondSubmit: "Gumamit ng passkey",
+    passkeySecondUseCode: "Gumamit ng authenticator code",
+    passkeySecondOnly: "Walang naka-set up na authenticator app. Hindi sapat ang password lang para matapos ang pag-sign in.",
+    passkeySecondOff:
+      "Naka-off ang mga passkey sa web address na ito, at walang authenticator app ang iyong account. Hilingin sa isang Owner ng iyong farm na alisin ang iyong mga passkey, saka mag-sign in gamit ang iyong password.",
+    passkeySecondCancelled: "Kinansela ang pagsuri gamit ang passkey. Subukan ulit.",
+    passkeySecondIpHost: "Hindi gumagana ang mga passkey sa IP address. Buksan ang Cluckwork sa web address ng iyong farm para magamit ang iyong passkey.",
+    passkeyRenewing: "Kumukuha ng bagong hiling ng passkey…",
+    passkeySecondUnsupported: "Hindi makagamit ng passkey ang browser na ito. Gumamit ng ibang browser o device.",
+    passkeyBrowserFailed: "Hindi nagamit ng browser o device na ito ang passkey. Subukan ulit, o gumamit ng ibang paraan para mag-sign in.",
     secondFactorIncorrect:
       "Hindi gumana ang code na iyon. Kung kagagamit mo lang nito, hintayin ang susunod.",
     secondFactorClockHint:
@@ -2762,6 +2784,16 @@ export const tl = {
       + "sa iyong phone. Kung wala ang iyong phone, ilagay ang isa sa iyong mga <strong>recovery code</strong>; "
       + "isang beses lang gumagana ang bawat isa. Ilagay ang code sa loob ng mga 5 minuto: pagkatapos noon, ibabalik ka sa "
       + "pag-sign in kapag isinumite mo ito. Ang maling code ay binibilang sa parehong panandaliang pag-block ng account gaya ng maling password.",
+    // #1285 — pag-sign in gamit ang passkey, autofill at ang passkey sa ikalawang hakbang.
+    signingInPasskey:
+      "<strong>Mga passkey.</strong> Piliin ang <strong>Mag-sign in gamit ang passkey</strong>, o pumili ng passkey "
+      + "na iniaalok ng iyong browser sa field na Email. Puwedeng iwanang blangko ang code ng bukid: sinasabi ng passkey "
+      + "kung saang farm ito kabilang, at tatandaan ng device na ito ang farm na iyon. Kung may code ng bukid sa field, "
+      + "dapat kabilang ang passkey sa farm na iyon. Kapag may passkey ka, unang hakbang lang ang tamang password: "
+      + "tapusin gamit ang <strong>Gumamit ng passkey</strong>, o gamit ang authenticator code kung mayroon ka ring "
+      + "app. Kung maraming hiling ng passkey mula sa iyong network sa maikling oras, naka-off ang passkey button nang "
+      + "ilang minuto; gumagana pa rin ang iyong password. Kung naka-off ang mga passkey sa web address na ito, walang "
+      + "iniaalok na passkey ang sign-in page.",
     signingInPersistence:
       "Ligtas na naka-save sa browser mo ang sign in mo at nananatiling aktibo habang nagtatrabaho ka, "
       + "kahit mag-reload at kahit bukas ang app sa <strong>ilang tab</strong> nang sabay-sabay. "
@@ -4239,7 +4271,8 @@ export const tl = {
     glossaryPasskeyDef:
       "Isang paraan para patunayang ikaw ito gamit ang iyong phone o computer: sinusuri nito ang iyong fingerprint, "
       + "mukha o PIN, tapos pinapatunayan na hawak nito ang key na ginawa para sa iyong account. Tulad ng "
-      + "authenticator app, isa itong second factor. Magdagdag ng hanggang lima sa Account › Seguridad. Gumagana "
+      + "authenticator app, isa itong second factor. Ang passkey lang ay sapat para mag-sign in, kahit blangko ang "
+      + "code ng bukid, at pagkatapos ng password ay tinatapos nito ang ikalawang hakbang. Magdagdag ng hanggang lima sa Account › Seguridad. Gumagana "
       + "lang ang passkey sa web address kung saan ito ginawa. Kung saan naka-off ang mga passkey, ipinapakita ng "
       + "Account › Seguridad ang mga passkey mo na may Alisin lang. Aksyon ng Owner sa Users screen ang pag-alis ng mga "
       + "passkey ng ibang user, hiwalay sa pag-reset ng two-factor authentication.",

@@ -847,7 +847,7 @@ describe("Login — cached pre-auth banner (#833)", () => {
 
 // #1278 — the code step for an enrolled user.
 describe("Login code step (#1278)", () => {
-  const pending = { kind: "secondFactor" as const, challenge: "challenge-jwt", expiresAt: "2099-01-01T00:00:00Z" };
+  const pending = { kind: "secondFactor" as const, challenge: "challenge-jwt", expiresAt: "2099-01-01T00:00:00Z", factors: ["authenticator" as const] };
 
   async function reachCodeStep(route = "/login") {
     mockApiLogin.mockResolvedValue(pending);

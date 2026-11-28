@@ -299,6 +299,11 @@ RateLimiting__ClientErrors__WindowSeconds=300
 # Owner in before two-factor is on, so its sign-in takes no code.
 RateLimiting__SecondFactor__PermitLimit=1000000
 RateLimiting__SecondFactor__WindowSeconds=900
+# #1285 — every sign-in page load asks the passkey options route, also while
+# passkeys are off (its 404 spends a permit), and every e2e request comes from
+# one address. The passkey spec fakes this policy's 429 instead.
+RateLimiting__PasskeyOptions__PermitLimit=1000000
+RateLimiting__PasskeyOptions__WindowSeconds=900
 
 # --- Host/proxy interpolation vars (parity with deploy/.env.example) ---
 #

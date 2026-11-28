@@ -58,7 +58,7 @@ test.describe("CSP nonce (#873)", () => {
     const violations = cspViolations(page);
 
     const response = await page.goto(`${BASE_URL}/login`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: tEn("auth:signIn") }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: tEn("auth:signIn"), exact: true }).waitFor({ state: "visible" });
 
     // The document and the header that governs it were minted together.
     expect(await documentNonce(page)).toBe(headerNonce(response!.headers()["content-security-policy"]));
@@ -85,7 +85,7 @@ test.describe("CSP nonce (#873)", () => {
     await context.setOffline(true);
     try {
       const response = await page.reload({ waitUntil: "domcontentloaded" });
-      await page.getByRole("button", { name: tEn("auth:signIn") }).waitFor({ state: "visible" });
+      await page.getByRole("button", { name: tEn("auth:signIn"), exact: true }).waitFor({ state: "visible" });
 
       // Served by the worker from the precache, with no network behind it — and
       // still carrying the header it was cached with, naming the nonce its own

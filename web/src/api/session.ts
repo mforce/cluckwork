@@ -39,7 +39,7 @@ export const currentSessionGeneration = () => sessionGeneration;
 // the login that superseded that refresh may still be QUEUED behind it and
 // therefore hold nothing yet. The parked caller awaits this instead, the same
 // way concurrent 401s share refreshInFlight.
-let loginInFlight: Promise<void> | null = null;
+let loginInFlight: Promise<unknown> | null = null;
 
 // #438 — resolve once there is no login still pending. Its FAILURE is the login
 // caller's to report; a parked request only needs to know no login is on its way
@@ -74,9 +74,13 @@ export const SECOND_FACTOR_REQUIRED = "Auth.SecondFactorRequired";
 // when a session is torn down.
 export const FARM_SUSPENDED = "Auth.FarmSuspended";
 
+// #1285 — the proofs the pending 401's `secondFactors` names (record 1282).
+export type SecondFactor = "authenticator" | "passkey";
+const SECOND_FACTORS: readonly SecondFactor[] = ["authenticator", "passkey"];
+
 export type LoginOutcome =
   | { kind: "signedIn" }
-  | { kind: "secondFactor"; challenge: string; expiresAt: string };
+  | { kind: "secondFactor"; challenge: string; expiresAt: string; factors: SecondFactor[] };
 
 export async function login(body: LoginRequest): Promise<LoginOutcome> {
   try {
@@ -86,18 +90,50 @@ export async function login(body: LoginRequest): Promise<LoginOutcome> {
     if (!(err instanceof ApiError) || err.status !== 401 || err.title !== SECOND_FACTOR_REQUIRED) throw err;
     // The challenge is a credential until it is used: taken off the error at
     // once, so no generic catch can print or report it.
-    const { challenge, challengeExpiresAt } = err.extensions;
+    const { challenge, challengeExpiresAt, secondFactors } = err.extensions;
     delete err.extensions.challenge;
     if (typeof challenge !== "string" || typeof challengeExpiresAt !== "string") throw err;
-    return { kind: "secondFactor", challenge, expiresAt: challengeExpiresAt };
+    const factors = SECOND_FACTORS.filter((f) => Array.isArray(secondFactors) && secondFactors.includes(f));
+    if (factors.length === 0) throw err;
+    return { kind: "secondFactor", challenge, expiresAt: challengeExpiresAt, factors };
   }
+}
+
+// #1285 — a WebAuthn ceremony: its id and the browser's request options JSON.
+export interface PasskeyCeremony {
+  ceremony: string;
+  options: PublicKeyCredentialRequestOptionsJSON;
+}
+
+// The ceremony and the browser's credential JSON, sent back unparsed.
+export interface PasskeyAnswer {
+  ceremony: string;
+  credential: AuthenticationResponseJSON;
+}
+
+// #1285 — anonymous and sent with raw, so a 401 is never refreshed and resent.
+export const startPasskeySignIn = () =>
+  raw<PasskeyCeremony>("/auth/login/passkey/options", { method: "POST", body: "{}" });
+
+export const startSecondFactorPasskey = (challenge: string) =>
+  raw<PasskeyCeremony>("/auth/login/second-factor/passkey-options", { method: "POST", body: JSON.stringify({ challenge }) });
+
+// #1285 — a passkey sign-in mints the session as login does. A blank farm
+// code goes as null: the passkey names the farm (record 1282 decision 11),
+// and the answer's farmCode is the farm it signed in to.
+export async function passkeyLogin(farmCode: string, answer: PasskeyAnswer): Promise<string> {
+  const res = await signIn<AccessTokenResponse & { farmCode: string }>(
+    "/auth/login/passkey", { ...answer, farmCode: farmCode.trim() || null });
+  return res.farmCode;
 }
 
 // #1274 — the code step mints the session exactly as login does, so it is the
 // same flight: the same cross-tab lock, deadline, generation check and stale
-// cookie revoke.
-export function completeSecondFactor(challenge: string, code: string): Promise<void> {
-  return noteCode(signIn("/auth/login/second-factor", { challenge, code }), code);
+// cookie revoke. #1285 — it also takes a passkey.
+export async function completeSecondFactor(challenge: string, answer: string | PasskeyAnswer): Promise<void> {
+  await (typeof answer === "string"
+    ? noteCode(signIn("/auth/login/second-factor", { challenge, code: answer }), answer)
+    : signIn("/auth/login/second-factor", { challenge, passkey: answer }));
 }
 
 // #1279 — marks a refusal with the kind of code it answered, so every
@@ -111,7 +147,7 @@ async function noteCode<T>(request: Promise<T>, code: string | undefined): Promi
   }
 }
 
-function signIn(path: string, body: unknown): Promise<void> {
+function signIn<T extends AccessTokenResponse = AccessTokenResponse>(path: string, body: unknown): Promise<T> {
   // #310 — bump first, and SYNCHRONOUSLY, before this login queues for the
   // lock: login is a NEWER session than anything already in flight (a
   // bootstrap refresh, say), so its resolution must be the one that wins, and
@@ -119,7 +155,7 @@ function signIn(path: string, body: unknown): Promise<void> {
   const generation = ++sessionGeneration;
   // #438 — published before the first await, so a request that parks while
   // this login is still queued can find it.
-  const flight = performLogin(path, body, generation).finally(() => {
+  const flight = performLogin<T>(path, body, generation).finally(() => {
     if (loginInFlight === flight) loginInFlight = null;
   });
   loginInFlight = flight;
@@ -133,7 +169,7 @@ function signIn(path: string, body: unknown): Promise<void> {
 // arrival order to decide whose Set-Cookie survives. Ordering is the fix a
 // page-owned lock can actually give — any in-flight refresh settles, cookie
 // applied, before this login sends a byte, so login's cookie is provably last.
-async function performLogin(path: string, body: unknown, generation: number): Promise<void> {
+async function performLogin<T extends AccessTokenResponse>(path: string, body: unknown, generation: number): Promise<T> {
   // #648 review — `withAuthCookieLock`'s own timeout starts when this login's
   // TURN arrives, so it caps the request and not the wait for the turn. That was
   // enough while every holder of this lock was itself bounded, but
@@ -183,7 +219,7 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
           ? Promise.reject(
               new DOMException("Abandoned before its turn on the auth cookie lock.", "AbortError"),
             )
-          : raw<AccessTokenResponse>(
+          : raw<T>(
             path,
             {
               method: "POST",
@@ -228,6 +264,7 @@ async function performLogin(path: string, body: unknown, generation: number): Pr
   // farm's cookie. #1398 — they hear only that a session here changed.
   announceSessionChange();
   onTokensChanged?.();
+  return res;
 }
 
 // #1279 — the step-up request body. `code` is the authenticator or recovery

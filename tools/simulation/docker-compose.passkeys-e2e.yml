@@ -1,0 +1,14 @@
+# #1285 (record 1282 decision 20) — turns passkeys on for e2e-smoke.yml only,
+# behind its TLS proxy at https://localhost:8495, which keeps the Host header
+# and sets X-Forwarded-Proto. Passed as SIM_COMPOSE_OVERLAY to reset.sh and
+# verify-harness.sh. Every other boot leaves Passkeys__Origins__0 unset, and
+# so passkeys off; a blank value would fail the app's boot check.
+services:
+  app:
+    environment:
+      Passkeys__Origins__0: https://localhost:8495
+      # The issuer's host stays listed; the proxy's requests carry localhost.
+      AllowedHosts: "cluckwork-sim.local;localhost"
+      # Docker's port forward makes the bridge gateway the address the app
+      # sees, so the proxy's X-Forwarded-Proto is trusted only from this range.
+      RateLimiting__TrustedProxies__0: 172.16.0.0/12

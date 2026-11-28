@@ -57,6 +57,20 @@ export interface CastMember {
    * with totp.ts.
    */
   totpKey?: string;
+  /**
+   * A registered passkey's credential and private key (#1285), present only
+   * for `twoFactorOwner()` on a stack with passkeys on. The passkey spec loads
+   * it into Chrome's virtual authenticator.
+   */
+  passkey?: CastPasskey;
+}
+
+/** All base64url, but the private key, which is base64 PKCS#8 (passkey.py). */
+export interface CastPasskey {
+  credentialId: string;
+  rpId: string;
+  userHandle: string;
+  privateKey: string;
 }
 
 interface RawCastMember {
@@ -64,6 +78,7 @@ interface RawCastMember {
   password: string;
   role: CastRole;
   totpKey?: string;
+  passkey?: CastPasskey;
 }
 
 interface RawCastFile {

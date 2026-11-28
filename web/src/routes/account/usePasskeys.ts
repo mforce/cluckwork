@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { listPasskeys, registerPasskey, removePasskey, renamePasskey, startPasskeyRegistration } from "../../api/cluckwork";
+import { createPasskey, passkeysSupported } from "../../auth/passkey";
 import type { Passkey } from "../../api/cluckwork";
 import { useAuth } from "../../auth/useAuth";
 import { useDialogAction } from "../../components/useDialogAction";
@@ -26,10 +27,6 @@ export type PasskeyFlow =
   | { step: "unsupported" };
 
 const LIST: PasskeyFlow = { step: "list" };
-
-// The JSON helpers are the whole of the browser support this needs: the
-// options arrive as JSON and the credential goes back as JSON.
-const supported = () => typeof window.PublicKeyCredential?.parseCreationOptionsFromJSON === "function";
 
 // The browser's refusals, as the create step says them. NotAllowedError, a
 // cancel or a timeout, is not one: the step shows it as a cancel.
@@ -62,7 +59,7 @@ export function usePasskeys() {
 
   function openAdd() {
     setMessage(null);
-    if (!supported()) {
+    if (!passkeysSupported()) {
       setFlow({ step: "unsupported" });
       return;
     }
@@ -146,15 +143,9 @@ export function usePasskeys() {
       const { ceremony, options } = await startPasskeyRegistration();
       // A page the user has left opens no browser prompt and spends no grant.
       if (!current()) return;
-      let credential: PublicKeyCredential | null;
-      try {
-        credential = await navigator.credentials.create({
-          publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(options),
-        }) as PublicKeyCredential | null;
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === "NotAllowedError")) throw browserError(err);
-        credential = null;
-      }
+      const credential = await createPasskey(options).catch((err: unknown) => {
+        throw browserError(err);
+      });
       if (!current()) return;
       if (credential === null) {
         toPhase({ phase: "cancelled", grant });
@@ -162,7 +153,7 @@ export function usePasskeys() {
       }
       toPhase({ phase: "spent" });
       const passkey = await registerPasskey(
-        { ceremony, credential: credential.toJSON() as RegistrationResponseJSON, name: chosen }, grant,
+        { ceremony, credential, name: chosen }, grant,
       );
       list.retry();
       if (!current()) return;

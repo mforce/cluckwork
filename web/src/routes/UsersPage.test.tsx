@@ -1306,7 +1306,7 @@ describe("UsersPage change-role step-up (#308, #355)", () => {
           mustEnrolTwoFactor: false,
           setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
-          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), passkeyLogin: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={me}>
@@ -3120,7 +3120,7 @@ describe("UsersPage step-up authentication (#308)", () => {
           mustEnrolTwoFactor: false,
           setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
-          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), passkeyLogin: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={me}>
@@ -3689,7 +3689,7 @@ describe("UsersPage abandoned-attempt success on the consolidated dialogs (#703 
           mustEnrolTwoFactor: false,
           setMustEnrolTwoFactor: () => {}, credentialKey: null,
           unauthenticatedReason: null,
-          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), passkeyLogin: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={me}>
@@ -4187,7 +4187,7 @@ describe("UsersPage step-up with two-factor authentication (#1279)", () => {
         <AuthContext.Provider value={{
           isAuthenticated, isLoading: false, isAdmin: true, role: "Admin" as Role, userId: "u1",
           mustChangePassword: false, twoFactor: true, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
-          login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+          login: vi.fn(), completeSecondFactor: vi.fn(), passkeyLogin: vi.fn(), logout: vi.fn(),
         }}
         >
           <MeContext.Provider value={{

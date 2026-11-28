@@ -1,10 +1,11 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, logout as apiLogout, restoreSession,
+  login as apiLogin, completeSecondFactor as apiCompleteSecondFactor, passkeyLogin as apiPasskeyLogin,
+  logout as apiLogout, restoreSession,
   setOnTokensChanged, setOnTwoFactorEnrolmentRequired, setOnUnauthenticated,
 } from "../api/client";
-import type { LoginOutcome } from "../api/client";
+import type { LoginOutcome, PasskeyAnswer } from "../api/client";
 import { currentCredentialKey, currentUserHasTwoFactor, currentUserId, currentUserIsAdmin, currentUserMustChangePassword, currentUserRole } from "./claims";
 import type { Role } from "./claims";
 import { bindFarm, clearAccessToken, getAccessToken, getBoundAccountId, purgeLegacyTokens } from "./tokenStore";
@@ -50,7 +51,10 @@ interface AuthState {
   // #1274 — an enrolled user's correct password returns the code step; the
   // tab binds its farm only once a session exists.
   login: (farmCode: string, email: string, password: string) => Promise<LoginOutcome>;
-  completeSecondFactor: (farmCode: string, challenge: string, code: string) => Promise<void>;
+  completeSecondFactor: (farmCode: string, challenge: string, answer: string | PasskeyAnswer) => Promise<void>;
+  // #1285 — the farm comes from the passkey, so the tab binds and remembers
+  // the farm the server names, whatever the field held.
+  passkeyLogin: (farmCode: string, answer: PasskeyAnswer) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -179,9 +183,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return outcome;
   }, [signedIn]);
 
-  const completeSecondFactor = useCallback(async (farmCode: string, challenge: string, code: string) => {
-    await apiCompleteSecondFactor(challenge, code);
+  const completeSecondFactor = useCallback(async (farmCode: string, challenge: string, answer: string | PasskeyAnswer) => {
+    await apiCompleteSecondFactor(challenge, answer);
     await signedIn(farmCode);
+  }, [signedIn]);
+
+  const passkeyLogin = useCallback(async (farmCode: string, answer: PasskeyAnswer) => {
+    await signedIn(await apiPasskeyLogin(farmCode, answer));
   }, [signedIn]);
 
   const logout = useCallback(async () => {
@@ -211,10 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
-      setMustEnrolTwoFactor, credentialKey, unauthenticatedReason, login, completeSecondFactor, logout,
+      setMustEnrolTwoFactor, credentialKey, unauthenticatedReason, login, completeSecondFactor, passkeyLogin, logout,
     }),
     [isAuthenticated, isLoading, isAdmin, role, userId, mustChangePassword, twoFactor, mustEnrolTwoFactor,
-      credentialKey, unauthenticatedReason, login, completeSecondFactor, logout],
+      credentialKey, unauthenticatedReason, login, completeSecondFactor, passkeyLogin, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

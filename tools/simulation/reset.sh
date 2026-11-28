@@ -72,8 +72,14 @@ if [[ "$COMPOSE_PROJECT_NAME" != "cluckwork-sim" ]]; then
 fi
 echo "Compose project: ${COMPOSE_PROJECT_NAME} (safety gate passed)."
 
+# #1285 (record 1282 decision 20) — an optional second compose file, passed to
+# every compose call; e2e-smoke.yml passes the passkey overlay. verify-harness.sh,
+# which runs before the first compose call, checks that it exists.
+COMPOSE_FILES=(-f "$COMPOSE_FILE")
+[[ -z "${SIM_COMPOSE_OVERLAY:-}" ]] || COMPOSE_FILES+=(-f "$SIM_COMPOSE_OVERLAY")
+
 compose() {
-  docker compose -p "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  docker compose -p "$COMPOSE_PROJECT_NAME" --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "$@"
 }
 
 read_env_value() {
@@ -153,27 +159,39 @@ PY
 # two-factor Playwright spec sign them in with codes. The main Owner stays
 # unenrolled: an Owner passes the gate only during the grace period, which
 # starts afresh at every reset, so the rest of the suite signs in with no code.
+# #1285 — while passkeys are on (the passkeys-e2e overlay), they also register
+# a passkey made by passkey.py, which goes into the cast file as
+# `twoFactorOwner.passkey` for the Playwright passkey spec.
 add_enrolled_owner() {
+  # Its own line, so a failed lookup stops the reset (set -e ignores a failure
+  # inside an environment prefix).
+  local origin
+  origin="$(passkey_origin)"
   FARM_CODE="$1" OWNER_EMAIL="$2" OWNER_PASSWORD="$3" CAST_FILE="$4" \
-    APP_PORT="$APP_PORT" SIM_DIR="$SCRIPT_DIR" python3 - <<'PY'
+    APP_PORT="$APP_PORT" SIM_DIR="$SCRIPT_DIR" PASSKEY_ORIGIN="$origin" python3 - <<'PY'
 import json
 import os
 import secrets
 import sys
 import urllib.request
 import uuid
+from urllib.parse import urlsplit
 
 base = f"http://127.0.0.1:{os.environ['APP_PORT']}/api/v1"
 farm_code = os.environ["FARM_CODE"]
 
 
-def post(path, body, token=None, step_up=None):
+def post(path, body, token=None, step_up=None, host=None):
     req = urllib.request.Request(
         f"{base}{path}",
         data=json.dumps(body).encode(),
         method="POST",
         headers={"Content-Type": "application/json", "Idempotency-Key": str(uuid.uuid4())},
     )
+    # A passkey ceremony is bound to the request's host, which must be the
+    # origin's host: the browser reaches the app through the TLS proxy.
+    if host:
+        req.add_header("Host", host)
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     if step_up:
@@ -216,14 +234,36 @@ post("/users", {"email": email, "password": password, "role": "Admin", "name": "
      token=owner_token, step_up=step_up(owner_token, owner_password))
 token = sign_in(email, password)
 key = post("/auth/two-factor/start", {}, token=token, step_up=step_up(token, password))["key"]
-post("/auth/two-factor/confirm", {"code": totp.code(key)}, token=token)
+confirmed = post("/auth/two-factor/confirm", {"code": totp.code(key)}, token=token)
 
 cast["twoFactorOwner"] = {"email": email, "password": password, "role": "Owner", "totpKey": key}
+
+origin = os.environ["PASSKEY_ORIGIN"]
+if origin:
+    import passkey
+
+    # The confirm ended the older session. A recovery code steps up, because
+    # the authenticator code just confirmed cannot be used again.
+    token = confirmed["accessToken"]
+    grant = post("/auth/step-up", {"password": password, "code": confirmed["recoveryCodes"][0]}, token=token)["token"]
+    host = urlsplit(origin).netloc
+    ceremony = post("/auth/passkeys/options", {}, token=token, host=host)
+    credential, entry = passkey.attest(ceremony["options"], origin)
+    post("/auth/passkeys", {"ceremony": ceremony["ceremony"], "credential": credential, "name": "Sim passkey"},
+         token=token, step_up=grant, host=host)
+    cast["twoFactorOwner"]["passkey"] = entry
 with open(cast_file, "w") as f:
     json.dump(cast, f, indent=2)
     f.write("\n")
-print(f"Owner {email} ({farm_code}) added with two-factor on; the key is in {os.path.basename(cast_file)}.")
+print(f"Owner {email} ({farm_code}) added with two-factor on{' and a passkey' if origin else ''}; "
+      f"the key is in {os.path.basename(cast_file)}.")
 PY
+}
+
+# #1285 — the passkey origin the app really gets, empty while passkeys are off.
+passkey_origin() {
+  compose config --format json | python3 -c \
+    'import json, sys; print(json.load(sys.stdin)["services"]["app"]["environment"].get("Passkeys__Origins__0") or "")'
 }
 
 # Signs in with the STABLE password and reports how much production data the farm

@@ -1,5 +1,6 @@
 import { ApiError } from "../api/client";
 import { FARM_SUSPENDED } from "../api/session";
+import { PasskeyBrowserError } from "../auth/passkey";
 import i18n from "../i18n";
 
 // #532 — this and FARM_SUSPENDED ride the ProblemDetails `title` on a 401, so they MUST be matched
@@ -7,13 +8,18 @@ import i18n from "../i18n";
 // are told their password is wrong, which is the exact outcome the maintainer's
 // decision to use a distinct code exists to avoid.
 const UNKNOWN_FARM_CODE = "Auth.UnknownFarmCode";
+// #1285 — parseError puts each one's catalog text in the message.
+const PASSKEY_REFUSED = "Auth.PasskeyRefused";
+export const PASSKEYS_OFF = "Passkeys.Off";
 
 // MODULE-LEVEL — called from the sign-in pages' catch handlers, not from render, so the
 // useTranslation hook is not in scope here. The imperative i18n singleton
 // (already initialised, already holding the resolved language) is the correct
 // tool outside render (#182).
 export function messageFor(err: unknown): string {
+  if (err instanceof PasskeyBrowserError) return err.message;
   if (err instanceof ApiError) {
+    if (err.title === PASSKEY_REFUSED || err.title === PASSKEYS_OFF) return err.message;
     // #532 — ahead of the generic 401 below, which would otherwise report a
     // suspended farm or a mistyped farm code as a bad password.
     if (err.title === UNKNOWN_FARM_CODE) return i18n.t("auth:unknownFarmCode");

@@ -92,12 +92,14 @@ playwright.config.ts          smoke suite: workers=1, retries=0, two projects
 playwright.canary.config.ts   canary: 1–2 workers, generous timeouts
 specs/                        the smoke specs
   phone.spec.ts                 the @phone ones: tab bar, More sheet, overflow
+  passkey.spec.ts               passkey sign-in at PASSKEY_BASE_URL (#1285)
 specs-canary/                 the canary
 src/
   browser.ts     which Chromium, and why there are two right answers
   cast.ts        personas from ../.sim-cast.json; cast label -> SPA role,
                  plus readmeFarmOwner() for the second farm and
                  twoFactorOwner(), the Owner with two-factor on (#1281)
+                 and, with passkeys on, their passkey (#1285)
   totp.ts        authenticator codes for twoFactorOwner()
   farm.ts        farm-local dates via Intl, mirroring web/src/lib/dates.ts
   i18n.ts        selector text read from the SPA's own en/es/tl catalogs

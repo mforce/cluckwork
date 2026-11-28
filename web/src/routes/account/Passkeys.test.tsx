@@ -73,7 +73,7 @@ beforeEach(() => {
   vi.mocked(listMyConnectedApps).mockResolvedValue([]);
   mockStepUp.mockImplementation(async () => grant());
   parse.mockImplementation((options: unknown) => ({ parsed: options }));
-  vi.stubGlobal("PublicKeyCredential", { parseCreationOptionsFromJSON: parse });
+  vi.stubGlobal("PublicKeyCredential", { parseCreationOptionsFromJSON: parse, parseRequestOptionsFromJSON: parse });
   Object.defineProperty(navigator, "credentials", { value: { create }, configurable: true });
 });
 afterEach(() => {
@@ -443,7 +443,7 @@ describe("the grant and the proof", () => {
       <AuthContext.Provider value={{
         isAuthenticated, isLoading: false, isAdmin: false, role: "Worker", userId: "u1",
         mustChangePassword: false, twoFactor: false, mustEnrolTwoFactor: false, setMustEnrolTwoFactor: () => {}, credentialKey: null, unauthenticatedReason: null,
-        login: vi.fn(), completeSecondFactor: vi.fn(), logout: vi.fn(),
+        login: vi.fn(), completeSecondFactor: vi.fn(), passkeyLogin: vi.fn(), logout: vi.fn(),
       }}>
         <RecoveryCodesProvider>
           <MeContext.Provider value={{ id: "u1", email: "test@farm.local", name: null, role: "Worker", language: null, preferredStepperUnit: null }}>

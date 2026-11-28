@@ -1087,11 +1087,11 @@ describe("auth endpoints", () => {
     clearBoundAccount();
     fetchMock.mockResolvedValueOnce(jsonResponse({
       title: "Auth.SecondFactorRequired", status: 401, detail: "Enter the code from your authenticator app.",
-      challenge: "challenge-jwt", challengeExpiresAt: FUTURE,
+      challenge: "challenge-jwt", challengeExpiresAt: FUTURE, secondFactors: ["authenticator"],
     }, 401));
 
     await expect(login({ farmCode: "default-farm", email: "a@b.co", password: "pw" }))
-      .resolves.toEqual({ kind: "secondFactor", challenge: "challenge-jwt", expiresAt: FUTURE });
+      .resolves.toEqual({ kind: "secondFactor", challenge: "challenge-jwt", expiresAt: FUTURE, factors: ["authenticator"] });
     expect(getAccessToken()).toBeNull();
     expect(getBoundAccountId()).toBeNull();
     expect(callsTo(fetchMock, "/auth/refresh")).toHaveLength(0);
