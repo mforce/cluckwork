@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/mforce/cluckwork/compare/v1.2.1...v1.3.0) (2026-11-28)
+
+
+### Features
+
+* **auth:** register, list, rename and remove passkeys as a second factor (backend) ([#1465](https://github.com/mforce/cluckwork/issues/1465)) ([f80c10a](https://github.com/mforce/cluckwork/commit/f80c10a9ad3fb2d75b755b78e52e8ca77e3867d2))
+* **auth:** sign in with a passkey, and answer the second step with one ([#1474](https://github.com/mforce/cluckwork/issues/1474)) ([254f7dc](https://github.com/mforce/cluckwork/commit/254f7dcf4745958b922d634d89fc381c9a7ca33c))
+* **web:** passkeys in Account → Security and the Owner's Remove passkeys ([#1466](https://github.com/mforce/cluckwork/issues/1466)) ([7804207](https://github.com/mforce/cluckwork/commit/78042070119ce3cce48a7a613d4fde0e876c72ae))
+* **web:** sign in with a passkey, and answer the second step with one ([#1475](https://github.com/mforce/cluckwork/issues/1475)) ([9266d33](https://github.com/mforce/cluckwork/commit/9266d339032b7ad4ef951583585866f21aa35005))
+
+
+### Documentation
+
+* **auth:** record the passkey design, a second factor at sign-in and step-up ([#1449](https://github.com/mforce/cluckwork/issues/1449)) ([94596fc](https://github.com/mforce/cluckwork/commit/94596fc0fc1cc41169904a4d1344595df9d28492))
+* **designs:** add passkey screens to the two-factor lab ([#1447](https://github.com/mforce/cluckwork/issues/1447)) ([81b806a](https://github.com/mforce/cluckwork/commit/81b806a22910a836a830027bc10ce8fd39bc6bdf))
+
 ## [1.2.1](https://github.com/mforce/cluckwork/compare/v1.2.0...v1.2.1) (2026-11-23)
 
 
