@@ -27,7 +27,7 @@ type State =
   | { kind: "off" }
   | { kind: "loading"; dueAt: number }
   | { kind: "waiting"; dueAt: number }
-  | { kind: "ready"; current: PasskeyCeremony; dueAt: number }
+  | { kind: "ready"; current: PasskeyCeremony; dueAt: number; expiresAt: number }
   | { kind: "limited"; dueAt: number; minutes: number };
 
 function afterFailure(state: State, err: unknown): State {
@@ -61,13 +61,20 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   // authenticator that answers by itself cannot sign in again and again.
   const [autofillPaused, setAutofillPaused] = useState(false);
   const renewing = useRef(false);
+  const pressing = useRef(false);
   const autofill = useRef<AbortController | null>(null);
+  // An answer arrives after an await, so the farm code is read when it is
+  // sent, not when the request started (record 1282 decision 11).
+  const latestFarmCode = useRef(farmCode);
+  useEffect(() => {
+    latestFarmCode.current = farmCode;
+  }, [farmCode]);
 
   // A ceremony the server has already expired is not offered while its
   // replacement is on the way: after a hidden page, a long second step, or a
   // renewal that hangs.
   const expire = useCallback(() => setState((s) =>
-    (s.kind === "ready" && Date.now() >= s.dueAt - RENEW_MS + CEREMONY_MS ? { kind: "waiting", dueAt: s.dueAt } : s)), []);
+    (s.kind === "ready" && Date.now() >= s.expiresAt ? { kind: "waiting", dueAt: s.dueAt } : s)), []);
 
   const renew = useCallback(async () => {
     if (renewing.current) return;
@@ -78,7 +85,8 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
     try {
       const current = await startPasskeySignIn();
       // Off stays off, even when the step learned it during this request.
-      setState((s) => (s.kind === "off" ? s : { kind: "ready", current, dueAt: Date.now() + RENEW_MS }));
+      const madeAt = Date.now();
+      setState((s) => (s.kind === "off" ? s : { kind: "ready", current, dueAt: madeAt + RENEW_MS, expiresAt: madeAt + CEREMONY_MS }));
     } catch (err) {
       setState((s) => afterFailure(s, err));
     } finally {
@@ -95,17 +103,22 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
     setBusy(true);
     onError(null);
     try {
-      await passkeyLogin(farmCode, answer);
+      await passkeyLogin(latestFarmCode.current, answer);
     } catch (err) {
       onError(messageFor(err));
       if (fromAutofill) setAutofillPaused(true);
-      // The server may have spent the ceremony: nothing uses it again.
-      setState({ kind: "waiting", dueAt: 0 });
+      // The server may have spent the ceremony: nothing uses it again. Off
+      // and a 429's wait, learned meanwhile, stand.
+      setState((s) => (s.kind === "off" || s.kind === "limited" ? s
+        : err instanceof ApiError && err.title === PASSKEYS_OFF ? { kind: "off" }
+          : { kind: "waiting", dueAt: 0 }));
       setBusy(false);
     }
   }
 
-  const dueAt = active && "dueAt" in state ? state.dueAt : null;
+  // No options request while a sign-in is in flight.
+  const dueAt = active && !busy && "dueAt" in state ? state.dueAt : null;
+  const expiresAt = state.kind === "ready" ? state.expiresAt : null;
   useEffect(() => {
     if (dueAt === null) return;
     let timer: number | undefined;
@@ -115,8 +128,7 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
       clearTimeout(expiry);
       if (document.visibilityState === "hidden") return;
       timer = window.setTimeout(() => void renew(), Math.max(0, dueAt - Date.now()));
-      // For a ceremony; a no-op in the other states.
-      expiry = window.setTimeout(expire, Math.max(0, dueAt - RENEW_MS + CEREMONY_MS - Date.now()));
+      if (expiresAt !== null) expiry = window.setTimeout(expire, Math.max(0, expiresAt - Date.now()));
     };
     schedule();
     document.addEventListener("visibilitychange", schedule);
@@ -125,17 +137,22 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
       clearTimeout(expiry);
       document.removeEventListener("visibilitychange", schedule);
     };
-  }, [dueAt, renew, expire]);
+  }, [dueAt, expiresAt, renew, expire]);
 
   const listen = useEffectEvent(async (current: PasskeyCeremony, signal: AbortSignal) => {
     if (!(await window.PublicKeyCredential?.isConditionalMediationAvailable?.()) || signal.aborted) return;
     const answer = await getPasskey(current, { signal, conditional: true }).catch(() => null);
-    if (answer) await finish(answer, true);
+    // Aborted meanwhile, as by the password submit: that sign-in wins.
+    if (answer && !signal.aborted) await finish(answer, true);
   });
+
+  // A ceremony past its life is not offered even before the expiry timer
+  // runs, as on return from a long second step.
+  const fresh = state.kind === "ready" && Date.now() < state.expiresAt ? state.current : null;
 
   // Autofill: a conditional request on the current ceremony, aborted and
   // started again whenever the ceremony changes.
-  const listening = active && !busy && !autofillPaused && state.kind === "ready" ? state.current : null;
+  const listening = active && !busy && !autofillPaused ? fresh : null;
   useEffect(() => {
     if (listening === null) return;
     const controller = new AbortController();
@@ -145,18 +162,22 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   }, [listening]);
 
   async function signInWithButton() {
-    if (state.kind !== "ready" || busy || !active) return;
+    // A ref, not busy: two clicks in one tick land before any re-render.
+    if (fresh === null || pressing.current || busy || !active) return;
+    pressing.current = true;
     // The browser runs one request at a time, so autofill stops first.
     autofill.current?.abort();
     setAutofillPaused(false);
     setBusy(true);
     onError(null);
     try {
-      const answer = await getPasskey(state.current);
+      const answer = await getPasskey(fresh);
       if (answer) return await finish(answer, false);
       onError(i18n.t("auth:passkeySignInCancelled"));
     } catch (err) {
       onError(messageFor(err));
+    } finally {
+      pressing.current = false;
     }
     setBusy(false);
   }
@@ -168,9 +189,9 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
     // The button and its caption show; the button works only when ready.
     offered: state.kind === "ready" || state.kind === "waiting" || state.kind === "limited",
     waiting: state.kind === "waiting",
-    enabled: state.kind === "ready" && active && !busy,
+    enabled: fresh !== null && active && !busy,
     // The email field's webauthn token.
-    autofill: state.kind === "ready",
+    autofill: fresh !== null,
     limitedMinutes: state.kind === "limited" ? state.minutes : null,
     busy,
     signInWithButton,
