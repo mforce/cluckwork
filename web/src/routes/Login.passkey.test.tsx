@@ -1096,8 +1096,9 @@ describe("Login passkey renewal around a sign-in (#1285)", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   });
 
-  it.each(["the button", "autofill"])("asks for no ceremony while a passkey sign-in from %s is in flight", async (path) => {
-    mockPasskeyLogin.mockImplementationOnce(() => new Promise(() => {}));
+  it.each(["the button", "autofill"])("asks for no ceremony while a passkey sign-in from %s is in flight, and renews once it is refused", async (path) => {
+    const signIn = Promise.withResolvers<string>();
+    mockPasskeyLogin.mockImplementationOnce(() => signIn.promise);
     await readyWithFakeTimers();
     await settle(RENEW_MS - 1000);
 
@@ -1105,12 +1106,15 @@ describe("Login passkey renewal around a sign-in (#1285)", () => {
     else await act(async () => fireEvent.click(passkeyButton()));
     expect(mockPasskeyLogin).toHaveBeenCalledTimes(1);
     await settle(2000);
-
     expect(mockStart).toHaveBeenCalledTimes(1);
+
+    await act(async () => signIn.reject(new ApiError(401, "Auth.PasskeyRefused", i18n.t("errors:Auth.PasskeyRefused"))));
+    await settle(10);
+
+    expect(mockStart).toHaveBeenCalledTimes(2);
+    expect(passkeyButton()).toBeEnabled();
   });
 
-  // A renewal already out when the button is pressed can answer during the
-  // prompt; what it learned stands when the sign-in is then refused.
   it.each([
     ["404 Passkeys.Off", () => new ApiError(404, "Passkeys.Off", i18n.t("errors:Passkeys.Off")), false],
     ["429", () => new ApiError(429, "Too Many Requests", "Too many.", { retryAfterSeconds: 300 }), true],

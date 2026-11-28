@@ -57,11 +57,18 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const [state, setState] = useState<State>(() =>
     passkeysSupported() && webAuthnHost(window.location.hostname) ? { kind: "loading", dueAt: 0 } : { kind: "unsupported" });
   const [busy, setBusy] = useState(false);
+  // One passkey sign-in at a time, from the button or from autofill. The ref
+  // answers within the same tick, before any re-render; the state renders.
+  // hold keeps the two equal.
+  const signingIn = useRef(false);
+  const hold = useCallback((on: boolean) => {
+    signingIn.current = on;
+    setBusy(on);
+  }, []);
   // Set after a refused autofill answer, until the user acts, so an
   // authenticator that answers by itself cannot sign in again and again.
   const [autofillPaused, setAutofillPaused] = useState(false);
   const renewing = useRef(false);
-  const pressing = useRef(false);
   const autofill = useRef<AbortController | null>(null);
   // An answer arrives after an await, so the farm code is read when it is
   // sent, not when the request started (record 1282 decision 11).
@@ -98,9 +105,8 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   // offers no passkey for the rest of its life.
   const markOff = useCallback(() => setState({ kind: "off" }), []);
 
-  // A success leaves busy set: the page is leaving.
+  // Called holding the sign-in; a success keeps it held: the page is leaving.
   async function finish(answer: PasskeyAnswer, fromAutofill: boolean) {
-    setBusy(true);
     onError(null);
     try {
       await passkeyLogin(latestFarmCode.current, answer);
@@ -111,7 +117,7 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
       // and a 429's wait, learned meanwhile, stand.
       setState((s) => (s.kind === "off" || (err instanceof ApiError && err.title === PASSKEYS_OFF) ? { kind: "off" }
         : s.kind === "limited" ? s : { kind: "waiting", dueAt: 0 }));
-      setBusy(false);
+      hold(false);
     }
   }
 
@@ -141,15 +147,10 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   const listen = useEffectEvent(async (current: PasskeyCeremony, signal: AbortSignal) => {
     if (!(await window.PublicKeyCredential?.isConditionalMediationAvailable?.()) || signal.aborted) return;
     const answer = await getPasskey(current, { signal, conditional: true }).catch(() => null);
-    // Aborted meanwhile, as by the password submit, or the button's sign-in is
-    // out: that sign-in wins. The ref holds the button off until this one ends.
-    if (!answer || signal.aborted || pressing.current) return;
-    pressing.current = true;
-    try {
-      await finish(answer, true);
-    } finally {
-      pressing.current = false;
-    }
+    // Aborted meanwhile, by the password submit or the button: that one wins.
+    if (!answer || signal.aborted) return;
+    hold(true);
+    await finish(answer, true);
   });
 
   // A ceremony past its life is not offered even before the expiry timer
@@ -168,30 +169,28 @@ export function usePasskeySignIn({ active, farmCode, onError }: Options) {
   }, [listening]);
 
   async function signInWithButton() {
-    // A ref, not busy: two clicks, or an autofill answer and a click, in one
-    // tick land before any re-render.
-    if (fresh === null || pressing.current || busy || !active) return;
+    if (fresh === null || signingIn.current || !active) return;
     // The render can be older than the clock, after a hidden tab or a sleep.
     if (state.kind === "ready" && Date.now() >= state.expiresAt) {
       expire();
       return;
     }
-    pressing.current = true;
+    hold(true);
     // The browser runs one request at a time, so autofill stops first.
     autofill.current?.abort();
     setAutofillPaused(false);
-    setBusy(true);
     onError(null);
+    let answer: PasskeyAnswer | null;
     try {
-      const answer = await getPasskey(fresh);
-      if (answer) return await finish(answer, false);
-      onError(i18n.t("auth:passkeySignInCancelled"));
+      answer = await getPasskey(fresh);
     } catch (err) {
       onError(messageFor(err));
-    } finally {
-      pressing.current = false;
+      hold(false);
+      return;
     }
-    setBusy(false);
+    if (answer) return finish(answer, false);
+    onError(i18n.t("auth:passkeySignInCancelled"));
+    hold(false);
   }
 
   return {
